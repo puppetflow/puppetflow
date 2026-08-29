@@ -3,8 +3,8 @@ import styled from 'styled-components';
 export const Toolbar = styled.div`
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    height: 47px;
+    justify-content: space-between;    
+    min-height: 47px;
     box-sizing: border-box;
     padding: 8px 16px;
     border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};

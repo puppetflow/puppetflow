@@ -9,11 +9,13 @@ const FOCUSABLE_INPUT_SELECTOR = [
     'input:not([type]):not([disabled])',
 ].join(', ');
 
-function focusModal(container: HTMLDivElement) {
-    const input = container.querySelector<HTMLInputElement>(FOCUSABLE_INPUT_SELECTOR);
-    if (input) {
-        input.focus();
-        return;
+function focusModal(container: HTMLDivElement, autoFocusInput: boolean) {
+    if (autoFocusInput) {
+        const input = container.querySelector<HTMLInputElement>(FOCUSABLE_INPUT_SELECTOR);
+        if (input) {
+            input.focus();
+            return;
+        }
     }
 
     const footerButtons = container.querySelectorAll<HTMLButtonElement>('[data-modal-footer] button:not([disabled])');
@@ -30,6 +32,7 @@ export function useModalLifecycle(
     isOpen: boolean,
     onClose: () => void,
     containerRef: RefObject<HTMLDivElement | null>,
+    autoFocusInput = true,
 ) {
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
@@ -54,12 +57,12 @@ export function useModalLifecycle(
         document.addEventListener('keydown', handleEscape);
         const focusFrame = window.requestAnimationFrame(() => {
             const container = containerRef.current;
-            if (container) focusModal(container);
+            if (container) focusModal(container, autoFocusInput);
         });
 
         return () => {
             document.removeEventListener('keydown', handleEscape);
             window.cancelAnimationFrame(focusFrame);
         };
-    }, [isOpen, containerRef]);
+    }, [isOpen, containerRef, autoFocusInput]);
 }

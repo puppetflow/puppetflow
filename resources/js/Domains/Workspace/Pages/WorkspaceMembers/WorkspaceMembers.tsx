@@ -1,14 +1,18 @@
-import { Icon } from '@/Shared/UI/Icon/Icon';
 import AppLayout from '@/App/Layout/AppLayout/AppLayout';
 import { usePageProps } from '@/App/Hooks/usePageProps';
 import FeatureUnavailablePanel from '@/Domains/Licensing/Components/FeatureFlags/FeatureUnavailablePanel/FeatureUnavailablePanel';
 import type { Workspace, WorkspaceUser } from '@/Domains/Workspace/types';
+import PageTabs, { type PageTabItem } from '@/Shared/UI/SettingsTabs/PageTabs';
 import MemberListCard from './MemberListCard/MemberListCard';
 import TeamsCard from '@proprietary/Domains/Workspace/Pages/WorkspaceMembers/TeamsCard/TeamsCard.pp';
-import { SettingsTabsScroller, SettingsTabs, SettingsTab } from '@/Shared/UI/SettingsTabs/styled';
-import type { PendingInvitation, RegistrationRequest, Team } from './types';
+import type { MembersTab, PendingInvitation, RegistrationRequest, Team } from './types';
 import { useWorkspaceMembersTab } from './useWorkspaceMembersTab';
 import * as S from './styled';
+
+const memberTabs: PageTabItem<MembersTab>[] = [
+    { value: 'users', label: 'Users', icon: 'lucide:users' },
+    { value: 'teams', label: 'Teams', icon: 'lucide:users-round' },
+];
 
 export type { PendingInvitation, RegistrationRequest, Team, TeamUser } from './types';
 export { formatDate, menuPositionFromEvent } from './utils';
@@ -38,18 +42,12 @@ export default function WorkspaceMembers({
 
     return (
         <AppLayout title="Workspace Members">
-            <SettingsTabsScroller>
-                <SettingsTabs>
-                    <SettingsTab $active={activeTab === 'users'} onClick={() => handleTabChange('users')}>
-                        <Icon icon="lucide:users" width={14} height={14} />
-                        Users
-                    </SettingsTab>
-                    <SettingsTab $active={activeTab === 'teams'} onClick={() => handleTabChange('teams')}>
-                        <Icon icon="lucide:users-round" width={14} height={14} />
-                        Teams
-                    </SettingsTab>
-                </SettingsTabs>
-            </SettingsTabsScroller>
+            <PageTabs
+                tabs={memberTabs}
+                activeTab={activeTab}
+                ariaLabel="Workspace member sections"
+                onTabChange={handleTabChange}
+            />
 
             <S.Page>
                 {activeTab === 'users' && (

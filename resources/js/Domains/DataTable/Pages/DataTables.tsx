@@ -331,18 +331,6 @@ export default function DataTables({
         >
             <S.Page>
                 {error && <S.ErrorBanner role="alert">{error}</S.ErrorBanner>}
-                <S.MobileNav aria-label="Data table panes">
-                    {(['tables', 'data'] as const).map(pane => (
-                        <S.MobileNavButton
-                            key={pane}
-                            type="button"
-                            $active={mobilePane === pane}
-                            onClick={() => setMobilePane(pane)}
-                        >
-                            {pane === 'tables' ? 'Data Tables' : 'Data'}
-                        </S.MobileNavButton>
-                    ))}
-                </S.MobileNav>
                 <S.Container>
                     <S.Panel $width="340px" $mobileVisible={mobilePane === 'tables'}>
                         <S.PanelHeader>
@@ -524,6 +512,26 @@ export default function DataTables({
                         </S.GridPanel>
                     )}
                 </S.Container>
+                <S.MobileNav aria-label="Data table panes">
+                    <S.MobileNavButton
+                        type="button"
+                        $active={mobilePane === 'tables'}
+                        aria-pressed={mobilePane === 'tables'}
+                        onClick={() => setMobilePane('tables')}
+                    >
+                        <Icon icon="lucide:table" />
+                        <span>Table</span>
+                    </S.MobileNavButton>
+                    <S.MobileNavButton
+                        type="button"
+                        $active={mobilePane === 'data'}
+                        aria-pressed={mobilePane === 'data'}
+                        onClick={() => setMobilePane('data')}
+                    >
+                        <Icon icon="lucide:database" />
+                        <span>Data</span>
+                    </S.MobileNavButton>
+                </S.MobileNav>
             </S.Page>
             <DataTableModal
                 dataTable={editingTable}

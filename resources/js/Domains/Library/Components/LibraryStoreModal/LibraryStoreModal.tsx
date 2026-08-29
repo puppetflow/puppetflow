@@ -7,6 +7,7 @@ import { useLibraryStoreItems } from './useLibraryStoreItems';
 import { useLibraryStoreMutations } from './useLibraryStoreMutations';
 import { useLibraryStoreSelection } from './useLibraryStoreSelection';
 import type { LibraryTeamOption } from './types';
+import * as S from './styled';
 
 export {
     closeLibraryStoreQuery,
@@ -38,8 +39,9 @@ export default function LibraryStoreModal({ isOpen, onClose, teams = [] }: Props
             title="Blueprints"
             caption="Import flows and snippets from public Puppetflow blueprints."
             fullScreen
+            autoFocusInput={false}
         >
-            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 20, display: 'flex', flexDirection: 'column' }}>
+            <S.StoreContent>
                 {selection.activeItem ? (
                     <LibraryBlueprintDetail
                         item={selection.activeItem}
@@ -72,7 +74,7 @@ export default function LibraryStoreModal({ isOpen, onClose, teams = [] }: Props
                         onExplore={selection.explore}
                     />
                 )}
-            </div>
+            </S.StoreContent>
             {selection.pendingUse && (
                 <LibraryUseItemModal
                     isOpen

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { usePage } from '@inertiajs/react';
-import { Icon } from '@/Shared/UI/Icon/Icon';
 import AppLayout from '@/App/Layout/AppLayout/AppLayout';
 import type { PageProps } from '@/App/types';
-import { SettingsTabsScroller, SettingsTabs, SettingsTab } from '@/Shared/UI/SettingsTabs/styled';
+import PageTabs, { type PageTabItem } from '@/Shared/UI/SettingsTabs/PageTabs';
 import BrandingSection from '@proprietary/Domains/Admin/Pages/Server/BrandingSection.pp';
 import SsoSection from '@proprietary/Domains/Admin/Pages/Server/SsoSection.pp';
 import GeneralContent from './GeneralContent/GeneralContent';
@@ -19,6 +18,16 @@ export default function Server({ serverSettings, license, about, storage, sso, s
             ? 'general'
             : getInitialTab(window.location.search, settings.whitelabel_enabled, settings.sso_enabled),
     );
+    const tabs: PageTabItem<ServerTab>[] = [
+        { value: 'general', label: 'General', icon: 'lucide:settings' },
+        { value: 'license', label: 'License', icon: 'lucide:key-round' },
+        ...(settings.whitelabel_enabled
+            ? [{ value: 'branding' as const, label: 'Branding', icon: 'lucide:palette' }]
+            : []),
+        ...(settings.sso_enabled
+            ? [{ value: 'sso' as const, label: 'SSO', icon: 'lucide:shield-check' }]
+            : []),
+    ];
 
     const handleTabChange = (tab: ServerTab) => {
         setActiveTab(tab);
@@ -34,30 +43,12 @@ export default function Server({ serverSettings, license, about, storage, sso, s
 
     return (
         <AppLayout title="Server">
-            <SettingsTabsScroller>
-                <SettingsTabs>
-                    <SettingsTab $active={activeTab === 'general'} onClick={() => handleTabChange('general')}>
-                        <Icon icon="lucide:settings" width={14} height={14} />
-                        General
-                    </SettingsTab>
-                    <SettingsTab $active={activeTab === 'license'} onClick={() => handleTabChange('license')}>
-                        <Icon icon="lucide:key-round" width={14} height={14} />
-                        License
-                    </SettingsTab>
-                    {settings.whitelabel_enabled && (
-                        <SettingsTab $active={activeTab === 'branding'} onClick={() => handleTabChange('branding')}>
-                            <Icon icon="lucide:palette" width={14} height={14} />
-                            Branding
-                        </SettingsTab>
-                    )}
-                    {settings.sso_enabled && (
-                        <SettingsTab $active={activeTab === 'sso'} onClick={() => handleTabChange('sso')}>
-                            <Icon icon="lucide:shield-check" width={14} height={14} />
-                            SSO
-                        </SettingsTab>
-                    )}
-                </SettingsTabs>
-            </SettingsTabsScroller>
+            <PageTabs
+                tabs={tabs}
+                activeTab={activeTab}
+                ariaLabel="Server settings sections"
+                onTabChange={handleTabChange}
+            />
 
             {(flash?.success || flash?.error) && (
                 <S.FlashStack>

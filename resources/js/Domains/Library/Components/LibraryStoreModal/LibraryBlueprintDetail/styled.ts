@@ -35,6 +35,11 @@ export const DetailView = styled.div`
     gap: 18px;
     flex: 1;
     min-height: 0;
+    min-width: 0;
+
+    @media (max-width: 768px) {
+        gap: 12px;
+    }
 `;
 
 export const BackButton = styled.button`
@@ -65,6 +70,12 @@ export const DetailHeader = styled.div<{ $color?: string }>`
     background:
         radial-gradient(circle at top right, ${({ $color }) => $color || '#16a34a'}26, transparent 42%),
         ${({ theme }) => theme.colors.bg.secondary};
+
+    @media (max-width: 600px) {
+        grid-template-columns: 56px minmax(0, 1fr);
+        gap: 12px;
+        padding: 14px;
+    }
 `;
 
 export const DetailIcon = styled(IconBox)`
@@ -75,6 +86,16 @@ export const DetailIcon = styled(IconBox)`
     min-block-size: 76px;
     max-block-size: 76px;
     flex-basis: 76px;
+
+    @media (max-width: 600px) {
+        inline-size: 56px;
+        block-size: 56px;
+        min-inline-size: 56px;
+        max-inline-size: 56px;
+        min-block-size: 56px;
+        max-block-size: 56px;
+        flex-basis: 56px;
+    }
 `;
 
 export const DetailTitle = styled.h3`
@@ -82,6 +103,11 @@ export const DetailTitle = styled.h3`
     color: ${({ theme }) => theme.colors.text.primary};
     font-size: 24px;
     line-height: 1.2;
+    overflow-wrap: anywhere;
+
+    @media (max-width: 600px) {
+        font-size: 19px;
+    }
 `;
 
 export const DetailMeta = styled.div`
@@ -103,6 +129,11 @@ export const DetailStats = styled.div`
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
+
+    @media (max-width: 600px) {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
 `;
 
 export const Stat = styled.span`
@@ -308,6 +339,11 @@ export const DetailItem = styled.div`
     border-radius: ${({ theme }) => theme.radius.md};
     background: ${({ theme }) => theme.colors.bg.primary};
 
+    @media (max-width: 480px) {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
     strong {
         display: block;
         color: ${({ theme }) => theme.colors.text.primary};
@@ -327,6 +363,11 @@ export const ItemActions = styled.div`
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+
+    @media (max-width: 480px) {
+        width: 100%;
+        justify-content: flex-end;
+    }
 `;
 
 export const InlineError = styled.div`

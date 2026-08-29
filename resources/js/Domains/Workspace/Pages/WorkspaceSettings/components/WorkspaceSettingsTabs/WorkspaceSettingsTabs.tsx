@@ -1,5 +1,4 @@
-import { Icon } from '@/Shared/UI/Icon/Icon';
-import { SettingsTab, SettingsTabs, SettingsTabsScroller } from '@/Shared/UI/SettingsTabs/styled';
+import PageTabs, { type PageTabItem } from '@/Shared/UI/SettingsTabs/PageTabs';
 import type { WorkspaceSettingsTab } from './useWorkspaceSettingsTab';
 
 interface Props {
@@ -15,37 +14,34 @@ export default function WorkspaceSettingsTabs({
     mcpEnabled,
     onTabChange,
 }: Props) {
+    const tabs: PageTabItem<WorkspaceSettingsTab>[] = [
+        { value: 'general', label: 'General', icon: 'lucide:settings' },
+        { value: 'flows', label: 'Flows', icon: 'lucide:workflow' },
+        { value: 'proxies', label: 'Proxies', icon: 'lucide:network' },
+        ...(privateLibrariesEnabled
+            ? [{
+                value: 'private-libraries' as const,
+                label: 'Private Libraries',
+                mobileLabel: 'Libraries',
+                icon: 'lucide:git-branch',
+            }]
+            : []),
+        ...(mcpEnabled
+            ? [{
+                value: 'mcp' as const,
+                label: 'Instance MCP',
+                mobileLabel: 'MCP',
+                icon: 'lucide:plug-zap',
+            }]
+            : []),
+    ];
+
     return (
-        <SettingsTabsScroller>
-            <SettingsTabs>
-                <SettingsTab $active={activeTab === 'general'} onClick={() => onTabChange('general')}>
-                    <Icon icon="lucide:settings" width={14} height={14} />
-                    General
-                </SettingsTab>
-                <SettingsTab $active={activeTab === 'flows'} onClick={() => onTabChange('flows')}>
-                    <Icon icon="lucide:workflow" width={14} height={14} />
-                    Flows
-                </SettingsTab>
-                <SettingsTab $active={activeTab === 'proxies'} onClick={() => onTabChange('proxies')}>
-                    <Icon icon="lucide:network" width={14} height={14} />
-                    Proxies
-                </SettingsTab>
-                {privateLibrariesEnabled && (
-                    <SettingsTab
-                        $active={activeTab === 'private-libraries'}
-                        onClick={() => onTabChange('private-libraries')}
-                    >
-                        <Icon icon="lucide:git-branch" width={14} height={14} />
-                        Private Libraries
-                    </SettingsTab>
-                )}
-                {mcpEnabled && (
-                    <SettingsTab $active={activeTab === 'mcp'} onClick={() => onTabChange('mcp')}>
-                        <Icon icon="lucide:plug-zap" width={14} height={14} />
-                        Instance MCP
-                    </SettingsTab>
-                )}
-            </SettingsTabs>
-        </SettingsTabsScroller>
+        <PageTabs
+            tabs={tabs}
+            activeTab={activeTab}
+            ariaLabel="Workspace settings sections"
+            onTabChange={onTabChange}
+        />
     );
 }

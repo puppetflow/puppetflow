@@ -5,7 +5,7 @@ export const Toolbar = styled.div`
     display: flex;
     align-items: center;
     gap: 10px;
-    height: 47px;
+    min-height: 47px;
     box-sizing: border-box;
     padding: 8px 16px;
     border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};

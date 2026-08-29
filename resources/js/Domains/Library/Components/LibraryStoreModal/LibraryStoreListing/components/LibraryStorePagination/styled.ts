@@ -7,6 +7,11 @@ export const Pagination = styled.div`
     gap: 10px;
     padding-top: 14px;
     flex-shrink: 0;
+
+    @media (max-width: 480px) {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
 `;
 
 export const PageButton = styled.button`
@@ -40,4 +45,8 @@ export const PageSizeSelect = styled.select`
     font-size: 12px;
     font-weight: 700;
     outline: none;
+
+    @media (max-width: 360px) {
+        width: 100%;
+    }
 `;

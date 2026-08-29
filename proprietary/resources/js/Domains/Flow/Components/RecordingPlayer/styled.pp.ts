@@ -8,6 +8,10 @@ export const PlayerContainer = styled.div`
     background: #000;
     border-radius: 2px;
     outline: none;
+
+    @media (max-width: 768px) {
+        height: auto;
+    }
 `;
 
 export const PlayerBody = styled.div`

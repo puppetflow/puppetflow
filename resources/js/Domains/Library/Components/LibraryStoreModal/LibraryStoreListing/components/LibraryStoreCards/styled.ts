@@ -5,6 +5,12 @@ export const Grid = styled.div`
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
     align-content: start;
+    min-width: 0;
+
+    @media (max-width: 768px) {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
 `;
 
 export const Card = styled.div<{ $color?: string }>`
@@ -25,6 +31,12 @@ export const Card = styled.div<{ $color?: string }>`
     &:focus-visible {
         border-color: ${({ $color }) => $color || '#16a34a'}66;
         outline: none;
+    }
+
+    @media (max-width: 768px) {
+        height: auto;
+        min-height: 170px;
+        padding: 14px;
     }
 `;
 
@@ -130,6 +142,11 @@ export const Actions = styled.div`
     justify-content: space-between;
     gap: 8px;
     margin-top: auto;
+
+    @media (max-width: 420px) {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 `;
 
 export const FooterStats = styled.div`
@@ -137,6 +154,10 @@ export const FooterStats = styled.div`
     align-items: center;
     gap: 6px;
     margin-left: auto;
+
+    @media (max-width: 420px) {
+        margin-left: 0;
+    }
 `;
 
 export const FooterStat = styled.span`
@@ -233,6 +254,10 @@ export const CenterLoader = styled.div`
     color: ${({ theme }) => theme.colors.text.tertiary};
     font-size: 13px;
     font-weight: 700;
+
+    @media (max-width: 768px) {
+        min-height: min(240px, 35dvh);
+    }
 `;
 
 export const Spinner = styled.span`
