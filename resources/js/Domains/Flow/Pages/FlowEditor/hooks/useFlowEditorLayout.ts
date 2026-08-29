@@ -10,7 +10,7 @@ export function useFlowEditorLayout() {
         if (window.location.hash === '#code') return 'code';
 
         const stored = localStorage.getItem('flow-editor-left-view');
-        return stored === 'code' ? 'code' : 'welcome';
+        return stored === 'welcome' ? 'welcome' : 'code';
     });
     const [sidePanelOpen, setSidePanelOpen] = useState(() => {
         return localStorage.getItem('flow-editor-side-panel') !== 'closed';

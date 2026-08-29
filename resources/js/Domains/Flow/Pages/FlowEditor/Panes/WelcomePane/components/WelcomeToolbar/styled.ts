@@ -1,9 +1,12 @@
 import styled from 'styled-components';
+import { ToolbarBadge } from '@/Shared/CodeEditor/shared/toolbar.styled';
 
 export const Toolbar = styled.div`
     display: flex;
     align-items: center;
     gap: 10px;
+    height: 47px;
+    box-sizing: border-box;
     padding: 8px 16px;
     border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
     background: ${({ theme }) => theme.colors.bg.secondary};
@@ -61,25 +64,8 @@ export const ToolbarLabel = styled.span`
     flex: 1;
 `;
 
-export const SidePanelToggle = styled.button<{ $active?: boolean }>`
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 3px 7px;
-    border: 1px solid ${({ theme }) => theme.colors.border.default};
-    border-radius: ${({ theme }) => theme.radius.sm};
-    color: ${({ theme, $active }) =>
-        $active ? theme.colors.accent.primary : theme.colors.text.tertiary};
-    background: ${({ theme, $active }) =>
-        $active ? theme.colors.accent.primary + '15' : 'transparent'};
-    transition: color ${({ theme }) => theme.transition.fast}, background ${({ theme }) => theme.transition.fast};
-    cursor: pointer;
+export const SidePanelToggle = styled(ToolbarBadge)`
     margin-left: auto;
-
-    &:hover {
-        color: ${({ theme }) => theme.colors.accent.primary};
-        background: ${({ theme }) => theme.colors.accent.primary}10;
-    }
 
     @media (max-width: 768px) {
         display: none;
