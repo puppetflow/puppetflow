@@ -55,18 +55,18 @@ export function EditorToolbar({
                 {onSwitchView && (
                     <S.ViewToggle>
                         <S.ViewToggleTab
-                            $active={leftView === 'welcome'}
-                            onClick={() => onSwitchView('welcome')}
-                            title="Welcome"
-                        >
-                            <Icon icon="lucide:book-open" width={13} height={13} />
-                        </S.ViewToggleTab>
-                        <S.ViewToggleTab
                             $active={leftView === 'code'}
                             onClick={() => onSwitchView('code')}
                             title="Code editor"
                         >
                             <Icon icon="lucide:code-2" width={13} height={13} />
+                        </S.ViewToggleTab>
+                        <S.ViewToggleTab
+                            $active={leftView === 'welcome'}
+                            onClick={() => onSwitchView('welcome')}
+                            title="Welcome"
+                        >
+                            <Icon icon="lucide:book-open" width={13} height={13} />
                         </S.ViewToggleTab>
                     </S.ViewToggle>
                 )}

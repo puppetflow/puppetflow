@@ -60,18 +60,18 @@ export default function Toolbar({
                 {onSwitchView && (
                     <S.ViewToggle>
                         <S.ViewToggleTab
-                            $active={leftView === 'welcome'}
-                            onClick={() => onSwitchView('welcome')}
-                            title="Welcome"
-                        >
-                            <Icon icon="lucide:book-open" width={13} height={13} />
-                        </S.ViewToggleTab>
-                        <S.ViewToggleTab
                             $active={leftView === 'code'}
                             onClick={() => onSwitchView('code')}
                             title="Visual Builder"
                         >
                             <Icon icon="lucide:workflow" width={13} height={13} />
+                        </S.ViewToggleTab>
+                        <S.ViewToggleTab
+                            $active={leftView === 'welcome'}
+                            onClick={() => onSwitchView('welcome')}
+                            title="Welcome"
+                        >
+                            <Icon icon="lucide:book-open" width={13} height={13} />
                         </S.ViewToggleTab>
                     </S.ViewToggle>
                 )}

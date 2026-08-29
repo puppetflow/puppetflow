@@ -23,11 +23,11 @@ export default function WelcomeToolbar({
     return (
         <S.Toolbar>
             <S.ViewToggle>
-                <S.ViewToggleTab $active title="Welcome">
-                    <Icon icon="lucide:book-open" width={13} height={13} />
-                </S.ViewToggleTab>
                 <S.ViewToggleTab $active={false} onClick={onSwitchToCode} title={editorTitle}>
                     <Icon icon={editorIcon} width={13} height={13} />
+                </S.ViewToggleTab>
+                <S.ViewToggleTab $active title="Welcome">
+                    <Icon icon="lucide:book-open" width={13} height={13} />
                 </S.ViewToggleTab>
             </S.ViewToggle>
             <S.ToolbarLabel>{flowName}.{fileExtension}</S.ToolbarLabel>
@@ -39,8 +39,8 @@ export default function WelcomeToolbar({
                 >
                     <Icon
                         icon={sidePanelOpen ? 'lucide:panel-right-close' : 'lucide:panel-right-open'}
-                        width={13}
-                        height={13}
+                        width={14}
+                        height={14}
                     />
                 </S.SidePanelToggle>
             )}
