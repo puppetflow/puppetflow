@@ -100,6 +100,10 @@ export const Actions = styled.div`
     ${Row}:hover & {
         display: flex;
     }
+
+    @media (hover: none) {
+        display: flex;
+    }
 `;
 
 export const ActionButton = styled.button<{ $danger?: boolean }>`

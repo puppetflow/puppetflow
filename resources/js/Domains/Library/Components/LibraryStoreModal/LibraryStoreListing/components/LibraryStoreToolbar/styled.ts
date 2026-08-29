@@ -7,12 +7,23 @@ export const Toolbar = styled.div`
     gap: 12px;
     margin-bottom: 16px;
     flex-shrink: 0;
+
+    @media (max-width: 768px) {
+        align-items: stretch;
+        flex-direction: column-reverse;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
 `;
 
 export const ToolbarRight = styled.div`
     display: flex;
     align-items: center;
     gap: 8px;
+
+    @media (max-width: 768px) {
+        width: 100%;
+    }
 `;
 
 export const SearchBox = styled.div`
@@ -25,6 +36,11 @@ export const SearchBox = styled.div`
     border-radius: ${({ theme }) => theme.radius.md};
     background: ${({ theme }) => theme.colors.bg.secondary};
     color: ${({ theme }) => theme.colors.text.tertiary};
+
+    @media (max-width: 768px) {
+        min-width: 0;
+        flex: 1;
+    }
 `;
 
 export const SearchInput = styled.input`
@@ -43,6 +59,16 @@ export const SortTabs = styled.div`
     border: 1px solid ${({ theme }) => theme.colors.border.default};
     border-radius: ${({ theme }) => theme.radius.md};
     background: ${({ theme }) => theme.colors.bg.secondary};
+
+    @media (max-width: 768px) {
+        width: 100%;
+        overflow-x: auto;
+        scrollbar-width: none;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
+    }
 `;
 
 export const SortTab = styled.button<{ $active?: boolean }>`
@@ -54,4 +80,9 @@ export const SortTab = styled.button<{ $active?: boolean }>`
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
+
+    @media (max-width: 768px) {
+        flex: 1 0 auto;
+    }
 `;

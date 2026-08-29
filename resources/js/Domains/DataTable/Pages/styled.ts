@@ -58,22 +58,43 @@ export const MobileNav = styled.nav`
     display: none;
 
     @media (max-width: 768px) {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        padding: 6px;
-        border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
-        gap: 4px;
+        display: flex;
+        height: 52px;
+        min-height: 52px;
+        flex-shrink: 0;
+        border-top: 1px solid ${({ theme }) => theme.colors.border.default};
+        background: ${({ theme }) => theme.colors.bg.secondary};
     }
 `;
 
 export const MobileNavButton = styled.button<{ $active: boolean }>`
-    padding: 7px;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0;
     border: 0;
-    border-radius: ${({ theme }) => theme.radius.sm};
-    background: ${({ $active, theme }) => $active ? theme.colors.bg.hover : 'transparent'};
-    color: ${({ $active, theme }) => $active ? theme.colors.text.primary : theme.colors.text.tertiary};
-    font-size: 11px;
-    font-weight: 600;
+    background: transparent;
+    color: ${({ $active, theme }) => $active ? theme.colors.accent.primary : theme.colors.text.tertiary};
+    cursor: pointer;
+    transition: color ${({ theme }) => theme.transition.fast};
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    span {
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1;
+    }
+
+    &:active {
+        color: ${({ theme }) => theme.colors.accent.primary};
+    }
 `;
 
 export const PanelHeader = styled.header`
@@ -270,6 +291,10 @@ export const RowActions = styled.span`
     margin-left: 6px;
     ${ListRow}:hover &,
     ${TableListRow}:hover & {
+        display: flex;
+    }
+
+    @media (hover: none) {
         display: flex;
     }
 `;

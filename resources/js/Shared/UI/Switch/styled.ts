@@ -50,4 +50,5 @@ export const Thumb = styled.span<{ $checked: boolean }>`
 export const Label = styled.span`
     font-size: 13px;
     color: ${({ theme }) => theme.colors.text.primary};
+    text-align: left;
 `;

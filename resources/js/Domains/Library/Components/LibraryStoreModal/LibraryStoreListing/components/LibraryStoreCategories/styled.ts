@@ -4,6 +4,17 @@ export const Categories = styled.div`
     display: flex;
     flex-direction: column;
     gap: 6px;
+
+    @media (max-width: 820px) {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
+    }
 `;
 
 export const CategoryButton = styled.button<{ $active?: boolean }>`
@@ -18,4 +29,9 @@ export const CategoryButton = styled.button<{ $active?: boolean }>`
     color: ${({ $active, theme }) => $active ? theme.colors.accent.primary : theme.colors.text.secondary};
     cursor: pointer;
     text-align: left;
+
+    @media (max-width: 820px) {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
 `;

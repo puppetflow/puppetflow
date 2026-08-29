@@ -17,6 +17,12 @@ export const Overlay = styled.div<{ $transparent?: boolean; $zIndex?: number }>`
         from { opacity: 0; }
         to { opacity: 1; }
     }
+
+    @media (max-width: 768px) {
+        padding: 0;
+        backdrop-filter: none;
+        animation: none;
+    }
 `;
 
 export const Container = styled.div<{ $width?: string; $fullScreen?: boolean }>`
@@ -33,12 +39,26 @@ export const Container = styled.div<{ $width?: string; $fullScreen?: boolean }>`
     overflow: ${({ $fullScreen }) => $fullScreen ? 'hidden' : 'visible'};
     flex-shrink: 0;
     margin: auto 0;
+    min-width: 0;
     outline: none;
     animation: slideUp 200ms ease;
 
     @keyframes slideUp {
         from { transform: translateY(10px); opacity: 0; }
         to { transform: translateY(0); opacity: 1; }
+    }
+
+    @media (max-width: 768px) {
+        width: ${({ $fullScreen, $width }) => $fullScreen ? '100%' : ($width || '480px')};
+        max-width: ${({ $fullScreen }) => $fullScreen ? '100%' : 'calc(100% - 24px)'};
+        height: ${({ $fullScreen }) => $fullScreen ? '100vh' : 'auto'};
+        height: ${({ $fullScreen }) => $fullScreen ? '100dvh' : 'auto'};
+        max-height: ${({ $fullScreen }) => $fullScreen ? '100vh' : 'calc(100dvh - 24px)'};
+        max-height: ${({ $fullScreen }) => $fullScreen ? '100dvh' : 'calc(100dvh - 24px)'};
+        margin: ${({ $fullScreen }) => $fullScreen ? '0' : 'auto 0'};
+        border: ${({ $fullScreen }) => $fullScreen ? '0' : undefined};
+        border-radius: ${({ $fullScreen, theme }) => $fullScreen ? '0' : theme.radius.lg};
+        animation: none;
     }
 `;
 
@@ -71,6 +91,10 @@ export const Caption = styled.span`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    @media (max-width: 768px) {
+        white-space: normal;
+    }
 `;
 
 export const HeaderExtra = styled.div`
@@ -95,7 +119,12 @@ export const Body = styled.div<{ $fullScreen?: boolean }>`
     overflow-y: ${({ $fullScreen }) => $fullScreen ? 'hidden' : 'visible'};
     flex: ${({ $fullScreen }) => $fullScreen ? '1' : 'unset'};
     min-height: 0;
+    min-width: 0;
     ${({ $fullScreen }) => $fullScreen ? 'display: flex; flex-direction: column;' : ''}
+
+    @media (max-width: 768px) {
+        overflow-y: ${({ $fullScreen }) => $fullScreen ? 'hidden' : 'auto'};
+    }
 `;
 
 export const Footer = styled.div`

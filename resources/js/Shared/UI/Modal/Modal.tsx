@@ -15,14 +15,15 @@ interface ModalProps {
     transparentOverlay?: boolean;
     zIndex?: number;
     modalKind?: string;
+    autoFocusInput?: boolean;
     children: React.ReactNode;
     footer?: React.ReactNode;
 }
 
-export default function Modal({ isOpen, onClose, title, caption, headerExtra, width, fullScreen, transparentOverlay, zIndex, modalKind, children, footer }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, caption, headerExtra, width, fullScreen, transparentOverlay, zIndex, modalKind, autoFocusInput, children, footer }: ModalProps) {
     const mouseDownOnOverlay = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    useModalLifecycle(isOpen, onClose, containerRef);
+    useModalLifecycle(isOpen, onClose, containerRef, autoFocusInput);
 
     if (!isOpen) return null;
 
