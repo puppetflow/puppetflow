@@ -17,15 +17,19 @@ use App\DTO\Library\LibrarySnippetItem;
 use App\Enums\Authorization\Ability;
 use App\Http\Controllers\Controller;
 use App\Models\Flow;
+use App\Models\FlowVersion;
 use App\Models\Snippet;
+use App\Models\SnippetVersion;
 use App\Models\User;
 use App\Models\WorkspaceTeam;
 use App\Rules\ValidNodalGraph;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Library\LibraryCatalogService;
 use App\Services\Library\LibrarySnippetReferenceRewriter;
+use App\Services\Snippet\SnippetVersionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -40,6 +44,7 @@ class SnippetController extends Controller
         private readonly ScopeEvaluator $scopeEvaluator,
         private readonly ResourceAssignmentValidator $assignments,
         private readonly LibrarySnippetReferenceRewriter $snippetReferences,
+        private readonly SnippetVersionService $snippetVersions,
     ) {}
 
     public function index(Request $request): Response
@@ -63,7 +68,7 @@ class SnippetController extends Controller
         $this->sharedVisibility->applyView($query, $context);
 
         $snippetModels = $query
-            ->with(['user:id,name', 'team:id,name'])
+            ->with(['user:id,name', 'team:id,name', 'publishedVersion'])
             ->orderBy('label')
             ->get();
 
@@ -148,22 +153,35 @@ class SnippetController extends Controller
         $ownerId = $user->id;
         $this->assignments->validate($workspaceId, $ownerId, $scope, $teamId, null, null);
 
-        $snippet = Snippet::create([
-            'workspace_id' => $workspaceId,
-            'user_id' => $user->id,
-            'label' => $validated['label'],
-            'description' => $validated['description'] ?? null,
-            'group' => isset($validated['group']) ? (trim($validated['group']) ?: null) : null,
-            'args' => $validated['args'] ?? '',
-            'code' => $validated['code'] ?? '',
-            'snippet_type' => $snippetType,
-            'nodal_graph' => $nodalGraph,
-            'scope' => $scope,
-            'team_id' => $teamId,
-            'is_active' => $validated['is_active'] ?? true,
-        ]);
+        $snippet = DB::transaction(function () use (
+            $workspaceId,
+            $user,
+            $validated,
+            $snippetType,
+            $nodalGraph,
+            $scope,
+            $teamId,
+        ): Snippet {
+            $snippet = Snippet::create([
+                'workspace_id' => $workspaceId,
+                'user_id' => $user->id,
+                'label' => $validated['label'],
+                'description' => $validated['description'] ?? null,
+                'group' => isset($validated['group']) ? (trim($validated['group']) ?: null) : null,
+                'args' => $validated['args'] ?? '',
+                'code' => $validated['code'] ?? '',
+                'snippet_type' => $snippetType,
+                'nodal_graph' => $nodalGraph,
+                'scope' => $scope,
+                'team_id' => $teamId,
+                'is_active' => $validated['is_active'] ?? true,
+            ]);
+            $this->snippetVersions->publish($snippet, $user->id);
 
-        $snippet->load('user:id,name', 'team:id,name');
+            return $snippet;
+        }, 3);
+
+        $snippet->load('user:id,name', 'team:id,name', 'publishedVersion');
         $this->injectOwnerWorkspaceRoles([$snippet], $workspaceId);
 
         return response()->json($snippet, 201);
@@ -180,7 +198,7 @@ class SnippetController extends Controller
             abort(422, 'Snippet type cannot be changed after creation.');
         }
 
-        /** @var array{label?: string, description?: string|null, group?: string|null, args?: string|null, code?: string|null, nodal_graph?: array<mixed>|null, scope?: string, team_id?: string|null, user_id?: string|null, is_active?: bool} $validated */
+        /** @var array{label?: string, description?: string|null, group?: string|null, args?: string|null, code?: string|null, nodal_graph?: array<mixed>|null, scope?: string, team_id?: string|null, user_id?: string|null, is_active?: bool, client_updated_at?: string|null, force_current_version?: bool} $validated */
         $validated = $request->validate([
             'label' => 'sometimes|string|max:255',
             'description' => 'nullable|string|max:1000',
@@ -192,7 +210,10 @@ class SnippetController extends Controller
             'team_id' => 'nullable|string',
             'user_id' => 'nullable|string|exists:users,id',
             'is_active' => 'sometimes|boolean',
+            'client_updated_at' => 'sometimes|nullable|string',
+            'force_current_version' => 'sometimes|boolean',
         ]);
+        unset($validated['client_updated_at'], $validated['force_current_version']);
         if (array_key_exists('team_id', $validated)) {
             $validated['team_id'] = $this->resolveWorkspaceTeamId($validated['team_id'], $snippet->workspace_id);
         }
@@ -248,27 +269,55 @@ class SnippetController extends Controller
             unset($validated['nodal_graph']);
         }
 
-        DB::transaction(function () use (
+        $snippet = DB::transaction(function () use (
             $snippet,
+            $request,
             $validated,
             $ownerId,
             $targetScope,
             $targetTeamId,
-        ) {
+        ): Snippet {
+            $lockedSnippet = Snippet::query()->whereKey($snippet->id)->lockForUpdate()->firstOrFail();
+            $this->ensureCurrent($request, $lockedSnippet);
             $this->assignments->validate(
-                $snippet->workspace_id,
+                $lockedSnippet->workspace_id,
                 $ownerId,
                 $targetScope,
                 $targetTeamId,
                 null,
                 null,
             );
-            $snippet->update($validated);
-        });
-        $snippet->load('user:id,name', 'team:id,name');
+            $lockedSnippet->update($validated);
+
+            return $lockedSnippet;
+        }, 3);
+        $snippet->load('user:id,name', 'team:id,name', 'publishedVersion');
         $this->injectOwnerWorkspaceRoles([$snippet], $snippet->workspace_id);
 
         return response()->json($snippet);
+    }
+
+    public function publish(Request $request, Snippet $snippet): JsonResponse
+    {
+        $this->features()->abortIfDisabled('snippets_enabled');
+        $this->features()->abortIfStale($snippet);
+        abort_unless($snippet->workspace_id === $this->currentWorkspaceId(), 404);
+        Gate::authorize(Ability::UPDATE->value, $snippet);
+        abort_if($snippet->library_locked, 423, 'Duplicate this library snippet before publishing it.');
+        $request->validate(['client_updated_at' => 'sometimes|nullable|string']);
+
+        $version = DB::transaction(function () use ($request, $snippet) {
+            $current = Snippet::query()->whereKey($snippet->id)->lockForUpdate()->firstOrFail();
+            $this->ensureCurrent($request, $current);
+
+            return $this->snippetVersions->publish($current, $request->user()?->id);
+        }, 3);
+
+        return response()->json([
+            'published_version_id' => $version->id,
+            'published_version' => $version->version,
+            'published_at' => $version->published_at->toJSON(),
+        ]);
     }
 
     public function destroy(Request $request, Snippet $snippet): JsonResponse
@@ -368,20 +417,24 @@ class SnippetController extends Controller
             $blueprint instanceof LibraryBlueprint ? $blueprint->snippets : [],
         );
 
-        DB::transaction(function () use ($snippet, $item, $code, $nodalGraph): void {
-            $snippet->update([
+        $snippet = DB::transaction(function () use ($snippet, $item, $code, $nodalGraph, $user): Snippet {
+            $lockedSnippet = Snippet::query()->whereKey($snippet->id)->lockForUpdate()->firstOrFail();
+            $lockedSnippet->update([
                 'args' => $item->args,
                 'code' => $code,
                 'snippet_type' => $item->snippetType,
                 'nodal_graph' => $nodalGraph,
-                'library_source_path' => $item->sourcePath ?: $snippet->library_source_path,
-                'library_source_sha' => $item->sourceSha ?: $snippet->library_source_sha,
-                'library_source_url' => $item->sourceUrl ?: $snippet->library_source_url,
+                'library_source_path' => $item->sourcePath ?: $lockedSnippet->library_source_path,
+                'library_source_sha' => $item->sourceSha ?: $lockedSnippet->library_source_sha,
+                'library_source_url' => $item->sourceUrl ?: $lockedSnippet->library_source_url,
                 'library_imported_at' => now(),
             ]);
-        });
+            $this->snippetVersions->publish($lockedSnippet, $user->id);
 
-        $snippet->load('user:id,name', 'team:id,name');
+            return $lockedSnippet;
+        }, 3);
+
+        $snippet->load('user:id,name', 'team:id,name', 'publishedVersion');
         $this->injectOwnerWorkspaceRoles(collect([$snippet]), $snippet->workspace_id);
         $this->withLibraryUpdateState($snippet, $catalog);
 
@@ -418,19 +471,31 @@ class SnippetController extends Controller
 
         $query = Snippet::query()
             ->where('is_active', true)
-            ->where('stale', false);
+            ->where('stale', false)
+            ->whereNotNull('published_version_id')
+            ->with('publishedVersion');
         $this->sharedVisibility->applyUse($query, $context);
         $snippets = $query
             ->orderBy('label')
-            ->get(['id', 'label', 'args', 'description']);
+            ->get(['id', 'label', 'description', 'published_version_id']);
 
-        return response()->json($snippets->map(fn ($s) => [
-            'id' => $s->id,
-            'label' => $s->label,
-            'args' => $s->args ?? '',
-            'description' => $s->description,
-            'edit_url' => route('snippets.index', ['s' => $s->id], false),
-        ])->values());
+        return response()->json($snippets
+            ->map(function (Snippet $snippet): ?array {
+                $version = $snippet->publishedVersion;
+                if (! $version) {
+                    return null;
+                }
+
+                return [
+                    'id' => $snippet->id,
+                    'label' => $snippet->label,
+                    'args' => $version->args ?? '',
+                    'description' => $snippet->description,
+                    'edit_url' => route('snippets.index', ['s' => $snippet->id], false),
+                ];
+            })
+            ->filter()
+            ->values());
     }
 
     public function export(Request $request): JsonResponse
@@ -454,24 +519,34 @@ class SnippetController extends Controller
         $query = Snippet::query()
             ->where('is_active', true)
             ->where('stale', false)
+            ->whereNotNull('published_version_id')
+            ->with('publishedVersion')
             ->whereIn('id', $references);
         $this->sharedVisibility->applyUse($query, $context);
         $snippets = $query
-            ->get(['id', 'label', 'args', 'description', 'code', 'snippet_type', 'nodal_graph'])
+            ->get(['id', 'label', 'description', 'published_version_id'])
             ->keyBy('id');
 
         return response()->json(collect($references)
             ->map(fn ($reference) => $snippets->get($reference))
             ->filter()
-            ->map(fn (Snippet $snippet) => [
-                'id' => $snippet->id,
-                'label' => $snippet->label,
-                'args' => $snippet->args ?? '',
-                'description' => $snippet->description,
-                'code' => $snippet->code ?? '',
-                'snippet_type' => $snippet->snippet_type ?? 'code',
-                'nodal_graph' => $snippet->nodal_graph,
-            ])
+            ->map(function (Snippet $snippet): ?array {
+                $version = $snippet->publishedVersion;
+                if (! $version) {
+                    return null;
+                }
+
+                return [
+                    'id' => $snippet->id,
+                    'label' => $snippet->label,
+                    'args' => $version->args ?? '',
+                    'description' => $snippet->description,
+                    'code' => $version->code ?? '',
+                    'snippet_type' => $version->snippet_type,
+                    'nodal_graph' => $version->nodal_graph,
+                ];
+            })
+            ->filter()
             ->values());
     }
 
@@ -500,9 +575,11 @@ class SnippetController extends Controller
         $patterns = $this->snippetRefPatterns($snippet->id);
 
         $flows = Flow::where('workspace_id', $snippet->workspace_id)
+            ->with('publishedVersion')
             ->where(fn ($query) => $query->whereNotNull('code')->orWhereNotNull('nodal_graph'))
             ->get([
                 'id', 'name', 'code', 'nodal_graph',
+                'published_version_id',
                 'workspace_id', 'owner_id', 'visibility', 'team_id',
                 'icon_type', 'icon_value', 'icon_color', 'icon_upload_path',
             ]);
@@ -514,10 +591,21 @@ class SnippetController extends Controller
             if (! $user->can(Ability::VIEW->value, $flow)) {
                 continue;
             }
+            $publishedVersion = $flow->getRelation('publishedVersion');
+            $publishedCode = $publishedVersion instanceof FlowVersion ? $publishedVersion->code : null;
+            $publishedNodalGraph = $publishedVersion instanceof FlowVersion ? $publishedVersion->nodal_graph : null;
 
             foreach ($patterns as $pattern) {
                 $graph = is_array($flow->nodal_graph) ? (json_encode($flow->nodal_graph) ?: '') : '';
-                if (preg_match($pattern, $flow->code ?? '') === 1 || preg_match($pattern, $graph) === 1) {
+                $publishedGraph = is_array($publishedNodalGraph)
+                    ? (json_encode($publishedNodalGraph) ?: '')
+                    : '';
+                if (
+                    preg_match($pattern, $flow->code ?? '') === 1
+                    || preg_match($pattern, $graph) === 1
+                    || preg_match($pattern, $publishedCode ?? '') === 1
+                    || preg_match($pattern, $publishedGraph) === 1
+                ) {
                     $flowUsages[] = [
                         'type' => 'flow',
                         'flow_id' => $flow->id,
@@ -533,20 +621,32 @@ class SnippetController extends Controller
         }
 
         $otherSnippets = Snippet::where('workspace_id', $snippet->workspace_id)
+            ->with('publishedVersion')
             ->where('id', '!=', $snippet->id)
             ->where('stale', false)
             ->where(fn ($query) => $query->whereNotNull('code')->orWhereNotNull('nodal_graph'))
-            ->get(['id', 'label', 'code', 'nodal_graph', 'workspace_id', 'user_id', 'scope', 'team_id']);
+            ->get(['id', 'label', 'code', 'nodal_graph', 'published_version_id', 'workspace_id', 'user_id', 'scope', 'team_id']);
 
         $snippetUsages = [];
         foreach ($otherSnippets as $other) {
             if (! $user->can(Ability::VIEW->value, $other)) {
                 continue;
             }
+            $publishedVersion = $other->getRelation('publishedVersion');
+            $publishedCode = $publishedVersion instanceof SnippetVersion ? $publishedVersion->code : null;
+            $publishedNodalGraph = $publishedVersion instanceof SnippetVersion ? $publishedVersion->nodal_graph : null;
 
             foreach ($patterns as $pattern) {
                 $graph = is_array($other->nodal_graph) ? (json_encode($other->nodal_graph) ?: '') : '';
-                if (preg_match($pattern, $other->code ?? '') === 1 || preg_match($pattern, $graph) === 1) {
+                $publishedGraph = is_array($publishedNodalGraph)
+                    ? (json_encode($publishedNodalGraph) ?: '')
+                    : '';
+                if (
+                    preg_match($pattern, $other->code ?? '') === 1
+                    || preg_match($pattern, $graph) === 1
+                    || preg_match($pattern, $publishedCode ?? '') === 1
+                    || preg_match($pattern, $publishedGraph) === 1
+                ) {
                     $snippetUsages[] = [
                         'type' => 'snippet',
                         'id' => $other->id,
@@ -576,25 +676,43 @@ class SnippetController extends Controller
         $count = 0;
         $flows = Flow::query()
             ->where('workspace_id', $snippet->workspace_id)
+            ->with('publishedVersion')
             ->where(fn ($query) => $query->whereNotNull('code')->orWhereNotNull('nodal_graph'))
-            ->get(['code', 'nodal_graph']);
+            ->get(['code', 'nodal_graph', 'published_version_id']);
 
         foreach ($flows as $flow) {
-            if ($this->containsSnippetReference($flow->code, $flow->nodal_graph, $patterns)) {
+            $publishedVersion = $flow->getRelation('publishedVersion');
+            if (
+                $this->containsSnippetReference($flow->code, $flow->nodal_graph, $patterns)
+                || ($publishedVersion instanceof FlowVersion && $this->containsSnippetReference(
+                    $publishedVersion->code,
+                    $publishedVersion->nodal_graph,
+                    $patterns,
+                ))
+            ) {
                 $count++;
             }
         }
 
         $otherSnippets = Snippet::query()
             ->where('workspace_id', $snippet->workspace_id)
+            ->with('publishedVersion')
             ->where('id', '!=', $snippet->id)
             ->whereNotIn('id', $excludedSnippetIds)
             ->where('stale', false)
             ->where(fn ($query) => $query->whereNotNull('code')->orWhereNotNull('nodal_graph'))
-            ->get(['code', 'nodal_graph']);
+            ->get(['code', 'nodal_graph', 'published_version_id']);
 
         foreach ($otherSnippets as $other) {
-            if ($this->containsSnippetReference($other->code, $other->nodal_graph, $patterns)) {
+            $publishedVersion = $other->getRelation('publishedVersion');
+            if (
+                $this->containsSnippetReference($other->code, $other->nodal_graph, $patterns)
+                || ($publishedVersion instanceof SnippetVersion && $this->containsSnippetReference(
+                    $publishedVersion->code,
+                    $publishedVersion->nodal_graph,
+                    $patterns,
+                ))
+            ) {
                 $count++;
             }
         }
@@ -621,6 +739,28 @@ class SnippetController extends Controller
     private function features(): FeatureFlagService
     {
         return app(FeatureFlagService::class);
+    }
+
+    private function ensureCurrent(Request $request, Snippet $snippet): void
+    {
+        if ($request->boolean('force_current_version')) {
+            return;
+        }
+        $value = $request->input('client_updated_at');
+        if (! is_string($value) || $value === '') {
+            return;
+        }
+        try {
+            $client = Carbon::parse($value);
+        } catch (\Throwable) {
+            return;
+        }
+        $server = $snippet->content_updated_at ?? $snippet->updated_at;
+        if ($server && $server->gt($client)) {
+            throw ValidationException::withMessages([
+                'client_updated_at' => 'This snippet was updated by someone else. Reload the latest version before saving.',
+            ]);
+        }
     }
 
     private function validateNodalArguments(string $args): void

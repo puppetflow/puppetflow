@@ -241,6 +241,24 @@ export const SelectOptions = styled.div`
     gap: 2px;
 `;
 
+export const SelectOptionGroup = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 8px 4px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+
+    &:not(:first-child) {
+        margin-top: 5px;
+        padding-top: 9px;
+        border-top: 1px solid ${({ theme }) => theme.colors.border.default};
+    }
+`;
+
 export const SelectOption = styled.button<{ $active?: boolean; $selected?: boolean }>`
     width: 100%;
     min-width: 0;

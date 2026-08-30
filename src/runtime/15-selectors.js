@@ -260,10 +260,10 @@ const __validateElementGetters = function(getters) {
   return getters;
 };
 
-const __mapElementHandle = async function(handle, getters) {
+const __extractElementAttributes = async function(handle, getters) {
   if (!handle) return null;
   if (typeof handle.evaluate !== 'function') {
-    throw new TypeError('Map Element expects an ElementHandle.');
+    throw new TypeError('Extract Attribute expects an ElementHandle.');
   }
 
   return handle.evaluate((element, getterMap) => {
@@ -308,32 +308,30 @@ const __mapElementHandle = async function(handle, getters) {
 };
 
 /* @help Selectors
- * @sig $mapElement(handle, getters)
- * @desc Map an ElementHandle to an object of named, JSON-compatible values.
- * @nodal-desc Build a structured object from one element selected earlier in the flow.
+ * @sig $extractAttribute(selectorOrHandle, getters)
+ * @desc Extract named, JSON-compatible values from an element. Accepts a CSS selector string or an ElementHandle.
+ * @nodal-desc Extract attributes and values from an element selected by CSS selector or provided as an ElementHandle.
  * @nodal-output object
- * @nodal-param handle [object, required]: ElementHandle returned by Select or Select At Index.
+ * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle to extract from.
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
  */
-const $mapElement = async function(handle, getters) {
-  return __mapElementHandle(handle, __validateElementGetters(getters));
+const $extractAttribute = async function(selectorOrHandle, getters) {
+  const selection = await __internalSelect(selectorOrHandle, { continueOnError: true });
+  return __extractElementAttributes(selection ? selection.handle : null, __validateElementGetters(getters));
 };
 
 /* @help Selectors
- * @sig $mapManyElements(handles, getters)
- * @desc Map an array of ElementHandle to objects of named, JSON-compatible values.
- * @nodal-desc Build one structured object per element returned by Select Many.
+ * @sig $extractAttributes(selectorOrHandle, getters)
+ * @desc Extract named, JSON-compatible values from elements. Accepts a CSS selector string, an ElementHandle, or an array of ElementHandle.
+ * @nodal-desc Extract attributes and values from each element selected by CSS selector or provided as ElementHandles.
  * @nodal-output array<object>
- * @nodal-param handles [array, required]: ElementHandle array returned by Select Many.
+ * @nodal-param selectorOrHandle [string, selector]: CSS selector, ElementHandle, or ElementHandle array to extract from.
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
  */
-const $mapManyElements = async function(handles, getters) {
-  if (handles == null) return [];
-  if (!Array.isArray(handles)) {
-    throw new TypeError('Map Elements expects an array of ElementHandle.');
-  }
+const $extractAttributes = async function(selectorOrHandle, getters) {
+  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, index: -1 });
   const getterMap = __validateElementGetters(getters);
-  return Promise.all(handles.map(handle => __mapElementHandle(handle, getterMap)));
+  return Promise.all(handles.map(handle => __extractElementAttributes(handle, getterMap)));
 };
 
 /* @help Interaction

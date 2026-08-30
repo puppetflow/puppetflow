@@ -15,6 +15,7 @@ import {
     isObjectInput,
     NESTED_OBJECT_FIELD_META,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/utils/objectParameters';
+import LoggedMarkerConditionInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/LoggedMarkerConditionInput/LoggedMarkerConditionInput';
 import * as Shared from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/NodeParameters/shared.styled';
 import * as S from './styled';
 
@@ -121,6 +122,26 @@ export default function NestedValueEditor({
             </Shared.PickerButton>
         </Shared.PickerLabel>
     ) : labelSlot;
+
+    if (meta?.input === 'logged-marker-condition') {
+        return (
+            <S.ValueColumn>
+                <LoggedMarkerConditionInput
+                    meta={meta}
+                    value={field.value}
+                    outputData={outputData}
+                    autocompleteContext={autocompleteContext}
+                    currentSiteUrl={currentSiteUrl}
+                    flowId={flowId}
+                    readOnly={readOnly}
+                    invalid={invalid}
+                    errorMessage={errorMessage}
+                    onRemove={onRemove}
+                    onChange={onChange}
+                />
+            </S.ValueColumn>
+        );
+    }
 
     return (
         <S.ValueColumn>

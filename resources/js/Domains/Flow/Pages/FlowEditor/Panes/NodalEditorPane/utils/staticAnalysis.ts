@@ -12,7 +12,7 @@ import {
     setPreviewPathValue,
 } from './previewValues';
 import { SYSTEM_TERMINATE_POSITION } from './layout';
-import { getEntryByName } from './catalog';
+import { formatEntryLabel, getEntryByName } from './catalog';
 import {
     CODE_NODE_NAME,
     CODE_NODE_VALUE_KEY,
@@ -587,7 +587,7 @@ const upstreamInDependencyOrder = (
 const unresolvedNodeResultPreview = (node: NodalGraph['nodes'][number]) => {
     const label = node.label?.trim() || node.name || node.id;
     const entry = getEntryByName(node.name);
-    if (entry.name === '$mapElement' || entry.name === '$mapManyElements') {
+    if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {
         const getters = node.values?.getters;
         let keys: string[] = [];
         if (getters && typeof getters === 'object' && getters.mode === 'object') {
@@ -604,7 +604,7 @@ const unresolvedNodeResultPreview = (node: NodalGraph['nodes'][number]) => {
         }
         if (keys.length > 0) {
             const objectPreview = Object.fromEntries(keys.map(key => [key, `[Needs run: ${label}]`]));
-            return entry.name === '$mapManyElements' ? [objectPreview] : objectPreview;
+            return entry.name === '$extractAttributes' ? [objectPreview] : objectPreview;
         }
     }
     return createNodalOutputPreview(entry, label);
@@ -688,6 +688,15 @@ export function analyzeNodalAutocompleteContext(
     }
     const outputData: Record<string, unknown> = {};
     const nodeData: Record<string, unknown> = {};
+    const setNodeResult = (node: NodalGraph['nodes'][number], value: unknown) => {
+        Object.defineProperty(nodeData, node.id, {
+            value,
+            writable: true,
+            configurable: true,
+        });
+        nodeData[node.label?.trim() || formatEntryLabel(getEntryByName(node.name))] = value;
+        nodeData.last = value;
+    };
     const runData: Record<string, unknown> = {};
     const contextData: Record<string, unknown> = {
         ...defaults.contextData,
@@ -748,8 +757,7 @@ export function analyzeNodalAutocompleteContext(
                 contextData,
                 nodeData,
             }) : undefined;
-            nodeData[node.id] = value;
-            nodeData.last = value;
+            setNodeResult(node, value);
             collectSetVariableContext(node.values?.variables, new Set<string>(), runData, inputData, outputData, runData, contextData);
             return;
         }
@@ -763,8 +771,7 @@ export function analyzeNodalAutocompleteContext(
                 contextData,
                 nodeData,
             }) : undefined;
-            nodeData[node.id] = value;
-            nodeData.last = value;
+            setNodeResult(node, value);
             collectSetVariableContext(node.values?.variables, outputPaths, outputData, inputData, outputData, runData, contextData);
             return;
         }
@@ -776,16 +783,14 @@ export function analyzeNodalAutocompleteContext(
 
         if (node.name === CODE_NODE_NAME) {
             const previewValue = unresolvedNodeResultPreview(node);
-            nodeData[node.id] = previewValue;
-            nodeData.last = previewValue;
+            setNodeResult(node, previewValue);
             collectCodeRunAssignments(readFixedScalar(node.values?.[CODE_NODE_VALUE_KEY]), runData);
             return;
         }
 
         if (node.name === NO_OP_NODE_NAME) return;
 
-        nodeData[node.id] = unresolvedNodeResultPreview(node);
-        nodeData.last = nodeData[node.id];
+        setNodeResult(node, unresolvedNodeResultPreview(node));
         const rawOutputPath = readFixedScalar(node.values?.[NODE_RUN_OUTPUT_KEY]);
         const outputPath = isInternalNodeOutputKey(rawOutputPath, node.id) ? '' : rawOutputPath;
         setPreviewPathValue(runData, outputPath, unresolvedNodeResultPreview(node));

@@ -28,7 +28,11 @@ export default function GrabberOnboarding({
     }, [onClose]);
 
     return (
-        <S.Backdrop onMouseDown={onClose}>
+        <S.Backdrop
+            data-modal-overlay
+            data-modal-kind="grabber-onboarding"
+            onMouseDown={onClose}
+        >
             <S.Card
                 role="dialog"
                 aria-modal="true"

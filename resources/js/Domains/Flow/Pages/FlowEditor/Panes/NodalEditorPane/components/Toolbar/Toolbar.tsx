@@ -82,20 +82,20 @@ export default function Toolbar({
             </S.ToolbarLeft>
 
             <S.ToolbarRight>
-                {(!onPublish || !onUnpublish || typeof isPublished !== 'boolean')
+                {(!onViewTimeline || typeof isPublished !== 'boolean')
                     && !readOnly && onSave && saveButtonStyle === 'standard' && (
                     <Button type="button" size="sm" disabled={saved} onClick={onSave}>
                         Save
                     </Button>
                 )}
-                {(!onPublish || !onUnpublish || typeof isPublished !== 'boolean')
+                {(!onViewTimeline || typeof isPublished !== 'boolean')
                     && !readOnly && onSave && saveButtonStyle === 'toolbar' && (
                     <S.ToolbarBadge onClick={onSave} $disabled={saved} title="Save visual graph">
                         <Icon icon="lucide:save" />
                         <S.ToolbarBadgeLabel>Save</S.ToolbarBadgeLabel>
                     </S.ToolbarBadge>
                 )}
-                {typeof isPublished === 'boolean' && onPublish && onUnpublish && onViewTimeline && onSave && (
+                {typeof isPublished === 'boolean' && onViewTimeline && onSave && (
                     <PublicationMenu
                         isPublished={isPublished}
                         publishedVersion={publishedVersion}

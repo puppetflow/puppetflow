@@ -23,6 +23,7 @@ use App\Services\Library\BlueprintAppearanceService;
 use App\Services\Library\LibraryCatalogService;
 use App\Services\Library\LibraryExternalClient;
 use App\Services\Library\LibrarySnippetReferenceRewriter;
+use App\Services\Snippet\SnippetVersionService;
 use App\Services\Workspace\Identity\IdentityRows;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,7 @@ class LibraryController extends Controller
         private readonly BlueprintAppearanceService $appearance,
         private readonly LibrarySnippetReferenceRewriter $snippetReferences,
         private readonly IdentityRows $identityRows,
+        private readonly SnippetVersionService $snippetVersions,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -278,13 +280,14 @@ class LibraryController extends Controller
                 $workspaceId,
                 $user,
             );
-            $snippets->each(function (Snippet $snippet) use ($snippetRewrites): void {
+            $snippets->each(function (Snippet $snippet) use ($snippetRewrites, $user): void {
                 $snippet->update([
                     'code' => $this->snippetReferences->code($snippet->code ?? '', $snippetRewrites),
                     'nodal_graph' => $snippet->snippet_type === 'nodal'
                         ? $this->snippetReferences->graph($snippet->nodal_graph, $snippetRewrites)
                         : null,
                 ]);
+                $this->snippetVersions->publish($snippet, $user->id);
             });
             $flows = $selectedFlows
                 ->map(fn (LibraryFlowItem $item): Flow => $this->importFlow($item, $blueprint, $workspaceId, $user->id, $externalId, $overrides, $snippetRewrites))

@@ -13,8 +13,8 @@ interface PublicationMenuProps {
     publicationEditable?: boolean;
     savingPublication?: boolean;
     onSaveDraft: () => void;
-    onPublish: () => void;
-    onUnpublish: () => void;
+    onPublish?: () => void;
+    onUnpublish?: () => void;
     onViewTimeline: () => void;
 }
 
@@ -104,7 +104,7 @@ export default function PublicationMenu({
                         <Icon icon="lucide:history" />
                         View timeline
                     </S.MenuItem>
-                    {publicationEditable && (
+                    {publicationEditable && onPublish && (
                         <>
                             <S.Divider />
                             <S.MenuItem type="button" disabled={busy} onClick={() => run(onPublish)}>
@@ -119,7 +119,7 @@ export default function PublicationMenu({
                                 <Icon icon="lucide:save" />
                                 Save draft
                             </S.MenuItem>
-                            {isPublished && (
+                            {isPublished && onUnpublish && (
                                 <>
                                     <S.Divider />
                                     <S.MenuItem type="button" $danger disabled={busy} onClick={() => run(onUnpublish)}>

@@ -62,8 +62,8 @@ export const normalizeParameterValue = (value: RawNodeParameterValue | unknown):
                     keyMode: source.keyMode === 'fixed' || source.keyMode === 'expression'
                         ? source.keyMode
                         : undefined,
-                    valueType: typeof source.valueType === 'string' && ['string', 'number', 'dateTime', 'boolean', 'array', 'object'].includes(source.valueType)
-                        ? source.valueType as IfConditionCategory
+                    valueType: typeof source.valueType === 'string' && ['string', 'number', 'dateTime', 'boolean', 'array', 'object', 'code'].includes(source.valueType)
+                        ? source.valueType as ObjectFieldValueType
                         : undefined,
                     value: normalizeParameterValue(source.value),
                 };
@@ -318,6 +318,7 @@ const evaluateExpressionSource = (source: string, scope: { inputData: unknown; p
     const $page = scope.pageData ?? {};
     const $output = scope.outputData;
     const $nodes = scope.nodeData ?? {};
+    const $ = (nodeName: string) => isRecord($nodes) ? $nodes[nodeName] : undefined;
     const $run = scope.runData ?? {};
     const $context = scope.contextData ?? {};
     const $viewportWidth = isRecord($input) && typeof $input.$viewportWidth === 'number'
@@ -342,6 +343,7 @@ const evaluateExpressionSource = (source: string, scope: { inputData: unknown; p
         $viewportHeight,
         $now,
         $today,
+        $,
     };
     const render = new Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$now', '$today', '$scope', `with ($scope) { return (${source}); }`);
 

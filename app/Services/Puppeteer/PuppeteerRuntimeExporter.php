@@ -145,7 +145,11 @@ final class PuppeteerRuntimeExporter
             return '';
         }
 
-        $query = Snippet::query()->where('is_active', true)->where('stale', false);
+        $query = Snippet::query()
+            ->where('is_active', true)
+            ->where('stale', false)
+            ->whereNotNull('published_version_id')
+            ->with('publishedVersion');
         if ($allAccess) {
             $query->where('workspace_id', $flow->workspace_id);
         } else {
@@ -153,10 +157,14 @@ final class PuppeteerRuntimeExporter
         }
 
         $lines = [];
-        foreach ($query->get(['id', 'args', 'code']) as $snippet) {
+        foreach ($query->get(['id', 'published_version_id']) as $snippet) {
+            $version = $snippet->publishedVersion;
+            if (! $version) {
+                continue;
+            }
             $ref = preg_replace('/[^a-z0-9_]/i', '', $snippet->id);
-            $params = $snippet->args ?? '';
-            $body = $snippet->code ?? '';
+            $params = $version->args ?? '';
+            $body = $version->code ?? '';
             $lines[] = "const \$\${$ref} = async function({$params}) {\n{$body}\n};";
         }
 

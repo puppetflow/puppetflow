@@ -7,7 +7,7 @@ import type {
     CanvasEdge,
     CanvasNode,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import { reconnectDeletedLinearNodes } from './nodeActions.utils';
+import { reconnectDeletedLinearNodes, renameNodeValuesReferences } from './nodeActions.utils';
 
 interface UseNodeCrudActionsOptions {
     nodes: CanvasNode[];
@@ -58,12 +58,15 @@ export function useNodeCrudActions({
 
         const baseLabel = label.trim() || formatEntryLabel(currentNode.entry);
         const nextLabel = uniqueNodeLabel(baseLabel, nodes, nodeId);
-        if (nodeDisplayLabel(currentNode) === nextLabel) return;
+        const previousLabel = nodeDisplayLabel(currentNode);
+        if (previousLabel === nextLabel) return;
 
         recordHistory();
-        setNodes(current => current.map(node => node.id === nodeId
-            ? { ...node, label: nextLabel }
-            : node));
+        setNodes(current => current.map(node => ({
+            ...node,
+            ...(node.id === nodeId ? { label: nextLabel } : {}),
+            values: renameNodeValuesReferences(node.values, previousLabel, nextLabel),
+        })));
     }, [nodes, readOnly, recordHistory, setNodes]);
 
     const deleteNodes = useCallback((nodeIds: Iterable<string>) => {

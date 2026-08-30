@@ -25,7 +25,7 @@ export const FILE_HELPER_NAMES = [
     '$pdfGetText',
 ];
 
-const EXTRACT_DATA_HELPER_NAMES = ['$mapElement', '$mapManyElements', '$selectElement', '$selectManyElements', '$selectShadow', '$selectAtIndex'];
+const EXTRACT_DATA_HELPER_NAMES = ['$extractAttribute', '$extractAttributes', '$selectElement', '$selectManyElements', '$selectShadow', '$selectAtIndex'];
 const ADVANCED_EVAL_HELPER_NAMES = ['$bridgeEvaluate', '$injectScriptLibrary'];
 const BROWSER_HELPER_NAMES = ['$gotoUrl', '$gotoTab', '$screenshot', '$page', '$client', '$setViewport'];
 export const HIDDEN_TOOLBOX_ENTRY_NAMES = new Set(['$input', '$vars']);
@@ -83,7 +83,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Select elements, parse content, and transform values.',
         icon: 'lucide:scan-search',
         color: '#8b5cf6',
-        priority: ['$selectElement', '$selectAtIndex', '$selectManyElements', '$selectShadow', '$mapElement', '$mapManyElements'],
+        priority: ['$selectElement', '$selectAtIndex', '$selectManyElements', '$selectShadow', '$extractAttribute', '$extractAttributes'],
         match: entry => entry.category === 'Extract Data' || EXTRACT_DATA_HELPER_NAMES.includes(entry.name),
     },
     {

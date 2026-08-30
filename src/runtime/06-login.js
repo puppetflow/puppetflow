@@ -7,12 +7,14 @@
  * @nodal-param options.loginUrl [string, required]: URL of the login page.
  * @nodal-param options.loginRecipe [flow, required]: Flow used to perform the login.
  * @nodal-param options.loggedUrl [string, required]: URL to visit when checking whether the session is already logged in.
- * @nodal-param options.loggedMarkerCondition [code]: Condition evaluated in the page context that returns true when the logged-in page is detected.
- * @nodal-placeholder options.loggedMarkerCondition: async () => {
- *   const spans = Array.from(document.querySelectorAll('a[href="/logout"]'));
- *   return spans.length > 0;
+ * @nodal-param options.loggedMarkerCondition [object, logged-marker-condition]: Selector condition evaluated in the page context to detect the logged-in page.
+ * @nodal-param options.loggedMarkerCondition.selector [string, selector, required]: CSS selector used to find the logged-in marker.
+ * @nodal-param options.loggedMarkerCondition.operator [string]: Comparison applied to the number of matching elements. Defaults to exists.
+ * @nodal-param options.loggedMarkerCondition.count [number]: Expected element count used by count comparison operators.
+ * @nodal-param options.loggedMarkerConditionRaw [code]: Function evaluated directly in the flow context to detect the logged-in page. Use this raw variant when the check needs Puppetflow variables or helpers unavailable in the page context.
+ * @nodal-placeholder options.loggedMarkerConditionRaw: async () => {
+ *   return Boolean(await $page.$('a[href="/logout"]'));
  * }
- * @nodal-param options.loggedMarkerConditionRaw [boolean]: Condition evaluated directly in the flow context to detect the logged-in page. Use this raw variant when the check needs Puppetflow variables or helpers unavailable in the page context.
  * @nodal-one-of options.loggedMarkerCondition, options.loggedMarkerConditionRaw
  * @nodal-param options.loggedMarkerTimeout [number]: Maximum time to wait for the logged-in marker, in milliseconds.
  * @nodal-param options.password [string]: Password or expression used by the login recipe.
@@ -32,14 +34,47 @@ const $loginRemember = async function(options = {}) {
   };
   const opts = { ...defaultOptions, ...(options || {}) };
   const gotoOpts = { ...defaultOptions.gotoOptions, ...(opts.gotoOptions || {}) };
+  const markerConditionOperators = [
+    'exists',
+    'doesNotExist',
+    'equals',
+    'notEquals',
+    'greaterThan',
+    'greaterThanOrEqual',
+    'lessThan',
+    'lessThanOrEqual'
+  ];
+  const markerNumberOperators = markerConditionOperators.slice(2);
   if (!opts.loginUrl) {
     throw new Error('Login remember requires a loginUrl');
   }
   if (!opts.loginRecipe) {
     throw new Error('Login remember requires a loginRecipe function');
   }
+  if (opts.loggedMarkerCondition && opts.loggedMarkerConditionRaw) {
+    throw new Error('Login remember accepts only one logged marker condition');
+  }
   if (!opts.loggedMarkerCondition && !opts.loggedMarkerConditionRaw) {
-    throw new Error('Login remember requires a loggedMarkerCondition function returning a boolean');
+    throw new Error('Login remember requires a loggedMarkerCondition or loggedMarkerConditionRaw');
+  }
+  if (opts.loggedMarkerCondition) {
+    opts.loggedMarkerCondition = {
+      ...opts.loggedMarkerCondition,
+      operator: opts.loggedMarkerCondition.operator || 'exists'
+    };
+    const { selector, operator, count } = opts.loggedMarkerCondition;
+    if (typeof selector !== 'string' || !selector.trim()) {
+      throw new Error('Login remember loggedMarkerCondition requires a selector');
+    }
+    if (!markerConditionOperators.includes(operator)) {
+      throw new Error('Login remember loggedMarkerCondition has an invalid operator');
+    }
+    if (markerNumberOperators.includes(operator) && (!Number.isInteger(count) || count < 0)) {
+      throw new Error('Login remember loggedMarkerCondition requires a non-negative integer count');
+    }
+  }
+  if (opts.loggedMarkerConditionRaw && typeof opts.loggedMarkerConditionRaw !== 'function') {
+    throw new Error('Login remember loggedMarkerConditionRaw must be a function');
   }
   if (!opts.loggedUrl) {
     opts.loggedUrl = opts.url;
@@ -49,21 +84,34 @@ const $loginRemember = async function(options = {}) {
   await $gotoUrl(opts.loggedUrl, __getActiveTabName(), gotoOpts);
   const $waitForLoggedMarker = async function() {
     try {
-      if (opts.loggedMarkerConditionRaw !== null && opts.loggedMarkerConditionRaw !== undefined) {
+      if (opts.loggedMarkerConditionRaw) {
         console.debug('Waiting for logged marker using loggedMarkerConditionRaw');
-        const loggedMarkerValidated = await __retryOnContextDestroyed(async () => {
-          if (typeof opts.loggedMarkerConditionRaw === 'function') {
-            return await opts.loggedMarkerConditionRaw();
-          } else {
-            return opts.loggedMarkerConditionRaw;
-          }
-        });
+        const loggedMarkerValidated = await __retryOnContextDestroyed(
+          () => opts.loggedMarkerConditionRaw()
+        );
+        if (typeof loggedMarkerValidated !== 'boolean') {
+          throw new Error('loggedMarkerConditionRaw must return a boolean');
+        }
         if (!loggedMarkerValidated) { throw new Error(); }
       } else {
         console.debug('Waiting for logged marker during', ((opts.loggedMarkerTimeout / 1000).toFixed(0) + 's...'));
         await __retryOnContextDestroyed(() => $page.waitForFunction(
-          opts.loggedMarkerCondition,
-          { timeout: opts.loggedMarkerTimeout }
+          ({ selector, operator, count }) => {
+            const matches = document.querySelectorAll(selector).length;
+            switch (operator) {
+              case 'exists': return matches > 0;
+              case 'doesNotExist': return matches === 0;
+              case 'equals': return matches === count;
+              case 'notEquals': return matches !== count;
+              case 'greaterThan': return matches > count;
+              case 'greaterThanOrEqual': return matches >= count;
+              case 'lessThan': return matches < count;
+              case 'lessThanOrEqual': return matches <= count;
+              default: return false;
+            }
+          },
+          { timeout: opts.loggedMarkerTimeout },
+          opts.loggedMarkerCondition
         ));
       }
     } catch (error) {

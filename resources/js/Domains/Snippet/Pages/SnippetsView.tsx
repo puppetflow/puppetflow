@@ -11,6 +11,7 @@ import SnippetImportModal from './SnippetImportModal/SnippetImportModal';
 import SnippetList from './SnippetList/SnippetList';
 import SnippetSettings from './SnippetSettings/SnippetSettings';
 import SnippetTypePicker from './SnippetTypePicker/SnippetTypePicker';
+import SnippetVersionTimelineModal from './SnippetVersionTimelineModal/SnippetVersionTimelineModal';
 import type { SnippetsController } from './useSnippetsController';
 import * as S from './styled';
 
@@ -23,8 +24,8 @@ export default function SnippetsView({ controller }: Props) {
     const [selectedIds, setSelectedIds] = useState<Set<Id>>(() => new Set());
     const {
         teams, isAdmin, snippetGroups, snippets, featureEnabled, currentUserId,
-        settingsReadOnly, codeReadOnly, ownershipDisabled, resolvedTheme,
-        form, navigation, crud, dirtyProtection, libraryUpdate, importGroups,
+        settingsReadOnly, codeReadOnly, ownershipDisabled, resolvedTheme, saveStatus,
+        form, navigation, crud, dirtyProtection, libraryUpdate, versioning, importGroups,
         showLibraryStore, setShowLibraryStore, showImportModal, setShowImportModal,
         openLibraryStore, downloadSnippet, ConfirmModal,
     } = controller;
@@ -146,10 +147,15 @@ export default function SnippetsView({ controller }: Props) {
                                 args={form.args}
                                 graph={form.nodalGraph}
                                 dirty={form.dirty}
+                                saveStatus={saveStatus}
+                                publishedVersion={form.active.published_version_number}
+                                savingPublication={versioning.savingPublication}
                                 mobileView={navigation.mobileView}
                                 readOnly={codeReadOnly}
                                 onGraphChange={form.handleNodalGraphChange}
                                 onSave={crud.handleSave}
+                                onPublish={versioning.publishCurrentSnippet}
+                                onViewTimeline={() => versioning.setShowVersionTimeline(true)}
                                 onOpenLibraryStore={openLibraryStore}
                                 onDownloadSnippet={downloadSnippet}
                                 onDuplicateSnippet={() => crud.handleDuplicate(form.active!)}
@@ -167,6 +173,7 @@ export default function SnippetsView({ controller }: Props) {
                                 args={form.args}
                                 dirty={form.dirty}
                                 saving={crud.saving}
+                                saveStatus={saveStatus}
                                 switching={navigation.switching}
                                 justSaved={dirtyProtection.justSaved}
                                 resolvedTheme={resolvedTheme}
@@ -177,9 +184,13 @@ export default function SnippetsView({ controller }: Props) {
                                 libraryUpdateAvailable={Boolean(form.active.library_update_available)}
                                 updatingLibrarySource={libraryUpdate.updatingLibrarySource}
                                 checkingLibraryUpdate={libraryUpdate.checkingLibraryUpdate}
+                                publishedVersion={form.active.published_version_number}
+                                savingPublication={versioning.savingPublication}
                                 onUpdateLibrarySource={form.active.library_update_available ? libraryUpdate.handleUpdateLibrarySource : undefined}
                                 onCheckLibraryUpdate={form.active.library_locked ? libraryUpdate.handleCheckLibraryUpdate : undefined}
                                 onSave={crud.handleSave}
+                                onPublish={versioning.publishCurrentSnippet}
+                                onViewTimeline={() => versioning.setShowVersionTimeline(true)}
                                 onOpenLibraryStore={openLibraryStore}
                                 onDownloadSnippet={downloadSnippet}
                                 onDuplicateSnippet={() => crud.handleDuplicate(form.active!)}
@@ -220,6 +231,18 @@ export default function SnippetsView({ controller }: Props) {
                     </S.Container>
 
                     <ConfirmModal />
+                    {form.active && (
+                        <SnippetVersionTimelineModal
+                            snippet={form.active}
+                            canEdit={!settingsReadOnly}
+                            isOpen={versioning.showVersionTimeline}
+                            initialVersionId={versioning.initialVersionId}
+                            getDraftUpdatedAt={form.getDraftUpdatedAt}
+                            onClose={() => versioning.setShowVersionTimeline(false)}
+                            onRestored={versioning.handleRestored}
+                            onVersionPublished={versioning.updatePublishedVersion}
+                        />
+                    )}
                     <SnippetImportModal
                         isOpen={showImportModal}
                         onClose={() => setShowImportModal(false)}

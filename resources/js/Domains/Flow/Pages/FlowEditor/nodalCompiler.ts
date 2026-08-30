@@ -18,7 +18,7 @@ import {
     SET_OUTPUT_NODE_NAME,
     STICKY_NOTE_NODE_NAME,
 } from './Panes/NodalEditorPane/utils/constants';
-import { getEntryByName, getParameterMeta } from './Panes/NodalEditorPane/utils/catalog';
+import { formatEntryLabel, getEntryByName, getParameterMeta } from './Panes/NodalEditorPane/utils/catalog';
 import { formatParameterForCompiler, normalizeParameterValue, normalizeScalarParameterValue } from './Panes/NodalEditorPane/utils/expression';
 import { SYSTEM_FUNCTION_NODE_ID } from './Panes/NodalEditorPane/utils/functionGraph';
 import { getFunctionArgumentNames } from './Panes/NodalEditorPane/utils/functionArguments';
@@ -308,11 +308,16 @@ const runOutputKey = (
     return isInternalNodeOutputKey(key, nodeId) ? '' : key;
 };
 
-const assignNodeResult = (indent: string, safeNodeId: string, resultName: string, runKey?: string) => [
-    `${indent}$nodes[${safeNodeId}] = ${resultName};`,
+const assignNodeResult = (indent: string, safeNodeId: string, nodeLabel: string, resultName: string, runKey?: string) => [
+    `${indent}Object.defineProperty($nodes, ${safeNodeId}, { value: ${resultName}, writable: true, configurable: true });`,
+    `${indent}$nodes[${JSON.stringify(nodeLabel)}] = ${resultName};`,
     `${indent}$nodes.last = ${resultName};`,
     ...(runKey ? [`${indent}$run[${JSON.stringify(runKey)}] = ${resultName};`] : []),
 ];
+
+const nodeResultLabel = (node: NodalGraph['nodes'][number]) => (
+    node.label?.trim() || formatEntryLabel(getEntryByName(node.name))
+);
 
 const makeIndent = (level: number) => '    '.repeat(level);
 const RESERVED_IDENTIFIERS = new Set([
@@ -323,7 +328,7 @@ const RESERVED_IDENTIFIERS = new Set([
     'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
 ]);
 const RUNTIME_IDENTIFIERS = new Set([
-    '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
+    '$', '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
     '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
     '$viewportWidth', '$viewportHeight',
 ]);
@@ -735,7 +740,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = await ${node.name}(${callArgs});`,
-                ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
                 `${indent}if (${resultName}) {`,
                 ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
                 `${indent}} else {`,
@@ -806,7 +811,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}for (const [$index, $item] of (Array.isArray(${resultName}Source) ? ${resultName}Source : []).entries()) {`,
                 `${indent}    if (await $renderExpression(${expressionTemplate(node.values, 'predicate', '{{ true }}')}, { $item, $index })) ${resultName}.push($item);`,
                 `${indent}}`,
-                ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -820,7 +825,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName}Offset = Number(${numericExpression(node.values, 'offset', '0')}) || 0;`,
                 `${indent}const ${resultName}Count = Number(${numericExpression(node.values, 'count', '10')}) || 10;`,
                 `${indent}const ${resultName} = (Array.isArray(${resultName}Source) ? ${resultName}Source : []).slice(${resultName}Offset, ${resultName}Offset + ${resultName}Count);`,
-                ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -836,7 +841,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = ${variablesSource};`,
                 `${indent}Object.entries(${resultName} && typeof ${resultName} === 'object' && !Array.isArray(${resultName}) ? ${resultName} : {}).forEach(([key, value]) => { $run[key] = value; });`,
-                ...assignNodeResult(indent, safeNodeId, resultName),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -857,7 +862,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}    Object.entries(${resultName}).forEach(([key, value]) => { $userOutput[key] = value; });`,
                 `${indent}    $setOutput(${resultName});`,
                 `${indent}}`,
-                ...assignNodeResult(indent, safeNodeId, resultName),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -876,7 +881,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}if (${resultName} && typeof ${resultName} === 'object' && !Array.isArray(${resultName})) {`,
                 `${indent}    $meta(${resultName});`,
                 `${indent}}`,
-                ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -895,7 +900,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = ${mergedSource};`,
-                ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -911,7 +916,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = await ${localFunctionSymbol(node.localFunctionId)}($page${callArgs ? `, ${callArgs}` : ''});`,
-                ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -972,7 +977,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
         return [
             ...markNodeStart(indent, safeNodeId),
             `${indent}const ${resultName} = await ${node.name}(${callArgs});`,
-            ...assignNodeResult(indent, safeNodeId, resultName, runOutputKey(node.values, node.id)),
+            ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
             ...markNodeEnd(indent, safeNodeId),
             ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
         ];
@@ -1051,6 +1056,7 @@ ${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}const $inp
 const $context = $input && typeof $input.$context === 'object' ? $input.$context : {};
 const $output = {};
 const $nodes = {};
+const $ = nodeName => $nodes[nodeName];
 const $run = {};
 const $userOutput = {};
 const $renderExpression = async (template, $locals = {}) => {
@@ -1064,6 +1070,7 @@ const $renderExpression = async (template, $locals = {}) => {
         $viewportWidth,
         $viewportHeight,
         ...($locals && typeof $locals === 'object' ? $locals : {}),
+        $,
     };
     const renderSource = (source) => Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($input, $page, $output, $nodes, $run, $context, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
     const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
@@ -1095,6 +1102,7 @@ ${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}async func
     const $context = $input && typeof $input.$context === 'object' ? $input.$context : {};
     const $output = {};
     const $nodes = {};
+    const $ = nodeName => $nodes[nodeName];
     const $run = {};
     const $userOutput = {};
     const $renderExpression = async (template, $locals = {}) => {
@@ -1108,6 +1116,7 @@ ${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}async func
             $viewportWidth,
             $viewportHeight,
             ...($locals && typeof $locals === 'object' ? $locals : {}),
+            $,
         };
         const renderSource = (source) => Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($input, $page, $output, $nodes, $run, $context, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
         const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
@@ -1152,6 +1161,7 @@ async function terminate($page, $input, $output) {
     if (!$output || typeof $output !== 'object') $output = {};
     const $context = $input && typeof $input.$context === 'object' ? $input.$context : {};
     const $nodes = {};
+    const $ = nodeName => $nodes[nodeName];
     const $run = {};
     const $userOutput = {};
     const $renderExpression = async (template, $locals = {}) => {
@@ -1165,6 +1175,7 @@ async function terminate($page, $input, $output) {
             $viewportWidth,
             $viewportHeight,
             ...($locals && typeof $locals === 'object' ? $locals : {}),
+            $,
         };
         const renderSource = (source) => Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($input, $page, $output, $nodes, $run, $context, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
         const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];

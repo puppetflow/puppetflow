@@ -110,7 +110,7 @@ export const previewParameterValue = (
 export const unresolvedNodeResultPreview = (node: CanvasNode) => {
     const label = node.label?.trim() || formatEntryLabel(node.entry);
     const entry = node.system ? null : getEntryByName(node.entry.name);
-    if (entry && (entry.name === '$mapElement' || entry.name === '$mapManyElements')) {
+    if (entry && (entry.name === '$extractAttribute' || entry.name === '$extractAttributes')) {
         const getters = node.values.getters;
         let keys: string[] = [];
         if (getters?.mode === 'object' && getters.inputMode === 'form') {
@@ -125,7 +125,7 @@ export const unresolvedNodeResultPreview = (node: CanvasNode) => {
         }
         if (keys.length > 0) {
             const objectPreview = Object.fromEntries(keys.map(key => [key, `[Needs run: ${label}]`]));
-            return entry.name === '$mapManyElements' ? [objectPreview] : objectPreview;
+            return entry.name === '$extractAttributes' ? [objectPreview] : objectPreview;
         }
     }
     return createNodalOutputPreview(entry, label);

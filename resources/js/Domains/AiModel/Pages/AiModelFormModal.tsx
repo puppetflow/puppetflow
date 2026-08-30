@@ -41,6 +41,8 @@ export interface AiModelFormModalProps {
 
 type ModelFilter = 'all' | 'vision';
 
+const CUSTOM_MODEL_ACTION = '__custom_model_id__';
+
 export default function AiModelFormModal({
     model,
     aiIntegrations,
@@ -59,6 +61,9 @@ export default function AiModelFormModal({
     const [name, setName] = useState(model?.name ?? '');
     const [aiIntegrationId, setAiIntegrationId] = useState<Id | null>(initialIntegration?.id ?? null);
     const [selectedModelId, setSelectedModelId] = useState(() => model?.ai_model_id ?? '');
+    const [customModelId, setCustomModelId] = useState(
+        () => model?.capabilities?.custom_model_id === true,
+    );
     const [vendor, setVendor] = useState<string | null>(
         () => initialIntegration?.provider as string | undefined ?? null,
     );
@@ -130,24 +135,32 @@ export default function AiModelFormModal({
 
     const visibleModels = useMemo(() => {
         const discoveredIds = new Set(models.map(remoteModel => remoteModel.id));
-        const missingSelected = model?.ai_model_id && !discoveredIds.has(model.ai_model_id)
+        const missingSelected = selectedModelId && !discoveredIds.has(selectedModelId)
             ? [{
-                id: model.ai_model_id,
-                label: model.ai_model_id,
-                capabilities: model.capabilities,
+                id: selectedModelId,
+                label: selectedModelId,
+                capabilities: customModelId
+                    ? { text: true, vision: true, custom_model_id: true }
+                    : model?.capabilities ?? {},
             }]
             : [];
         return [...missingSelected, ...models];
-    }, [model?.ai_model_id, model?.capabilities, models]);
+    }, [customModelId, model?.capabilities, models, selectedModelId]);
     const capabilityModels = useMemo(() => visibleModels.filter(remoteModel => (
         effectiveRequiredCapability
             ? remoteModel.capabilities?.[effectiveRequiredCapability] === true
             : remoteModel.capabilities?.text === true || remoteModel.capabilities?.vision === true
     )), [effectiveRequiredCapability, visibleModels]);
-    const filteredModels = useMemo(() => capabilityModels.filter(remoteModel => {
-        if (modelFilter === 'vision') return remoteModel.capabilities?.vision === true;
-        return true;
-    }), [capabilityModels, modelFilter]);
+    const filteredModels = useMemo(() => capabilityModels
+        .filter(remoteModel => {
+            if (modelFilter === 'vision') return remoteModel.capabilities?.vision === true;
+            return true;
+        })
+        .sort((first, second) => (second.label || second.id).localeCompare(
+            first.label || first.id,
+            undefined,
+            { numeric: true, sensitivity: 'base' },
+        )), [capabilityModels, modelFilter]);
     const modelOptions = useMemo(() => filteredModels.map(remoteModel => ({
         value: remoteModel.id,
         label: remoteModel.label || remoteModel.id,
@@ -155,7 +168,8 @@ export default function AiModelFormModal({
         icon: remoteModel.capabilities?.vision ? 'lucide:scan-eye' : 'lucide:message-square-text',
     })), [filteredModels]);
     const hasSelectedRequiredModel = Boolean(selectedModelId) && (
-        !effectiveRequiredCapability
+        customModelId
+        || !effectiveRequiredCapability
         || visibleModels.find(remoteModel => remoteModel.id === selectedModelId)
             ?.capabilities?.[effectiveRequiredCapability] === true
     );
@@ -175,6 +189,7 @@ export default function AiModelFormModal({
             name,
             ai_integration_id: aiIntegrationId,
             ai_model_id: selectedModelId,
+            is_custom_model: customModelId,
             scope,
             team_id: scope === 'team' ? teamId : null,
             group: group || null,
@@ -235,6 +250,7 @@ export default function AiModelFormModal({
         setVendor(integration.provider);
         setAiIntegrationId(integration.id);
         setSelectedModelId('');
+        setCustomModelId(false);
         setModelFilter(initialModelFilter);
     };
 
@@ -276,6 +292,7 @@ export default function AiModelFormModal({
                                 setVendor(nextVendor);
                                 setAiIntegrationId(null);
                                 setSelectedModelId('');
+                                    setCustomModelId(false);
                                 setModelFilter(initialModelFilter);
                             }}
                         />
@@ -291,6 +308,7 @@ export default function AiModelFormModal({
                                     onChange={id => {
                                         setAiIntegrationId(id);
                                         setSelectedModelId('');
+                                        setCustomModelId(false);
                                         setModelFilter(initialModelFilter);
                                     }}
                                 />
@@ -327,10 +345,36 @@ export default function AiModelFormModal({
                                     ))}
                                 </S.ModelFilters>
                             )}
-                            onChange={setSelectedModelId}
+                            actionSlot={{
+                                label: 'Custom ID',
+                                onAction: async () => CUSTOM_MODEL_ACTION,
+                            }}
+                            onChange={value => {
+                                if (value === CUSTOM_MODEL_ACTION) {
+                                    setSelectedModelId('');
+                                    setCustomModelId(true);
+                                    return;
+                                }
+                                setSelectedModelId(value);
+                                setCustomModelId(false);
+                            }}
                         />
+                        {customModelId && (
+                            <S.CustomModelInput>
+                                <Input
+                                    autoFocus
+                                    label="Custom model ID"
+                                    value={selectedModelId}
+                                    onChange={event => {
+                                        setSelectedModelId(event.target.value);
+                                        setErrors(current => ({ ...current, ai_model_id: '' }));
+                                    }}
+                                    placeholder="Enter the provider model ID..."
+                                />
+                            </S.CustomModelInput>
+                        )}
                         {discoveryError && <S.ErrorText>{discoveryError}</S.ErrorText>}
-                        {!loadingModels && !discoveryError && modelOptions.length === 0 && (
+                        {!customModelId && !loadingModels && !discoveryError && modelOptions.length === 0 && (
                             <S.PickerState>No models found.</S.PickerState>
                         )}
                         {errors.ai_model_id && <S.ErrorText>{errors.ai_model_id}</S.ErrorText>}

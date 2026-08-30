@@ -11,6 +11,10 @@ const parseArgumentNames = (args: string) => args.split(',').map(argument => arg
 // Owns editable snippet fields and computes whether they differ from the source.
 export function useSnippetForm() {
     const [active, setActive] = useState<Snippet | null>(null);
+    const activeRef = useRef<Snippet | null>(null);
+    activeRef.current = active;
+    const contentUpdatedAtRef = useRef<string | null>(null);
+    contentUpdatedAtRef.current = active?.content_updated_at ?? null;
     const [label, setLabel] = useState('');
     const [description, setDescription] = useState('');
     const [group, setGroup] = useState('');
@@ -42,6 +46,23 @@ export function useSnippetForm() {
         );
     }, [active, args, code, description, group, isActive, label, nodalGraph, ownerId, scope, teamId]);
     dirtyRef.current = dirty;
+    const draftKey = useMemo(() => JSON.stringify([
+        active?.id,
+        label,
+        description,
+        group,
+        args,
+        code,
+        nodalGraph,
+        isActive,
+        scope,
+        teamId,
+        ownerId,
+    ]), [active?.id, args, code, description, group, isActive, label, nodalGraph, ownerId, scope, teamId]);
+    const draftKeyRef = useRef(draftKey);
+    draftKeyRef.current = draftKey;
+    const currentDraftRef = useRef({ active, dirty, draftKey });
+    currentDraftRef.current = { active, dirty, draftKey };
 
     const syncFormState = useCallback((snippet: Snippet) => {
         isInternalChange.current = false;
@@ -58,6 +79,22 @@ export function useSnippetForm() {
         setOwnerId(snippet.user_id);
         setTargetUserRole(snippet.owner_workspace_role);
     }, []);
+
+    const applySavedState = useCallback((snippet: Snippet, savedDraftKey: string) => {
+        if (activeRef.current?.id !== snippet.id) return;
+        activeRef.current = snippet;
+        contentUpdatedAtRef.current = snippet.content_updated_at ?? null;
+        if (draftKeyRef.current === savedDraftKey) {
+            dirtyRef.current = false;
+            currentDraftRef.current = { active: snippet, dirty: false, draftKey: savedDraftKey };
+            syncFormState(snippet);
+            return;
+        }
+        currentDraftRef.current = { ...currentDraftRef.current, active: snippet };
+        setActive(snippet);
+    }, [syncFormState]);
+    const getDraftUpdatedAt = useCallback(() => contentUpdatedAtRef.current, []);
+    const getCurrentDraft = useCallback(() => currentDraftRef.current, []);
 
     const handleCodeChange = useCallback((value: string | undefined) => {
         isInternalChange.current = true;
@@ -115,7 +152,11 @@ export function useSnippetForm() {
         isInternalChange,
         dirty,
         dirtyRef,
+        draftKey,
+        getDraftUpdatedAt,
+        getCurrentDraft,
         syncFormState,
+        applySavedState,
         handleCodeChange,
         handleNodalGraphChange,
     };

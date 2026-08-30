@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Flow } from '@/Domains/Flow/types';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import NodalEditorPane from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodalEditorPane';
+import type { DraftSaveStatus } from '@/Domains/Flow/Pages/FlowEditor/hooks/useFlowPersistence';
 import * as Layout from '@/Domains/Snippet/Pages/shared.styled';
 import { SourceBanner } from './components/SourceBanner/SourceBanner';
 
@@ -10,10 +11,15 @@ interface Props {
     args: string;
     graph: NodalGraph;
     dirty: boolean;
+    saveStatus: DraftSaveStatus;
+    publishedVersion?: number | null;
+    savingPublication?: boolean;
     mobileView: string;
     readOnly: boolean;
     onGraphChange: (graph: NodalGraph) => void;
     onSave: () => void;
+    onPublish?: () => void;
+    onViewTimeline?: () => void;
     onOpenLibraryStore?: () => void;
     onDownloadSnippet?: () => void;
     onDuplicateSnippet?: () => void;
@@ -30,10 +36,15 @@ export default function SnippetNodalEditor({
     args,
     graph,
     dirty,
+    saveStatus,
+    publishedVersion = null,
+    savingPublication = false,
     mobileView,
     readOnly,
     onGraphChange,
     onSave,
+    onPublish,
+    onViewTimeline,
     onOpenLibraryStore,
     onDownloadSnippet,
     onDuplicateSnippet,
@@ -57,8 +68,9 @@ export default function SnippetNodalEditor({
         viewport_height: 720,
         keyboard_speed: 100,
         flow_type: 'nodal',
+        is_published: publishedVersion !== null,
         nodal_graph: graph,
-    } as Flow), [functionArguments, graph, id]);
+    } as Flow), [functionArguments, graph, id, publishedVersion]);
 
     return (
         <Layout.Panel $mobileHidden={mobileView !== 'editor'}>
@@ -80,6 +92,12 @@ export default function SnippetNodalEditor({
                 documentExtension="snippet.json"
                 onGraphChange={onGraphChange}
                 onSave={onSave}
+                saveStatus={saveStatus}
+                publishedVersion={publishedVersion}
+                onPublish={onPublish}
+                onViewTimeline={onViewTimeline}
+                savingPublication={savingPublication}
+                publicationEditable={!readOnly && !libraryLocked}
                 onOpenLibraryStore={onOpenLibraryStore}
                 onDownloadFlow={onDownloadSnippet}
                 onDuplicateFlow={onDuplicateSnippet}

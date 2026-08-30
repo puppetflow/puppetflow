@@ -13,6 +13,12 @@ import { PAGE_AUTOCOMPLETE_ENTRIES, type PageAutocompleteEntry } from './pageAut
 
 const ROOT_COMPLETION_PATTERN = /(?:^|[^\w$.])(\$[a-zA-Z_]*)$/;
 
+const escapeStringContent = (value: string, quote: string) => value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\n', '\\n')
+    .replaceAll(quote, `\\${quote}`);
+
 const entriesForPath = (entries: PageAutocompleteEntry[], path: string) => {
     let current = entries;
     for (const segment of path.split('.').filter(Boolean)) {
@@ -113,7 +119,7 @@ export function registerNodalAutocompleteCompletions(
     if (!monaco) return { dispose: () => {} };
 
     return monaco.languages.registerCompletionItemProvider('javascript', {
-        triggerCharacters: ['$', '.', '['],
+        triggerCharacters: ['$', '.', '[', '(', "'", '"'],
         provideCompletionItems: (model: CompletionModel, position: CompletionPosition) => {
             if (!matchesCompletionModelUri(model, modelUri)) return { suggestions: [] };
 
@@ -121,6 +127,7 @@ export function registerNodalAutocompleteCompletions(
             const textBefore = lineContent.substring(0, position.column - 1);
             const outputData = isCompletionRecord(context.outputData) ? context.outputData : null;
             const nodeData = isCompletionRecord(context.nodeData) ? context.nodeData : null;
+            const nodeNames = Object.keys(nodeData ?? {}).filter(key => key !== 'last');
             const runData = isCompletionRecord(context.runData) ? context.runData : null;
             const contextData = isCompletionRecord(context.contextData) ? context.contextData : null;
 
@@ -129,6 +136,7 @@ export function registerNodalAutocompleteCompletions(
                 const typed = rootMatch[1];
                 const range = completionRange(position, typed);
                 const roots = [
+                    { key: '$', detail: 'node result lookup', documentation: 'Get an executed node result by step name. Equivalent to $nodes[nodeName].' },
                     { key: '$input', detail: 'flow input', documentation: 'Current flow input data.' },
                     { key: '$page', detail: 'browser page', documentation: 'Current browser page data.' },
                     { key: '$output', detail: 'user output', documentation: 'User output values set by Set Output nodes.' },
@@ -148,8 +156,10 @@ export function registerNodalAutocompleteCompletions(
                 return {
                     suggestions: roots.map(root => ({
                         label: root.key,
-                        kind: monaco.languages.CompletionItemKind.Variable,
-                        insertText: root.key,
+                        kind: root.key === '$'
+                            ? monaco.languages.CompletionItemKind.Function
+                            : monaco.languages.CompletionItemKind.Variable,
+                        insertText: root.key === '$' ? '$()' : root.key,
                         detail: root.detail,
                         documentation: root.documentation,
                         range,
@@ -157,7 +167,43 @@ export function registerNodalAutocompleteCompletions(
                 };
             }
 
-            const bracketMatch = textBefore.match(/\$(input|page|output|nodes|run|context)\s*\[\s*(['"])([a-zA-Z0-9_]*)$/);
+            const nodeLookupStart = textBefore.match(/\$\(\s*$/);
+            const nodeBracketStart = textBefore.match(/\$nodes\s*\[\s*$/);
+            if (nodeLookupStart || nodeBracketStart) {
+                const range = completionRange(position, '');
+                return {
+                    suggestions: nodeNames.map(key => ({
+                        label: key,
+                        kind: monaco.languages.CompletionItemKind.Field,
+                        insertText: JSON.stringify(key),
+                        detail: 'node result',
+                        documentation: nodeLookupStart
+                            ? `$(${JSON.stringify(key)})`
+                            : `$nodes[${JSON.stringify(key)}]`,
+                        range,
+                        sortText: key,
+                    })),
+                };
+            }
+
+            const nodeLookupMatch = textBefore.match(/\$\(\s*(['"])([^'"]*)$/);
+            if (nodeLookupMatch) {
+                const typed = nodeLookupMatch[2];
+                const range = completionRange(position, typed);
+                return {
+                    suggestions: nodeNames.map(key => ({
+                        label: key,
+                        kind: monaco.languages.CompletionItemKind.Field,
+                        insertText: escapeStringContent(key, nodeLookupMatch[1]),
+                        detail: 'node result',
+                        documentation: `$(${JSON.stringify(key)})`,
+                        range,
+                        sortText: key,
+                    })),
+                };
+            }
+
+            const bracketMatch = textBefore.match(/\$(input|page|output|nodes|run|context)\s*\[\s*(['"])([^'"]*)$/);
             if (bracketMatch) {
                 const root = `$${bracketMatch[1]}`;
                 const source = bracketMatch[1] === 'input'
@@ -184,10 +230,14 @@ export function registerNodalAutocompleteCompletions(
                 }
 
                 return {
-                    suggestions: Object.keys(source ?? {}).map(key => ({
+                    suggestions: (
+                        bracketMatch[1] === 'nodes'
+                            ? nodeNames
+                            : Object.keys(source ?? {})
+                    ).map(key => ({
                         label: key,
                         kind: monaco.languages.CompletionItemKind.Field,
-                        insertText: key,
+                        insertText: escapeStringContent(key, bracketMatch[2]),
                         detail: `${bracketMatch[1]} key`,
                         documentation: `${root}["${key}"]`,
                         range,

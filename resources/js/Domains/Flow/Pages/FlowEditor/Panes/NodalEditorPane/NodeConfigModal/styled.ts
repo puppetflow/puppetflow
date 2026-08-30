@@ -20,8 +20,10 @@ export const NodeConfigBackdrop = styled.div`
     }
 
     button:not(:disabled),
+    button:not(:disabled) *,
     select:not(:disabled),
-    [role='button'] {
+    [role='button'],
+    [role='button'] * {
         cursor: pointer;
     }
 

@@ -71,10 +71,7 @@ export default function ObjectRows({
                     valueType: 'function' as const,
                 } : getEffectiveObjectFieldMeta(fieldMeta, customField, valueType);
                 const oneOfGroup = meta.requiredOneOf?.find(group => group.includes(field.key));
-                const hasOneOfAlternative = oneOfGroup?.some(key => (
-                    key !== field.key && fields.some(candidate => candidate.key === key)
-                ));
-                const removable = !fieldMeta?.required && (!oneOfGroup || hasOneOfAlternative);
+                const removable = !fieldMeta?.required || Boolean(oneOfGroup);
                 const validationIssue = validationIssues.find(issue => issue.path === `${path}.${field.key}`);
                 const customKeyInput = customField ? (
                     <S.CustomFieldHeader>

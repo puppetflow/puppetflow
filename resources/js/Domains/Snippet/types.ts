@@ -19,6 +19,9 @@ export interface Snippet {
     scope: IntegrationScope;
     team_id: Id | null;
     is_active: boolean;
+    content_updated_at: string | null;
+    published_version_id: number | null;
+    published_version_number: number | null;
     library_external_id: number | null;
     library_external_key: string | null;
     library_namespace: string | null;
