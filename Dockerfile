@@ -108,6 +108,7 @@ COPY . .
 COPY --from=composer-deps /app/vendor ./vendor
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY --from=frontend-build /app/public/build ./public/build
+COPY --from=frontend-build /app/bootstrap/nodal-compiler ./bootstrap/nodal-compiler
 
 # Regenerate the runtime header from src/runtime/ fragments so the image never
 # ships a stale committed artifact (safety net if build:runtime was forgotten).

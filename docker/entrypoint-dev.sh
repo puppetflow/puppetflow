@@ -6,6 +6,11 @@ php artisan package:discover --ansi
 php artisan config:clear 2>/dev/null || true
 
 if [[ "$*" == *"artisan serve"* ]]; then
+    if [[ ! -f bootstrap/nodal-compiler/compiler.mjs ]]; then
+        echo "[entrypoint-dev] Building nodal compiler..."
+        npm run build:nodal-compiler
+    fi
+
     if [[ "${APP_AUTO_MIGRATE:-false}" == "true" ]]; then
         echo "[entrypoint-dev] Running migrations..."
         php artisan migrate --force

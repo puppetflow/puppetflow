@@ -12,11 +12,11 @@ final class NodalCatalogService
         ['name' => 'Loop', 'signature' => 'Loop(mode, items, iterations, condition, maxIterations)', 'description' => 'Repeat a branch.', 'category' => 'Control', 'parameters' => ['mode' => ['required' => true]], 'ports' => ['input' => ['input'], 'output' => ['loop', 'done']]],
         ['name' => 'Merge', 'signature' => 'Merge(strategy)', 'description' => 'Merge branch results.', 'category' => 'Control', 'parameters' => []],
         ['name' => 'No-op', 'signature' => 'No-op()', 'description' => 'Connect steps without executing an action.', 'category' => 'Control', 'parameters' => []],
-        ['name' => 'Filter', 'signature' => 'Filter(array, predicate)', 'description' => 'Filter an array.', 'category' => 'Data', 'parameters' => []],
-        ['name' => 'Limit', 'signature' => 'Limit(array, offset, count)', 'description' => 'Limit array items.', 'category' => 'Data', 'parameters' => []],
-        ['name' => 'Set', 'signature' => 'Set(variables)', 'description' => 'Set run variables.', 'category' => 'Data', 'parameters' => []],
-        ['name' => '$setOutput', 'signature' => '$setOutput(variables)', 'description' => 'Set flow output values.', 'category' => 'Data', 'parameters' => []],
-        ['name' => '$meta', 'signature' => '$meta(metadata)', 'description' => 'Set run metadata.', 'category' => 'Data', 'parameters' => []],
+        ['name' => 'Filter', 'signature' => 'Filter(array, predicate)', 'description' => 'Filter an array.', 'category' => 'Data', 'parameters' => ['array' => ['required' => true, 'validationRequired' => false], 'predicate' => ['required' => true, 'validationRequired' => false]]],
+        ['name' => 'Limit', 'signature' => 'Limit(array, count, offset?)', 'description' => 'Limit array items.', 'category' => 'Data', 'parameters' => ['array' => ['required' => true, 'validationRequired' => false], 'count' => ['required' => true, 'validationRequired' => false], 'offset' => ['required' => false]]],
+        ['name' => 'Set', 'signature' => 'Set(variables)', 'description' => 'Set run variables.', 'category' => 'Data', 'parameters' => ['variables' => ['required' => true, 'validationRequired' => false]]],
+        ['name' => '$setOutput', 'signature' => '$setOutput(variables)', 'description' => 'Set flow output values.', 'category' => 'Data', 'parameters' => ['variables' => ['required' => true, 'validationRequired' => false]]],
+        ['name' => '$meta', 'signature' => '$meta(metadata)', 'description' => 'Set run metadata.', 'category' => 'Data', 'parameters' => ['metadata' => ['required' => true, 'validationRequired' => false]]],
     ];
 
     /** @return list<array<string, mixed>> */
@@ -24,7 +24,8 @@ final class NodalCatalogService
     {
         $path = base_path('src/sandbox/run-header.js');
         $raw = File::exists($path) ? File::get($path) : '';
-        $entries = self::CONTROL_NODES;
+        $codeContext = $context === 'code';
+        $entries = $codeContext ? [] : self::CONTROL_NODES;
 
         preg_match_all('/\/\*\s*@help\s+(.+?)\n([\s\S]*?)\*\//', $raw, $blocks, PREG_SET_ORDER);
         foreach ($blocks as $block) {
@@ -35,10 +36,11 @@ final class NodalCatalogService
                 continue;
             }
             $availability = strtolower($this->tag($body, 'availability') ?: 'both');
-            if (! in_array($availability, ['nodal', 'code', 'both'], true)) {
-                $availability = 'both';
+            $allowed = $codeContext ? ['code', 'both'] : ['nodal', 'both'];
+            if (! in_array($availability, $allowed, true)) {
+                continue;
             }
-            if ($availability === 'code') {
+            if (! $codeContext && ! str_contains($signature, '(')) {
                 continue;
             }
 
@@ -51,6 +53,8 @@ final class NodalCatalogService
                 'category' => trim($block[1]),
                 'availability' => $availability,
                 'parameters' => $this->parameters($body, $signature),
+                'parameterFields' => $this->parameterFields($body),
+                'parameterOneOf' => $this->parameterOneOf($body),
                 'flowParameters' => $flowParameters,
                 'ports' => [
                     'input' => ['input'],
@@ -114,6 +118,8 @@ final class NodalCatalogService
                 'description' => $parameters[$parameter]['description'] ?? $tag['description'],
                 'required' => ($parameters[$parameter]['required'] ?? false)
                     || ($isTopLevel && in_array('required', $tag['tokens'], true)),
+                'validationRequired' => ($parameters[$parameter]['validationRequired'] ?? false)
+                    || ($isTopLevel && in_array('required', $tag['tokens'], true)),
                 'valueType' => $parameters[$parameter]['valueType']
                     ?? ($isTopLevel ? $this->valueTypeToken($tag['tokens']) : null),
             ];
@@ -121,12 +127,46 @@ final class NodalCatalogService
 
         if (preg_match('/\((.*)\)/', $signature, $args)) {
             foreach (array_filter(array_map('trim', explode(',', $args[1]))) as $argument) {
+                $required = ! str_ends_with($argument, '?') && ! str_starts_with($argument, '...');
                 $name = ltrim(rtrim($argument, '?'), '.');
-                $parameters[$name] ??= ['description' => '', 'required' => false];
+                if (! isset($parameters[$name])) {
+                    $parameters[$name] = [
+                        'description' => '',
+                        'required' => $required,
+                        'validationRequired' => false,
+                    ];
+                } else {
+                    $parameters[$name]['required'] = $parameters[$name]['required'] || $required;
+                }
             }
         }
 
         return $parameters;
+    }
+
+    /** @return list<array{path: non-empty-list<string>, required: bool, valueType: string|null, description: string}> */
+    private function parameterFields(string $body): array
+    {
+        return array_map(fn (array $tag): array => [
+            'path' => $tag['path'],
+            'required' => in_array('required', $tag['tokens'], true),
+            'valueType' => $this->valueTypeToken($tag['tokens']),
+            'description' => $tag['description'],
+        ], $this->nodalParamTags($body));
+    }
+
+    /** @return list<list<non-empty-list<string>>> */
+    private function parameterOneOf(string $body): array
+    {
+        preg_match_all('/@nodal-one-of\s+([^\n]+)/', $body, $matches);
+
+        return array_values(array_filter(array_map(
+            fn (string $group): array => array_values(array_filter(array_map(
+                fn (string $path): array => array_values(array_filter(explode('.', trim($path)))),
+                explode(',', $group),
+            ))),
+            $matches[1],
+        )));
     }
 
     /** @param list<string> $tokens */

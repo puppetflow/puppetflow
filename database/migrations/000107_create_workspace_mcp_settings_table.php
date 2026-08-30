@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('workspace_id', 32)->unique();
             $table->foreign('workspace_id')->references('id')->on('workspaces')->cascadeOnDelete();
-            $table->boolean('enabled')->default(false);
+            $table->boolean('enabled')->default(true);
             $table->boolean('include_unexposed_flow_previews')->default(true);
             $table->timestamps();
         });

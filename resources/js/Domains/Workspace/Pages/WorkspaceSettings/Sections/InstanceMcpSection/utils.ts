@@ -15,7 +15,7 @@ export const MCP_TOOL_CATEGORIES: { key: McpToolCategory; label: string }[] = [
 ];
 
 const TOOL_CATEGORIES: Record<Exclude<McpToolCategory, 'all'>, string[]> = {
-    flows: ['search_flows', 'get_flow_details', 'get_flow_source', 'list_folders', 'get_flow_creation_options', 'get_nodal_catalog', 'create_flow'],
+    flows: ['search_flows', 'get_flow_details', 'get_flow_source', 'list_folders', 'get_flow_creation_options', 'get_nodal_catalog', 'write_code_flow', 'write_nodal_flow'],
     runs: ['search_runs', 'list_flow_runs', 'run_flow', 'get_run', 'get_run_result', 'continue_human_validation'],
     artifacts: ['list_artifacts', 'get_latest_screenshot', 'download_artifact', 'get_recording', 'get_recording_lastshot'],
     workspace: ['get_current_workspace', 'update_current_workspace'],

@@ -4,23 +4,28 @@ namespace App\Services\Mcp\Tools;
 
 use App\Authorization\Visibility\FlowVisibility;
 use App\Authorization\Visibility\FolderVisibility;
+use App\Enums\Authorization\Ability;
 use App\Models\Flow;
 use App\Models\Folder;
 use App\Models\WorkspaceTeam;
 use App\Services\FeatureFlags\FeatureFlagService;
-use App\Services\Flow\FlowCreationService;
+use App\Services\Flow\FlowWriteService;
 use App\Services\Flow\NodalCatalogService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
-/** @phpstan-type Arguments array<string, mixed> */
+/**
+ * @phpstan-type Arguments array<string, mixed>
+ * @phpstan-type ToolDefinition array{name: string, description: string, inputSchema: array<string, mixed>}
+ */
 final class FlowMcpTools implements McpToolHandler
 {
     public function __construct(
         private readonly FlowVisibility $flowVisibility,
         private readonly FolderVisibility $folderVisibility,
         private readonly McpResourceResolver $resources,
-        private readonly FlowCreationService $creation,
+        private readonly FlowWriteService $writer,
         private readonly NodalCatalogService $nodalCatalog,
         private readonly FeatureFlagService $features,
     ) {}
@@ -28,14 +33,6 @@ final class FlowMcpTools implements McpToolHandler
     public function definitions(): array
     {
         $identifier = ['type' => 'string', 'description' => 'Flow ID.'];
-        $graph = [
-            'type' => 'object',
-            'required' => ['nodes', 'edges'],
-            'properties' => [
-                'nodes' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => true]],
-                'edges' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => true]],
-            ],
-        ];
 
         return [
             ['name' => 'search_flows', 'description' => 'Search flows visible to the connected user in this workspace.', 'inputSchema' => ['type' => 'object', 'properties' => [
@@ -49,21 +46,12 @@ final class FlowMcpTools implements McpToolHandler
             ['name' => 'get_flow_source', 'description' => 'Get the source code and complete nodal graph for an MCP-enabled flow.', 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => ['flow_id' => $identifier]]],
             ['name' => 'list_folders', 'description' => 'List folders visible to the connected user in this workspace.', 'inputSchema' => ['type' => 'object', 'properties' => ['search' => ['type' => 'string']]]],
             ['name' => 'get_flow_creation_options', 'description' => 'List allowed visibility scopes, teams, and folders for creating a flow.', 'inputSchema' => ['type' => 'object', 'properties' => new \stdClass]],
-            ['name' => 'get_nodal_catalog', 'description' => 'List native visual-flow nodes, parameters, and ports.', 'inputSchema' => ['type' => 'object', 'properties' => ['query' => ['type' => 'string']]]],
-            ['name' => 'create_flow', 'description' => 'Create a code or nodal flow in this workspace.', 'inputSchema' => ['type' => 'object', 'required' => ['name', 'flow_type', 'code'], 'properties' => [
-                'name' => ['type' => 'string', 'maxLength' => 128],
-                'description' => ['type' => 'string'],
-                'flow_type' => ['type' => 'string', 'enum' => ['code', 'nodal']],
-                'code' => ['type' => 'string'],
-                'nodal_graph' => $graph,
-                'visibility' => ['type' => 'string', 'enum' => ['owner', 'workspace', 'team'], 'default' => 'owner'],
-                'team_id' => ['type' => 'string', 'pattern' => '^team_[A-Za-z0-9]{12}$'],
-                'folder_id' => ['type' => 'string', 'description' => 'Personal folder ID.'],
-                'workspace_folder_id' => ['type' => 'string', 'description' => 'Workspace or team folder ID.'],
-                'is_published' => ['type' => 'boolean', 'default' => false],
-                'available_in_mcp' => ['type' => 'boolean', 'default' => false],
-                'queue_index' => ['type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => config()->integer('puppetflow.queues_counter', 1)],
+            ['name' => 'get_nodal_catalog', 'description' => 'List Puppetflow runtime helpers or visual nodes, including signatures, required and nested parameter fields, one-of constraints, value types, and ports. Use mode code before writing JavaScript, or mode nodal before writing a visual graph.', 'inputSchema' => ['type' => 'object', 'properties' => [
+                'mode' => ['type' => 'string', 'enum' => ['code', 'nodal'], 'default' => 'nodal'],
+                'query' => ['type' => 'string'],
             ]]],
+            $this->codeWriterDefinition(),
+            $this->nodalWriterDefinition(),
         ];
     }
 
@@ -81,7 +69,8 @@ final class FlowMcpTools implements McpToolHandler
             'list_folders' => $this->folders($arguments, $context),
             'get_flow_creation_options' => $this->creationOptions($context),
             'get_nodal_catalog' => $this->catalog($arguments),
-            'create_flow' => $this->create($arguments, $context),
+            'write_code_flow' => $this->write($arguments, $context, 'code'),
+            'write_nodal_flow' => $this->write($arguments, $context, 'nodal'),
             default => throw ValidationException::withMessages(['name' => 'Unknown flow tool.']),
         };
     }
@@ -175,12 +164,22 @@ final class FlowMcpTools implements McpToolHandler
      */
     private function source(array $arguments, McpToolContext $context): array
     {
-        $flow = $this->resources->flow(trim(McpToolArguments::string($arguments, 'flow_id')), $context);
+        $flow = $this->resources->flow(
+            trim(McpToolArguments::string($arguments, 'flow_id')),
+            $context,
+            requireExposed: false,
+        );
+        if (
+            ! $flow->available_in_mcp
+            && Gate::forUser($context->user)->denies(Ability::UPDATE->value, $flow)
+        ) {
+            throw ValidationException::withMessages(['flow_id' => 'Flow is not available in MCP.']);
+        }
 
         return ['flow' => [
             'id' => $flow->id, 'flow_type' => $flow->flow_type,
             'code' => $flow->code, 'nodal_graph' => $flow->nodal_graph,
-            'content_updated_at' => $flow->content_updated_at?->toIso8601String(),
+            'content_updated_at' => $flow->content_updated_at?->toJSON(),
         ]];
     }
 
@@ -227,7 +226,8 @@ final class FlowMcpTools implements McpToolHandler
      */
     private function catalog(array $arguments): array
     {
-        $entries = collect($this->nodalCatalog->entries());
+        $mode = McpToolArguments::string($arguments, 'mode') === 'code' ? 'code' : 'flow';
+        $entries = collect($this->nodalCatalog->entries($mode));
         if (($query = strtolower(trim(McpToolArguments::string($arguments, 'query')))) !== '') {
             $entries = $entries->filter(fn (array $entry) => str_contains(strtolower(
                 $this->catalogValue($entry, 'name').' '.$this->catalogValue($entry, 'description').' '.$this->catalogValue($entry, 'category')
@@ -240,10 +240,13 @@ final class FlowMcpTools implements McpToolHandler
     /** @param Arguments $arguments
      * @return array<string, mixed>
      */
-    private function create(array $arguments, McpToolContext $context): array
+    private function write(array $arguments, McpToolContext $context, string $flowType): array
     {
         $attributes = $arguments;
-        unset($attributes['folder_id'], $attributes['workspace_folder_id'], $attributes['team_id']);
+        unset($attributes['folder_id'], $attributes['workspace_folder_id'], $attributes['team_id'], $attributes['flow_type']);
+        if ($flowType === 'nodal') {
+            unset($attributes['code']);
+        }
 
         $teamId = trim(McpToolArguments::string($arguments, 'team_id'));
         if ($teamId !== '') {
@@ -254,28 +257,178 @@ final class FlowMcpTools implements McpToolHandler
                 throw ValidationException::withMessages(['team_id' => 'The selected team is invalid.']);
             }
             $attributes['team_id'] = $teamId;
+        } elseif (array_key_exists('team_id', $arguments) && $arguments['team_id'] === null) {
+            $attributes['team_id'] = null;
         }
 
         $folderId = trim(McpToolArguments::string($arguments, 'folder_id'));
         if ($folderId !== '') {
             $attributes['folder_id'] = $this->resolveFolderId($folderId, $context, 'folder_id');
+        } elseif (array_key_exists('folder_id', $arguments) && $arguments['folder_id'] === null) {
+            $attributes['folder_id'] = null;
         }
 
         $workspaceFolderId = trim(McpToolArguments::string($arguments, 'workspace_folder_id'));
         if ($workspaceFolderId !== '') {
             $attributes['workspace_folder_id'] = $this->resolveFolderId($workspaceFolderId, $context, 'workspace_folder_id');
+        } elseif (array_key_exists('workspace_folder_id', $arguments) && $arguments['workspace_folder_id'] === null) {
+            $attributes['workspace_folder_id'] = null;
         }
 
-        $flow = $this->creation->create($attributes, $context->user, $context->workspace, strictContent: true);
+        $result = $this->writer->write($attributes, $flowType, $context->user, $context->workspace);
+        $flow = $result['flow'];
 
         return ['flow' => [
+            'operation' => $result['operation'],
             'id' => $flow->id, 'name' => $flow->name,
             'flow_type' => $flow->flow_type,
             'visibility' => $flow->visibility, 'is_published' => (bool) $flow->is_published,
+            'published_version' => $flow->published_version_number,
             'available_in_mcp' => (bool) $flow->available_in_mcp,
             'queue_index' => $flow->queue_index,
+            'content_updated_at' => $flow->content_updated_at?->toJSON(),
             'url' => route('flows.show', $flow).'#code',
         ]];
+    }
+
+    /** @return ToolDefinition */
+    private function codeWriterDefinition(): array
+    {
+        return [
+            'name' => 'write_code_flow',
+            'description' => <<<'TEXT'
+Create or update a Puppetflow JavaScript flow. Use this tool only when the user explicitly asks for code, JavaScript, or code mode. For every general request to create a flow, prefer write_nodal_flow. Omit flow_id to create and provide name. To update, first call get_flow_source, then provide flow_id and its exact content_updated_at.
+
+The source must define `async function run($page, $input)`. `$page` is a Puppeteer Page and `$input` is the caller-provided object. Use Puppetflow runtime helpers directly (for example `$gotoUrl`, `$loginRemember`, `$selectElement`, `$clickElement`, `$fillInput`, `$screenshot`, and `$generateResponseSuccess`). Call get_nodal_catalog with mode "code" to discover exact helper names, signatures, and parameter descriptions. Await browser actions and every helper that returns a Promise. Return a Puppetflow response, normally `$generateResponseSuccess("message", data)`; let errors throw unless the flow has a deliberate recovery path. Never import packages, create a browser, close `$page`, or embed credentials. Read credentials and variables from `$input` or approved runtime helpers.
+
+Minimal source:
+async function run($page, $input) {
+    await $gotoUrl($input.url);
+    return $generateResponseSuccess('Flow completed');
+}
+
+Set available_in_mcp to true when the flow must be searchable and executable by MCP clients. is_published is optional. On update, omitting it preserves the current publication state; true publishes this exact content and false unpublishes it.
+TEXT,
+            'inputSchema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['code'],
+                'oneOf' => [
+                    ['required' => ['name'], 'not' => ['required' => ['flow_id']]],
+                    ['required' => ['flow_id', 'content_updated_at']],
+                ],
+                'properties' => [
+                    ...$this->sharedWriterProperties(),
+                    'code' => [
+                        'type' => 'string',
+                        'description' => 'Complete JavaScript source defining async function run($page, $input).',
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /** @return ToolDefinition */
+    private function nodalWriterDefinition(): array
+    {
+        $parameterValue = [
+            'description' => 'A raw string or a typed value. Scalar: {mode:"fixed"|"expression",value:string}. Expressions execute only inside {{ ... }}. Object: {mode:"object",inputMode:"json"|"form",jsonMode?,value,fields}. If condition: {mode:"if-condition",combinator:"and"|"or",rules}.',
+            'oneOf' => [
+                ['type' => 'string'],
+                ['type' => 'object', 'additionalProperties' => true],
+            ],
+        ];
+
+        return [
+            'name' => 'write_nodal_flow',
+            'description' => <<<'TEXT'
+Create or update a Puppetflow visual flow from a nodal JSON graph. This is the default and preferred tool whenever the user asks to create a flow. Use write_code_flow only when the user explicitly requests code, JavaScript, or code mode. Omit flow_id to create and provide name. To update, first call get_flow_source, then provide flow_id and its exact content_updated_at. Puppetflow validates the graph and compiles the JavaScript server-side; do not provide generated code.
+
+Always call get_nodal_catalog with mode "nodal" before constructing the graph. Use exact catalog node names, required parameter keys, value types, and output port IDs. Every flow has canonical RUN and TERMINATE system nodes. Connect the main sequence from RUN; connect independent cleanup steps from TERMINATE. Ordinary edges default to sourcePort "output" and targetPort "input". If / Else branches use "true" and "false". Loop uses "loop" and "done". Callback ports use the exact `flow-*` ID from the catalog. Keep branches structured and converge them through Merge where needed. Node and edge IDs must be unique, edges cannot cross private-function scopes, and coordinates must be numeric.
+
+Minimal graph:
+{"nodes":[{"id":"__system_run","name":"RUN","system":"run","x":0,"y":0,"values":{}},{"id":"step_1","name":"$gotoUrl","x":320,"y":0,"values":{"url":{"mode":"expression","value":"{{ $input.url }}"}}},{"id":"__system_terminate","name":"TERMINATE","system":"terminate","x":0,"y":400,"values":{}}],"edges":[{"id":"run_to_step","sourceNodeId":"__system_run","targetNodeId":"step_1","sourcePort":"output","targetPort":"input"}]}
+
+For private functions, the FUNCTION declaration node uses system "function", name "FUNCTION", and an id equal to scopeId; all nodes in that function use the same scopeId. Calls use localFunctionId and callArguments. Reuse a $$ snippet reference only when it already appears in get_flow_source; do not invent snippet IDs. Set available_in_mcp to true when MCP clients must find and execute the flow. is_published follows the same preserve/true/false behavior as write_code_flow.
+TEXT,
+            'inputSchema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['nodal_graph'],
+                'oneOf' => [
+                    ['required' => ['name'], 'not' => ['required' => ['flow_id']]],
+                    ['required' => ['flow_id', 'content_updated_at']],
+                ],
+                'properties' => [
+                    ...$this->sharedWriterProperties(),
+                    'nodal_graph' => [
+                        'type' => 'object',
+                        'additionalProperties' => false,
+                        'required' => ['nodes', 'edges'],
+                        'properties' => [
+                            'nodes' => [
+                                'type' => 'array',
+                                'maxItems' => 2000,
+                                'items' => [
+                                    'type' => 'object',
+                                    'additionalProperties' => false,
+                                    'required' => ['id', 'name', 'x', 'y'],
+                                    'properties' => [
+                                        'id' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 255],
+                                        'name' => ['type' => 'string', 'description' => 'Exact catalog name, RUN, TERMINATE, FUNCTION, a private-function call, or an existing $$ snippet reference obtained from get_flow_source.'],
+                                        'label' => ['type' => 'string'],
+                                        'x' => ['type' => 'number'],
+                                        'y' => ['type' => 'number'],
+                                        'values' => ['type' => 'object', 'additionalProperties' => $parameterValue],
+                                        'system' => ['type' => 'string', 'enum' => ['run', 'terminate', 'function']],
+                                        'kind' => ['type' => 'string', 'enum' => ['stickyNote']],
+                                        'deactivated' => ['type' => 'boolean'],
+                                        'callArguments' => ['type' => 'array', 'items' => ['type' => 'string']],
+                                        'scopeId' => ['type' => 'string'],
+                                        'localFunctionId' => ['type' => 'string'],
+                                        'stickyNote' => ['type' => 'object', 'additionalProperties' => true],
+                                    ],
+                                ],
+                            ],
+                            'edges' => [
+                                'type' => 'array',
+                                'maxItems' => 5000,
+                                'items' => [
+                                    'type' => 'object',
+                                    'additionalProperties' => false,
+                                    'required' => ['id', 'sourceNodeId', 'targetNodeId'],
+                                    'properties' => [
+                                        'id' => ['type' => 'string', 'minLength' => 1],
+                                        'sourceNodeId' => ['type' => 'string'],
+                                        'targetNodeId' => ['type' => 'string'],
+                                        'sourcePort' => ['type' => 'string', 'pattern' => '^[A-Za-z0-9_-]{1,64}$', 'default' => 'output'],
+                                        'targetPort' => ['type' => 'string', 'pattern' => '^[A-Za-z0-9_-]{1,64}$', 'default' => 'input'],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function sharedWriterProperties(): array
+    {
+        return [
+            'flow_id' => ['type' => 'string', 'description' => 'Existing flow ID for an update. Omit to create.'],
+            'content_updated_at' => ['type' => 'string', 'description' => 'Exact timestamp returned by get_flow_source. Required for updates.'],
+            'name' => ['type' => 'string', 'maxLength' => 128, 'description' => 'Required when creating; optional rename when updating.'],
+            'description' => ['type' => ['string', 'null']],
+            'visibility' => ['type' => 'string', 'enum' => ['owner', 'workspace', 'team'], 'description' => 'Creation default: owner. Omit during update to preserve the current scope.'],
+            'team_id' => ['type' => ['string', 'null'], 'pattern' => '^team_[A-Za-z0-9]{12}$'],
+            'folder_id' => ['type' => ['string', 'null'], 'description' => 'Personal folder ID.'],
+            'workspace_folder_id' => ['type' => ['string', 'null'], 'description' => 'Workspace or team folder ID.'],
+            'is_published' => ['type' => 'boolean', 'description' => 'Creation default: false. On update, omit to preserve, true to publish this content, or false to unpublish.'],
+            'available_in_mcp' => ['type' => 'boolean', 'description' => 'Creation default: false. Omit during update to preserve the current value.'],
+            'queue_index' => ['type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => config()->integer('puppetflow.queues_counter', 1)],
+        ];
     }
 
     private function resolveFolderId(string $id, McpToolContext $context, string $field): string

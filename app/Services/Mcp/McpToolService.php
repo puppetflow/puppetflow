@@ -79,6 +79,7 @@ final class McpToolService
         WorkspaceMcpSetting $setting,
         string $artifactRouteName = 'mcp.artifacts.download',
     ): array {
+        $name = $this->normalizeCalledToolName($name, $arguments);
         if (! in_array($name, $this->enabledToolNames($setting), true)) {
             throw ValidationException::withMessages(['name' => 'MCP tool is disabled for this workspace.']);
         }
@@ -108,18 +109,57 @@ final class McpToolService
     }
 
     /** @return list<string> */
+    public function acceptedToolNames(): array
+    {
+        return [...$this->allToolNames(), 'create_flow', 'execute_flow'];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $names
+     * @return list<string>
+     */
+    public function normalizeToolNames(array $names): array
+    {
+        $normalized = [];
+        foreach ($names as $name) {
+            if (! is_string($name)) {
+                continue;
+            }
+            if ($name === 'create_flow') {
+                $normalized[] = 'write_code_flow';
+                $normalized[] = 'write_nodal_flow';
+
+                continue;
+            }
+            $normalized[] = $name === 'execute_flow' ? 'run_flow' : $name;
+        }
+
+        return array_values(array_unique(array_intersect($normalized, $this->allToolNames())));
+    }
+
+    /** @return list<string> */
     public function enabledToolNames(WorkspaceMcpSetting $setting): array
     {
-        $all = $this->allToolNames();
         $enabled = $setting->enabled_tools;
         if (! is_array($enabled)) {
             return $this->defaultToolNames();
         }
-        $enabled = array_map(
-            fn (mixed $name) => $name === 'execute_flow' ? 'run_flow' : $name,
-            $enabled,
-        );
 
-        return array_values(array_filter(array_intersect($enabled, $all), 'is_string'));
+        return $this->normalizeToolNames($enabled);
+    }
+
+    /** @param McpArguments $arguments */
+    private function normalizeCalledToolName(string $name, array $arguments): string
+    {
+        if ($name === 'execute_flow') {
+            return 'run_flow';
+        }
+        if ($name === 'create_flow') {
+            return ($arguments['flow_type'] ?? null) === 'code'
+                ? 'write_code_flow'
+                : 'write_nodal_flow';
+        }
+
+        return $name;
     }
 }

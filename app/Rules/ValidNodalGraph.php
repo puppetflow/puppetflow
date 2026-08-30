@@ -28,7 +28,10 @@ class ValidNodalGraph implements ValidationRule
         '$viewportWidth', '$viewportHeight',
     ];
 
-    public function __construct(private readonly string $context = 'flow') {}
+    public function __construct(
+        private readonly string $context = 'flow',
+        private readonly bool $strictStructure = false,
+    ) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
@@ -67,7 +70,10 @@ class ValidNodalGraph implements ValidationRule
         $nodeIds = [];
         $nodeLabels = [];
         $nodeScopes = [];
+        $nodeSticky = [];
         $nodeDeactivated = [];
+        $runRoots = 0;
+        $terminateRoots = 0;
         $functionRoots = 0;
         $localFunctionRoots = [];
         $localFunctionCalls = [];
@@ -123,6 +129,22 @@ class ValidNodalGraph implements ValidationRule
                 $fail("The {$nodeLabel} node is not a valid system node for this graph.");
 
                 return;
+            }
+            if ($this->strictStructure && $this->context === 'flow' && $system === 'run') {
+                if ($id !== '__system_run' || $name !== 'RUN') {
+                    $fail('The flow must use the canonical RUN entry node.');
+
+                    return;
+                }
+                $runRoots++;
+            }
+            if ($this->strictStructure && $this->context === 'flow' && $system === 'terminate') {
+                if ($id !== '__system_terminate' || $name !== 'TERMINATE') {
+                    $fail('The flow must use the canonical TERMINATE entry node.');
+
+                    return;
+                }
+                $terminateRoots++;
             }
             if ($system === 'function') {
                 if ($name !== 'FUNCTION') {
@@ -183,6 +205,7 @@ class ValidNodalGraph implements ValidationRule
                 }
             }
             $isSticky = ($node['kind'] ?? null) === 'stickyNote' || $name === '__sticky_note';
+            $nodeSticky[$id] = $isSticky;
             $isSnippet = is_string($name) && preg_match('/^\$\$[A-Za-z_$][\w$]*$/', $name) === 1;
             $isLocalCall = is_string($localFunctionId) && $localFunctionId !== '';
             if ($isLocalCall) {
@@ -211,7 +234,7 @@ class ValidNodalGraph implements ValidationRule
 
                 return;
             }
-
+            /** @var array<string, mixed> $values */
             $catalogEntry = $catalog->get($name);
             $parameters = is_array($catalogEntry) && is_array($catalogEntry['parameters'] ?? null)
                 ? $catalogEntry['parameters']
@@ -223,6 +246,8 @@ class ValidNodalGraph implements ValidationRule
                     is_array($catalogEntry['flowParameters'] ?? null) ? $catalogEntry['flowParameters'] : [],
                     fn (mixed $definition): bool => is_array($definition) && ($definition['required'] ?? false),
                 ));
+            } elseif (! $isSticky) {
+                $nodeOutputPorts[$id] = ['output'];
             }
             if ($deactivated) {
                 continue;
@@ -231,8 +256,12 @@ class ValidNodalGraph implements ValidationRule
                 if (
                     is_array($definition)
                     && ($definition['required'] ?? false)
+                    && ($this->strictStructure || ($definition['validationRequired'] ?? true))
                     && ($definition['valueType'] ?? null) !== 'flow'
-                    && ! array_key_exists($parameter, $values)
+                    && (
+                        ! array_key_exists($parameter, $values)
+                        || ($this->strictStructure && ! $this->isNonEmptyParameterLeaf($values[$parameter]))
+                    )
                 ) {
                     $parameterLabel = is_string($definition['label'] ?? null)
                         ? $definition['label']
@@ -242,10 +271,61 @@ class ValidNodalGraph implements ValidationRule
                     return;
                 }
             }
+            $parameterFields = $this->strictStructure && is_array($catalogEntry) && is_array($catalogEntry['parameterFields'] ?? null)
+                ? $catalogEntry['parameterFields']
+                : [];
+            foreach ($parameterFields as $field) {
+                if (! is_array($field)) {
+                    continue;
+                }
+                $path = is_array($field['path'] ?? null)
+                    ? array_values(array_filter($field['path'], 'is_string'))
+                    : [];
+                if (
+                    count($path) < 2
+                    || ! ($field['required'] ?? false)
+                    || ($field['valueType'] ?? null) === 'flow'
+                    || ! $this->hasLegacyFlowParameterValue($values, array_slice($path, 0, -1))
+                    || $this->hasLegacyFlowParameterValue($values, $path)
+                ) {
+                    continue;
+                }
+                $fail(implode('.', $path)." is required for the {$nodeLabel} node.");
+
+                return;
+            }
+            $parameterOneOf = $this->strictStructure && is_array($catalogEntry) && is_array($catalogEntry['parameterOneOf'] ?? null)
+                ? $catalogEntry['parameterOneOf']
+                : [];
+            foreach ($parameterOneOf as $group) {
+                if (! is_array($group)) {
+                    continue;
+                }
+                $paths = array_values(array_filter(array_map(
+                    fn (mixed $path): array => is_array($path)
+                        ? array_values(array_filter($path, 'is_string'))
+                        : [],
+                    $group,
+                )));
+                if ($paths !== [] && array_filter(
+                    $paths,
+                    fn (array $path): bool => $this->hasLegacyFlowParameterValue($values, $path),
+                ) === []) {
+                    $choices = implode(' or ', array_map(fn (array $path): string => implode('.', $path), $paths));
+                    $fail("{$choices} is required for the {$nodeLabel} node.");
+
+                    return;
+                }
+            }
         }
 
         if ($this->context === 'function' && $functionRoots !== 1) {
             $fail('The function graph must contain exactly one FUNCTION entry node.');
+
+            return;
+        }
+        if ($this->strictStructure && $this->context === 'flow' && ($runRoots !== 1 || $terminateRoots !== 1)) {
+            $fail('The flow graph must contain exactly one canonical RUN node and one canonical TERMINATE node.');
 
             return;
         }
@@ -268,6 +348,7 @@ class ValidNodalGraph implements ValidationRule
 
         $edgeIds = [];
         $connectedOutputPorts = [];
+        $adjacency = [];
         foreach ($edges as $index => $edge) {
             if (! is_array($edge)) {
                 $fail("The nodal graph edge at index {$index} must be an object.");
@@ -306,7 +387,7 @@ class ValidNodalGraph implements ValidationRule
             }
             $sourcePort = $edge['sourcePort'] ?? 'output';
             if (
-                str_starts_with($sourcePort, 'flow-')
+                ($this->strictStructure || str_starts_with($sourcePort, 'flow-'))
                 && isset($nodeOutputPorts[$source])
                 && ! in_array($sourcePort, $nodeOutputPorts[$source], true)
             ) {
@@ -314,7 +395,13 @@ class ValidNodalGraph implements ValidationRule
 
                 return;
             }
+            if ($this->strictStructure && ($connectedOutputPorts[$source][$sourcePort] ?? false)) {
+                $fail("The {$sourceLabel} node has more than one connection on the {$sourcePort} output.");
+
+                return;
+            }
             $connectedOutputPorts[$source][$sourcePort] = true;
+            $adjacency[$source][] = $target;
         }
 
         foreach ($nodes as $node) {
@@ -344,6 +431,31 @@ class ValidNodalGraph implements ValidationRule
                 $fail("The {$nodeLabel} node must connect {$label}.");
 
                 return;
+            }
+        }
+
+        if ($this->strictStructure) {
+            $reachableByScope = [
+                '' => $this->reachableNodeIds(
+                    $adjacency,
+                    $this->context === 'function'
+                        ? ['__system_function']
+                        : ['__system_run', '__system_terminate'],
+                ),
+            ];
+            foreach ($localFunctionRoots as $scopeId => $rootId) {
+                $reachableByScope[$scopeId] = $this->reachableNodeIds($adjacency, [$rootId]);
+            }
+            foreach ($nodeIds as $nodeId => $_) {
+                if ($nodeSticky[$nodeId] ?? false) {
+                    continue;
+                }
+                $scope = is_string($nodeScopes[$nodeId] ?? null) ? $nodeScopes[$nodeId] : '';
+                if (! isset($reachableByScope[$scope][$nodeId])) {
+                    $fail("The {$nodeLabels[$nodeId]} node is not connected to its graph entry.");
+
+                    return;
+                }
             }
         }
 
@@ -523,5 +635,28 @@ class ValidNodalGraph implements ValidationRule
         }
 
         return $value !== null;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $adjacency
+     * @param  list<string>  $roots
+     * @return array<string, true>
+     */
+    private function reachableNodeIds(array $adjacency, array $roots): array
+    {
+        $reachable = [];
+        $queue = $roots;
+        while ($queue !== []) {
+            $nodeId = array_shift($queue);
+            if (isset($reachable[$nodeId])) {
+                continue;
+            }
+            $reachable[$nodeId] = true;
+            foreach ($adjacency[$nodeId] ?? [] as $targetId) {
+                $queue[] = $targetId;
+            }
+        }
+
+        return $reachable;
     }
 }
