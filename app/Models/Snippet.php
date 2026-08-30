@@ -11,6 +11,8 @@ namespace App\Models;
 use App\Models\Concerns\HasStringId;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -49,7 +51,7 @@ class Snippet extends Model
         'library_imported_at',
     ];
 
-    protected $appends = ['library_locked'];
+    protected $appends = ['library_locked', 'published_version_number'];
 
     protected function casts(): array
     {
@@ -58,6 +60,7 @@ class Snippet extends Model
             'stale' => 'boolean',
             'snippet_type' => 'string',
             'nodal_graph' => 'array',
+            'content_updated_at' => 'datetime',
             'library_imported_at' => 'datetime',
         ];
     }
@@ -65,6 +68,41 @@ class Snippet extends Model
     public function getLibraryLockedAttribute(): bool
     {
         return ! empty($this->library_reference);
+    }
+
+    public function getPublishedVersionNumberAttribute(): ?int
+    {
+        $version = $this->publishedVersion;
+
+        return $version instanceof SnippetVersion ? $version->version : null;
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Snippet $snippet): void {
+            $snippet->content_updated_at ??= Carbon::now();
+        });
+
+        static::saving(function (Snippet $snippet): void {
+            if (
+                $snippet->exists
+                && (
+                    $snippet->isDirty('args')
+                    || $snippet->isDirty('code')
+                    || $snippet->isDirty('snippet_type')
+                    || $snippet->isDirty('nodal_graph')
+                    || $snippet->isDirty('label')
+                    || $snippet->isDirty('description')
+                    || $snippet->isDirty('group')
+                    || $snippet->isDirty('is_active')
+                    || $snippet->isDirty('scope')
+                    || $snippet->isDirty('team_id')
+                    || $snippet->isDirty('user_id')
+                )
+            ) {
+                $snippet->content_updated_at = Carbon::now();
+            }
+        });
     }
 
     /** @return BelongsTo<User, $this> */
@@ -77,5 +115,17 @@ class Snippet extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(WorkspaceTeam::class, 'team_id');
+    }
+
+    /** @return HasMany<SnippetVersion, $this> */
+    public function versions(): HasMany
+    {
+        return $this->hasMany(SnippetVersion::class);
+    }
+
+    /** @return BelongsTo<SnippetVersion, $this> */
+    public function publishedVersion(): BelongsTo
+    {
+        return $this->belongsTo(SnippetVersion::class, 'published_version_id');
     }
 }

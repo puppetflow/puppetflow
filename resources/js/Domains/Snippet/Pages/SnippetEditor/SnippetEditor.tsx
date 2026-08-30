@@ -8,6 +8,8 @@ import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue';
 import { FloatingHelpButton } from '@/Shared/CodeEditor/shared/editor-layout.styled';
 import { ToolbarBadge } from '@/Shared/CodeEditor/shared/toolbar.styled';
+import PublicationMenu from '@/Domains/Flow/Pages/FlowEditor/components/PublicationMenu/PublicationMenu';
+import type { DraftSaveStatus } from '@/Domains/Flow/Pages/FlowEditor/hooks/useFlowPersistence';
 import * as Layout from '@/Domains/Snippet/Pages/shared.styled';
 import { EvaluationModal } from './components/EvaluationModal/EvaluationModal';
 import { HelpPanel } from './components/HelpPanel/HelpPanel';
@@ -22,6 +24,7 @@ interface Props {
     args: string;
     dirty: boolean;
     saving: boolean;
+    saveStatus: DraftSaveStatus;
     switching: boolean;
     justSaved: boolean;
     resolvedTheme: string;
@@ -32,7 +35,11 @@ interface Props {
     libraryUpdateAvailable?: boolean;
     updatingLibrarySource?: boolean;
     checkingLibraryUpdate?: boolean;
+    publishedVersion?: number | null;
+    savingPublication?: boolean;
     onSave: () => void;
+    onPublish?: () => void;
+    onViewTimeline?: () => void;
     onOpenLibraryStore?: () => void;
     onDownloadSnippet?: () => void;
     onDuplicateSnippet?: () => void;
@@ -49,6 +56,7 @@ export default function SnippetEditor({
     args,
     dirty,
     saving,
+    saveStatus,
     switching,
     justSaved,
     resolvedTheme,
@@ -59,7 +67,11 @@ export default function SnippetEditor({
     libraryUpdateAvailable = false,
     updatingLibrarySource = false,
     checkingLibraryUpdate = false,
+    publishedVersion = null,
+    savingPublication = false,
     onSave,
+    onPublish,
+    onViewTimeline,
     onOpenLibraryStore,
     onDownloadSnippet,
     onDuplicateSnippet,
@@ -161,23 +173,39 @@ export default function SnippetEditor({
                     </S.CodeTitle>
                 </Layout.PanelHeaderLeft>
                 <Layout.PanelHeaderRight>
-                    {canSave && (
+                    {(canSave || onViewTimeline) && (
                         <>
-                            <S.SavedIndicator $saved={!dirty} $visible={dirty || justSaved}>
-                                {dirty ? 'Unsaved changes' : 'Saved'}
-                            </S.SavedIndicator>
-                            <S.SaveBadge
-                                type="button"
-                                onClick={onSave}
-                                $disabled={!dirty || saving}
-                                title="Save (Ctrl+S)"
-                            >
-                                <S.SaveIconWrapper>
-                                    <Icon icon="lucide:save" />
-                                    {dirty && <S.UnsavedDot />}
-                                </S.SaveIconWrapper>
-                                Save
-                            </S.SaveBadge>
+                            {onViewTimeline ? (
+                                <PublicationMenu
+                                    isPublished={publishedVersion !== null}
+                                    publishedVersion={publishedVersion}
+                                    saveStatus={saveStatus}
+                                    draftEditable={canSave}
+                                    publicationEditable={canSave && !libraryLocked}
+                                    savingPublication={savingPublication}
+                                    onSaveDraft={onSave}
+                                    onPublish={onPublish}
+                                    onViewTimeline={onViewTimeline}
+                                />
+                            ) : (
+                                <>
+                                    <S.SavedIndicator $saved={!dirty} $visible={dirty || justSaved}>
+                                        {dirty ? 'Unsaved changes' : 'Saved'}
+                                    </S.SavedIndicator>
+                                    <S.SaveBadge
+                                        type="button"
+                                        onClick={onSave}
+                                        $disabled={!dirty || saving}
+                                        title="Save (Ctrl+S)"
+                                    >
+                                        <S.SaveIconWrapper>
+                                            <Icon icon="lucide:save" />
+                                            {dirty && <S.UnsavedDot />}
+                                        </S.SaveIconWrapper>
+                                        Save
+                                    </S.SaveBadge>
+                                </>
+                            )}
                             <S.ToolbarSeparator />
                         </>
                     )}

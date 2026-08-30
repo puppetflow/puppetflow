@@ -73,6 +73,7 @@ const dynamicCallEntry = (node: NodalGraph['nodes'][number]): HelpEntryDef | nul
 };
 
 export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
+    const reservedIds = graph.nodes.map(node => node.id);
     return graph.nodes.reduce<CanvasNode[]>((acc, node) => {
         const isStickyNote = node.kind === 'stickyNote';
         const entry = isStickyNote
@@ -91,7 +92,9 @@ export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
             entry,
             kind: isStickyNote ? 'stickyNote' : undefined,
             deactivated: node.deactivated,
-            label: isStickyNote || node.system ? node.label : uniqueNodeLabel(savedLabel || fallbackLabel, acc),
+            label: isStickyNote || node.system
+                ? node.label
+                : uniqueNodeLabel(savedLabel || fallbackLabel, acc, undefined, reservedIds),
             x: node.x,
             y: node.y,
             values: sanitizeNodeValuesForEntry(entry, node.values),

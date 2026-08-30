@@ -87,7 +87,7 @@ const RESERVED_IDENTIFIERS = new Set([
     'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
 ]);
 const RUNTIME_IDENTIFIERS = new Set([
-    '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
+    '$', '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
     '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
     '$viewportWidth', '$viewportHeight',
 ]);
@@ -99,6 +99,20 @@ const DATA_TABLE_MUTATION_NODE_NAMES = new Set([
     '$dataTableDelete',
     '$dataTableUpdate',
 ]);
+const LOGGED_MARKER_COUNT_OPERATORS = new Set([
+    'equals',
+    'notEquals',
+    'greaterThan',
+    'greaterThanOrEqual',
+    'lessThan',
+    'lessThanOrEqual',
+]);
+const LOGGED_MARKER_OPERATORS = new Set([
+    'exists',
+    'doesNotExist',
+    ...LOGGED_MARKER_COUNT_OPERATORS,
+]);
+const DYNAMIC_PARAMETER_VALUE = Symbol('dynamic-parameter-value');
 
 const isValidIdentifier = (value: string) => (
     /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value)
@@ -186,6 +200,82 @@ function objectBooleanValue(value: NodeParameterValue | undefined, key: string):
     const field = normalized.fields.find(candidate => candidate.key === key);
 
     return field ? normalizeScalarParameterValue(field.value).value === 'true' : false;
+}
+
+function readObjectFieldValue(source: unknown, key: string): unknown | typeof DYNAMIC_PARAMETER_VALUE {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return undefined;
+    const record = source as Record<string, unknown>;
+    if (record.mode === 'expression') return DYNAMIC_PARAMETER_VALUE;
+    if (record.mode === 'object') {
+        if (record.inputMode === 'json') {
+            if (record.jsonMode === 'expression') return DYNAMIC_PARAMETER_VALUE;
+            try {
+                const parsed: unknown = JSON.parse(typeof record.value === 'string' ? record.value : '{}');
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                    ? (parsed as Record<string, unknown>)[key]
+                    : undefined;
+            } catch {
+                return undefined;
+            }
+        }
+
+        const fields = Array.isArray(record.fields) ? record.fields as Array<Record<string, unknown>> : [];
+        return fields.find(field => field.key === key)?.value;
+    }
+
+    return record[key];
+}
+
+function readScalarValue(source: unknown): unknown | typeof DYNAMIC_PARAMETER_VALUE {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return source;
+    const record = source as Record<string, unknown>;
+    if (record.mode === 'expression') return DYNAMIC_PARAMETER_VALUE;
+    if (record.mode === 'fixed') return record.value;
+    return source;
+}
+
+function getLoggedMarkerConditionIssues(value: NodeParameterValue | undefined): NodeValidationIssue[] {
+    const condition = readObjectFieldValue(value, 'loggedMarkerCondition');
+    if (condition === undefined || condition === DYNAMIC_PARAMETER_VALUE) return [];
+    if (!condition || typeof condition !== 'object' || Array.isArray(condition)) {
+        return [{
+            path: 'options.loggedMarkerCondition',
+            label: 'Logged marker condition',
+            message: 'Configure a selector condition.',
+        }];
+    }
+
+    const selector = readScalarValue(readObjectFieldValue(condition, 'selector'));
+    if (selector !== DYNAMIC_PARAMETER_VALUE && (typeof selector !== 'string' || !selector.trim())) {
+        return [{
+            path: 'options.loggedMarkerCondition',
+            label: 'Logged marker condition',
+            message: 'Selector is required.',
+        }];
+    }
+
+    const operatorValue = readScalarValue(readObjectFieldValue(condition, 'operator'));
+    if (operatorValue === DYNAMIC_PARAMETER_VALUE) return [];
+    const operator = typeof operatorValue === 'string' && operatorValue ? operatorValue : 'exists';
+    if (!LOGGED_MARKER_OPERATORS.has(operator)) {
+        return [{
+            path: 'options.loggedMarkerCondition',
+            label: 'Logged marker condition',
+            message: 'Select a valid marker condition.',
+        }];
+    }
+    if (!LOGGED_MARKER_COUNT_OPERATORS.has(operator)) return [];
+
+    const countValue = readScalarValue(readObjectFieldValue(condition, 'count'));
+    if (countValue === DYNAMIC_PARAMETER_VALUE) return [];
+    const count = typeof countValue === 'number' ? countValue : Number(countValue);
+    if (Number.isInteger(count) && count >= 0) return [];
+
+    return [{
+        path: 'options.loggedMarkerCondition',
+        label: 'Logged marker condition',
+        message: 'Count must be a non-negative integer.',
+    }];
 }
 
 /**
@@ -444,7 +534,11 @@ export function getMissingRequiredParameters(
         issues.push(...getUnavailableFixedValueIssue(entry, key, meta, values, resources));
     }
 
-    if (entry.name === '$mapElement' || entry.name === '$mapManyElements') {
+    if (entry.name === '$loginRemember') {
+        issues.push(...getLoggedMarkerConditionIssues(values.options));
+    }
+
+    if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {
         const getters = normalizeParameterValue(values.getters);
         if (getters.mode === 'object' && getters.inputMode === 'form') {
             const seenKeys = new Set<string>();

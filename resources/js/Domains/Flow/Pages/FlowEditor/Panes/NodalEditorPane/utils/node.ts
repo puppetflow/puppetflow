@@ -50,13 +50,18 @@ export function nodeDisplayLabel(node: Pick<CanvasNode, 'entry' | 'label'>): str
     return node.label?.trim() || formatEntryLabel(node.entry);
 }
 
-export function uniqueNodeLabel(baseLabel: string, nodes: Pick<CanvasNode, 'id' | 'entry' | 'label'>[], ignoredNodeId?: string): string {
+export function uniqueNodeLabel(
+    baseLabel: string,
+    nodes: Pick<CanvasNode, 'id' | 'entry' | 'label'>[],
+    ignoredNodeId?: string,
+    reservedIds: Iterable<string> = [],
+): string {
     const base = baseLabel.trim() || 'Node';
-    const usedLabels = new Set(
-        nodes
-            .filter(node => node.id !== ignoredNodeId)
-            .map(node => nodeDisplayLabel(node).toLowerCase()),
-    );
+    const usedLabels = new Set(['last', ...Array.from(reservedIds, id => id.toLowerCase())]);
+    nodes.forEach(node => {
+        usedLabels.add(node.id.toLowerCase());
+        if (node.id !== ignoredNodeId) usedLabels.add(nodeDisplayLabel(node).toLowerCase());
+    });
 
     if (!usedLabels.has(base.toLowerCase())) return base;
 

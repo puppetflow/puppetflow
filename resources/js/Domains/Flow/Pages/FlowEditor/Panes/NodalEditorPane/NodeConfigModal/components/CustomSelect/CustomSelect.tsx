@@ -1,4 +1,5 @@
 import {
+    Fragment,
     useMemo,
     useRef,
     useState,
@@ -20,6 +21,9 @@ export interface CustomSelectOption<T extends Id = string> {
     detailIcon?: string;
     icon?: string;
     iconColor?: string;
+    group?: string;
+    groupLabel?: string;
+    groupIcon?: string;
 }
 
 export interface CustomSelectAction<T extends Id = string> {
@@ -98,7 +102,11 @@ export default function CustomSelect<T extends Id>({
         const normalizedQuery = query.trim().toLowerCase();
         if (!normalizedQuery) return options;
 
-        return options.filter(option => `${option.label} ${option.value} ${option.detail ?? ''}`.toLowerCase().includes(normalizedQuery));
+        return options.filter(option => (
+            `${option.label} ${option.value} ${option.detail ?? ''} ${option.groupLabel ?? option.group ?? ''}`
+                .toLowerCase()
+                .includes(normalizedQuery)
+        ));
     }, [options, query]);
     useActiveOptionScroll({
         open,
@@ -335,45 +343,52 @@ export default function CustomSelect<T extends Id>({
                                 <Icon icon="lucide:loader-circle" width={16} height={16} />
                             </S.SelectLoading>
                         ) : filteredOptions.length > 0 ? filteredOptions.map((option, optionIndex) => (
-                            <S.SelectOption
-                                key={option.value}
-                                ref={(element: HTMLButtonElement | null) => {
-                                    optionRefs.current[optionIndex] = element;
-                                }}
-                                type="button"
-                                $active={optionIndex === activeIndex}
-                                $selected={option.value === value}
-                                aria-selected={option.value === value}
-                                onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
-                                onMouseEnter={() => setActiveIndex(optionIndex)}
-                                onClick={() => {
-                                    selectOption(option);
-                                }}
-                            >
-                                <S.SelectOptionMain>
-                                    {option.icon && (
-                                        <S.SelectIconSlot>
-                                            <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
-                                        </S.SelectIconSlot>
-                                    )}
-                                    <strong>{option.label}</strong>
-                                </S.SelectOptionMain>
-                                {option.detail ? (
-                                    <S.SelectOptionDetail>
-                                        {option.detailIcon && (
-                                            <Icon icon={option.detailIcon} width={11} height={11} />
-                                        )}
-                                        {option.detail}
-                                    </S.SelectOptionDetail>
-                                ) : showOptionValue && option.value !== option.label ? (
-                                    <S.SelectOptionDetail>{option.value}</S.SelectOptionDetail>
-                                ) : null}
-                                {option.value === value && (
-                                    <S.SelectCheck>
-                                        <Icon icon="lucide:check" width={13} height={13} />
-                                    </S.SelectCheck>
+                            <Fragment key={option.value}>
+                                {option.group && option.group !== filteredOptions[optionIndex - 1]?.group && (
+                                    <S.SelectOptionGroup>
+                                        {option.groupIcon && <Icon icon={option.groupIcon} width={13} height={13} />}
+                                        {option.groupLabel ?? option.group}
+                                    </S.SelectOptionGroup>
                                 )}
-                            </S.SelectOption>
+                                <S.SelectOption
+                                    ref={(element: HTMLButtonElement | null) => {
+                                        optionRefs.current[optionIndex] = element;
+                                    }}
+                                    type="button"
+                                    $active={optionIndex === activeIndex}
+                                    $selected={option.value === value}
+                                    aria-selected={option.value === value}
+                                    onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+                                    onMouseEnter={() => setActiveIndex(optionIndex)}
+                                    onClick={() => {
+                                        selectOption(option);
+                                    }}
+                                >
+                                    <S.SelectOptionMain>
+                                        {option.icon && (
+                                            <S.SelectIconSlot>
+                                                <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
+                                            </S.SelectIconSlot>
+                                        )}
+                                        <strong>{option.label}</strong>
+                                    </S.SelectOptionMain>
+                                    {option.detail ? (
+                                        <S.SelectOptionDetail>
+                                            {option.detailIcon && (
+                                                <Icon icon={option.detailIcon} width={11} height={11} />
+                                            )}
+                                            {option.detail}
+                                        </S.SelectOptionDetail>
+                                    ) : showOptionValue && option.value !== option.label ? (
+                                        <S.SelectOptionDetail>{option.value}</S.SelectOptionDetail>
+                                    ) : null}
+                                    {option.value === value && (
+                                        <S.SelectCheck>
+                                            <Icon icon="lucide:check" width={13} height={13} />
+                                        </S.SelectCheck>
+                                    )}
+                                </S.SelectOption>
+                            </Fragment>
                         )) : (
                             <S.SelectEmpty>No option found.</S.SelectEmpty>
                         )}

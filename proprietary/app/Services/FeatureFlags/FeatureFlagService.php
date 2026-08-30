@@ -37,7 +37,7 @@ class FeatureFlagService
         'mailbox_enabled' => true,
         'ai_enabled' => true,
         'live_view_enabled' => true,
-        'recording_enabled' => false,
+        'recording_enabled' => true,
         'teams_enabled' => false,
         'workspace_sharing_enabled' => false,
         'two_factor_enforcement_enabled' => false,

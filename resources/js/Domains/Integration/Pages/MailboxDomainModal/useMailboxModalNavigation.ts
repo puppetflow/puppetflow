@@ -21,8 +21,8 @@ export default function useMailboxModalNavigation({
     const integrationId = editIntegrationId ?? createdIntegrationId;
 
     const handleClose = useCallback(() => {
-        if (createdIntegrationId || mode === 'edit') router.reload();
         onClose();
+        if (createdIntegrationId || mode === 'edit') router.reload();
     }, [createdIntegrationId, mode, onClose]);
 
     const showDomainSetup = useCallback(() => {

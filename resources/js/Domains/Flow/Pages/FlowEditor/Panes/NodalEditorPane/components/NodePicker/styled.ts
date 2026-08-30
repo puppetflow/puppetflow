@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 
 export const NodePicker = styled.div`
-    position: absolute;
+    position: fixed;
     right: 16px;
     bottom: 72px;
     width: min(760px, calc(100vw - 32px));
@@ -13,7 +13,7 @@ export const NodePicker = styled.div`
     background: ${({ theme }) => theme.colors.bg.secondary};
     box-shadow: ${({ theme }) => theme.shadow.lg};
     overflow: hidden;
-    z-index: 50;
+    z-index: 500;
 
     @media (max-width: 768px) {
         position: fixed;
@@ -90,6 +90,7 @@ export const PickerBody = styled.div`
 
     @media (max-width: 768px) {
         grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(0, 1fr);
     }
 `;
 
@@ -109,6 +110,7 @@ export const CategoryRail = styled.div`
         border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
         overflow-x: auto;
         overflow-y: hidden;
+        min-height: 0;
     }
 `;
 
@@ -158,6 +160,7 @@ export const CategoryPageIcon = styled.span<{ $active?: boolean; $color?: string
 
 export const PickerContent = styled.div`
     flex: 1;
+    min-height: 0;
     overflow: auto;
     padding: 12px;
 `;

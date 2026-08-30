@@ -31,7 +31,7 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         return {
             [CODE_NODE_VALUE_KEY]: {
                 mode: 'fixed' as const,
-                value: '// Write JavaScript for this step here.\n// Available: $page, $input, $nodes, $run, $output, $context and $vars(...).\n// Store variables for following nodes with $run, for example:\n// $run.my_var = 32\n',
+                value: '// Write JavaScript for this step here.\n// Available: $page, $input, $nodes, $(nodeName), $run, $output, $context and $vars(...).\n// Store variables for following nodes with $run, for example:\n// $run.my_var = 32\n',
             },
         };
     }
@@ -101,10 +101,8 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         };
     }
 
-    if (entry.name === '$mapElement' || entry.name === '$mapManyElements') {
-        const inputKey = entry.name === '$mapElement' ? 'handle' : 'handles';
+    if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {
         return {
-            [inputKey]: { mode: 'expression' as const, value: '{{ $nodes.last }}' },
             getters: {
                 mode: 'object' as const,
                 inputMode: 'form' as const,

@@ -72,7 +72,7 @@ return [
         'private_libraries_enabled' => filter_var(env('FF_PRIVATE_LIBRARIES_ENABLED', false), FILTER_VALIDATE_BOOL),
         'vaults_enabled' => filter_var(env('FF_VAULTS_ENABLED', false), FILTER_VALIDATE_BOOL),
         'vcs_enabled' => filter_var(env('FF_VCS_ENABLED', false), FILTER_VALIDATE_BOOL),
-        'recording_enabled' => filter_var(env('FF_RECORDING_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'recording_enabled' => filter_var(env('FF_RECORDING_ENABLED', true), FILTER_VALIDATE_BOOL),
         'teams_enabled' => filter_var(env('FF_TEAMS_ENABLED', false), FILTER_VALIDATE_BOOL),
         'workspace_sharing_enabled' => filter_var(env('FF_WORKSPACE_SHARING_ENABLED', false), FILTER_VALIDATE_BOOL),
         'two_factor_enforcement_enabled' => filter_var(env('FF_TWO_FACTOR_ENFORCEMENT_ENABLED', false), FILTER_VALIDATE_BOOL),

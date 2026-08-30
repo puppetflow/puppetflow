@@ -130,9 +130,17 @@ export default function ObjectParameterInput({
         if (!field) return;
 
         const optionLabel = meta.objectFields?.[field.key]?.label ?? field.key;
-        void confirmRemoval(optionLabel, () => onChange(
-            removeObjectField(objectValue, fields, fieldId),
-        ));
+        void confirmRemoval(optionLabel, () => {
+            const remainingFields = fields.filter(candidate => candidate.id !== fieldId);
+            const oneOfGroup = meta.requiredOneOf?.find(group => group.includes(field.key));
+            const replacementKey = oneOfGroup
+                ?.find(key => key !== field.key && !remainingFields.some(candidate => candidate.key === key));
+            const withoutField = removeObjectField(objectValue, fields, fieldId);
+
+            onChange(replacementKey
+                ? prependKnownObjectField(withoutField, remainingFields, meta, replacementKey)
+                : withoutField);
+        });
     };
 
     return (

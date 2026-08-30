@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { useActiveOptionScroll } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useActiveOptionScroll';
@@ -67,7 +68,7 @@ export default function NodePicker({
         }
     };
 
-    return (
+    return createPortal(
         <S.NodePicker
             data-node-picker
             onWheel={event => event.stopPropagation()}
@@ -181,6 +182,7 @@ export default function NodePicker({
                     )}
                 </S.PickerContent>
             </S.PickerBody>
-        </S.NodePicker>
+        </S.NodePicker>,
+        document.body,
     );
 }

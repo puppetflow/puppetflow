@@ -7,6 +7,7 @@ import { useToast } from '@/App/Hooks/useToast';
 import { useAuth } from '@/App/Hooks/usePageProps';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import { canEditOwnership } from '@/Shared/Utils/ownershipPermissions';
+import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { buildLibraryCompliantCode, buildLibraryCompliantNodalSnippet } from '@/Domains/Library/Utils/libraryCodeExport';
 import type { PageProps, User } from '@/App/types';
 import type { Snippet } from '@/Domains/Snippet/types';
@@ -39,25 +40,30 @@ export function useSnippetsController({
     const [snippets, setSnippets] = useState(initialSnippets);
     const [showLibraryStore, setShowLibraryStore] = useState(() => shouldOpenLibraryStoreFromQuery());
     const [showImportModal, setShowImportModal] = useState(false);
-    const form = useSnippetForm();
-    const dirtyProtection = useSnippetDirtyProtection({ dirty: form.dirty });
-    const saveCurrentSnippet = useCallback(
-        () => dirtyProtection.saveRef.current(),
-        [dirtyProtection.saveRef],
+    const [showVersionTimeline, setShowVersionTimeline] = useState(
+        () => new URLSearchParams(window.location.search).has('version'),
     );
+    const [savingPublication, setSavingPublication] = useState(false);
+    const form = useSnippetForm();
+    const currentUserId = user?.id ?? '';
+    const currentUserWorkspaceRole: User['workspace_role'] = user?.workspace_role ?? 'member';
+    const featureEnabled = settings.snippets_enabled;
+    const canEdit = featureEnabled && (!form.active || isAdmin || form.active.user_id === currentUserId);
+    const dirtyProtection = useSnippetDirtyProtection({
+        dirty: form.dirty,
+        draftKey: form.draftKey,
+        autosaveEnabled: canEdit,
+        dirtyRef: form.dirtyRef,
+    });
     const navigation = useSnippetNavigation({
         initialSnippets,
         confirm,
         form,
-        save: saveCurrentSnippet,
+        save: dirtyProtection.flush,
     });
-    const currentUserId = user?.id ?? '';
-    const currentUserWorkspaceRole: User['workspace_role'] = user?.workspace_role ?? 'member';
 
     useEffect(() => setSnippets(initialSnippets), [initialSnippets]);
 
-    const featureEnabled = settings.snippets_enabled;
-    const canEdit = featureEnabled && (!form.active || isAdmin || form.active.user_id === currentUserId);
     const settingsReadOnly = !canEdit;
     const codeReadOnly = !canEdit || Boolean(form.active?.library_locked);
     const ownershipDisabled = form.active ? !canEditOwnership({
@@ -79,7 +85,57 @@ export function useSnippetsController({
         markJustSaved: dirtyProtection.markJustSaved,
     });
     dirtyProtection.saveRef.current = crud.handleSave;
-    dirtyProtection.savingRef.current = crud.saving;
+
+    const updatePublishedVersion = useCallback((snippetId: Id, versionId: number, version: number) => {
+        setSnippets(previous => previous.map(snippet => snippet.id === snippetId ? {
+            ...snippet,
+            published_version_id: versionId,
+            published_version_number: version,
+        } : snippet));
+        if (form.active?.id === snippetId) {
+            form.setActive({
+                ...form.active,
+                published_version_id: versionId,
+                published_version_number: version,
+            });
+        }
+    }, [form]);
+
+    const publishCurrentSnippet = useCallback(async () => {
+        const snippet = form.getCurrentDraft().active;
+        if (!snippet || snippet.library_locked) return;
+
+        if (form.getCurrentDraft().dirty && !await dirtyProtection.flush()) return;
+        const draft = form.getCurrentDraft();
+        if (draft.active?.id !== snippet.id) return;
+
+        setSavingPublication(true);
+        try {
+            const response = await fetch(`/snippets/${snippet.id}/publish`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...csrfHeaders(),
+                },
+                body: JSON.stringify({ client_updated_at: form.getDraftUpdatedAt() }),
+            });
+            if (!response.ok) {
+                const result = await response.json().catch(() => ({}));
+                toast(result.message || 'Unable to publish this snippet.', 'error');
+                return;
+            }
+            const result = await response.json() as {
+                published_version_id: number;
+                published_version: number;
+            };
+            updatePublishedVersion(snippet.id, result.published_version_id, result.published_version);
+            toast(`Snippet published as version ${result.published_version}.`);
+        } catch {
+            toast('Unable to publish this snippet. Check your connection and try again.', 'error');
+        } finally {
+            setSavingPublication(false);
+        }
+    }, [dirtyProtection, form, toast, updatePublishedVersion]);
 
     const libraryUpdate = useSnippetLibraryUpdate({ form, setSnippets, confirm, toast });
     const importGroups = useMemo(() => {
@@ -124,11 +180,21 @@ export function useSnippetsController({
         codeReadOnly,
         ownershipDisabled,
         resolvedTheme,
+        saveStatus: crud.saveError ? 'error' as const : crud.saving ? 'saving' as const : form.dirty ? 'unsaved' as const : 'saved' as const,
         form,
         navigation,
         crud,
         dirtyProtection,
         libraryUpdate,
+        versioning: {
+            showVersionTimeline,
+            setShowVersionTimeline,
+            savingPublication,
+            initialVersionId: Number(new URLSearchParams(window.location.search).get('version')) || null,
+            publishCurrentSnippet,
+            updatePublishedVersion,
+            handleRestored: () => window.location.reload(),
+        },
         importGroups,
         showLibraryStore,
         setShowLibraryStore,

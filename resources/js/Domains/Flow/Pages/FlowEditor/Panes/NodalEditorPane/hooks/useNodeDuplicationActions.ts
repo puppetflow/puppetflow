@@ -78,26 +78,29 @@ export function useNodeDuplicationActions({
         const idMap = new Map(
             selectedEditableNodes.map(node => [node.id, `${node.id}-${suffix}`]),
         );
-        const nextNodes = selectedEditableNodes.reduce<CanvasNode[]>((acc, node) => {
+        const labelMap = new Map<string, string>();
+        const duplicatedNodes = selectedEditableNodes.reduce<CanvasNode[]>((acc, node) => {
+            const previousLabel = node.label?.trim() || formatEntryLabel(node.entry);
+            const nextLabel = node.kind === 'stickyNote'
+                ? node.label
+                : uniqueNodeLabel(previousLabel, [...nodes, ...acc], undefined, idMap.values());
+            if (!node.kind) labelMap.set(previousLabel, nextLabel || previousLabel);
+
             const nextNode: CanvasNode = {
                 ...node,
                 id: idMap.get(node.id) ?? node.id,
-                label: node.kind === 'stickyNote'
-                    ? node.label
-                    : uniqueNodeLabel(
-                        node.label?.trim() || formatEntryLabel(node.entry),
-                        [...nodes, ...acc],
-                    ),
+                label: nextLabel,
                 x: snapCanvasPosition(node.x + 48),
                 y: snapCanvasPosition(node.y + 48),
-                values: remapNodeValuesReferences(
-                    sanitizeNodeValuesForEntry(node.entry, node.values),
-                    idMap,
-                ),
+                values: sanitizeNodeValuesForEntry(node.entry, node.values),
                 stickyNote: node.stickyNote ? { ...node.stickyNote } : undefined,
             };
             return [...acc, nextNode];
         }, []);
+        const nextNodes = duplicatedNodes.map(node => ({
+            ...node,
+            values: remapNodeValuesReferences(node.values, idMap, labelMap),
+        }));
         const topologyNodes = [...nodes, ...nextNodes];
         const mappedEdges = edges.flatMap<CanvasEdge>(edge => {
             if (

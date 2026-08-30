@@ -432,6 +432,10 @@ export const Label = styled.label`
     font-weight: 600;
 `;
 
+export const CustomModelInput = styled.div`
+    margin-top: 12px;
+`;
+
 export const ModelFilters = styled.div`
     display: flex;
     align-items: center;

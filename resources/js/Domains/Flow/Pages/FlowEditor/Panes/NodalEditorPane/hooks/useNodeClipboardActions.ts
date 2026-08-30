@@ -105,26 +105,25 @@ export function useNodeClipboardActions({
         const idMap = new Map(
             pastedGraph.nodes.map(node => [node.id, `${node.id}-paste-${suffix}`]),
         );
-        const nextNodes = pastedGraph.nodes.reduce<CanvasNode[]>((acc, node) => {
+        const labelMap = new Map<string, string>();
+        const pastedNodes = pastedGraph.nodes.reduce<CanvasNode[]>((acc, node) => {
             const isStickyNote = node.kind === 'stickyNote';
             const entry = isStickyNote ? STICKY_NOTE_ENTRY : getEntryByName(node.name);
+            const previousLabel = node.label?.trim() || formatEntryLabel(entry);
+            const nextLabel = isStickyNote
+                ? node.label
+                : uniqueNodeLabel(previousLabel, [...nodes, ...acc], undefined, idMap.values());
+            if (!isStickyNote) labelMap.set(previousLabel, nextLabel || previousLabel);
+
             const nextNode: CanvasNode = {
                 id: idMap.get(node.id) ?? node.id,
                 entry,
                 kind: isStickyNote ? 'stickyNote' : undefined,
                 deactivated: node.deactivated,
-                label: isStickyNote
-                    ? node.label
-                    : uniqueNodeLabel(
-                        node.label?.trim() || formatEntryLabel(entry),
-                        [...nodes, ...acc],
-                    ),
+                label: nextLabel,
                 x: snapCanvasPosition(pastePoint.x + (node.x - graphCenter.x)),
                 y: snapCanvasPosition(pastePoint.y + (node.y - graphCenter.y)),
-                values: remapNodeValuesReferences(
-                    sanitizeNodeValuesForEntry(entry, node.values),
-                    idMap,
-                ),
+                values: sanitizeNodeValuesForEntry(entry, node.values),
                 callArguments: node.callArguments,
                 localFunctionId: node.localFunctionId,
                 stickyNote: isStickyNote
@@ -133,6 +132,10 @@ export function useNodeClipboardActions({
             };
             return [...acc, nextNode];
         }, []);
+        const nextNodes = pastedNodes.map(node => ({
+            ...node,
+            values: remapNodeValuesReferences(node.values, idMap, labelMap),
+        }));
         const topologyNodes = [...nodes, ...nextNodes];
         const mappedEdges = pastedGraph.edges.flatMap<CanvasEdge>(edge => {
             const sourceNodeId = idMap.get(edge.sourceNodeId);

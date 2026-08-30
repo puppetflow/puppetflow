@@ -8,6 +8,7 @@ use App\DTO\Library\LibrarySnippetItem;
 use App\Enums\Authorization\Ability;
 use App\Models\Snippet;
 use App\Models\User;
+use App\Services\Snippet\SnippetVersionService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -16,6 +17,7 @@ final class LibrarySnippetDependencyInstaller
     public function __construct(
         private readonly LibrarySnippetReferenceRewriter $references,
         private readonly ResourceAssignmentValidator $assignments,
+        private readonly SnippetVersionService $snippetVersions,
     ) {}
 
     /**
@@ -152,6 +154,7 @@ final class LibrarySnippetDependencyInstaller
                     ? $this->references->graph($snippet->nodal_graph, $installed)
                     : null,
             ]);
+            $this->snippetVersions->publish($snippet, $actor->id);
         }
 
         return $installed;

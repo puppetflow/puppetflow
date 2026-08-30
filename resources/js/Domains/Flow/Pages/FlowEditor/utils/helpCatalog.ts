@@ -201,7 +201,9 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
         const required = hintTokens.includes('required');
         const picker = hintTokens.includes('selector') ? 'selector' as const : undefined;
         const description = match[3].trim();
-        const input = tabNameInput
+        const input = hintTokens.includes('logged-marker-condition')
+            ? 'logged-marker-condition'
+            : tabNameInput
             ? 'tab-name'
             : hintTokens.includes('textarea')
             ? 'textarea'
@@ -276,7 +278,7 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
                     ...current,
                     label: current?.label ?? toFriendlyLabel(key),
                     description: current?.description ?? `Configure ${toFriendlyLabel(key)}.`,
-                    input: 'object',
+                    input: current?.input ?? 'object',
                     objectFields: setNestedField(current?.objectFields ?? {}, rest),
                 },
             };
@@ -602,6 +604,7 @@ type DataTableColumnDefinition = {
         'declare const $input: any;',
         'declare const $output: any;',
         'declare const $nodes: any;',
+        'declare function $(nodeName: string): any;',
         'declare const $run: any;',
         'declare const $context: any;',
     ];

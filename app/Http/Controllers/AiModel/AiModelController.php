@@ -132,7 +132,7 @@ class AiModelController extends Controller
         Gate::authorize(Ability::CREATE->value, AiModel::class);
         $workspaceId = $this->currentWorkspaceId();
 
-        /** @var array{name: string, ai_integration_id: string, ai_model_id: string, scope?: string, team_id?: string|null, group?: string|null, user_id?: string|null, is_active?: bool} $validated */
+        /** @var array{name: string, ai_integration_id: string, ai_model_id: string, is_custom_model?: bool, scope?: string, team_id?: string|null, group?: string|null, user_id?: string|null, is_active?: bool} $validated */
         $validated = $request->validate($this->rules());
         if (array_key_exists('team_id', $validated)) {
             $validated['team_id'] = $this->resolveWorkspaceTeamId($validated['team_id'], $workspaceId);
@@ -155,6 +155,7 @@ class AiModelController extends Controller
         $model = $this->authoritativeModel(
             $integration,
             $this->requiredString($validated['ai_model_id']),
+            (bool) ($validated['is_custom_model'] ?? false),
         );
 
         $aiModel = AiModel::create([
@@ -194,7 +195,7 @@ class AiModelController extends Controller
         $user = $request->user();
         Gate::forUser($user)->authorize(Ability::UPDATE->value, $aiModel);
 
-        /** @var array{name?: string, ai_integration_id?: string, ai_model_id?: string, scope?: string, team_id?: string|null, group?: string|null, user_id?: string|null, is_active?: bool} $validated */
+        /** @var array{name?: string, ai_integration_id?: string, ai_model_id?: string, is_custom_model?: bool, scope?: string, team_id?: string|null, group?: string|null, user_id?: string|null, is_active?: bool} $validated */
         $validated = $request->validate($this->rules(true));
         $scopeWasProvided = array_key_exists('scope', $validated);
         $teamWasProvided = array_key_exists('team_id', $validated);
@@ -228,7 +229,8 @@ class AiModelController extends Controller
         $this->assignments->validate($aiModel->workspace_id, $ownerId, $scope, $teamId, null, null);
 
         $modelSelectionChanges = array_key_exists('ai_integration_id', $validated)
-            || array_key_exists('ai_model_id', $validated);
+            || array_key_exists('ai_model_id', $validated)
+            || array_key_exists('is_custom_model', $validated);
         $visibilityChanges = $modelSelectionChanges
             || $scopeWasProvided
             || $teamWasProvided
@@ -256,11 +258,15 @@ class AiModelController extends Controller
                 array_key_exists('ai_model_id', $validated)
                     ? $this->requiredString($validated['ai_model_id'])
                     : $aiModel->ai_model_id,
+                array_key_exists('is_custom_model', $validated)
+                    ? (bool) $validated['is_custom_model']
+                    : ($aiModel->capabilities['custom_model_id'] ?? false) === true,
             );
             $validated['ai_integration_id'] = $integration->id;
             $validated['ai_model_id'] = $model['ai_model_id'];
             $validated['capabilities'] = $model['capabilities'];
         }
+        unset($validated['is_custom_model']);
 
         if (array_key_exists('group', $validated)) {
             $validated['group'] = $validated['group'] ?: null;
@@ -472,6 +478,7 @@ class AiModelController extends Controller
             'name' => [$presence, 'string', 'max:255'],
             'ai_integration_id' => [$presence, 'string'],
             'ai_model_id' => [$presence, 'string', 'max:255'],
+            'is_custom_model' => ['sometimes', 'boolean'],
             'scope' => ['sometimes', 'in:'.implode(',', $this->features()->allowedScopes('user'))],
             'team_id' => ['nullable', 'string'],
             'group' => ['nullable', 'string', 'max:100'],
@@ -543,12 +550,29 @@ class AiModelController extends Controller
     }
 
     /** @return array{ai_model_id: string, capabilities: array<string, bool>} */
-    private function authoritativeModel(Integration $integration, string $aiModelId): array
+    private function authoritativeModel(
+        Integration $integration,
+        string $aiModelId,
+        bool $allowCustom = false,
+    ): array
     {
         $config = $integration->config ?? [];
         $apiKey = $config['api_key'] ?? null;
         if (! is_string($apiKey) || trim($apiKey) === '') {
             throw ValidationException::withMessages(['ai_integration_id' => 'The AI integration has no API key.']);
+        }
+
+        if ($allowCustom) {
+            return [
+                'ai_model_id' => $aiModelId,
+                'capabilities' => [
+                    'text' => true,
+                    'vision' => true,
+                    'structured_output' => false,
+                    'tools' => false,
+                    'custom_model_id' => true,
+                ],
+            ];
         }
 
         $discoveredModels = collect($this->ai->listModels($integration->aiProvider(), $apiKey))

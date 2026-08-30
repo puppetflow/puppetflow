@@ -1,4 +1,4 @@
-import React, { type Dispatch, type SetStateAction, useState } from 'react';
+import React, { type Dispatch, type SetStateAction, useRef, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { useConfirm } from '@/Shared/Hooks/useConfirm';
 import BulkDeleteConfirmation from '@/Shared/UI/BulkDeleteConfirmation/BulkDeleteConfirmation';
@@ -55,7 +55,15 @@ export function useSnippetCrud({
     markJustSaved,
 }: Options) {
     const [saving, setSaving] = useState(false);
+    const [failedDraftKey, setFailedDraftKey] = useState<string | null>(null);
     const [deletingSelected, setDeletingSelected] = useState(false);
+    const formRef = useRef(form);
+    formRef.current = form;
+    const saveRequestRef = useRef<{
+        snippetId: Id;
+        draftKey: string;
+        promise: Promise<boolean>;
+    } | null>(null);
 
     const handleCreate = async (snippetType: SnippetType = 'code') => {
         const nodalGraph = snippetType === 'nodal' ? normalizeNodalFunctionGraph(null) : null;
@@ -100,11 +108,27 @@ export function useSnippetCrud({
     };
 
     const handleSave = async () => {
-        const { active } = form;
+        let currentForm = formRef.current;
+        const requestedDraft = currentForm.getCurrentDraft();
+        let active = requestedDraft.active;
         if (!active) return false;
+        const requestedSnippetId = active.id;
+        let savedDraftKey = requestedDraft.draftKey;
+        const pending = saveRequestRef.current;
+        if (pending) {
+            if (pending.snippetId === active.id && pending.draftKey === savedDraftKey) {
+                return pending.promise;
+            }
+            if (!await pending.promise) return false;
+            currentForm = formRef.current;
+            const currentDraft = currentForm.getCurrentDraft();
+            active = currentDraft.active;
+            if (active?.id !== requestedSnippetId) return false;
+            savedDraftKey = currentDraft.draftKey;
+        }
 
-        if (form.ownerId && form.ownerId !== active.user_id && form.ownerId !== currentUserId) {
-            if (currentUserWorkspaceRole === 'manager' && form.targetUserRole === 'admin') {
+        if (currentForm.ownerId && currentForm.ownerId !== active.user_id && currentForm.ownerId !== currentUserId) {
+            if (currentUserWorkspaceRole === 'manager' && currentForm.targetUserRole === 'admin') {
                 const confirmed = await confirm({
                     title: 'Transfer ownership',
                     message: ADMIN_TRANSFER_WARNING,
@@ -115,42 +139,69 @@ export function useSnippetCrud({
             }
         }
 
-        setSaving(true);
         const payload: Record<string, unknown> = {
-            label: form.label,
-            description: form.description || null,
-            group: form.group.trim() || null,
-            is_active: form.isActive,
-            scope: form.scope,
-            team_id: form.scope === 'team' ? form.teamId : null,
+            label: currentForm.label,
+            description: currentForm.description || null,
+            group: currentForm.group.trim() || null,
+            is_active: currentForm.isActive,
+            scope: currentForm.scope,
+            team_id: currentForm.scope === 'team' ? currentForm.teamId : null,
         };
+        const contentUpdatedAt = currentForm.getDraftUpdatedAt();
+        if (contentUpdatedAt) payload.client_updated_at = contentUpdatedAt;
         if (!active.library_locked) {
-            payload.args = form.args;
-            payload.code = form.code;
-            if (active.snippet_type === 'nodal') payload.nodal_graph = form.nodalGraph;
+            payload.args = currentForm.args;
+            payload.code = currentForm.code;
+            if (active.snippet_type === 'nodal') payload.nodal_graph = currentForm.nodalGraph;
         }
-        if (form.ownerId && form.ownerId !== active.user_id) payload.user_id = form.ownerId;
+        if (currentForm.ownerId && currentForm.ownerId !== active.user_id) payload.user_id = currentForm.ownerId;
 
-        const response = await fetchJson(`/snippets/${active.id}`, {
-            method: 'PUT',
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-            const error = await response.json();
-            toast(error.message || 'Error saving snippet', 'error');
+        setSaving(true);
+        setFailedDraftKey(null);
+        const request = (async () => {
+            try {
+                const response = await fetchJson(`/snippets/${active.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const error = await response.json() as {
+                        message?: string;
+                        errors?: Record<string, string[]>;
+                    };
+                    const validationMessage = error.errors
+                        ? Object.values(error.errors).flat()[0]
+                        : null;
+                    toast(validationMessage || error.message || 'Error saving snippet', 'error');
+                    setFailedDraftKey(savedDraftKey);
+                    return false;
+                }
+
+                const updated: Snippet = await response.json();
+                const merged = { ...active, ...updated };
+                setSnippets(previous => previous.map(snippet => snippet.id === updated.id ? merged : snippet));
+                formRef.current.applySavedState(merged, savedDraftKey);
+                markJustSaved();
+                invalidateSnippetCache();
+                return true;
+            } catch {
+                toast('Snippet could not be saved. Check your connection and try again.', 'error');
+                setFailedDraftKey(savedDraftKey);
+                return false;
+            }
+        })();
+        saveRequestRef.current = {
+            snippetId: active.id,
+            draftKey: savedDraftKey,
+            promise: request,
+        };
+
+        try {
+            return await request;
+        } finally {
+            if (saveRequestRef.current?.promise === request) saveRequestRef.current = null;
             setSaving(false);
-            return false;
         }
-
-        const updated: Snippet = await response.json();
-        const merged = { ...active, ...updated };
-        setSnippets(previous => previous.map(snippet => snippet.id === updated.id ? merged : snippet));
-        form.syncFormState(merged);
-        toast('Snippet saved');
-        setSaving(false);
-        markJustSaved();
-        invalidateSnippetCache();
-        return true;
     };
 
     const handleDuplicate = async (snippet: Snippet) => {
@@ -275,6 +326,7 @@ export function useSnippetCrud({
 
     return {
         saving,
+        saveError: failedDraftKey === form.draftKey,
         deletingSelected,
         handleCreate,
         handleImportSnippet,
