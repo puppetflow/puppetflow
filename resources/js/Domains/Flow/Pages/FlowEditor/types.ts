@@ -31,6 +31,7 @@ export interface NodalParamDef {
     defaultValue?: string;
     valueType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'function' | 'code' | 'flow' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns';
     required?: boolean;
+    validationRequired?: boolean;
     input?: 'text' | 'textarea' | 'code' | 'select' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'logged-marker-condition' | 'boolean' | 'number' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'tab-name' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns';
     options?: NodalSelectOption[];
     objectFields?: Record<string, NodalParamDef>;

@@ -20,7 +20,7 @@ final class SnippetVersionService
             'published_by' => $publisherId,
             'published_at' => now(),
         ]);
-        $snippet->updateQuietly(['published_version_id' => $version->id]);
+        $snippet->forceFill(['published_version_id' => $version->id])->saveQuietly();
         $snippet->setRelation('publishedVersion', $version);
 
         return $version;

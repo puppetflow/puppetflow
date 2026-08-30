@@ -439,16 +439,17 @@ function getMissingRequiredOneOfIssues(
     }
 
     return meta.requiredOneOf.flatMap(group => {
-        if (group.some(hasValue)) return [];
+        const provided = group.filter(hasValue);
+        if (provided.length === 1) return [];
 
         const labels = group.map(key => meta.objectFields?.[key]?.label ?? key);
-        const visibleKey = group.find(key => visibleKeys.includes(key)) ?? group[0];
+        const visibleKey = provided[0] ?? group.find(key => visibleKeys.includes(key)) ?? group[0];
         if (!visibleKey) return [];
 
         return [{
             path: `${parentPath}.${visibleKey}`,
             label: labels.join(' or '),
-            message: `${labels.join(' or ')} is required.`,
+            message: `Exactly one of ${labels.join(' or ')} is required.`,
         }];
     });
 }

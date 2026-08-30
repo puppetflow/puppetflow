@@ -27,6 +27,8 @@ class Snippet extends Model
 
     public const ID_PREFIX = 'snip';
 
+    protected $dateFormat = 'Y-m-d H:i:s.u';
+
     protected $fillable = [
         'workspace_id',
         'user_id',

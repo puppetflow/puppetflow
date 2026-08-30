@@ -5,6 +5,7 @@ namespace App\Services\Mcp\Tools;
 use App\Enums\Authorization\Ability;
 use App\Models\Flow;
 use App\Models\FlowRun;
+use App\Models\WorkspaceTeam;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -29,6 +30,21 @@ final class McpResourceResolver
         }
 
         return $flow;
+    }
+
+    public function team(string $identifier, McpToolContext $context): string
+    {
+        $teamId = WorkspaceTeam::query()
+            ->where('workspace_id', $context->workspace->id)
+            ->whereKey($identifier)
+            ->value('id');
+        if (! is_string($teamId)) {
+            throw ValidationException::withMessages([
+                'team_id' => 'The selected team is invalid.',
+            ]);
+        }
+
+        return $teamId;
     }
 
     /**

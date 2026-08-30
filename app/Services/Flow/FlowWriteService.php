@@ -21,6 +21,7 @@ final class FlowWriteService
         private readonly FlowCreationService $creation,
         private readonly NodalGraphCompiler $compiler,
         private readonly FlowCodeValidator $codeValidator,
+        private readonly NodalResourceReferenceValidator $resourceReferences,
         private readonly ResourceAssignmentValidator $assignments,
         private readonly FeatureFlagService $features,
     ) {}
@@ -39,13 +40,14 @@ final class FlowWriteService
 
         if ($flowId === '') {
             Gate::forUser($user)->authorize(Ability::CREATE->value, Flow::class);
-            $content = $this->validatedContent($attributes, $flowType);
+            $content = $this->validatedContent($attributes, $flowType, $user, $workspace);
             $creationAttributes = $attributes;
             unset($creationAttributes['flow_id'], $creationAttributes['content_updated_at']);
             $creationAttributes = [
                 ...$creationAttributes,
                 ...$content,
                 'flow_type' => $flowType,
+                'available_in_mcp' => true,
             ];
 
             $flow = $this->creation->create(
@@ -63,7 +65,7 @@ final class FlowWriteService
             ->whereKey($flowId)
             ->first();
         $this->assertEditable($editableFlow, $user);
-        $content = $this->validatedContent($attributes, $flowType);
+        $content = $this->validatedContent($attributes, $flowType, $user, $workspace, $editableFlow);
 
         return DB::transaction(function () use ($attributes, $content, $flowId, $flowType, $user, $workspace): array {
             $flow = Flow::query()
@@ -168,8 +170,13 @@ final class FlowWriteService
      * @param  array<string, mixed>  $attributes
      * @return array{code: string, nodal_graph: array<string, mixed>|null}
      */
-    private function validatedContent(array $attributes, string $flowType): array
-    {
+    private function validatedContent(
+        array $attributes,
+        string $flowType,
+        User $user,
+        Workspace $workspace,
+        ?Flow $flow = null,
+    ): array {
         if ($flowType === 'code') {
             $validated = validator($attributes, [
                 'code' => ['required', 'string'],
@@ -184,6 +191,7 @@ final class FlowWriteService
         ])->validate();
         /** @var array<string, mixed> $graph */
         $graph = $validated['nodal_graph'];
+        $this->resourceReferences->validate($graph, $user, $workspace, $flow);
         $code = $this->compiler->compile($graph);
 
         return [

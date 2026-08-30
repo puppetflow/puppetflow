@@ -142,7 +142,7 @@ class McpServerController extends Controller
                 'name' => app(BrandingProvider::class)->current()['name'],
                 'version' => config('app.version', '1.0.0'),
             ],
-            'instructions' => 'When creating a flow, always prefer write_nodal_flow. Use write_code_flow only when the user explicitly requests code, JavaScript, or code mode.',
+            'instructions' => 'When creating a flow or snippet, prefer write_nodal_flow or write_nodal_snippet. Use a code writer only when the user explicitly requests code, JavaScript, or code mode. get_nodal_catalog is the always-available reference for Puppetflow helpers and visual nodes.',
         ];
     }
 

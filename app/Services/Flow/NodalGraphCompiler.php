@@ -13,9 +13,16 @@ final class NodalGraphCompiler
 
     /**
      * @param  array<string, mixed>  $graph
+     * @param  list<string>  $functionArguments
      */
-    public function compile(array $graph): string
+    public function compile(array $graph, string $context = 'flow', array $functionArguments = []): string
     {
+        if (! in_array($context, ['flow', 'function'], true)) {
+            throw ValidationException::withMessages([
+                'nodal_graph' => 'The nodal graph context is invalid.',
+            ]);
+        }
+
         $executable = $this->app->bootstrapPath('nodal-compiler/compiler.mjs');
         if (! is_file($executable)) {
             throw ValidationException::withMessages([
@@ -23,7 +30,11 @@ final class NodalGraphCompiler
             ]);
         }
 
-        $payload = json_encode(['graph' => $graph], JSON_THROW_ON_ERROR);
+        $payload = json_encode([
+            'graph' => $graph,
+            'context' => $context,
+            'functionArguments' => $functionArguments,
+        ], JSON_THROW_ON_ERROR);
         try {
             $result = Process::timeout(15)
                 ->input($payload)

@@ -86,7 +86,7 @@ final class SnippetVersionController extends Controller
 
         DB::transaction(function () use ($snippet, $snippetVersion): void {
             $lockedSnippet = Snippet::query()->whereKey($snippet->id)->lockForUpdate()->firstOrFail();
-            $lockedSnippet->updateQuietly(['published_version_id' => $snippetVersion->id]);
+            $lockedSnippet->forceFill(['published_version_id' => $snippetVersion->id])->saveQuietly();
         }, 3);
 
         return response()->json([

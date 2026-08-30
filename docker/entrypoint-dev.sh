@@ -6,8 +6,8 @@ php artisan package:discover --ansi
 php artisan config:clear 2>/dev/null || true
 
 if [[ "$*" == *"artisan serve"* ]]; then
-    if [[ ! -f bootstrap/nodal-compiler/compiler.mjs ]]; then
-        echo "[entrypoint-dev] Building nodal compiler..."
+    if [[ ! -f bootstrap/nodal-compiler/compiler.mjs || ! -f bootstrap/nodal-compiler/catalog.json ]]; then
+        echo "[entrypoint-dev] Building nodal compiler and catalog..."
         npm run build:nodal-compiler
     fi
 

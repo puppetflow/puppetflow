@@ -226,7 +226,7 @@ class WorkspaceMcpController extends Controller
         return [
             'enabled' => (bool) $setting->enabled,
             'include_unexposed_flow_previews' => (bool) $setting->include_unexposed_flow_previews,
-            'enabled_tools' => $this->mcpTools->enabledToolNames($setting),
+            'enabled_tools' => $this->mcpTools->configuredToolNames($setting),
         ];
     }
 
