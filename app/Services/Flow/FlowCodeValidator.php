@@ -13,10 +13,31 @@ final class FlowCodeValidator
 
     public function validate(string $code): void
     {
+        $this->validateSource($code);
+    }
+
+    /**
+     * @param  list<string>  $arguments
+     */
+    public function validateFunctionBody(string $code, array $arguments = []): void
+    {
+        $parameters = implode(', ', $arguments);
+        $this->validateSource(
+            "async function __snippet({$parameters}) {\n{$code}\n}",
+            syntaxOnly: true,
+        );
+    }
+
+    private function validateSource(string $code, bool $syntaxOnly = false): void
+    {
         try {
+            $command = ['node', $this->app->basePath('scripts/validate-flow-code.mjs')];
+            if ($syntaxOnly) {
+                $command[] = '--syntax-only';
+            }
             $result = Process::timeout(5)
                 ->input($code)
-                ->run(['node', $this->app->basePath('scripts/validate-flow-code.mjs')]);
+                ->run($command);
         } catch (ProcessTimedOutException) {
             throw ValidationException::withMessages([
                 'code' => 'JavaScript syntax validation timed out.',

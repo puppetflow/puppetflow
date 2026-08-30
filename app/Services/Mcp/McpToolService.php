@@ -10,6 +10,7 @@ use App\Services\Mcp\Tools\FlowMcpTools;
 use App\Services\Mcp\Tools\McpToolContext;
 use App\Services\Mcp\Tools\McpToolHandler;
 use App\Services\Mcp\Tools\RunMcpTools;
+use App\Services\Mcp\Tools\SnippetMcpTools;
 use App\Services\Mcp\Tools\TeamMcpTools;
 use App\Services\Mcp\Tools\WorkspaceMcpTools;
 use Illuminate\Validation\ValidationException;
@@ -20,8 +21,23 @@ use Illuminate\Validation\ValidationException;
  */
 final class McpToolService
 {
+    private const ALWAYS_AVAILABLE_TOOLS = [
+        'get_nodal_catalog',
+    ];
+
     private const DEFAULT_TOOLS = [
         'search_flows',
+        'write_code_flow',
+        'write_code_snippet',
+        'write_nodal_flow',
+        'write_nodal_snippet',
+        'search_snippets',
+        'get_snippet_source',
+        'list_folders',
+        'get_flow_source',
+        'list_flow_runs',
+        'get_recording_lastshot',
+        'list_flow_resources',
         'search_runs',
         'get_flow_details',
         'run_flow',
@@ -33,17 +49,36 @@ final class McpToolService
         'continue_human_validation',
     ];
 
+    private const HUMAN_DESCRIPTIONS = [
+        'get_nodal_catalog' => 'Browse the nodes and capabilities available when building visual flows.',
+        'list_flow_resources' => 'List the workspace resources that can be referenced by a flow or snippet.',
+        'write_code_flow' => 'Create or update a flow written in JavaScript.',
+        'write_nodal_flow' => 'Create or update a visual flow built from connected nodes.',
+        'search_snippets' => 'Find published snippets available in this workspace.',
+        'get_snippet_source' => 'Read the editable source of a snippet.',
+        'get_snippet_creation_options' => 'List the scopes and teams available when creating a snippet.',
+        'write_code_snippet' => 'Create or update a reusable JavaScript snippet.',
+        'write_nodal_snippet' => 'Create or update a reusable visual snippet.',
+    ];
+
     /** @var list<McpToolHandler> */
     private array $handlers;
+
+    /** @var list<McpToolDefinition>|null */
+    private ?array $tools = null;
+
+    /** @var list<string>|null */
+    private ?array $toolNames = null;
 
     public function __construct(
         FlowMcpTools $flows,
         RunMcpTools $runs,
         ArtifactMcpTools $artifacts,
+        SnippetMcpTools $snippets,
         WorkspaceMcpTools $workspace,
         TeamMcpTools $teams,
     ) {
-        $this->handlers = [$flows, $runs, $artifacts, $workspace, $teams];
+        $this->handlers = [$flows, $snippets, $runs, $artifacts, $workspace, $teams];
     }
 
     /** @return list<McpToolDefinition> */
@@ -61,7 +96,7 @@ final class McpToolService
     /** @return list<McpToolDefinition> */
     public function allTools(): array
     {
-        return array_merge(...array_map(
+        return $this->tools ??= array_merge(...array_map(
             fn (McpToolHandler $handler) => $handler->definitions(),
             $this->handlers,
         ));
@@ -99,19 +134,27 @@ final class McpToolService
     /** @return list<string> */
     public function allToolNames(): array
     {
-        return array_column($this->allTools(), 'name');
+        return $this->toolNames ??= array_column($this->allTools(), 'name');
+    }
+
+    public function humanDescription(string $name, string $fallback): string
+    {
+        return self::HUMAN_DESCRIPTIONS[$name] ?? $fallback;
     }
 
     /** @return list<string> */
     public function defaultToolNames(): array
     {
-        return array_values(array_intersect(self::DEFAULT_TOOLS, $this->allToolNames()));
+        return array_values(array_intersect(
+            [...self::DEFAULT_TOOLS, ...self::ALWAYS_AVAILABLE_TOOLS],
+            $this->allToolNames(),
+        ));
     }
 
     /** @return list<string> */
     public function acceptedToolNames(): array
     {
-        return [...$this->allToolNames(), 'create_flow', 'execute_flow'];
+        return [...$this->knownToolNames(), 'create_flow', 'execute_flow'];
     }
 
     /**
@@ -134,18 +177,39 @@ final class McpToolService
             $normalized[] = $name === 'execute_flow' ? 'run_flow' : $name;
         }
 
-        return array_values(array_unique(array_intersect($normalized, $this->allToolNames())));
+        return array_values(array_unique(array_intersect($normalized, $this->knownToolNames())));
+    }
+
+    /** @return list<string> */
+    public function configuredToolNames(WorkspaceMcpSetting $setting): array
+    {
+        $enabled = $setting->enabled_tools;
+        $configured = is_array($enabled)
+            ? $this->normalizeToolNames($enabled)
+            : $this->defaultToolNames();
+
+        return array_values(array_unique(array_intersect(
+            [...$configured, ...self::ALWAYS_AVAILABLE_TOOLS],
+            $this->knownToolNames(),
+        )));
     }
 
     /** @return list<string> */
     public function enabledToolNames(WorkspaceMcpSetting $setting): array
     {
-        $enabled = $setting->enabled_tools;
-        if (! is_array($enabled)) {
-            return $this->defaultToolNames();
+        $effective = $this->configuredToolNames($setting);
+
+        if (array_intersect($effective, ['write_code_flow', 'write_nodal_flow']) !== []) {
+            $effective = [...$effective, 'search_flows', 'get_flow_source', 'get_flow_creation_options', 'list_flow_resources'];
+        }
+        if (array_intersect($effective, ['write_code_snippet', 'write_nodal_snippet']) !== []) {
+            $effective = [...$effective, 'search_snippets', 'get_snippet_source', 'get_snippet_creation_options', 'list_flow_resources'];
         }
 
-        return $this->normalizeToolNames($enabled);
+        return array_values(array_unique(array_intersect(
+            $effective,
+            $this->allToolNames(),
+        )));
     }
 
     /** @param McpArguments $arguments */
@@ -161,5 +225,11 @@ final class McpToolService
         }
 
         return $name;
+    }
+
+    /** @return list<string> */
+    private function knownToolNames(): array
+    {
+        return array_values(array_unique([...$this->allToolNames(), ...SnippetMcpTools::TOOL_NAMES]));
     }
 }

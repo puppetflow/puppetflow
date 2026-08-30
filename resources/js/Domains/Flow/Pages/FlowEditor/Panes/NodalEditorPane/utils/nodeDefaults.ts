@@ -8,6 +8,7 @@ import {
     IF_ELSE_NODE_NAME,
     LIMIT_NODE_NAME,
     LOOP_NODE_NAME,
+    MERGE_NODE_NAME,
     SET_NODE_NAME,
     SET_OUTPUT_NODE_NAME,
 } from './constants';
@@ -59,6 +60,12 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
             iterations: { mode: 'fixed' as const, value: '3' },
             condition: { mode: 'expression' as const, value: '{{ false }}' },
             maxIterations: { mode: 'fixed' as const, value: '100' },
+        };
+    }
+
+    if (entry.name === MERGE_NODE_NAME) {
+        return {
+            strategy: { mode: 'fixed' as const, value: 'append' },
         };
     }
 

@@ -26,6 +26,7 @@ use App\Rules\ValidNodalGraph;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Library\LibraryCatalogService;
 use App\Services\Library\LibrarySnippetReferenceRewriter;
+use App\Services\Snippet\SnippetArgumentValidator;
 use App\Services\Snippet\SnippetVersionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,7 @@ class SnippetController extends Controller
         private readonly ScopeEvaluator $scopeEvaluator,
         private readonly ResourceAssignmentValidator $assignments,
         private readonly LibrarySnippetReferenceRewriter $snippetReferences,
+        private readonly SnippetArgumentValidator $snippetArguments,
         private readonly SnippetVersionService $snippetVersions,
     ) {}
 
@@ -137,7 +139,7 @@ class SnippetController extends Controller
         $snippetType = $validated['snippet_type'] ?? 'code';
         if ($snippetType === 'nodal') {
             validator($validated, ['nodal_graph' => ['required', 'array']])->validate();
-            $this->validateNodalArguments($validated['args'] ?? '');
+            $this->snippetArguments->validate($validated['args'] ?? '');
             if (trim($validated['code'] ?? '') === '') {
                 throw ValidationException::withMessages(['code' => 'Nodal snippets must include compiled code.']);
             }
@@ -218,7 +220,7 @@ class SnippetController extends Controller
             $validated['team_id'] = $this->resolveWorkspaceTeamId($validated['team_id'], $snippet->workspace_id);
         }
         if ($snippet->snippet_type === 'nodal' && array_key_exists('args', $validated)) {
-            $this->validateNodalArguments($validated['args'] ?? '');
+            $this->snippetArguments->validate($validated['args'] ?? '');
         }
         if ($snippet->snippet_type === 'code' && array_key_exists('nodal_graph', $validated) && $validated['nodal_graph'] !== null) {
             abort(422, 'Code snippets cannot contain a nodal graph.');
@@ -760,37 +762,6 @@ class SnippetController extends Controller
             throw ValidationException::withMessages([
                 'client_updated_at' => 'This snippet was updated by someone else. Reload the latest version before saving.',
             ]);
-        }
-    }
-
-    private function validateNodalArguments(string $args): void
-    {
-        $parameters = array_values(array_filter(array_map('trim', explode(',', $args)), fn (string $arg): bool => $arg !== ''));
-        $reserved = [
-            'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
-            'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false',
-            'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let',
-            'new', 'null', 'return', 'static', 'super', 'switch', 'this', 'throw',
-            'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
-            '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
-            '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
-            '$viewportWidth', '$viewportHeight',
-        ];
-        if (count($parameters) !== count(array_unique($parameters))) {
-            throw ValidationException::withMessages(['args' => 'Nodal snippet arguments must be unique.']);
-        }
-
-        foreach ($parameters as $parameter) {
-            if (
-                preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $parameter) !== 1
-                || in_array($parameter, $reserved, true)
-                || str_starts_with($parameter, '__pf')
-                || str_starts_with($parameter, 'nodeResult')
-            ) {
-                throw ValidationException::withMessages([
-                    'args' => 'Nodal snippet arguments must be JavaScript identifiers and cannot use reserved visual-runtime names.',
-                ]);
-            }
         }
     }
 

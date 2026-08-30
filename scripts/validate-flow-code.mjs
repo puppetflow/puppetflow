@@ -8,6 +8,10 @@ for await (const chunk of process.stdin) {
 
 try {
     const program = parse(source, { ecmaVersion: 'latest', sourceType: 'script' });
+    if (process.argv.includes('--syntax-only')) {
+        process.exit(0);
+    }
+
     const runs = program.body.filter(node => (
         node.type === 'FunctionDeclaration'
         && node.id?.name === 'run'

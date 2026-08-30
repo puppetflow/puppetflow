@@ -113,6 +113,14 @@ class ValidNodalGraph implements ValidationRule
             $nodeDeactivated[$id] = $deactivated;
 
             $system = $node['system'] ?? null;
+            if ($system === null) {
+                $system = match (true) {
+                    $this->context === 'flow' && $id === '__system_run' && $name === 'RUN' => 'run',
+                    $this->context === 'flow' && $id === '__system_terminate' && $name === 'TERMINATE' => 'terminate',
+                    $this->context === 'function' && $id === '__system_function' && $name === 'FUNCTION' => 'function',
+                    default => null,
+                };
+            }
             $scopeId = $node['scopeId'] ?? null;
             $localFunctionId = $node['localFunctionId'] ?? null;
             if ($scopeId !== null && (! is_string($scopeId) || $scopeId === '')) {
@@ -203,6 +211,17 @@ class ValidNodalGraph implements ValidationRule
                     }
                     $functionRoots++;
                 }
+            }
+            $requiredSystem = match ($name) {
+                'RUN' => 'run',
+                'TERMINATE' => 'terminate',
+                'FUNCTION' => 'function',
+                default => null,
+            };
+            if ($requiredSystem !== null && $system !== $requiredSystem) {
+                $fail("The {$nodeLabel} node must use the {$requiredSystem} system type.");
+
+                return;
             }
             $isSticky = ($node['kind'] ?? null) === 'stickyNote' || $name === '__sticky_note';
             $nodeSticky[$id] = $isSticky;
@@ -307,12 +326,19 @@ class ValidNodalGraph implements ValidationRule
                         : [],
                     $group,
                 )));
-                if ($paths !== [] && array_filter(
+                if (
+                    $paths !== []
+                    && $this->hasUninspectableObjectExpression($values, array_slice($paths[0], 0, -1))
+                ) {
+                    continue;
+                }
+                $providedPaths = array_filter(
                     $paths,
                     fn (array $path): bool => $this->hasLegacyFlowParameterValue($values, $path),
-                ) === []) {
+                );
+                if ($paths !== [] && count($providedPaths) !== 1) {
                     $choices = implode(' or ', array_map(fn (array $path): string => implode('.', $path), $paths));
-                    $fail("{$choices} is required for the {$nodeLabel} node.");
+                    $fail("Exactly one of {$choices} is required for the {$nodeLabel} node.");
 
                     return;
                 }
@@ -617,10 +643,45 @@ class ValidNodalGraph implements ValidationRule
         return $this->isNonEmptyParameterLeaf($current);
     }
 
+    /**
+     * @param  array<string, mixed>  $values
+     * @param  list<string>  $path
+     */
+    private function hasUninspectableObjectExpression(array $values, array $path): bool
+    {
+        if (count($path) !== 1 || ! is_array($values[$path[0]] ?? null)) {
+            return false;
+        }
+        $value = $values[$path[0]];
+
+        return (($value['mode'] ?? null) === 'object'
+                && ($value['inputMode'] ?? null) === 'json'
+                && ($value['jsonMode'] ?? null) === 'expression')
+            || (($value['mode'] ?? null) !== 'object'
+                && is_string($value['value'] ?? null)
+                && trim($value['value']) !== '');
+    }
+
     private function isNonEmptyParameterLeaf(mixed $value): bool
     {
         if (is_array($value)) {
             if (isset($value['mode'])) {
+                if ($value['mode'] === 'if-condition') {
+                    $rules = $value['rules'] ?? null;
+                    if (! is_array($rules) || $rules === []) {
+                        return false;
+                    }
+                    foreach ($rules as $rule) {
+                        $left = is_array($rule) && is_array($rule['left'] ?? null)
+                            ? ($rule['left']['value'] ?? null)
+                            : null;
+                        if (! is_string($left) || trim($left) === '') {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
                 $inner = $value['value'] ?? null;
 
                 return is_string($inner)

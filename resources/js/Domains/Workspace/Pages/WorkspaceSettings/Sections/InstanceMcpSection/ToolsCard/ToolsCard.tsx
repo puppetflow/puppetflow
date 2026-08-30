@@ -7,6 +7,7 @@ import * as TabsS from '@/Shared/UI/SettingsTabs/styled';
 import type { McpTool, WorkspaceMcpSettings } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
 import {
+    ALWAYS_AVAILABLE_MCP_TOOLS,
     MCP_TOOL_CATEGORIES,
     toolCategory,
     toolLabel,
@@ -25,13 +26,16 @@ interface Props {
 export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
     const [activeCategory, setActiveCategory] = useState<McpToolCategory>('flows');
+    const isToolEnabled = (name: string) => (
+        ALWAYS_AVAILABLE_MCP_TOOLS.has(name) || settings.enabled_tools.includes(name)
+    );
     const visibleTools = activeCategory === 'all'
         ? tools
         : tools.filter(tool => toolCategory(tool.name) === activeCategory);
-    const visibleEnabledCount = visibleTools.filter(tool => settings.enabled_tools.includes(tool.name)).length;
+    const visibleEnabledCount = visibleTools.filter(tool => isToolEnabled(tool.name)).length;
 
     const updateTool = async (toolName: string, value: boolean) => {
-        if (readOnly || busy) return;
+        if (readOnly || busy || ALWAYS_AVAILABLE_MCP_TOOLS.has(toolName)) return;
 
         const enabledTools = value
             ? Array.from(new Set([...settings.enabled_tools, toolName]))
@@ -45,7 +49,9 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
         const visibleNames = new Set(visibleTools.map(tool => tool.name));
         const enabledTools = enabled
             ? Array.from(new Set([...settings.enabled_tools, ...visibleNames]))
-            : settings.enabled_tools.filter(name => !visibleNames.has(name));
+            : settings.enabled_tools.filter(name => (
+                !visibleNames.has(name) || ALWAYS_AVAILABLE_MCP_TOOLS.has(name)
+            ));
 
         await onUpdate({ enabled_tools: enabledTools });
     };
@@ -74,7 +80,7 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                     MCP Tools
                 </SharedS.CardTitle>
                 <S.SectionHint>
-                    Choose which tools this workspace exposes to connected MCP clients. Disabled tools are hidden from discovery and cannot be called.
+                    Choose which workspace tools are exposed to connected MCP clients. Framework reference tools are always available.
                 </S.SectionHint>
                 <S.TabsWrap>
                     <TabsS.SettingsTabsScroller>
@@ -83,7 +89,7 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                                 const categoryTools = category.key === 'all'
                                     ? tools
                                     : tools.filter(tool => toolCategory(tool.name) === category.key);
-                                const enabledCount = categoryTools.filter(tool => settings.enabled_tools.includes(tool.name)).length;
+                                const enabledCount = categoryTools.filter(tool => isToolEnabled(tool.name)).length;
 
                                 return (
                                     <TabsS.SettingsTab
@@ -123,7 +129,8 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                 </S.Header>
                 <S.Grid>
                     {visibleTools.map(tool => {
-                        const enabled = settings.enabled_tools.includes(tool.name);
+                        const alwaysAvailable = ALWAYS_AVAILABLE_MCP_TOOLS.has(tool.name);
+                        const enabled = isToolEnabled(tool.name);
 
                         return (
                             <S.Item key={tool.name} $enabled={enabled}>
@@ -136,8 +143,8 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                                     id={`mcp_tool_${tool.name}`}
                                     checked={enabled}
                                     onChange={value => void updateTool(tool.name, value)}
-                                    label={enabled ? 'Enabled' : 'Disabled'}
-                                    disabled={readOnly || busy}
+                                    label={alwaysAvailable ? 'Always available' : (enabled ? 'Enabled' : 'Disabled')}
+                                    disabled={readOnly || busy || alwaysAvailable}
                                 />
                             </S.Item>
                         );

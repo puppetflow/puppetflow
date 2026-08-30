@@ -20,6 +20,7 @@ import {
 } from './Panes/NodalEditorPane/utils/constants';
 import { formatEntryLabel, getEntryByName, getParameterMeta } from './Panes/NodalEditorPane/utils/catalog';
 import { formatParameterForCompiler, normalizeParameterValue, normalizeScalarParameterValue } from './Panes/NodalEditorPane/utils/expression';
+import { IF_OPERATORS } from './Panes/NodalEditorPane/NodeConfigModal/utils/ifConditions';
 import { SYSTEM_FUNCTION_NODE_ID } from './Panes/NodalEditorPane/utils/functionGraph';
 import { getFunctionArgumentNames } from './Panes/NodalEditorPane/utils/functionArguments';
 import { getNodeFlowPortDefinitions, isCallbackFlowPort } from './Panes/NodalEditorPane/utils/flowParameters';
@@ -233,6 +234,10 @@ const scalarExpressionSource = (value: ScalarNodeParameterValue | undefined, fal
 const emptyCheckSource = (source: string) => `((value) => value == null || value === '' || (Array.isArray(value) && value.length === 0) || (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0))(${source})`;
 
 const compareConditionSource = (category: IfConditionCategory, operator: string, left: string, right: string) => {
+    if (!IF_OPERATORS[category].some(candidate => candidate.value === operator)) {
+        throw new Error(`Unsupported ${category} if-condition operator: ${operator}`);
+    }
+
     const leftValue = `(${left})`;
     const rightValue = `(${right})`;
     const numberLeft = `Number(${leftValue})`;
@@ -271,7 +276,7 @@ const compareConditionSource = (category: IfConditionCategory, operator: string,
         case 'lengthLessThan': return `(Array.isArray(${leftValue}) && ${leftValue}.length < ${numberRight})`;
         case 'lengthGreaterThanOrEqual': return `(Array.isArray(${leftValue}) && ${leftValue}.length >= ${numberRight})`;
         case 'lengthLessThanOrEqual': return `(Array.isArray(${leftValue}) && ${leftValue}.length <= ${numberRight})`;
-        default: return 'false';
+        default: throw new Error(`Unsupported if-condition operator: ${operator}`);
     }
 };
 

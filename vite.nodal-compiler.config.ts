@@ -14,11 +14,15 @@ export default defineConfig({
         outDir: 'bootstrap/nodal-compiler',
         emptyOutDir: true,
         minify: false,
-        ssr: 'scripts/nodal-compiler.ts',
+        ssr: true,
         rollupOptions: {
+            input: {
+                compiler: path.resolve(__dirname, 'scripts/nodal-compiler.ts'),
+                'catalog-generator': path.resolve(__dirname, 'scripts/nodal-catalog.ts'),
+            },
             output: {
                 format: 'es',
-                entryFileNames: 'compiler.mjs',
+                entryFileNames: '[name].mjs',
             },
         },
     },

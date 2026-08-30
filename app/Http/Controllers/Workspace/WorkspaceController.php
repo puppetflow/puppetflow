@@ -244,12 +244,12 @@ class WorkspaceController extends Controller
             'mcpSettings' => [
                 'enabled' => $mcpSetting ? (bool) $mcpSetting->enabled : true,
                 'include_unexposed_flow_previews' => $mcpSetting ? (bool) $mcpSetting->include_unexposed_flow_previews : false,
-                'enabled_tools' => $mcpSetting ? $mcpTools->enabledToolNames($mcpSetting) : $defaultMcpToolNames,
+                'enabled_tools' => $mcpSetting ? $mcpTools->configuredToolNames($mcpSetting) : $defaultMcpToolNames,
             ],
             'mcpTools' => $mcpEnabled && $isWorkspaceAdmin ? collect($mcpTools->allTools())
                 ->map(fn (array $tool) => [
                     'name' => $tool['name'],
-                    'description' => $tool['description'],
+                    'description' => $mcpTools->humanDescription($tool['name'], $tool['description']),
                     'enabled_by_default' => in_array($tool['name'], $defaultMcpToolNames, true),
                 ])
                 ->values() : [],

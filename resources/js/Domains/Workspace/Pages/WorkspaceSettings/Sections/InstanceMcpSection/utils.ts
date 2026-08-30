@@ -2,20 +2,31 @@ import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { McpFlow } from '@/Domains/Workspace/types';
 
-export type McpToolCategory = 'all' | 'flows' | 'runs' | 'artifacts' | 'workspace' | 'teams' | 'sensitive';
+export type McpToolCategory = 'all' | 'flows' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams' | 'sensitive';
 
 export const MCP_TOOL_CATEGORIES: { key: McpToolCategory; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'flows', label: 'Flows' },
+    { key: 'snippets', label: 'Snippets' },
     { key: 'runs', label: 'Runs' },
     { key: 'artifacts', label: 'Artifacts' },
     { key: 'workspace', label: 'Workspace' },
     { key: 'teams', label: 'Teams' },
-    { key: 'sensitive', label: 'Sensitive' },
 ];
 
+export const ALWAYS_AVAILABLE_MCP_TOOLS = new Set(['get_nodal_catalog']);
+
 const TOOL_CATEGORIES: Record<Exclude<McpToolCategory, 'all'>, string[]> = {
-    flows: ['search_flows', 'get_flow_details', 'get_flow_source', 'list_folders', 'get_flow_creation_options', 'get_nodal_catalog', 'write_code_flow', 'write_nodal_flow'],
+    flows: [
+        'search_flows', 'get_flow_details', 'get_flow_source', 'list_folders',
+        'get_flow_creation_options', 'get_nodal_catalog', 'list_flow_resources',
+        'write_code_flow', 'write_nodal_flow',
+    ],
+    snippets: [
+        'search_snippets',
+        'get_snippet_source', 'get_snippet_creation_options',
+        'write_code_snippet', 'write_nodal_snippet',
+    ],
     runs: ['search_runs', 'list_flow_runs', 'run_flow', 'get_run', 'get_run_result', 'continue_human_validation'],
     artifacts: ['list_artifacts', 'get_latest_screenshot', 'download_artifact', 'get_recording', 'get_recording_lastshot'],
     workspace: ['get_current_workspace', 'update_current_workspace'],

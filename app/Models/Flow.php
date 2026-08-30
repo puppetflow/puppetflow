@@ -58,6 +58,8 @@ class Flow extends Model
 
     protected $table = 'flows';
 
+    protected $dateFormat = 'Y-m-d H:i:s.u';
+
     protected $hidden = [
         'manual_run_score',
         'manual_run_production_mode',

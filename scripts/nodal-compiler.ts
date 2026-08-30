@@ -14,13 +14,27 @@ const readStdin = async (): Promise<string> => {
 };
 
 try {
-    const payload = JSON.parse(await readStdin()) as { graph?: NodalGraph };
+    const payload = JSON.parse(await readStdin()) as {
+        graph?: NodalGraph;
+        context?: 'flow' | 'function';
+        functionArguments?: string[];
+    };
     if (!payload.graph || typeof payload.graph !== 'object') {
         throw new Error('A nodal graph is required.');
     }
 
-    const code = compileNodalGraphToCode(payload.graph);
-    parse(code, { ecmaVersion: 'latest', sourceType: 'script' });
+    const context = payload.context === 'function' ? 'function' : 'flow';
+    const functionArguments = Array.isArray(payload.functionArguments)
+        ? payload.functionArguments
+        : [];
+    const code = compileNodalGraphToCode(payload.graph, {
+        context,
+        functionArguments,
+    });
+    const parseSource = context === 'function'
+        ? `async function __snippet(${functionArguments.join(', ')}) {\n${code}\n}`
+        : code;
+    parse(parseSource, { ecmaVersion: 'latest', sourceType: 'script' });
     process.stdout.write(JSON.stringify({ code }));
 } catch (error) {
     const message = error instanceof Error ? error.message : 'Nodal compilation failed.';
