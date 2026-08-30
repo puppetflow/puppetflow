@@ -198,7 +198,10 @@ class Flow extends Model
         });
 
         static::saving(function (Flow $flow) {
-            if ($flow->exists && ($flow->isDirty('code') || $flow->isDirty('nodal_graph'))) {
+            if (
+                $flow->exists
+                && ($flow->isDirty('code') || $flow->isDirty('nodal_graph') || $flow->isDirty('flow_type'))
+            ) {
                 $flow->content_updated_at = Carbon::now();
             }
         });

@@ -111,7 +111,7 @@ export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly
                                 onChange={event => setTokenName(event.target.value)}
                                 placeholder="Claude Desktop"
                             />
-                            <Button type="submit" size="sm" loading={tokenBusy} disabled={busy || !tokenName.trim()}>
+                            <Button type="submit" size="md" loading={tokenBusy} disabled={busy || !tokenName.trim()}>
                                 <Icon icon="lucide:plus" width={14} />
                                 Create token
                             </Button>

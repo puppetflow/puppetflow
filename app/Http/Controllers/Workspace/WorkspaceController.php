@@ -242,7 +242,7 @@ class WorkspaceController extends Controller
             'mcpOauthAuthorizeUrl' => url('/oauth/authorize'),
             'mcpOauthTokenUrl' => url('/oauth/token'),
             'mcpSettings' => [
-                'enabled' => $mcpSetting ? (bool) $mcpSetting->enabled : false,
+                'enabled' => $mcpSetting ? (bool) $mcpSetting->enabled : true,
                 'include_unexposed_flow_previews' => $mcpSetting ? (bool) $mcpSetting->include_unexposed_flow_previews : false,
                 'enabled_tools' => $mcpSetting ? $mcpTools->enabledToolNames($mcpSetting) : $defaultMcpToolNames,
             ],

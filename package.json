@@ -6,9 +6,10 @@
   "scripts": {
     "icons:sync": "node scripts/sync-iconify-icons.mjs",
     "build:runtime": "node scripts/build-runtime.mjs",
+    "build:nodal-compiler": "vite build --config vite.nodal-compiler.config.ts",
     "check:runtime": "node scripts/build-runtime.mjs --check",
-    "predev": "npm run build:runtime",
-    "prebuild": "npm run build:runtime",
+    "predev": "npm run build:runtime && npm run build:nodal-compiler",
+    "prebuild": "npm run build:runtime && npm run build:nodal-compiler",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

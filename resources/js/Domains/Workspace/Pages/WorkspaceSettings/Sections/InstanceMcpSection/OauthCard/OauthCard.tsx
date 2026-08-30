@@ -133,7 +133,7 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
                                 onChange={event => setRedirectUri(event.target.value)}
                                 placeholder="https://client.example.com/oauth/callback"
                             />
-                            <Button type="submit" size="sm" loading={clientBusy} disabled={busy || !clientName.trim() || !redirectUri.trim()}>
+                            <Button type="submit" size="md" loading={clientBusy} disabled={busy || !clientName.trim() || !redirectUri.trim()}>
                                 <Icon icon="lucide:plus" width={14} />
                                 Create OAuth client
                             </Button>

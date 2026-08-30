@@ -39,14 +39,15 @@ class WorkspaceMcpController extends Controller
             'enabled' => ['required', 'boolean'],
             'include_unexposed_flow_previews' => ['required', 'boolean'],
             'enabled_tools' => ['nullable', 'array'],
-            'enabled_tools.*' => ['string', 'in:'.implode(',', $this->mcpTools->allToolNames())],
+            'enabled_tools.*' => ['string', 'in:'.implode(',', $this->mcpTools->acceptedToolNames())],
         ]);
+        $enabledTools = $validated['enabled_tools'] ?? $this->mcpTools->allToolNames();
 
         $setting = $workspace->mcpSetting()->updateOrCreate(
             ['workspace_id' => $workspace->id],
             [
                 ...$validated,
-                'enabled_tools' => array_values($validated['enabled_tools'] ?? $this->mcpTools->allToolNames()),
+                'enabled_tools' => $this->mcpTools->normalizeToolNames($enabledTools),
             ],
         );
 

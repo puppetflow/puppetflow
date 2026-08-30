@@ -13,6 +13,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class WorkspaceMcpSetting extends Model
 {
+    protected $attributes = [
+        'enabled' => true,
+    ];
+
     protected $fillable = [
         'workspace_id',
         'enabled',
