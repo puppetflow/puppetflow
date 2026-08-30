@@ -10,6 +10,13 @@ export const Root = styled.div<{ $invalid?: boolean }>`
     border-radius: ${({ theme }) => theme.radius.md};
     background: ${({ theme }) => theme.colors.bg.secondary};
     box-shadow: ${({ $invalid }) => ($invalid ? '0 0 0 2px #ef444426' : 'none')};
+
+    ${ExpressionField} {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
 `;
 
 export const Header = styled.div`
@@ -66,10 +73,6 @@ export const ConditionBlock = styled.div`
     min-width: 0;
     flex-direction: column;
     gap: 8px;
-
-    ${ExpressionField} {
-        padding: 0;
-    }
 `;
 
 export const ConditionLabel = styled.label`
@@ -86,9 +89,5 @@ export const CountField = styled.div`
         display: flex;
         width: 100%;
         flex-direction: column;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        box-shadow: none;
     }
 `;
