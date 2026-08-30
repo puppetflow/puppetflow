@@ -37,6 +37,12 @@ const MARKER_OPERATORS: Partial<Record<IfConditionCategory, string[]>> = {
     ],
 };
 const NUMBER_OPERATORS = new Set(MARKER_OPERATORS.number);
+const TEXT_FILTER_OPTIONS = [
+    { value: 'contains', label: 'contains' },
+    { value: 'exact', label: 'is exactly' },
+    { value: 'startsWith', label: 'starts with' },
+    { value: 'endsWith', label: 'ends with' },
+];
 const MARKER_OPERATOR_OPTIONS = (['boolean', 'number'] as IfConditionCategory[]).flatMap(category => (
     IF_OPERATORS[category]
         .filter(operator => MARKER_OPERATORS[category]?.includes(operator.value))
@@ -80,9 +86,14 @@ export default function LoggedMarkerConditionInput({
     const objectValue = normalizeObjectParameterValue(value, meta);
     const fields = getObjectFields(objectValue, meta);
     const selectorField = fields.find(field => field.key === 'selector');
+    const textMatchField = fields.find(field => field.key === 'textMatch');
+    const textFilterField = fields.find(field => field.key === 'textFilter');
+    const textCaseSensitiveField = fields.find(field => field.key === 'textCaseSensitive');
     const operatorField = fields.find(field => field.key === 'operator');
     const countField = fields.find(field => field.key === 'count');
     const operator = normalizeScalarParameterValue(operatorField?.value).value || 'exists';
+    const textMatch = normalizeScalarParameterValue(textMatchField?.value);
+    const textFilter = normalizeScalarParameterValue(textFilterField?.value).value || 'contains';
     const category: IfConditionCategory = NUMBER_OPERATORS.has(operator) ? 'number' : 'boolean';
     const { available: grabberAvailable, grabSelector } = useGrabber();
     const [grabbing, setGrabbing] = useState(false);
@@ -233,7 +244,7 @@ export default function LoggedMarkerConditionInput({
                 onChange={nextValue => updateField('selector', nextValue)}
             />
             <S.ConditionBlock>
-                <S.ConditionLabel>Condition</S.ConditionLabel>
+                <S.ConditionLabel>Selector Operator</S.ConditionLabel>
                 <CustomSelect
                     value={operator}
                     options={MARKER_OPERATOR_OPTIONS}
@@ -259,6 +270,46 @@ export default function LoggedMarkerConditionInput({
                             onChange={nextValue => updateField('count', nextValue)}
                         />
                     </S.CountField>
+                )}
+            </S.ConditionBlock>
+            <S.ConditionBlock>
+                <ExpressionInput
+                    label="Text"
+                    hint={meta.objectFields?.textMatch?.description}
+                    placeholder="Optional text to match"
+                    inputType="text"
+                    value={textMatch}
+                    outputData={outputData}
+                    autocompleteContext={autocompleteContext}
+                    flowId={flowId}
+                    readOnly={readOnly}
+                    onChange={nextValue => updateField('textMatch', nextValue)}
+                />
+                {textMatch.value.trim() && (
+                    <>
+                        <S.ConditionLabel>Text condition</S.ConditionLabel>
+                        <CustomSelect
+                            value={textFilter}
+                            options={TEXT_FILTER_OPTIONS}
+                            showOptionValue={false}
+                            disabled={readOnly}
+                            onChange={nextFilter => updateField(
+                                'textFilter',
+                                { mode: 'fixed', value: nextFilter },
+                            )}
+                        />
+                        <ExpressionInput
+                            label="Case sensitive"
+                            hint={meta.objectFields?.textCaseSensitive?.description}
+                            inputType="boolean"
+                            value={normalizeScalarParameterValue(textCaseSensitiveField?.value)}
+                            outputData={outputData}
+                            autocompleteContext={autocompleteContext}
+                            flowId={flowId}
+                            readOnly={readOnly}
+                            onChange={nextValue => updateField('textCaseSensitive', nextValue)}
+                        />
+                    </>
                 )}
             </S.ConditionBlock>
         </S.Root>

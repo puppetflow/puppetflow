@@ -9,6 +9,9 @@
  * @nodal-param options.loggedUrl [string, required]: URL to visit when checking whether the session is already logged in.
  * @nodal-param options.loggedMarkerCondition [object, logged-marker-condition]: Selector condition evaluated in the page context to detect the logged-in page.
  * @nodal-param options.loggedMarkerCondition.selector [string, selector, required]: CSS selector used to find the logged-in marker.
+ * @nodal-param options.loggedMarkerCondition.textMatch [string]: Text to match against each selected element.
+ * @nodal-param options.loggedMarkerCondition.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
+ * @nodal-param options.loggedMarkerCondition.textCaseSensitive [boolean]: Preserve letter casing when matching text.
  * @nodal-param options.loggedMarkerCondition.operator [string]: Comparison applied to the number of matching elements. Defaults to exists.
  * @nodal-param options.loggedMarkerCondition.count [number]: Expected element count used by count comparison operators.
  * @nodal-param options.loggedMarkerConditionRaw [code]: Function evaluated directly in the flow context to detect the logged-in page. Use this raw variant when the check needs Puppetflow variables or helpers unavailable in the page context.
@@ -58,9 +61,18 @@ const $loginRemember = async function(options = {}) {
     throw new Error('Login remember requires a loggedMarkerCondition or loggedMarkerConditionRaw');
   }
   if (opts.loggedMarkerCondition) {
+    const textFilter = opts.loggedMarkerCondition.textFilter || 'contains';
+    if (!['contains', 'exact', 'startsWith', 'endsWith'].includes(textFilter)) {
+      throw new Error('Login remember loggedMarkerCondition has an invalid textFilter');
+    }
     opts.loggedMarkerCondition = {
       ...opts.loggedMarkerCondition,
-      operator: opts.loggedMarkerCondition.operator || 'exists'
+      operator: opts.loggedMarkerCondition.operator || 'exists',
+      textMatch: opts.loggedMarkerCondition.textMatch == null
+        ? null
+        : String(opts.loggedMarkerCondition.textMatch).trim(),
+      textFilter,
+      textCaseSensitive: opts.loggedMarkerCondition.textCaseSensitive === true
     };
     const { selector, operator, count } = opts.loggedMarkerCondition;
     if (typeof selector !== 'string' || !selector.trim()) {
@@ -96,8 +108,21 @@ const $loginRemember = async function(options = {}) {
       } else {
         console.debug('Waiting for logged marker during', ((opts.loggedMarkerTimeout / 1000).toFixed(0) + 's...'));
         await __retryOnContextDestroyed(() => $page.waitForFunction(
-          ({ selector, operator, count }) => {
-            const matches = document.querySelectorAll(selector).length;
+          ({ selector, textMatch, textFilter, textCaseSensitive, operator, count }) => {
+            const expectedText = textMatch
+              ? (textCaseSensitive ? textMatch : textMatch.toLocaleLowerCase())
+              : '';
+            const matches = Array.from(document.querySelectorAll(selector))
+              .filter(element => {
+                if (!expectedText) return true;
+                const elementText = String(element.innerText || element.textContent || '').trim();
+                const candidate = textCaseSensitive ? elementText : elementText.toLocaleLowerCase();
+                if (textFilter === 'exact') return candidate === expectedText;
+                if (textFilter === 'startsWith') return candidate.startsWith(expectedText);
+                if (textFilter === 'endsWith') return candidate.endsWith(expectedText);
+                return candidate.includes(expectedText);
+              })
+              .length;
             switch (operator) {
               case 'exists': return matches > 0;
               case 'doesNotExist': return matches === 0;

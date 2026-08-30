@@ -112,6 +112,7 @@ const LOGGED_MARKER_OPERATORS = new Set([
     'doesNotExist',
     ...LOGGED_MARKER_COUNT_OPERATORS,
 ]);
+const LOGGED_MARKER_TEXT_FILTERS = new Set(['contains', 'exact', 'startsWith', 'endsWith']);
 const DYNAMIC_PARAMETER_VALUE = Symbol('dynamic-parameter-value');
 
 const isValidIdentifier = (value: string) => (
@@ -251,6 +252,20 @@ function getLoggedMarkerConditionIssues(value: NodeParameterValue | undefined): 
             path: 'options.loggedMarkerCondition',
             label: 'Logged marker condition',
             message: 'Selector is required.',
+        }];
+    }
+
+    const textFilterValue = readScalarValue(readObjectFieldValue(condition, 'textFilter'));
+    if (
+        textFilterValue !== DYNAMIC_PARAMETER_VALUE
+        && textFilterValue !== undefined
+        && textFilterValue !== ''
+        && (typeof textFilterValue !== 'string' || !LOGGED_MARKER_TEXT_FILTERS.has(textFilterValue))
+    ) {
+        return [{
+            path: 'options.loggedMarkerCondition',
+            label: 'Logged marker condition',
+            message: 'Select a valid text condition.',
         }];
     }
 
