@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/Shared/UI/Button/Button';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import AvatarSelectionToggle from '@/Shared/UI/AvatarSelectionToggle/AvatarSelectionToggle';
+import SelectAllVisible from '@/Shared/UI/TableFilters/SelectAllVisible';
 import TableCellContent from '@/Shared/UI/TableCellContent/TableCellContent';
 import { useActionMenuDismiss } from '@/Shared/Hooks/useActionMenuDismiss';
 import { useAnchoredDropdownPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useAnchoredDropdownPosition';
@@ -10,6 +12,7 @@ import LocalTableFilterToolbar from '@/Shared/UI/TableFilters/LocalTableFilterTo
 import { matchesOwnershipScope } from '@/Shared/UI/TableFilters/options';
 import type { WorkspaceProxy } from '@/Domains/Workspace/types';
 import WorkspaceProxyFormModal from './WorkspaceProxyFormModal';
+import { countryFlag, getCountryName } from './countries';
 import * as S from './styled';
 
 interface Props {
@@ -158,6 +161,8 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
     const [editing, setEditing] = useState<WorkspaceProxy | null>(null);
     const [open, setOpen] = useState(false);
     const [busyId, setBusyId] = useState<number | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+    const [deletingSelected, setDeletingSelected] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [collapsedGroups, setCollapsedGroups] = useState(initialCollapsedGroups);
     const [search, setSearch] = useState('');
@@ -179,6 +184,8 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                 item.host,
                 String(item.port),
                 item.scheme,
+                item.country_code,
+                item.country_code ? getCountryName(item.country_code) : null,
                 item.group,
                 item.owner?.name,
                 item.team?.name,
@@ -207,6 +214,9 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                 items: groupItems.sort((a, b) => a.label.localeCompare(b.label)),
             }));
     }, [filteredItems]);
+    const selectableIds = readOnly ? [] : filteredItems.map(item => item.id);
+    const allVisibleSelected = selectableIds.length > 0
+        && selectableIds.every(id => selectedIds.has(id));
 
     useEffect(() => {
         try {
@@ -215,6 +225,14 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
             // Ignore unavailable browser storage.
         }
     }, [collapsedGroups]);
+
+    useEffect(() => {
+        const availableIds = new Set(items.map(item => item.id));
+        setSelectedIds(current => {
+            const next = new Set([...current].filter(id => availableIds.has(id)));
+            return next.size === current.size ? current : next;
+        });
+    }, [items]);
 
     const openCreate = () => {
         setEditing(null);
@@ -244,10 +262,63 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
         try {
             await requestJson(`/workspace/proxies/${proxy.id}`, { method: 'DELETE' });
             setItems(current => current.filter(item => item.id !== proxy.id));
+            setSelectedIds(current => {
+                const next = new Set(current);
+                next.delete(proxy.id);
+                return next;
+            });
         } catch (caught) {
             setError(caught instanceof Error ? caught.message : 'Unable to delete this proxy.');
         } finally {
             setBusyId(null);
+        }
+    };
+
+    const toggleSelected = (proxyId: number) => {
+        setSelectedIds(current => {
+            const next = new Set(current);
+            if (next.has(proxyId)) next.delete(proxyId);
+            else next.add(proxyId);
+            return next;
+        });
+    };
+
+    const toggleAllVisible = () => {
+        setSelectedIds(current => {
+            const next = new Set(current);
+            selectableIds.forEach(id => {
+                if (allVisibleSelected) next.delete(id);
+                else next.add(id);
+            });
+            return next;
+        });
+    };
+
+    const removeSelected = async () => {
+        const selected = items.filter(item => selectedIds.has(item.id));
+        if (
+            selected.length === 0
+            || !window.confirm(`Delete ${selected.length} selected ${selected.length === 1 ? 'proxy' : 'proxies'}?`)
+        ) return;
+
+        setDeletingSelected(true);
+        setError(null);
+        const deletedIds: number[] = [];
+        try {
+            for (const item of selected) {
+                await requestJson(`/workspace/proxies/${item.id}`, { method: 'DELETE' });
+                deletedIds.push(item.id);
+            }
+            setSelectedIds(new Set());
+        } catch (caught) {
+            setError(caught instanceof Error ? caught.message : 'Unable to delete the selected proxies.');
+        } finally {
+            if (deletedIds.length > 0) {
+                const deleted = new Set(deletedIds);
+                setItems(current => current.filter(item => !deleted.has(item.id)));
+                setSelectedIds(current => new Set([...current].filter(id => !deleted.has(id))));
+            }
+            setDeletingSelected(false);
         }
     };
 
@@ -269,10 +340,23 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                         Proxy servers
                     </S.CardTitle>
                     {!readOnly && (
-                        <Button size="sm" onClick={openCreate}>
-                            <Icon icon="lucide:plus" width={14} />
-                            <S.AddButtonLabel>Add proxy</S.AddButtonLabel>
-                        </Button>
+                        <S.HeaderActions>
+                            {selectedIds.size > 0 && (
+                                <Button
+                                    size="sm"
+                                    variant="danger"
+                                    loading={deletingSelected}
+                                    onClick={() => { void removeSelected(); }}
+                                >
+                                    <Icon icon="lucide:trash-2" width={14} />
+                                    Delete ({selectedIds.size})
+                                </Button>
+                            )}
+                            <Button size="sm" disabled={deletingSelected} onClick={openCreate}>
+                                <Icon icon="lucide:plus" width={14} />
+                                <S.AddButtonLabel>Add proxy</S.AddButtonLabel>
+                            </Button>
+                        </S.HeaderActions>
                     )}
                 </S.CardHeader>
                 <S.SectionHint>
@@ -287,6 +371,15 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                     onSearchChange={setSearch}
                     onScopeChange={setScope}
                 />
+                {selectableIds.length > 0 && (
+                    <S.ProxySelectionBar>
+                        <SelectAllVisible
+                            allSelected={allVisibleSelected}
+                            itemLabel="proxies"
+                            onToggle={toggleAllVisible}
+                        />
+                    </S.ProxySelectionBar>
+                )}
                 {error && !open && <S.Error>{error}</S.Error>}
                 {filteredItems.length === 0 ? (
                     <S.EmptyState>
@@ -295,7 +388,7 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                             : 'No proxy servers match these filters.'}
                     </S.EmptyState>
                 ) : (
-                    <S.TableWrapper>
+                    <S.TableWrapper $hasSelection={selectableIds.length > 0}>
                         <S.Table>
                             <thead>
                                 <tr>
@@ -329,7 +422,37 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                                         </S.GroupRow>
                                         {!collapsedGroups.has(key) && groupProxies.map(proxy => (
                                             <S.Row key={proxy.id}>
-                                                <td><TableCellContent><S.ProxyName>{proxy.label}</S.ProxyName></TableCellContent></td>
+                                                <td>
+                                                    <TableCellContent>
+                                                        <S.ProxyIdentity>
+                                                            {!readOnly ? (
+                                                                <AvatarSelectionToggle
+                                                                    selected={selectedIds.has(proxy.id)}
+                                                                    onChange={() => toggleSelected(proxy.id)}
+                                                                    label={`${selectedIds.has(proxy.id) ? 'Deselect' : 'Select'} ${proxy.label}`}
+                                                                    size={24}
+                                                                >
+                                                                    <S.CountryAvatar
+                                                                        title={proxy.country_code
+                                                                            ? getCountryName(proxy.country_code) || proxy.country_code
+                                                                            : 'Country not set'}
+                                                                    >
+                                                                        {proxy.country_code ? countryFlag(proxy.country_code) : '🌐'}
+                                                                    </S.CountryAvatar>
+                                                                </AvatarSelectionToggle>
+                                                            ) : (
+                                                                <S.CountryAvatar
+                                                                    title={proxy.country_code
+                                                                        ? getCountryName(proxy.country_code) || proxy.country_code
+                                                                        : 'Country not set'}
+                                                                >
+                                                                    {proxy.country_code ? countryFlag(proxy.country_code) : '🌐'}
+                                                                </S.CountryAvatar>
+                                                            )}
+                                                            <S.ProxyName>{proxy.label}</S.ProxyName>
+                                                        </S.ProxyIdentity>
+                                                    </TableCellContent>
+                                                </td>
                                                 <td><TableCellContent><S.Endpoint>{endpoint(proxy)}</S.Endpoint></TableCellContent></td>
                                                 <td>
                                                     <TableCellContent>
@@ -364,7 +487,7 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                                                     <TableCellContent $align="end">
                                                         {!readOnly && (
                                                             <ProxyActions
-                                                                busy={busyId === proxy.id}
+                                                                busy={deletingSelected || busyId === proxy.id}
                                                                 onEdit={() => openEdit(proxy)}
                                                                 onDelete={() => { void remove(proxy); }}
                                                             />

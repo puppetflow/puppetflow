@@ -48,6 +48,7 @@ export interface WorkspaceProxy {
     scheme: 'http' | 'https' | 'socks4' | 'socks5';
     host: string;
     port: number;
+    country_code: string | null;
     has_authentication: boolean;
     visibility: 'owner' | 'workspace' | 'team';
     user_id: Id | null;

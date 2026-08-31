@@ -41,6 +41,23 @@ class WorkspaceProxyController extends Controller
         return $this->testConnection($request, $workspaceProxy);
     }
 
+    public function detectCountry(Request $request): JsonResponse
+    {
+        $workspace = $this->currentWorkspace();
+        Gate::authorize(Ability::UPDATE->value, $workspace);
+
+        return $this->detectProxyCountry($request);
+    }
+
+    public function detectExistingCountry(Request $request, WorkspaceProxy $workspaceProxy): JsonResponse
+    {
+        $workspace = $this->currentWorkspace();
+        Gate::authorize(Ability::UPDATE->value, $workspace);
+        $this->abortUnlessCurrentWorkspace($workspaceProxy, $workspace);
+
+        return $this->detectProxyCountry($request, $workspaceProxy);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $workspace = $this->currentWorkspace();
@@ -169,11 +186,90 @@ class WorkspaceProxyController extends Controller
         return response()->json(['message' => 'Proxy deleted.']);
     }
 
+    private function detectProxyCountry(
+        Request $request,
+        ?WorkspaceProxy $workspaceProxy = null,
+    ): JsonResponse {
+        $validated = $request->validate([
+            'scheme' => ['required', Rule::in(['http', 'https', 'socks4', 'socks5'])],
+            'host' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^(?!.*[\\s\\/@])(?:\\[[0-9A-Fa-f:]+\\]|[0-9A-Za-z](?:[0-9A-Za-z.-]*[0-9A-Za-z])?)$/',
+            ],
+            'port' => ['required', 'integer', 'between:1,65535'],
+            'authenticated' => ['required', 'boolean'],
+            'username' => ['nullable', 'string', 'max:1000'],
+            'password' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $authenticated = (bool) $validated['authenticated'];
+        $username = $authenticated
+            ? (($validated['username'] ?? '') !== ''
+                ? $validated['username']
+                : $workspaceProxy?->username)
+            : null;
+        $password = $authenticated
+            ? (($validated['password'] ?? '') !== ''
+                ? $validated['password']
+                : $workspaceProxy?->password)
+            : null;
+
+        if ($authenticated && (! is_string($username) || $username === '')) {
+            throw ValidationException::withMessages([
+                'username' => 'A username is required for proxy authentication.',
+            ]);
+        }
+
+        $host = trim($validated['host'], '[]');
+        $formattedHost = str_contains($host, ':') ? "[{$host}]" : $host;
+        $credentials = $authenticated
+            ? rawurlencode($username).':'.rawurlencode(is_string($password) ? $password : '').'@'
+            : '';
+        $proxyUrl = "{$validated['scheme']}://{$credentials}{$formattedHost}:{$validated['port']}";
+
+        try {
+            $response = Http::acceptJson()
+                ->withOptions(['proxy' => $proxyUrl])
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->get('https://ipwho.is/');
+        } catch (ConnectionException) {
+            return response()->json([
+                'message' => 'Unable to connect through this proxy.',
+            ], 422);
+        } catch (\Throwable) {
+            return response()->json([
+                'message' => 'The proxy country could not be detected.',
+            ], 422);
+        }
+
+        $countryCode = $response->json('country_code');
+        $country = $response->json('country');
+        $ip = $response->json('ip');
+        if (
+            ! $response->successful()
+            || $response->json('success') !== true
+            || ! is_string($countryCode)
+            || preg_match('/^[A-Za-z]{2}$/', $countryCode) !== 1
+        ) {
+            return response()->json([
+                'message' => 'No country could be detected for this proxy.',
+            ], 422);
+        }
+
+        return response()->json([
+            'country_code' => strtoupper($countryCode),
+            'country' => is_string($country) ? $country : null,
+            'ip' => is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP) ? $ip : null,
+        ]);
+    }
+
     private function testConnection(
         Request $request,
         ?WorkspaceProxy $workspaceProxy = null,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $validated = $request->validate([
             'scheme' => ['required', Rule::in(['http', 'https', 'socks4', 'socks5'])],
             'host' => [
@@ -257,6 +353,7 @@ class WorkspaceProxyController extends Controller
      *     scheme: string,
      *     host: string,
      *     port: int,
+     *     country_code?: string|null,
      *     authenticated: bool,
      *     visibility: string,
      *     user_id?: string|null,
@@ -292,6 +389,7 @@ class WorkspaceProxyController extends Controller
                 'regex:/^(?!.*[\\s\\/@])(?:\\[[0-9A-Fa-f:]+\\]|[0-9A-Za-z](?:[0-9A-Za-z.-]*[0-9A-Za-z])?)$/',
             ],
             'port' => ['required', 'integer', 'between:1,65535'],
+            'country_code' => ['nullable', 'string', 'size:2', 'regex:/^[A-Za-z]{2}$/'],
             'authenticated' => ['required', 'boolean'],
             'visibility' => [
                 'required',
@@ -315,6 +413,9 @@ class WorkspaceProxyController extends Controller
         }
 
         $validated['host'] = trim($validated['host'], '[]');
+        $validated['country_code'] = isset($validated['country_code'])
+            ? strtoupper($validated['country_code'])
+            : null;
 
         return $validated;
     }
@@ -325,6 +426,7 @@ class WorkspaceProxyController extends Controller
      *     scheme: string,
      *     host: string,
      *     port: int,
+     *     country_code?: string|null,
      *     authenticated: bool,
      *     visibility: string,
      *     user_id?: string|null,
@@ -344,6 +446,7 @@ class WorkspaceProxyController extends Controller
             'scheme' => $validated['scheme'],
             'host' => $validated['host'],
             'port' => $validated['port'],
+            'country_code' => $validated['country_code'] ?? null,
             'username' => $authenticated ? ($validated['username'] ?? null) : null,
             'password' => $authenticated ? ($validated['password'] ?? '') : null,
         ];
@@ -360,6 +463,7 @@ class WorkspaceProxyController extends Controller
             'scheme' => $proxy->scheme,
             'host' => $proxy->host,
             'port' => $proxy->port,
+            'country_code' => $proxy->country_code,
             'has_authentication' => $proxy->username !== null,
             'visibility' => $proxy->visibility,
             'user_id' => $proxy->owner?->id,

@@ -36,6 +36,12 @@ export const CardTitle = styled.h2`
     color: ${({ theme }) => theme.colors.text.primary};
 `;
 
+export const HeaderActions = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+`;
+
 export const AddButtonLabel = styled.span`
     @media (max-width: 520px) {
         display: none;
@@ -59,12 +65,20 @@ export const EmptyState = styled.div`
     margin-top: 18px;
 `;
 
-export const TableWrapper = styled.div`
+export const TableWrapper = styled.div<{ $hasSelection?: boolean }>`
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    margin-top: 18px;
+    margin-top: ${({ $hasSelection }) => $hasSelection ? '0' : '18px'};
     overflow-x: auto;
+`;
+
+export const ProxySelectionBar = styled.div`
+    margin-top: 18px;
+
+    > div {
+        border-bottom: 0;
+    }
 `;
 
 export const Table = styled.table`
@@ -166,6 +180,26 @@ export const ProxyName = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+`;
+
+export const ProxyIdentity = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+`;
+
+export const CountryAvatar = styled.span`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: 50%;
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+    font-size: 15px;
+    line-height: 1;
 `;
 
 export const InlineCell = styled.div`
@@ -303,6 +337,206 @@ export const Fields = styled.div<{ $columns?: number }>`
     }
 `;
 
+export const CountryField = styled.div`
+    position: relative;
+    min-width: 0;
+`;
+
+export const CountryLabel = styled.label`
+    display: block;
+    margin-bottom: 4px;
+    color: ${({ theme }) => theme.colors.text.secondary};
+    font-size: 12px;
+    font-weight: 500;
+`;
+
+export const CountryControls = styled.div`
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 36px;
+    gap: 6px;
+`;
+
+export const CountryTrigger = styled.button<{ $open: boolean; $hasValue: boolean }>`
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 7px;
+    padding: 8px 10px;
+    border: 1px solid ${({ theme, $open }) => $open
+        ? theme.colors.accent.primary
+        : theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    background: ${({ theme }) => theme.colors.bg.primary};
+    color: ${({ theme, $hasValue }) => $hasValue
+        ? theme.colors.text.primary
+        : theme.colors.text.tertiary};
+    font-size: 13px;
+    text-align: left;
+    transition: border-color ${({ theme }) => theme.transition.fast};
+
+    &:hover:not(:disabled) {
+        border-color: ${({ theme }) => theme.colors.accent.primary};
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+
+    svg {
+        flex-shrink: 0;
+        margin-left: auto;
+        color: ${({ theme }) => theme.colors.text.tertiary};
+        transform: ${({ $open }) => $open ? 'rotate(180deg)' : 'none'};
+        transition: transform 150ms ease;
+    }
+`;
+
+export const CountryFlag = styled.span`
+    width: 19px;
+    flex-shrink: 0;
+    font-size: 16px;
+    line-height: 1;
+    text-align: center;
+`;
+
+export const CountryValue = styled.span`
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+`;
+
+export const CountryScanButton = styled.button`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    background: ${({ theme }) => theme.colors.bg.primary};
+    color: ${({ theme }) => theme.colors.text.secondary};
+    transition:
+        color ${({ theme }) => theme.transition.fast},
+        border-color ${({ theme }) => theme.transition.fast},
+        background ${({ theme }) => theme.transition.fast};
+
+    &:hover:not(:disabled) {
+        border-color: ${({ theme }) => theme.colors.accent.primary};
+        background: ${({ theme }) => theme.colors.bg.hover};
+        color: ${({ theme }) => theme.colors.accent.primary};
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+
+`;
+
+export const CountrySpinner = styled.span`
+    width: 15px;
+    height: 15px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: country-scan-spin 600ms linear infinite;
+
+    @keyframes country-scan-spin {
+        to { transform: rotate(360deg); }
+    }
+`;
+
+export const CountryPanel = styled.div`
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 42px;
+    z-index: 1100;
+    overflow: hidden;
+    padding-top: 6px;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    background: ${({ theme }) => theme.colors.bg.secondary};
+    box-shadow: ${({ theme }) => theme.shadow.lg};
+`;
+
+export const CountrySearch = styled.input`
+    width: calc(100% - 12px);
+    margin: 0 6px 6px;
+    padding: 6px 8px;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    outline: none;
+    background: ${({ theme }) => theme.colors.bg.primary};
+    color: ${({ theme }) => theme.colors.text.primary};
+    font-size: 12px;
+
+    &:focus {
+        border-color: ${({ theme }) => theme.colors.accent.primary};
+    }
+
+    &::placeholder {
+        color: ${({ theme }) => theme.colors.text.tertiary};
+    }
+`;
+
+export const CountryList = styled.div`
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+    border-top: 1px solid ${({ theme }) => theme.colors.border.default};
+`;
+
+export const CountryOption = styled.button<{ $active?: boolean }>`
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme, $active }) => $active
+        ? `${theme.colors.accent.primary}14`
+        : 'transparent'};
+    color: ${({ theme, $active }) => $active
+        ? theme.colors.accent.primary
+        : theme.colors.text.primary};
+    font-size: 13px;
+    font-weight: ${({ $active }) => $active ? 600 : 400};
+    text-align: left;
+
+    &:hover {
+        background: ${({ theme }) => theme.colors.bg.hover};
+    }
+`;
+
+export const CountryCode = styled.span`
+    margin-left: auto;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-family: ${({ theme }) => theme.font.mono};
+    font-size: 10px;
+`;
+
+export const CountryEmpty = styled.div`
+    padding: 12px 10px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 12px;
+    text-align: center;
+`;
+
+export const CountryDetectionError = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: -6px;
+    color: ${({ theme }) => theme.colors.accent.error};
+    font-size: 11px;
+    line-height: 1.35;
+
+    svg {
+        flex-shrink: 0;
+    }
+`;
+
 export const Error = styled.div`
     border: 1px solid ${({ theme }) => theme.colors.accent.error}40;
     padding: 8px 10px;
@@ -355,6 +589,7 @@ export const FormActions = styled.div`
     align-items: center;
     gap: 12px;
     justify-content: flex-end;
+    margin-top: 28px;
 `;
 
 export const FormActionsSpacer = styled.span`

@@ -358,6 +358,8 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::delete('workspace/private-libraries/{privateLibrary}', [PrivateLibraryController::class, 'destroy'])->name('workspace.private-libraries.destroy');
     Route::post('workspace/proxies/test', [WorkspaceProxyController::class, 'test'])->name('workspace.proxies.test');
     Route::post('workspace/proxies/{workspaceProxy}/test', [WorkspaceProxyController::class, 'testExisting'])->name('workspace.proxies.test-existing');
+    Route::post('workspace/proxies/detect-country', [WorkspaceProxyController::class, 'detectCountry'])->name('workspace.proxies.detect-country');
+    Route::post('workspace/proxies/{workspaceProxy}/detect-country', [WorkspaceProxyController::class, 'detectExistingCountry'])->name('workspace.proxies.detect-existing-country');
     Route::post('workspace/proxies', [WorkspaceProxyController::class, 'store'])->name('workspace.proxies.store');
     Route::put('workspace/proxies/{workspaceProxy}', [WorkspaceProxyController::class, 'update'])->name('workspace.proxies.update');
     Route::delete('workspace/proxies/{workspaceProxy}', [WorkspaceProxyController::class, 'destroy'])->name('workspace.proxies.destroy');

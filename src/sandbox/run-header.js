@@ -2421,7 +2421,13 @@ const __httpRawRequest = async function(url, method, headers, body, options) {
       method,
       headers,
       rejectUnauthorized: options.allowUnauthorizedCerts !== true,
-      lookup: (_hostname, _lookupOptions, callback) => callback(null, target.address, target.family),
+      lookup: (_hostname, lookupOptions, callback) => {
+        if (lookupOptions?.all) {
+          callback(null, [target]);
+          return;
+        }
+        callback(null, target.address, target.family);
+      },
     }, response => {
       const chunks = [];
       let bytes = 0;
