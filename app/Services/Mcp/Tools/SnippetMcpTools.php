@@ -267,7 +267,7 @@ final class SnippetMcpTools implements McpToolHandler
             'defaults' => [
                 'scope' => 'owner',
                 'is_active' => true,
-                'published_version' => 1,
+                'published_version' => null,
                 'snippet_type' => 'nodal',
             ],
         ];
@@ -388,7 +388,7 @@ final class SnippetMcpTools implements McpToolHandler
         return [
             'name' => 'write_nodal_snippet',
             'description' => <<<'TEXT'
-Create or update a reusable Puppetflow visual snippet from a nodal function graph. This is the preferred writer for snippet creation. Use write_code_snippet only when the user explicitly requests JavaScript or code mode. Omit snippet_id to create and provide label. Creation always publishes version 1. To update, first call get_snippet_source, then provide snippet_id and its exact content_updated_at. Updates modify the draft only unless publish is true.
+Create or update a reusable Puppetflow visual snippet from a nodal function graph. This is the preferred writer for snippet creation. Use write_code_snippet only when the user explicitly requests JavaScript or code mode. Omit snippet_id to create and provide label. To update, first call get_snippet_source, then provide snippet_id and its exact content_updated_at. Writes modify the draft only unless publish is true.
 
 Call get_nodal_catalog with mode "nodal" before constructing the graph, and call list_flow_resources when the snippet needs an accessible workspace resource or another published snippet. Provide args as a comma-separated list of unique JavaScript identifiers. The graph must contain the canonical FUNCTION entry node with id "__system_function", name "FUNCTION", and system "function". Build the executable sequence from that node. Puppetflow validates the function graph and compiles its JavaScript body server-side with the declared arguments. Do not provide generated code or invent resource IDs. Library snippets are locked and must be duplicated outside MCP before editing.
 TEXT,
@@ -414,7 +414,7 @@ TEXT,
         return [
             'name' => 'write_code_snippet',
             'description' => <<<'TEXT'
-Create or update a reusable Puppetflow JavaScript snippet body. Prefer write_nodal_snippet for general snippet requests. Use this tool only when the user explicitly requests JavaScript, code, or code mode. Omit snippet_id to create and provide label. Creation always publishes version 1. To update, first call get_snippet_source, then provide snippet_id and its exact content_updated_at. Updates modify the draft only unless publish is true.
+Create or update a reusable Puppetflow JavaScript snippet body. Prefer write_nodal_snippet for general snippet requests. Use this tool only when the user explicitly requests JavaScript, code, or code mode. Omit snippet_id to create and provide label. To update, first call get_snippet_source, then provide snippet_id and its exact content_updated_at. Writes modify the draft only unless publish is true.
 
 Call get_nodal_catalog with mode "code" for exact runtime helper signatures and return values, and call list_flow_resources when the snippet needs an accessible workspace resource or another published snippet. Provide args as a comma-separated list of unique JavaScript identifiers. Provide only the body of the async snippet function, not a function declaration or wrapper. The body may use Puppetflow runtime globals, await asynchronous work, and return a value. Do not embed credentials or invent resource IDs. Library snippets are locked and must be duplicated outside MCP before editing.
 TEXT,
@@ -450,7 +450,7 @@ TEXT,
             'scope' => ['type' => 'string', 'enum' => ['owner', 'workspace', 'team'], 'description' => 'Creation default: owner. Omit during update to preserve the current scope.'],
             'team_id' => ['type' => ['string', 'null'], 'pattern' => '^team_[A-Za-z0-9]{12}$'],
             'is_active' => ['type' => 'boolean', 'description' => 'Creation default: true.'],
-            'publish' => ['type' => 'boolean', 'description' => 'Creation always publishes version 1. On update, true publishes the updated draft; otherwise the published version is unchanged.'],
+            'publish' => ['type' => 'boolean', 'description' => 'True publishes the written draft. Omit or use false to leave publication unchanged during updates and create an unpublished draft during creation. Requires the publish_snippet tool to be enabled.'],
         ];
     }
 }

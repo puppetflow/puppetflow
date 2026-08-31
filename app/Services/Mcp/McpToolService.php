@@ -195,9 +195,11 @@ final class McpToolService
         string $artifactRouteName = 'mcp.artifacts.download',
     ): array {
         $name = $this->normalizeCalledToolName($name, $arguments);
-        if (! in_array($name, $this->enabledToolNames($setting), true)) {
+        $enabledTools = $this->enabledToolNames($setting);
+        if (! in_array($name, $enabledTools, true)) {
             throw ValidationException::withMessages(['name' => 'MCP tool is disabled for this workspace.']);
         }
+        $this->assertEmbeddedPublicationAllowed($name, $arguments, $enabledTools);
 
         $handler = collect($this->handlers)->first(fn (McpToolHandler $candidate) => $candidate->handles($name));
         if (! $handler instanceof McpToolHandler) {
@@ -209,6 +211,42 @@ final class McpToolService
             $arguments,
             new McpToolContext($user, $workspace, $setting, $artifactRouteName),
         );
+    }
+
+    /**
+     * @param  McpArguments  $arguments
+     * @param  list<string>  $enabledTools
+     */
+    private function assertEmbeddedPublicationAllowed(string $name, array $arguments, array $enabledTools): void
+    {
+        $requiredTool = null;
+        $field = 'name';
+
+        if (in_array($name, ['write_code_flow', 'write_nodal_flow'], true)) {
+            if (($arguments['is_published'] ?? null) === true) {
+                $requiredTool = 'publish_flow';
+                $field = 'is_published';
+            } elseif (
+                ($arguments['is_published'] ?? null) === false
+                && is_string($arguments['flow_id'] ?? null)
+                && trim($arguments['flow_id']) !== ''
+            ) {
+                $requiredTool = 'unpublish_flow';
+                $field = 'is_published';
+            }
+        } elseif (
+            in_array($name, ['write_code_snippet', 'write_nodal_snippet'], true)
+            && ($arguments['publish'] ?? null) === true
+        ) {
+            $requiredTool = 'publish_snippet';
+            $field = 'publish';
+        }
+
+        if ($requiredTool !== null && ! in_array($requiredTool, $enabledTools, true)) {
+            throw ValidationException::withMessages([
+                $field => "The {$requiredTool} MCP tool is disabled for this workspace.",
+            ]);
+        }
     }
 
     /** @return list<string> */

@@ -79,7 +79,9 @@ final class SnippetWriteService
                     'team_id' => $teamId,
                     'is_active' => (bool) ($validated['is_active'] ?? true),
                 ]);
-                $this->versions->publish($snippet, $user->id);
+                if (($validated['publish'] ?? false) === true) {
+                    $this->versions->publish($snippet, $user->id);
+                }
 
                 return $snippet;
             }, 3);

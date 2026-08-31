@@ -543,7 +543,7 @@ TEXT,
             'team_id' => ['type' => ['string', 'null'], 'pattern' => '^team_[A-Za-z0-9]{12}$'],
             'folder_id' => ['type' => ['string', 'null'], 'description' => 'Personal folder ID.'],
             'workspace_folder_id' => ['type' => ['string', 'null'], 'description' => 'Workspace or team folder ID.'],
-            'is_published' => ['type' => 'boolean', 'description' => 'Creation default: false. On update, omit to preserve, true to publish this content, or false to unpublish.'],
+            'is_published' => ['type' => 'boolean', 'description' => 'Creation default: false. On update, omit to preserve, true to publish this content, or false to unpublish. Publishing and unpublishing require their corresponding MCP tools to be enabled.'],
             'available_in_mcp' => ['type' => 'boolean', 'description' => 'New flows are always created with this enabled. During update, omit it to preserve the current value.'],
             'queue_index' => ['type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => config()->integer('puppetflow.queues_counter', 1)],
         ];
