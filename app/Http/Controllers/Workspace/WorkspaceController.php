@@ -201,6 +201,7 @@ class WorkspaceController extends Controller
                     'scheme' => $proxy->scheme,
                     'host' => $proxy->host,
                     'port' => $proxy->port,
+                    'country_code' => $proxy->country_code,
                     'has_authentication' => $proxy->username !== null,
                     'visibility' => $proxy->visibility,
                     'user_id' => $proxy->owner?->id,

@@ -59,7 +59,8 @@ Install the package from **Settings > Community Nodes** on a self-hosted n8n ins
 
 ### Join our Discord
 
-[<img src="docs/img/discord.png" width="64" alt="Join our Discord">](https://discord.puppetflow.com)
+[<img src="docs/img/discord.png" width="64" alt="Join our Discord">](https://discord.gg/qebKgcJSAS
+)
 
 ### Open an Issue
 

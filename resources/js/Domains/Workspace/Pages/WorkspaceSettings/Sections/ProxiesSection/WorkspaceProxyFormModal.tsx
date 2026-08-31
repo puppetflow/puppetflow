@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Button from '@/Shared/UI/Button/Button';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Input, { Select } from '@/Shared/UI/Input/Input';
@@ -9,6 +9,7 @@ import GroupCombobox from '@/Domains/Variable/Pages/VariableFormModal/GroupCombo
 import ScopePicker from '@proprietary/Shared/UI/ScopePicker/ScopePicker.pp';
 import { csrfHeaders } from '@/Shared/Utils/csrf';
 import type { WorkspaceProxy } from '@/Domains/Workspace/types';
+import CountryCombobox from './CountryCombobox';
 import * as S from './styled';
 
 type ProxyForm = {
@@ -16,6 +17,7 @@ type ProxyForm = {
     scheme: WorkspaceProxy['scheme'];
     host: string;
     port: string;
+    country_code: string;
     authenticated: boolean;
     username: string;
     password: string;
@@ -47,6 +49,7 @@ const emptyForm: ProxyForm = {
     scheme: 'http',
     host: '',
     port: '8080',
+    country_code: '',
     authenticated: false,
     username: '',
     password: '',
@@ -90,6 +93,7 @@ function initialForm(proxy?: WorkspaceProxy | null): ProxyForm {
         scheme: proxy.scheme,
         host: proxy.host,
         port: String(proxy.port),
+        country_code: proxy.country_code || '',
         authenticated: proxy.has_authentication,
         username: '',
         password: '',
@@ -112,19 +116,80 @@ export default function WorkspaceProxyFormModal({
     const [form, setForm] = useState<ProxyForm>(() => initialForm(proxy));
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [detectingCountry, setDetectingCountry] = useState(false);
+    const detectingCountryRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
+    const [countryDetectionError, setCountryDetectionError] = useState<string | null>(null);
     const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
         setForm(initialForm(proxy));
         setError(null);
+        setCountryDetectionError(null);
         setTestResult(null);
     }, [isOpen, proxy]);
 
     const update = <K extends keyof ProxyForm>(key: K, value: ProxyForm[K]) => {
         setForm(current => ({ ...current, [key]: value }));
+        if (key === 'country_code' || key === 'host') setCountryDetectionError(null);
         setTestResult(null);
+    };
+
+    const detectCountry = async () => {
+        const requestedHost = form.host.trim();
+        if (detectingCountryRef.current || !requestedHost || !form.port) return;
+
+        detectingCountryRef.current = true;
+        setDetectingCountry(true);
+        setCountryDetectionError(null);
+        try {
+            const response = await fetch(
+                proxy
+                    ? `/workspace/proxies/${proxy.id}/detect-country`
+                    : '/workspace/proxies/detect-country',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...csrfHeaders(),
+                    },
+                    body: JSON.stringify({
+                        scheme: form.scheme,
+                        host: requestedHost,
+                        port: Number(form.port),
+                        authenticated: form.authenticated,
+                        username: form.username,
+                        password: form.password,
+                    }),
+                },
+            );
+            const payload = await response.json().catch(() => ({})) as {
+                country_code?: string;
+                message?: string;
+                errors?: Record<string, string[]>;
+            };
+            if (!response.ok || !payload.country_code) {
+                const validationMessage = payload.errors
+                    ? Object.values(payload.errors).flat().find(message => typeof message === 'string')
+                    : null;
+                throw new Error(
+                    validationMessage || payload.message || 'Unable to detect this proxy country.',
+                );
+            }
+            setForm(current => (
+                current.host.trim() === requestedHost
+                    ? { ...current, country_code: payload.country_code || '' }
+                    : current
+            ));
+        } catch (caught) {
+            setCountryDetectionError(
+                caught instanceof Error ? caught.message : 'Unable to detect this proxy country.',
+            );
+        } finally {
+            detectingCountryRef.current = false;
+            setDetectingCountry(false);
+        }
     };
 
     const testConnection = async () => {
@@ -220,7 +285,32 @@ export default function WorkspaceProxyFormModal({
                         />
                         <Input label="Port" type="number" min={1} max={65535} value={form.port} onChange={event => update('port', event.target.value)} required />
                     </S.Fields>
-                    <Input label="Host" value={form.host} onChange={event => update('host', event.target.value)} placeholder="proxy.example.com" required />
+                    <S.Fields $columns={2}>
+                        <Input
+                            label="Host"
+                            value={form.host}
+                            onChange={event => update('host', event.target.value)}
+                            onBlur={() => {
+                                if (!form.country_code) void detectCountry();
+                            }}
+                            placeholder="proxy.example.com"
+                            required
+                        />
+                        <CountryCombobox
+                            value={form.country_code}
+                            scanning={detectingCountry}
+                            disabled={saving}
+                            scanDisabled={!form.host.trim() || !form.port}
+                            onChange={value => update('country_code', value)}
+                            onScan={() => { void detectCountry(); }}
+                        />
+                    </S.Fields>
+                    {countryDetectionError && (
+                        <S.CountryDetectionError>
+                            <Icon icon="lucide:alert-circle" width={13} />
+                            {countryDetectionError}
+                        </S.CountryDetectionError>
+                    )}
                     <Switch
                         id="proxy_requires_authentication"
                         checked={form.authenticated}

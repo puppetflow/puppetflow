@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $scheme
  * @property string $host
  * @property int $port
+ * @property string|null $country_code
  * @property string|null $username
  * @property string|null $password
  */
@@ -32,6 +33,7 @@ class WorkspaceProxy extends Model
         'scheme',
         'host',
         'port',
+        'country_code',
         'username',
         'password',
     ];
