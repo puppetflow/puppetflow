@@ -26,11 +26,15 @@ final class SharedResourceVisibility
         string $scopeColumn = 'scope',
         string $teamColumn = 'team_id',
         bool $includeUnowned = false,
+        ?string $alwaysVisibleColumn = null,
     ): Builder {
         $workspaceColumn = $query->getModel()->qualifyColumn($workspaceColumn);
         $ownerColumn = $query->getModel()->qualifyColumn($ownerColumn);
         $scopeColumn = $query->getModel()->qualifyColumn($scopeColumn);
         $teamColumn = $query->getModel()->qualifyColumn($teamColumn);
+        $alwaysVisibleColumn = $alwaysVisibleColumn === null
+            ? null
+            : $query->getModel()->qualifyColumn($alwaysVisibleColumn);
 
         $query->where($workspaceColumn, $context->workspaceId);
 
@@ -44,6 +48,7 @@ final class SharedResourceVisibility
             $scopeColumn,
             $teamColumn,
             $includeUnowned,
+            $alwaysVisibleColumn,
         ) {
             $visibility->where($ownerColumn, $context->user->id);
 
@@ -61,6 +66,10 @@ final class SharedResourceVisibility
             if ($includeUnowned) {
                 $visibility->orWhereNull($ownerColumn);
             }
+
+            if ($alwaysVisibleColumn !== null) {
+                $visibility->orWhere($alwaysVisibleColumn, true);
+            }
         });
     }
 
@@ -77,11 +86,15 @@ final class SharedResourceVisibility
         string $ownerColumn = 'user_id',
         string $scopeColumn = 'scope',
         string $teamColumn = 'team_id',
+        ?string $alwaysVisibleColumn = null,
     ): Builder {
         $workspaceColumn = $query->getModel()->qualifyColumn($workspaceColumn);
         $ownerColumn = $query->getModel()->qualifyColumn($ownerColumn);
         $scopeColumn = $query->getModel()->qualifyColumn($scopeColumn);
         $teamColumn = $query->getModel()->qualifyColumn($teamColumn);
+        $alwaysVisibleColumn = $alwaysVisibleColumn === null
+            ? null
+            : $query->getModel()->qualifyColumn($alwaysVisibleColumn);
 
         $query->where($workspaceColumn, $context->workspaceId);
 
@@ -94,6 +107,7 @@ final class SharedResourceVisibility
             $ownerColumn,
             $scopeColumn,
             $teamColumn,
+            $alwaysVisibleColumn,
         ) {
             $visibility->where(function (Builder $personal) use ($ownerColumn, $scopeColumn, $context) {
                 $personal->whereIn($scopeColumn, ['owner', 'user'])
@@ -109,6 +123,10 @@ final class SharedResourceVisibility
                     $team->where($scopeColumn, 'team')
                         ->whereIn($teamColumn, $context->teamIds);
                 });
+            }
+
+            if ($alwaysVisibleColumn !== null) {
+                $visibility->orWhere($alwaysVisibleColumn, true);
             }
         });
     }

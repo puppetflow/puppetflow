@@ -60,6 +60,10 @@ const emptyForm: ProxyForm = {
 };
 
 async function saveProxy(proxy: WorkspaceProxy | null | undefined, form: ProxyForm) {
+    if (proxy?.is_readonly) {
+        throw new Error('Managed proxies are read-only.');
+    }
+
     const response = await fetch(
         proxy ? `/workspace/proxies/${proxy.id}` : '/workspace/proxies',
         {

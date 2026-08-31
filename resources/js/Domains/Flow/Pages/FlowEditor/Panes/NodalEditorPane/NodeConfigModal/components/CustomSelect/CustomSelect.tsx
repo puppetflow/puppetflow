@@ -20,6 +20,7 @@ export interface CustomSelectOption<T extends Id = string> {
     detail?: string;
     detailIcon?: string;
     icon?: string;
+    iconText?: string;
     iconColor?: string;
     group?: string;
     groupLabel?: string;
@@ -244,9 +245,11 @@ export default function CustomSelect<T extends Id>({
                             </S.SelectLoadingIcon>
                             <S.SelectValueLabel>Loading...</S.SelectValueLabel>
                         </>
-                    ) : selectedOption?.icon ? (
+                    ) : selectedOption?.icon || selectedOption?.iconText ? (
                         <S.SelectIconSlot>
-                            <Icon icon={selectedOption.icon} width={15} height={15} style={{ color: selectedOption.iconColor }} />
+                            {selectedOption.icon
+                                ? <Icon icon={selectedOption.icon} width={15} height={15} style={{ color: selectedOption.iconColor }} />
+                                : <S.SelectTextIcon aria-hidden>{selectedOption.iconText}</S.SelectTextIcon>}
                         </S.SelectIconSlot>
                     ) : null}
                     {!loading && (
@@ -365,9 +368,11 @@ export default function CustomSelect<T extends Id>({
                                     }}
                                 >
                                     <S.SelectOptionMain>
-                                        {option.icon && (
+                                        {(option.icon || option.iconText) && (
                                             <S.SelectIconSlot>
-                                                <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
+                                                {option.icon
+                                                    ? <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
+                                                    : <S.SelectTextIcon aria-hidden>{option.iconText}</S.SelectTextIcon>}
                                             </S.SelectIconSlot>
                                         )}
                                         <strong>{option.label}</strong>

@@ -26,6 +26,7 @@ use App\Models\WorkspaceProxy;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\FlowCreationService;
 use App\Services\Flow\FlowPlacementService;
+use App\Services\Flow\FlowProxyFilterRuleService;
 use App\Services\Flow\FlowRepositoryLinkService;
 use App\Services\Flow\Query\FlowEditorQuery;
 use App\Services\Flow\Query\FlowExplorerQuery;
@@ -52,6 +53,7 @@ final class FlowController extends Controller
         private readonly FlowCreationService $creation,
         private readonly FlowRepositoryLinkService $repositoryLinks,
         private readonly FlowPlacementService $placement,
+        private readonly FlowProxyFilterRuleService $proxyFilters,
         private readonly BlueprintInputSchemaService $inputSchemas,
         private readonly OnBehalfOwnerResolver $onBehalfOwners,
     ) {}
@@ -115,12 +117,18 @@ final class FlowController extends Controller
          *   folder_id?: string|null,
          *   workspace_folder_id?: string|null, source_type?: string,
          *   proxy_mode?: string, workspace_proxy_id?: int|null,
+         *   proxy_filter_rules?: array<array-key, mixed>|null,
          *   repo_link?: array{integration_id: string, repo_full_name: string, branch: string, file_path?: string|null}|null,
          *   ...
          * } $validated
          */
         $validated = $request->validated();
         $validated['proxy_mode'] ??= 'none';
+        if (($validated['source_type'] ?? 'code') === 'repository') {
+            $validated['proxy_filter_rules'] = $this->proxyFilters->normalize(
+                $validated['proxy_filter_rules'] ?? null,
+            );
+        }
         if ($validated['proxy_mode'] !== 'specific') {
             $validated['workspace_proxy_id'] = null;
         }
@@ -224,6 +232,9 @@ final class FlowController extends Controller
         $this->authorize(Ability::UPDATE->value, $flow);
         $user = $this->user($request);
         $data = $request->validated();
+        if (array_key_exists('proxy_filter_rules', $data)) {
+            $data['proxy_filter_rules'] = $this->proxyFilters->normalize($data['proxy_filter_rules']);
+        }
         $proxyMode = $data['proxy_mode'] ?? $flow->proxy_mode ?? 'none';
         $requestedProxyId = array_key_exists('workspace_proxy_id', $data)
             ? $data['workspace_proxy_id']
@@ -325,6 +336,7 @@ final class FlowController extends Controller
             $query,
             $this->contexts->for($user, $workspaceId),
             scopeColumn: 'visibility',
+            alwaysVisibleColumn: 'managed_by_env',
         );
 
         if (! $query->lockForUpdate()->first() instanceof WorkspaceProxy) {

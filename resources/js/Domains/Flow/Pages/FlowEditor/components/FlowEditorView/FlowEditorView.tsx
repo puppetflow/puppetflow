@@ -186,6 +186,7 @@ export default function FlowEditorView({
                 <FlowEditorMobileNav
                     activeTab={c.activeTab}
                     canEdit={canEdit}
+                    hasRepositoryIntegrations={repositoryIntegrations.length > 0}
                     isNodalFlow={c.isNodalFlow}
                     onSwitchTab={c.handleSwitchTab}
                 />

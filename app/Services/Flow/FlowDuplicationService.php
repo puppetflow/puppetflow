@@ -91,6 +91,7 @@ final class FlowDuplicationService
                     $proxyQuery,
                     $this->contexts->for($user, $workspaceId),
                     scopeColumn: 'visibility',
+                    alwaysVisibleColumn: 'managed_by_env',
                 );
                 if (! $proxyQuery->lockForUpdate()->first() instanceof WorkspaceProxy) {
                     $copy->proxy_mode = 'none';

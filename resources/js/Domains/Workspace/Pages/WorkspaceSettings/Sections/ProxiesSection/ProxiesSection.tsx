@@ -10,6 +10,8 @@ import { useAnchoredDropdownPosition } from '@/Domains/Flow/Pages/FlowEditor/Pan
 import { csrfHeaders } from '@/Shared/Utils/csrf';
 import LocalTableFilterToolbar from '@/Shared/UI/TableFilters/LocalTableFilterToolbar';
 import { matchesOwnershipScope } from '@/Shared/UI/TableFilters/options';
+import { useCollapsedGroups } from '@/Shared/UI/TableFilters/useCollapsedGroups';
+import { groupHierarchicalItems } from '@/Shared/Utils/groupHierarchicalItems';
 import type { WorkspaceProxy } from '@/Domains/Workspace/types';
 import WorkspaceProxyFormModal from './WorkspaceProxyFormModal';
 import { countryFlag, getCountryName } from './countries';
@@ -19,15 +21,6 @@ interface Props {
     proxies: WorkspaceProxy[];
     teams: { id: Id; name: string }[];
     readOnly?: boolean;
-}
-
-function initialCollapsedGroups(): Set<string> {
-    try {
-        const stored = JSON.parse(localStorage.getItem('workspace-proxies-collapsed-groups') || '[]');
-        return new Set(Array.isArray(stored) ? stored.filter(value => typeof value === 'string') : []);
-    } catch {
-        return new Set();
-    }
 }
 
 async function requestJson(url: string, options: RequestInit): Promise<void> {
@@ -164,7 +157,7 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
     const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
     const [deletingSelected, setDeletingSelected] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [collapsedGroups, setCollapsedGroups] = useState(initialCollapsedGroups);
+    const collapsedGroups = useCollapsedGroups('workspace-proxies-collapsed-groups');
     const [search, setSearch] = useState('');
     const [scope, setScope] = useState<string | null>(null);
 
@@ -192,39 +185,18 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
             ].some(value => value?.toLowerCase().includes(query));
         });
     }, [items, scope, search]);
-    const groupedItems = useMemo(() => {
-        const byGroup = new Map<string | null, WorkspaceProxy[]>();
-        for (const item of filteredItems) {
-            const group = item.group || null;
-            const groupItems = byGroup.get(group);
-            if (groupItems) groupItems.push(item);
-            else byGroup.set(group, [item]);
-        }
-
-        return Array.from(byGroup.entries())
-            .sort(([a], [b]) => {
-                if (a === null) return 1;
-                if (b === null) return -1;
-                return a.localeCompare(b);
-            })
-            .map(([group, groupItems]) => ({
-                key: group === null ? 'ungrouped' : `group:${group}`,
-                label: group ?? 'Ungrouped',
-                ungrouped: group === null,
-                items: groupItems.sort((a, b) => a.label.localeCompare(b.label)),
-            }));
-    }, [filteredItems]);
-    const selectableIds = readOnly ? [] : filteredItems.map(item => item.id);
+    const groupedItems = useMemo(() => groupHierarchicalItems(
+        [...filteredItems].sort((first, second) => (
+            (first.group ?? '\uffff').localeCompare(second.group ?? '\uffff')
+            || first.label.localeCompare(second.label)
+        )),
+        item => item.group,
+    ), [filteredItems]);
+    const selectableIds = readOnly
+        ? []
+        : filteredItems.filter(item => !item.is_readonly).map(item => item.id);
     const allVisibleSelected = selectableIds.length > 0
         && selectableIds.every(id => selectedIds.has(id));
-
-    useEffect(() => {
-        try {
-            localStorage.setItem('workspace-proxies-collapsed-groups', JSON.stringify([...collapsedGroups]));
-        } catch {
-            // Ignore unavailable browser storage.
-        }
-    }, [collapsedGroups]);
 
     useEffect(() => {
         const availableIds = new Set(items.map(item => item.id));
@@ -322,15 +294,6 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
         }
     };
 
-    const toggleGroup = (group: string) => {
-        setCollapsedGroups(current => {
-            const next = new Set(current);
-            if (next.has(group)) next.delete(group);
-            else next.add(group);
-            return next;
-        });
-    };
-
     return (
         <S.Rows>
             <S.Card>
@@ -402,30 +365,50 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                                 </tr>
                             </thead>
                             <tbody>
-                                {groupedItems.map(({ key, label, ungrouped, items: groupProxies }) => (
-                                    <Fragment key={key}>
-                                        <S.GroupRow>
-                                            <td colSpan={7}>
-                                                <TableCellContent>
-                                                    <S.GroupButton
-                                                        type="button"
-                                                        aria-expanded={!collapsedGroups.has(key)}
-                                                        onClick={() => toggleGroup(key)}
-                                                    >
-                                                        <Icon icon={collapsedGroups.has(key) ? 'lucide:chevron-right' : 'lucide:chevron-down'} width={13} />
-                                                        <Icon icon={ungrouped ? 'lucide:inbox' : 'lucide:folder'} width={13} />
-                                                        {label}
-                                                        <S.GroupCount>{groupProxies.length}</S.GroupCount>
-                                                    </S.GroupButton>
-                                                </TableCellContent>
-                                            </td>
-                                        </S.GroupRow>
-                                        {!collapsedGroups.has(key) && groupProxies.map(proxy => (
-                                            <S.Row key={proxy.id}>
+                                {groupedItems.map(section => {
+                                    const lastHeader = section.headers[section.headers.length - 1];
+                                    const itemIndent = lastHeader ? (lastHeader.depth + 1) * 16 : 0;
+                                    const hideItems = section.group
+                                        ? collapsedGroups.isGroupHidden(section.group)
+                                        : false;
+                                    const visibleHeaders = section.headers.filter(header => {
+                                        const parentKey = header.key.split('/').slice(0, -1).join('/');
+                                        return !parentKey || !collapsedGroups.isGroupHidden(parentKey);
+                                    });
+                                    if (hideItems && visibleHeaders.length === 0) return null;
+
+                                    return (
+                                        <Fragment key={section.group ?? 'ungrouped'}>
+                                        {visibleHeaders.map(header => (
+                                            <S.GroupRow key={header.key}>
+                                                <td colSpan={7}>
+                                                    <TableCellContent>
+                                                        <S.GroupButton
+                                                            type="button"
+                                                            $depth={header.depth}
+                                                            aria-expanded={!collapsedGroups.collapsedGroups.has(header.key)}
+                                                            onClick={() => collapsedGroups.toggleGroup(header.key)}
+                                                        >
+                                                            <Icon
+                                                                icon={collapsedGroups.collapsedGroups.has(header.key)
+                                                                    ? 'lucide:chevron-right'
+                                                                    : 'lucide:chevron-down'}
+                                                                width={13}
+                                                            />
+                                                            <Icon icon="lucide:folder" width={13} />
+                                                            {header.label}
+                                                            <S.GroupCount>{header.count}</S.GroupCount>
+                                                        </S.GroupButton>
+                                                    </TableCellContent>
+                                                </td>
+                                            </S.GroupRow>
+                                        ))}
+                                        {!hideItems && section.items.map(proxy => (
+                                            <S.Row key={proxy.id} $indent={itemIndent}>
                                                 <td>
                                                     <TableCellContent>
                                                         <S.ProxyIdentity>
-                                                            {!readOnly ? (
+                                                            {!readOnly && !proxy.is_readonly ? (
                                                                 <AvatarSelectionToggle
                                                                     selected={selectedIds.has(proxy.id)}
                                                                     onChange={() => toggleSelected(proxy.id)}
@@ -450,6 +433,12 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                                                                 </S.CountryAvatar>
                                                             )}
                                                             <S.ProxyName>{proxy.label}</S.ProxyName>
+                                                            {proxy.is_readonly && (
+                                                                <S.ManagedBadge title="Configured by the server environment">
+                                                                    <Icon icon="lucide:lock-keyhole" width={10} />
+                                                                    Managed
+                                                                </S.ManagedBadge>
+                                                            )}
                                                         </S.ProxyIdentity>
                                                     </TableCellContent>
                                                 </td>
@@ -482,10 +471,14 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                                                         </S.ScopeBadge>
                                                     </TableCellContent>
                                                 </td>
-                                                <td><TableCellContent><S.OwnerName>{proxy.owner?.name || '-'}</S.OwnerName></TableCellContent></td>
+                                                <td>
+                                                    <TableCellContent>
+                                                        <S.OwnerName>{proxy.is_readonly ? 'Managed' : (proxy.owner?.name || '-')}</S.OwnerName>
+                                                    </TableCellContent>
+                                                </td>
                                                 <td>
                                                     <TableCellContent $align="end">
-                                                        {!readOnly && (
+                                                        {!readOnly && !proxy.is_readonly && (
                                                             <ProxyActions
                                                                 busy={deletingSelected || busyId === proxy.id}
                                                                 onEdit={() => openEdit(proxy)}
@@ -496,8 +489,9 @@ export default function ProxiesSection({ proxies, teams, readOnly = false }: Pro
                                                 </td>
                                             </S.Row>
                                         ))}
-                                    </Fragment>
-                                ))}
+                                        </Fragment>
+                                    );
+                                })}
                             </tbody>
                         </S.Table>
                     </S.TableWrapper>

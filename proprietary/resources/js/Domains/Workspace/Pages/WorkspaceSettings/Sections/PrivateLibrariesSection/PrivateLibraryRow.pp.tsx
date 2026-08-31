@@ -9,6 +9,7 @@ interface Props {
     library: PrivateLibrary;
     busy: boolean;
     readOnly: boolean;
+    indent: number;
     onEdit: (library: PrivateLibrary) => void;
     onRefresh: (library: PrivateLibrary) => void;
     onDelete: (library: PrivateLibrary) => void;
@@ -18,12 +19,13 @@ export default function PrivateLibraryRow({
     library,
     busy,
     readOnly,
+    indent,
     onEdit,
     onRefresh,
     onDelete,
 }: Props) {
     return (
-        <S.Row>
+        <S.Row $indent={indent}>
             <td>
                 <TableCellContent>
                     <S.LibraryCell>

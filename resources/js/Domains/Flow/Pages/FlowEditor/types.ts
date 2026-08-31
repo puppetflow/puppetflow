@@ -83,7 +83,7 @@ export interface FlowEditorProps {
     siblingFlows: Pick<Flow, 'id' | 'name' | 'icon_type' | 'icon_value' | 'icon_color' | 'icon_url' | 'library_reference'>[];
     canEdit: boolean;
     canManageWorkspaceProxies: boolean;
-    workspaceProxies: Pick<WorkspaceProxy, 'id' | 'label' | 'scheme' | 'host' | 'port'>[];
+    workspaceProxies: Pick<WorkspaceProxy, 'id' | 'label' | 'country_code' | 'group'>[];
     myTriggers: FlowTrigger[];
     myActions: FlowAction[];
     otherTriggers: FlowTrigger[];

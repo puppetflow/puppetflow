@@ -149,4 +149,6 @@ return [
         'domain' => env('MANAGED_MAILBOX_DOMAIN', ''),
     ],
 
+    'managed_proxies' => env('MANAGED_PROXIES', ''),
+
 ];

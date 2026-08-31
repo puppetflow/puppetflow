@@ -50,6 +50,7 @@ export interface WorkspaceProxy {
     port: number;
     country_code: string | null;
     has_authentication: boolean;
+    is_readonly: boolean;
     visibility: 'owner' | 'workspace' | 'team';
     user_id: Id | null;
     team_id: Id | null;

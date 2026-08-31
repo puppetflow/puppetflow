@@ -106,6 +106,15 @@ const PAGE_ONBOARDING: PageOnboardingCopy[] = [
         matches: exact('/integrations'),
     },
     {
+        key: 'ai-models',
+        version: 1,
+        title: 'Bring AI into your flows',
+        description: 'AI Models connect a configured provider to the model IDs your automations can use.',
+        highlights: ['Choose a model from an AI integration', 'Control who can use each model', 'Enable vision models for browser-aware decisions'],
+        nextStep: 'Create a model, then select it in an AI Message or AI Control node.',
+        matches: exact('/ai-models'),
+    },
+    {
         key: 'workspace.settings',
         version: 1,
         title: 'Configure your workspace',
@@ -174,6 +183,7 @@ const MARKETING_LINES: Record<string, string> = {
     snippets: 'Write useful logic once, then reuse it everywhere.',
     'data-tables': 'Give every automation a reliable place to read and write structured data.',
     integrations: 'Connect the services your automations need to do real work.',
+    'ai-models': 'Give your automations the intelligence to understand, decide, and act.',
     'workspace.settings': 'Shape a workspace that works exactly the way your team does.',
     'workspace.members': 'Bring the right people together with the right level of access.',
     profile: 'Make Puppetflow feel personal, secure, and ready for your workflow.',
@@ -237,6 +247,12 @@ const PRESENTATIONS: Record<string, OnboardingPresentation> = {
         mediaIcons: ['lucide:blocks', 'lucide:shield-check'],
         layout: 'timeline',
         accent: 'blue',
+    },
+    'ai-models': {
+        icon: 'lucide:brain-circuit',
+        mediaIcons: ['lucide:message-square-text', 'lucide:scan-eye'],
+        layout: 'split',
+        accent: 'violet',
     },
     'workspace.settings': {
         icon: 'lucide:sliders-horizontal',

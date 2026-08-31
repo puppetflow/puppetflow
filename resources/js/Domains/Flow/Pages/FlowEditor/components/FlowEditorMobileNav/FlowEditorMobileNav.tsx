@@ -6,6 +6,7 @@ import * as S from './styled';
 interface FlowEditorMobileNavProps {
     activeTab: TabKey;
     canEdit: boolean;
+    hasRepositoryIntegrations: boolean;
     isNodalFlow: boolean;
     onSwitchTab: (tab: TabKey) => void;
 }
@@ -13,11 +14,14 @@ interface FlowEditorMobileNavProps {
 export default function FlowEditorMobileNav({
     activeTab,
     canEdit,
+    hasRepositoryIntegrations,
     isNodalFlow,
     onSwitchTab,
 }: FlowEditorMobileNavProps) {
     const { settings } = usePageProps();
-    const showRepository = canEdit && settings.vcs_enabled;
+    const showRepository = canEdit
+        && settings.vcs_enabled
+        && hasRepositoryIntegrations;
 
     return (
         <S.MobileBottomBar>

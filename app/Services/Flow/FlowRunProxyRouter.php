@@ -6,7 +6,9 @@ use App\Authorization\AuthorizationContextFactory;
 use App\Authorization\Visibility\SharedResourceVisibility;
 use App\Models\Flow;
 use App\Models\User;
+use App\Models\Workspace;
 use App\Models\WorkspaceProxy;
+use App\Services\Workspace\ManagedWorkspaceProxyService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +17,8 @@ final class FlowRunProxyRouter
     public function __construct(
         private readonly AuthorizationContextFactory $contexts,
         private readonly SharedResourceVisibility $visibility,
+        private readonly FlowProxyFilterRuleService $filters,
+        private readonly ManagedWorkspaceProxyService $managedProxies,
     ) {}
 
     /** @return array<string, mixed> */
@@ -25,11 +29,27 @@ final class FlowRunProxyRouter
             return ['mode' => 'none'];
         }
 
+        $workspace = $flow->workspace;
+        if (! $workspace instanceof Workspace) {
+            throw new \LogicException('Flow workspace could not be resolved.');
+        }
+        $this->managedProxies->syncForWorkspace($workspace);
+        $flow->refresh();
+        $mode = $flow->proxy_mode ?: 'none';
+        if ($mode === 'none') {
+            return ['mode' => 'none'];
+        }
+
         $context = $this->contexts->for($user, $flow->workspace_id);
 
         if ($mode === 'specific') {
             $query = WorkspaceProxy::query()->whereKey($flow->workspace_proxy_id);
-            $this->visibility->applyUse($query, $context, scopeColumn: 'visibility');
+            $this->visibility->applyUse(
+                $query,
+                $context,
+                scopeColumn: 'visibility',
+                alwaysVisibleColumn: 'managed_by_env',
+            );
             $proxy = $query->first();
             if (! $proxy instanceof WorkspaceProxy) {
                 throw ValidationException::withMessages([
@@ -47,11 +67,19 @@ final class FlowRunProxyRouter
         }
 
         $query = WorkspaceProxy::query()->orderBy('id');
-        $this->visibility->applyUse($query, $context, scopeColumn: 'visibility');
+        $this->visibility->applyUse(
+            $query,
+            $context,
+            scopeColumn: 'visibility',
+            alwaysVisibleColumn: 'managed_by_env',
+        );
+        $hasFilters = $this->filters->apply($query, $flow->proxy_filter_rules);
         $proxies = $query->get();
         if ($proxies->isEmpty()) {
             throw ValidationException::withMessages([
-                'proxy' => 'Auto proxy routing requires at least one proxy available to the user running this flow.',
+                'proxy' => $hasFilters
+                    ? 'No proxy available to the user running this flow matches the configured pool filters.'
+                    : 'Auto proxy routing requires at least one proxy available to the user running this flow.',
             ]);
         }
         $poolKey = hash('sha256', $proxies->pluck('id')->implode(','));

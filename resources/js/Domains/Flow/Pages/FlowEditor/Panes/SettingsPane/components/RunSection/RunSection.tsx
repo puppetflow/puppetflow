@@ -1,34 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
 import Input, { Select } from '@/Shared/UI/Input/Input';
 import { capDefault } from '@/Shared/Utils/limits';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
 import type { SettingsLimits } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/useSettingsLimits';
-import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { formatTimeoutLimit } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/utils';
-import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
-import WorkspaceProxyFormModal from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/ProxiesSection/WorkspaceProxyFormModal';
-import type { WorkspaceProxy } from '@/Domains/Workspace/types';
 import * as S from './styled';
 
 interface RunSectionProps {
     form: SettingsForm;
     limits: SettingsLimits;
-    workspaceProxies: FlowEditorProps['workspaceProxies'];
-    teams: FlowEditorProps['teams'];
-    canManageWorkspaceProxies: boolean;
 }
 
 export default function RunSection({
     form,
     limits,
-    workspaceProxies,
-    teams,
-    canManageWorkspaceProxies,
 }: RunSectionProps) {
-    const [refreshingProxies, setRefreshingProxies] = useState(false);
-    const [proxyModalOpen, setProxyModalOpen] = useState(false);
-    const createResolverRef = useRef<((value: string | null) => void) | null>(null);
     const {
         effectiveMaxTimeout,
         queuesCounter,
@@ -37,89 +22,6 @@ export default function RunSection({
         wsMax,
         wsMaxRetries,
     } = limits;
-    const selectedProxyUnavailable = form.data.proxy_mode === 'specific'
-        && form.data.workspace_proxy_id !== null
-        && !workspaceProxies.some(proxy => proxy.id === form.data.workspace_proxy_id);
-
-    useEffect(() => () => {
-        createResolverRef.current?.(null);
-        createResolverRef.current = null;
-    }, []);
-    const selectedProxyValue = form.data.proxy_mode === 'specific'
-        && form.data.workspace_proxy_id !== null
-        ? `proxy:${form.data.workspace_proxy_id}`
-        : form.data.proxy_mode;
-    const proxyOptions = useMemo(() => [
-        {
-            value: 'none',
-            label: 'None',
-            detail: 'Connect directly without a proxy',
-            icon: 'lucide:ban',
-        },
-        {
-            value: 'auto',
-            label: 'Auto (round-robin)',
-            detail: 'Rotate through the available proxy pool',
-            icon: 'lucide:refresh-cw',
-        },
-        ...(selectedProxyUnavailable ? [{
-            value: `proxy:${form.data.workspace_proxy_id}`,
-            label: 'Unavailable proxy',
-            detail: 'This proxy is no longer available to you',
-            icon: 'lucide:triangle-alert',
-        }] : []),
-        ...workspaceProxies.map(proxy => ({
-            value: `proxy:${proxy.id}`,
-            label: proxy.label,
-            detail: `${proxy.scheme.toUpperCase()} - ${proxy.host}:${proxy.port}`,
-            icon: 'lucide:network',
-        })),
-    ], [form.data.workspace_proxy_id, selectedProxyUnavailable, workspaceProxies]);
-
-    const refreshProxies = () => new Promise<void>(resolve => {
-        setRefreshingProxies(true);
-        router.reload({
-            only: ['workspaceProxies'],
-            onFinish: () => {
-                setRefreshingProxies(false);
-                resolve();
-            },
-        });
-    });
-
-    const createProxy = () => new Promise<string | null>(resolve => {
-        createResolverRef.current = resolve;
-        setProxyModalOpen(true);
-    });
-
-    const closeProxyModal = () => {
-        setProxyModalOpen(false);
-        createResolverRef.current?.(null);
-        createResolverRef.current = null;
-    };
-
-    const handleProxySaved = async (proxy: WorkspaceProxy) => {
-        setProxyModalOpen(false);
-        await refreshProxies();
-        createResolverRef.current?.(`proxy:${proxy.id}`);
-        createResolverRef.current = null;
-    };
-
-    const handleProxyChange = (value: string) => {
-        if (value.startsWith('proxy:')) {
-            form.setData(data => ({
-                ...data,
-                proxy_mode: 'specific',
-                workspace_proxy_id: Number(value.slice(6)),
-            }));
-            return;
-        }
-        form.setData(data => ({
-            ...data,
-            proxy_mode: value as 'none' | 'auto',
-            workspace_proxy_id: null,
-        }));
-    };
 
     return (
         <>
@@ -145,40 +47,6 @@ export default function RunSection({
             <S.SettingsHint>
                 Auto selects the queue with the smallest active backlog.
             </S.SettingsHint>
-
-            <S.ProxyField>
-                <S.ProxyLabel>Proxy</S.ProxyLabel>
-                <CustomSelect
-                    value={selectedProxyValue}
-                    options={proxyOptions}
-                    searchThreshold={0}
-                    showOptionValue={false}
-                    placeholder="Select a proxy..."
-                    ariaLabel="Proxy"
-                    invalid={Boolean(form.errors.proxy_mode || form.errors.workspace_proxy_id)}
-                    onChange={handleProxyChange}
-                    onRefresh={refreshProxies}
-                    refreshing={refreshingProxies}
-                    actionSlot={canManageWorkspaceProxies ? {
-                        label: '+ Add proxy',
-                        onAction: createProxy,
-                    } : undefined}
-                />
-                {(form.errors.proxy_mode || form.errors.workspace_proxy_id) && (
-                    <S.ProxyError>{form.errors.proxy_mode || form.errors.workspace_proxy_id}</S.ProxyError>
-                )}
-            </S.ProxyField>
-            <S.SettingsHint>
-                Auto rotates through the workspace proxy pool for each run.
-            </S.SettingsHint>
-
-            <WorkspaceProxyFormModal
-                isOpen={proxyModalOpen}
-                teams={teams}
-                zIndex={1050}
-                onClose={closeProxyModal}
-                onSaved={proxy => { void handleProxySaved(proxy); }}
-            />
 
             <Input
                 label="Timeout (seconds)"

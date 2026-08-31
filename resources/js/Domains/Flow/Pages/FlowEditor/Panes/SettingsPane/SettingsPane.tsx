@@ -15,6 +15,7 @@ import CookiesSection from './components/CookiesSection/CookiesSection';
 import DangerSection from './components/DangerSection/DangerSection';
 import GeneralSection from './components/GeneralSection/GeneralSection';
 import OutputSection from './components/OutputSection/OutputSection';
+import ProxySection from './components/ProxySection/ProxySection';
 import RunSection from './components/RunSection/RunSection';
 import type { SettingsFormData } from './types';
 import { useSettingsLimits } from './useSettingsLimits';
@@ -56,6 +57,7 @@ export default function SettingsPane({
         workspace_proxy_id: flow.proxy_mode === 'specific'
             ? flow.workspace_proxy_id
             : null,
+        proxy_filter_rules: flow.proxy_filter_rules ?? [],
         timeout_seconds: limits.initialFlowTimeout,
         operator_seconds: flow.operator_seconds ?? 0,
         max_retries: limits.initialFlowMaxRetries,
@@ -141,9 +143,9 @@ export default function SettingsPane({
                 <S.SettingsForm onSubmit={handleSaveSettings}>
                     <GeneralSection form={settingsForm} />
                     <AISection form={settingsForm} />
-                    <RunSection
+                    <RunSection form={settingsForm} limits={limits} />
+                    <ProxySection
                         form={settingsForm}
-                        limits={limits}
                         workspaceProxies={workspaceProxies}
                         teams={teams}
                         canManageWorkspaceProxies={canManageWorkspaceProxies}
