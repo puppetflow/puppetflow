@@ -24,8 +24,10 @@ interface Props {
 
 export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClients, oauthConnections, busy, clientBusy, readOnly, setBusy, setClientBusy, setError }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
+    const [expanded, setExpanded] = useState(true);
     const [currentClients, setCurrentClients] = useState(oauthClients);
     const [currentConnections, setCurrentConnections] = useState(oauthConnections);
+    const [activePane, setActivePane] = useState<'registered' | 'connected'>('registered');
     const [clientName, setClientName] = useState('');
     const [redirectUri, setRedirectUri] = useState('');
 
@@ -103,20 +105,29 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
 
     return (
         <>
-            <SharedS.Card>
-                <S.ModeLabel>Recommended for Claude and compatible clients</S.ModeLabel>
-                <SharedS.CardTitle>
-                    <Icon icon="lucide:shield-check" width={15} height={15} />
-                    OAuth MCP Endpoint
-                </SharedS.CardTitle>
-                <S.SectionHint>
-                    Add the OAuth MCP endpoint as a remote connector. Compatible clients discover OAuth automatically, register with PKCE, and ask each user to approve access without copying tokens.
-                </S.SectionHint>
-                <S.EndpointGrid>
+            <SharedS.AccordionCard open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+                <SharedS.AccordionSummary>
+                    <SharedS.AccordionSummaryContent>
+                        <S.ModeLabel>Recommended for Claude and compatible clients</S.ModeLabel>
+                        <SharedS.CardTitle>
+                            <Icon icon="lucide:shield-check" width={15} height={15} />
+                            OAuth MCP Endpoint
+                        </SharedS.CardTitle>
+                        <S.SectionHint>
+                            Add the OAuth MCP endpoint as a remote connector. Compatible clients discover OAuth automatically, register with PKCE, and ask each user to approve access without copying tokens.
+                        </S.SectionHint>
+                    </SharedS.AccordionSummaryContent>
+                    <SharedS.AccordionToggle>
+                        {expanded ? 'Close' : 'Open'}
+                        <Icon data-accordion-chevron icon="lucide:chevron-down" width={15} height={15} />
+                    </SharedS.AccordionToggle>
+                </SharedS.AccordionSummary>
+                <SharedS.AccordionBody>
+                    <S.EndpointGrid>
                     <Input label="OAuth MCP endpoint" value={endpoint} readOnly />
                     <Input label="Authorize URL" value={authorizeUrl} readOnly />
                     <Input label="Token URL" value={tokenUrl} readOnly />
-                </S.EndpointGrid>
+                    </S.EndpointGrid>
 
                 {!readOnly && (
                     <S.Form onSubmit={createClient}>
@@ -142,70 +153,112 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
                     </S.Form>
                 )}
 
-                <S.Columns>
-                    <S.Column>
-                        <S.SubsectionTitle>Registered OAuth clients</S.SubsectionTitle>
-                        {currentClients.length === 0 ? (
-                            <S.EmptyState>No OAuth clients configured.</S.EmptyState>
-                        ) : (
-                            <S.ItemList>
-                                {currentClients.map(client => (
-                                    <S.Item key={client.id}>
-                                        <S.ItemMain>
-                                            <S.ItemHeader>
-                                                <S.ItemName>{client.name}</S.ItemName>
-                                                <S.ItemPreview>{client.oauth_client_id}</S.ItemPreview>
-                                            </S.ItemHeader>
-                                            <S.ItemMeta>
-                                                <span>Owner: {client.user?.name || '-'}</span>
-                                                <span>Redirect: {client.redirect_uri}</span>
-                                                <span>Created: {formatDate(client.created_at)}</span>
-                                            </S.ItemMeta>
-                                        </S.ItemMain>
-                                        {!readOnly && (
-                                            <Button type="button" variant="ghost" size="sm" onClick={() => void revokeClient(client)}>
-                                                <Icon icon="lucide:ban" width={13} />
-                                                Revoke
-                                            </Button>
-                                        )}
-                                    </S.Item>
-                                ))}
-                            </S.ItemList>
-                        )}
-                    </S.Column>
+                <S.ClientsPane>
+                    <S.PaneSwitcher role="tablist" aria-label="OAuth client tables">
+                        <S.PaneButton
+                            type="button"
+                            role="tab"
+                            $active={activePane === 'registered'}
+                            aria-selected={activePane === 'registered'}
+                            aria-controls="registered-oauth-clients"
+                            onClick={() => setActivePane('registered')}
+                        >
+                            Registered OAuth clients
+                            <S.PaneCount>({currentClients.length})</S.PaneCount>
+                        </S.PaneButton>
+                        <S.PaneButton
+                            type="button"
+                            role="tab"
+                            $active={activePane === 'connected'}
+                            aria-selected={activePane === 'connected'}
+                            aria-controls="connected-oauth-clients"
+                            onClick={() => setActivePane('connected')}
+                        >
+                            OAuth connected clients
+                            <S.PaneCount>({currentConnections.length})</S.PaneCount>
+                        </S.PaneButton>
+                    </S.PaneSwitcher>
 
-                    <S.Column>
-                        <S.SubsectionTitle>OAuth connected clients</S.SubsectionTitle>
-                        {currentConnections.length === 0 ? (
-                            <S.EmptyState>No OAuth clients connected yet.</S.EmptyState>
-                        ) : (
-                            <S.ItemList>
-                                {currentConnections.map(connection => (
-                                    <S.Item key={connection.id}>
-                                        <S.ItemMain>
-                                            <S.ItemHeader>
-                                                <S.ItemName>{connection.client_name}</S.ItemName>
-                                                <S.ItemPreview>{connection.oauth_client_id}</S.ItemPreview>
-                                            </S.ItemHeader>
-                                            <S.ItemMeta>
-                                                <span>User: {connection.user?.name || '-'}</span>
-                                                <span>Last used: {formatDate(connection.last_used_at)}</span>
-                                                <span>Created: {formatDate(connection.created_at)}</span>
-                                            </S.ItemMeta>
-                                        </S.ItemMain>
-                                        {!readOnly && (
-                                            <Button type="button" variant="ghost" size="sm" onClick={() => void revokeConnection(connection)}>
-                                                <Icon icon="lucide:ban" width={13} />
-                                                Revoke
-                                            </Button>
-                                        )}
-                                    </S.Item>
-                                ))}
-                            </S.ItemList>
-                        )}
-                    </S.Column>
-                </S.Columns>
-            </SharedS.Card>
+                    {activePane === 'registered' ? (
+                        <S.TableViewport id="registered-oauth-clients" role="tabpanel">
+                            <S.ClientTable>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Client ID</th>
+                                        <th>Owner</th>
+                                        <th>Redirect URI</th>
+                                        <th>Created</th>
+                                        {!readOnly && <th aria-label="Actions" />}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentClients.length === 0 ? (
+                                        <tr>
+                                            <S.EmptyCell colSpan={readOnly ? 5 : 6}>No OAuth clients configured.</S.EmptyCell>
+                                        </tr>
+                                    ) : currentClients.map(client => (
+                                        <tr key={client.id}>
+                                            <td>{client.name}</td>
+                                            <td><S.CodeValue title={client.oauth_client_id}>{client.oauth_client_id}</S.CodeValue></td>
+                                            <td>{client.user?.name || '-'}</td>
+                                            <td><S.TruncatedValue title={client.redirect_uri}>{client.redirect_uri}</S.TruncatedValue></td>
+                                            <td>{formatDate(client.created_at)}</td>
+                                            {!readOnly && (
+                                                <S.ActionCell>
+                                                    <Button type="button" variant="ghost" size="sm" onClick={() => void revokeClient(client)}>
+                                                        <Icon icon="lucide:ban" width={13} />
+                                                        Revoke
+                                                    </Button>
+                                                </S.ActionCell>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </S.ClientTable>
+                        </S.TableViewport>
+                    ) : (
+                        <S.TableViewport id="connected-oauth-clients" role="tabpanel">
+                            <S.ClientTable>
+                                <thead>
+                                    <tr>
+                                        <th>Client</th>
+                                        <th>Client ID</th>
+                                        <th>User</th>
+                                        <th>Last used</th>
+                                        <th>Created</th>
+                                        {!readOnly && <th aria-label="Actions" />}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentConnections.length === 0 ? (
+                                        <tr>
+                                            <S.EmptyCell colSpan={readOnly ? 5 : 6}>No OAuth clients connected yet.</S.EmptyCell>
+                                        </tr>
+                                    ) : currentConnections.map(connection => (
+                                        <tr key={connection.id}>
+                                            <td>{connection.client_name}</td>
+                                            <td><S.CodeValue title={connection.oauth_client_id}>{connection.oauth_client_id}</S.CodeValue></td>
+                                            <td>{connection.user?.name || '-'}</td>
+                                            <td>{formatDate(connection.last_used_at)}</td>
+                                            <td>{formatDate(connection.created_at)}</td>
+                                            {!readOnly && (
+                                                <S.ActionCell>
+                                                    <Button type="button" variant="ghost" size="sm" onClick={() => void revokeConnection(connection)}>
+                                                        <Icon icon="lucide:ban" width={13} />
+                                                        Revoke
+                                                    </Button>
+                                                </S.ActionCell>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </S.ClientTable>
+                        </S.TableViewport>
+                    )}
+                    </S.ClientsPane>
+                </SharedS.AccordionBody>
+            </SharedS.AccordionCard>
             <ConfirmModal />
         </>
     );

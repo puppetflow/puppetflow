@@ -15,15 +15,6 @@ export const Form = styled.form`
     min-width: 0;
 `;
 
-export const EmptyState = styled.div`
-    border: 1px dashed ${({ theme }) => theme.colors.border.default};
-    border-radius: ${({ theme }) => theme.radius.md};
-    padding: 18px;
-    color: ${({ theme }) => theme.colors.text.tertiary};
-    font-size: 13px;
-    text-align: center;
-`;
-
 export const ModeLabel = styled.div`
     display: inline-flex;
     width: fit-content;
@@ -44,36 +35,152 @@ export const EndpointGrid = styled.div`
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
-    margin-top: 18px;
     min-width: 0;
 `;
 
 export const ClientForm = styled.div`
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-    align-items: end;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     min-width: 0;
 
-    @media (max-width: 900px) {
-        grid-template-columns: minmax(0, 1fr);
+    > button {
+        justify-self: start;
     }
 `;
 
-export const Columns = styled.div`
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 18px;
+export const ClientsPane = styled.div`
+    min-width: 0;
     margin-top: 18px;
-    min-width: 0;
+`;
 
-    @media (max-width: 980px) {
-        grid-template-columns: minmax(0, 1fr);
+export const PaneSwitcher = styled.div`
+    display: inline-flex;
+    max-width: 100%;
+    padding: 3px;
+    gap: 3px;
+    overflow-x: auto;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+`;
+
+export const PaneButton = styled.button<{ $active: boolean }>`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    flex: 1 0 auto;
+    padding: 7px 11px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    color: ${({ theme, $active }) => $active ? theme.colors.text.primary : theme.colors.text.tertiary};
+    background: ${({ theme, $active }) => $active ? theme.colors.bg.primary : 'transparent'};
+    font-size: 13px;
+    font-weight: ${({ $active }) => $active ? 600 : 500};
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color ${({ theme }) => theme.transition.fast},
+        background ${({ theme }) => theme.transition.fast};
+
+    &:hover {
+        color: ${({ theme }) => theme.colors.text.primary};
+    }
+
+    &:focus-visible {
+        outline: 2px solid ${({ theme }) => theme.colors.accent.primary};
+        outline-offset: 1px;
     }
 `;
 
-export const Column = styled.div`
+export const PaneCount = styled.span`
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+`;
+
+export const TableViewport = styled.div`
+    width: 100%;
+    max-width: 100%;
+    max-height: 320px;
     min-width: 0;
+    margin-top: 12px;
+    overflow: auto;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    background: ${({ theme }) => theme.colors.bg.primary};
+    scrollbar-gutter: stable;
+`;
+
+export const ClientTable = styled.table`
+    width: 100%;
+    min-width: 760px;
+    border-collapse: separate;
+    border-spacing: 0;
+
+    th {
+        position: sticky;
+        z-index: 1;
+        top: 0;
+        padding: 9px 12px;
+        border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
+        color: ${({ theme }) => theme.colors.text.tertiary};
+        background: ${({ theme }) => theme.colors.bg.secondary};
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-align: left;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 10px 12px;
+        border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
+        color: ${({ theme }) => theme.colors.text.secondary};
+        background: ${({ theme }) => theme.colors.bg.primary};
+        font-size: 12px;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    tbody tr:hover td {
+        background: ${({ theme }) => theme.colors.bg.secondary};
+    }
+`;
+
+export const CodeValue = styled.code`
+    display: block;
+    max-width: 190px;
+    overflow: hidden;
+    color: ${({ theme }) => theme.colors.text.secondary};
+    font-family: ${({ theme }) => theme.font.mono};
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+`;
+
+export const TruncatedValue = styled.span`
+    display: block;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+`;
+
+export const ActionCell = styled.td`
+    width: 1%;
+    text-align: right;
+`;
+
+export const EmptyCell = styled.td`
+    height: 92px;
+    color: ${({ theme }) => theme.colors.text.tertiary} !important;
+    text-align: center;
 `;
 
 export const SubsectionTitle = styled.h3`
@@ -81,69 +188,4 @@ export const SubsectionTitle = styled.h3`
     font-size: 13px;
     font-weight: 600;
     margin-bottom: 10px;
-`;
-
-export const ItemList = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 18px;
-`;
-
-export const Item = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    min-width: 0;
-    border: 1px solid ${({ theme }) => theme.colors.border.default};
-    background: ${({ theme }) => theme.colors.bg.primary};
-    border-radius: ${({ theme }) => theme.radius.md};
-    padding: 12px 14px;
-
-    @media (max-width: 640px) {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-`;
-
-export const ItemMain = styled.div`
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-`;
-
-export const ItemHeader = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-`;
-
-export const ItemName = styled.div`
-    color: ${({ theme }) => theme.colors.text.primary};
-    font-size: 13px;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-`;
-
-export const ItemPreview = styled.code`
-    flex-shrink: 0;
-    color: ${({ theme }) => theme.colors.text.secondary};
-    background: ${({ theme }) => theme.colors.bg.tertiary};
-    border-radius: ${({ theme }) => theme.radius.sm};
-    font-family: ${({ theme }) => theme.font.mono};
-    font-size: 11px;
-    padding: 2px 6px;
-`;
-
-export const ItemMeta = styled.div`
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 12px;
-    color: ${({ theme }) => theme.colors.text.tertiary};
-    font-size: 11px;
 `;

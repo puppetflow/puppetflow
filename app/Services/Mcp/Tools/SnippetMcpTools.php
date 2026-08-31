@@ -8,8 +8,11 @@ use App\Enums\Authorization\Ability;
 use App\Models\Snippet;
 use App\Models\SnippetVersion;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Snippet\SnippetVersionService;
 use App\Services\Snippet\SnippetWriteService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +28,8 @@ final class SnippetMcpTools implements McpToolHandler
         'get_snippet_creation_options',
         'write_nodal_snippet',
         'write_code_snippet',
+        'publish_snippet',
+        'unpublish_snippet',
     ];
 
     public function __construct(
@@ -32,6 +37,7 @@ final class SnippetMcpTools implements McpToolHandler
         private readonly AuthorizationContextFactory $authorizationContexts,
         private readonly McpResourceResolver $resources,
         private readonly SnippetWriteService $writer,
+        private readonly SnippetVersionService $versions,
         private readonly FeatureFlagService $features,
     ) {}
 
@@ -81,6 +87,32 @@ final class SnippetMcpTools implements McpToolHandler
             ],
             $this->nodalWriterDefinition(),
             $this->codeWriterDefinition(),
+            [
+                'name' => 'publish_snippet',
+                'description' => 'Publish the current editable snippet draft as a new version. Call get_snippet_source first and provide its exact content_updated_at value.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['snippet_id', 'content_updated_at'],
+                    'properties' => [
+                        'snippet_id' => $identifier,
+                        'content_updated_at' => ['type' => 'string', 'description' => 'Exact timestamp returned by get_snippet_source.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'unpublish_snippet',
+                'description' => 'Unpublish a snippet without deleting its version history or editable draft. Call get_snippet_source first and provide its exact content_updated_at value.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['snippet_id', 'content_updated_at'],
+                    'properties' => [
+                        'snippet_id' => $identifier,
+                        'content_updated_at' => ['type' => 'string', 'description' => 'Exact timestamp returned by get_snippet_source.'],
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -99,6 +131,8 @@ final class SnippetMcpTools implements McpToolHandler
             'get_snippet_creation_options' => $this->creationOptions($context),
             'write_nodal_snippet' => $this->write($arguments, $context, 'nodal'),
             'write_code_snippet' => $this->write($arguments, $context, 'code'),
+            'publish_snippet' => $this->setPublication($arguments, $context, true),
+            'unpublish_snippet' => $this->setPublication($arguments, $context, false),
             default => throw ValidationException::withMessages(['name' => 'Unknown snippet tool.']),
         };
     }
@@ -279,6 +313,73 @@ final class SnippetMcpTools implements McpToolHandler
             'content_updated_at' => $snippet->content_updated_at?->toJSON(),
             'url' => route('snippets.index', ['s' => $snippet->id]),
         ]];
+    }
+
+    /** @param Arguments $arguments
+     * @return array<string, mixed>
+     */
+    private function setPublication(array $arguments, McpToolContext $context, bool $publish): array
+    {
+        $snippetId = trim(McpToolArguments::string($arguments, 'snippet_id'));
+        $clientTimestamp = trim(McpToolArguments::string($arguments, 'content_updated_at'));
+        if ($snippetId === '' || $clientTimestamp === '') {
+            throw ValidationException::withMessages([
+                $snippetId === '' ? 'snippet_id' : 'content_updated_at' => $snippetId === ''
+                    ? 'Snippet ID is required.'
+                    : 'The content timestamp is required.',
+            ]);
+        }
+
+        $snippet = DB::transaction(function () use ($clientTimestamp, $context, $publish, $snippetId): Snippet {
+            $snippet = Snippet::query()
+                ->where('workspace_id', $context->workspace->id)
+                ->where('stale', false)
+                ->whereKey($snippetId)
+                ->lockForUpdate()
+                ->first();
+            if (! $snippet || Gate::forUser($context->user)->denies(Ability::UPDATE->value, $snippet)) {
+                throw ValidationException::withMessages(['snippet_id' => 'Snippet not found or not editable.']);
+            }
+            if ($snippet->library_locked) {
+                throw ValidationException::withMessages([
+                    'snippet_id' => 'Library snippets cannot be published. Duplicate the snippet first.',
+                ]);
+            }
+            $this->ensureCurrent($clientTimestamp, $snippet->content_updated_at ?? $snippet->updated_at);
+
+            if ($publish) {
+                $this->versions->publish($snippet, $context->user->id);
+            } else {
+                $snippet->forceFill(['published_version_id' => null])->saveQuietly();
+            }
+
+            return $snippet;
+        }, 3);
+        $snippet->load('publishedVersion');
+
+        return ['snippet' => [
+            'id' => $snippet->id,
+            'label' => $snippet->label,
+            'is_published' => $snippet->published_version_id !== null,
+            'published_version' => $snippet->published_version_number,
+            'content_updated_at' => $snippet->content_updated_at?->toJSON(),
+        ]];
+    }
+
+    private function ensureCurrent(string $clientTimestamp, ?Carbon $serverTimestamp): void
+    {
+        try {
+            $client = Carbon::parse($clientTimestamp);
+        } catch (\Throwable) {
+            throw ValidationException::withMessages([
+                'content_updated_at' => 'The content timestamp is invalid.',
+            ]);
+        }
+        if (! $serverTimestamp || ! $serverTimestamp->equalTo($client)) {
+            throw ValidationException::withMessages([
+                'content_updated_at' => 'This snippet changed since it was read. Read the latest source and retry.',
+            ]);
+        }
     }
 
     /** @return ToolDefinition */

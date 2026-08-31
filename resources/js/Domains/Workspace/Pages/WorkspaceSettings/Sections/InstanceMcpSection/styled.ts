@@ -20,17 +20,9 @@ export const TopGrid = styled.div`
 
 export const ConnectionModeGrid = styled.div`
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 24px;
-    align-items: stretch;
+    align-items: start;
     min-width: 0;
     width: 100%;
-
-    > * {
-        height: 100%;
-    }
-
-    @media (max-width: 1100px) {
-        grid-template-columns: minmax(0, 1fr);
-    }
 `;
