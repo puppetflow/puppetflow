@@ -1,4 +1,5 @@
 import type { InertiaFormProps } from '@inertiajs/react';
+import type { ProxyFilterRule } from '@/Domains/Flow/types';
 
 export interface SettingsFormData {
     name: string;
@@ -7,6 +8,7 @@ export interface SettingsFormData {
     queue_index: number | null;
     proxy_mode: 'none' | 'auto' | 'specific';
     workspace_proxy_id: number | null;
+    proxy_filter_rules: ProxyFilterRule[];
     timeout_seconds: number;
     operator_seconds: number;
     max_retries: number;

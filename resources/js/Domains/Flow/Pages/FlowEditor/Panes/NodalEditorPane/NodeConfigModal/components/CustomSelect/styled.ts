@@ -117,6 +117,11 @@ export const SelectIconSlot = styled.span`
     }
 `;
 
+export const SelectTextIcon = styled.div`
+    font-size: 15px;
+    line-height: 15px;
+`;
+
 export const SelectLoadingIcon = styled(SelectIconSlot)`
     color: ${({ theme }) => theme.colors.text.tertiary};
 

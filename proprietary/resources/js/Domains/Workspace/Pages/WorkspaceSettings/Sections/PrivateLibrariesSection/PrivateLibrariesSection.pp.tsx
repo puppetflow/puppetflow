@@ -1,9 +1,11 @@
-import { createElement, useEffect, useMemo, useState } from 'react';
+import { createElement, useMemo, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import LocalTableFilterToolbar from '@/Shared/UI/TableFilters/LocalTableFilterToolbar';
 import { matchesOwnershipScope } from '@/Shared/UI/TableFilters/options';
+import { useCollapsedGroups } from '@/Shared/UI/TableFilters/useCollapsedGroups';
+import { groupHierarchicalItems } from '@/Shared/Utils/groupHierarchicalItems';
 import DeletePrivateLibraryMessage from './DeletePrivateLibraryMessage.pp';
 import PrivateLibraryForm from './PrivateLibraryForm.pp';
 import PrivateLibrariesTable from './PrivateLibrariesTable.pp';
@@ -29,14 +31,6 @@ const emptyForm: PrivateLibraryFormValues = {
     group: '',
 };
 
-function initialCollapsedGroups() {
-    try {
-        return new Set<string>(JSON.parse(localStorage.getItem('private-libraries-collapsed-groups') || '[]'));
-    } catch {
-        return new Set<string>();
-    }
-}
-
 export default function PrivateLibrariesSection({ libraries, teams, readOnly = false }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
     const [items, setItems] = useState(libraries);
@@ -46,7 +40,7 @@ export default function PrivateLibrariesSection({ libraries, teams, readOnly = f
     const [error, setError] = useState<string | null>(null);
     const [showFormModal, setShowFormModal] = useState(false);
     const [editing, setEditing] = useState<PrivateLibrary | null>(null);
-    const [collapsedGroups, setCollapsedGroups] = useState(initialCollapsedGroups);
+    const collapsedGroups = useCollapsedGroups('private-libraries-collapsed-groups');
     const [search, setSearch] = useState('');
     const [scope, setScope] = useState<string | null>(null);
 
@@ -74,41 +68,13 @@ export default function PrivateLibrariesSection({ libraries, teams, readOnly = f
         });
     }, [items, scope, search]);
 
-    const groupedItems = useMemo(() => {
-        const byGroup = filteredItems.reduce<Record<string, PrivateLibrary[]>>((acc, item) => {
-            const key = item.group || 'Ungrouped';
-            (acc[key] ??= []).push(item);
-            return acc;
-        }, {});
-
-        return Object.entries(byGroup)
-            .sort(([a], [b]) => {
-                if (a === 'Ungrouped') return 1;
-                if (b === 'Ungrouped') return -1;
-                return a.localeCompare(b);
-            })
-            .map(([group, groupItems]) => ({
-                group,
-                items: groupItems.sort((a, b) => a.label.localeCompare(b.label)),
-            }));
-    }, [filteredItems]);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem('private-libraries-collapsed-groups', JSON.stringify([...collapsedGroups]));
-        } catch {
-            // Ignore unavailable browser storage.
-        }
-    }, [collapsedGroups]);
-
-    const toggleGroup = (group: string) => {
-        setCollapsedGroups(current => {
-            const next = new Set(current);
-            if (next.has(group)) next.delete(group);
-            else next.add(group);
-            return next;
-        });
-    };
+    const groupedItems = useMemo(() => groupHierarchicalItems(
+        [...filteredItems].sort((first, second) => (
+            (first.group ?? '\uffff').localeCompare(second.group ?? '\uffff')
+            || first.label.localeCompare(second.label)
+        )),
+        item => item.group,
+    ), [filteredItems]);
 
     const updateForm = <K extends keyof PrivateLibraryFormValues>(
         key: K,
@@ -267,10 +233,11 @@ export default function PrivateLibrariesSection({ libraries, teams, readOnly = f
                     ) : (
                         <PrivateLibrariesTable
                             groups={groupedItems}
-                            collapsedGroups={collapsedGroups}
+                            collapsedGroups={collapsedGroups.collapsedGroups}
+                            isGroupHidden={collapsedGroups.isGroupHidden}
                             busyId={busyId}
                             readOnly={readOnly}
-                            onToggleGroup={toggleGroup}
+                            onToggleGroup={collapsedGroups.toggleGroup}
                             onEdit={openEdit}
                             onRefresh={refresh}
                             onDelete={library => { void requestDelete(library); }}

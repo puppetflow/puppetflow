@@ -1,8 +1,12 @@
 import styled from 'styled-components';
 
-export const Row = styled.tr`
+export const Row = styled.tr<{ $indent: number }>`
     td {
         background: ${({ theme }) => theme.colors.bg.primary};
+    }
+
+    td:first-child {
+        padding-left: ${({ $indent }) => $indent ? `${$indent}px` : undefined};
     }
 `;
 

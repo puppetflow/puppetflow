@@ -29,6 +29,7 @@ use App\Services\Auth\RegistrationRequestApprovalService;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Mcp\McpToolService;
 use App\Services\Storage\UploadStorage;
+use App\Services\Workspace\ManagedWorkspaceProxyService;
 use App\Services\Workspace\WorkspaceInvitationManager;
 use App\Services\Workspace\WorkspaceMembershipManager;
 use App\Services\Workspace\WorkspaceProvisioner;
@@ -53,6 +54,7 @@ class WorkspaceController extends Controller
         private readonly WorkspaceInvitationManager $workspaceInvitations,
         private readonly UploadStorage $uploads,
         private readonly RegistrationRequestApprovalService $registrationApprovals,
+        private readonly ManagedWorkspaceProxyService $managedProxies,
     ) {}
 
     public function create(Request $request): Response
@@ -143,6 +145,7 @@ class WorkspaceController extends Controller
         $workspace = $this->currentWorkspace()
             ->load('owner:id,name,icon_type,icon_value,icon_color,avatar_path,updated_at');
         $this->authorize(Ability::VIEW->value, $workspace);
+        $this->managedProxies->syncForWorkspace($workspace);
 
         /** @var User $user */
         $user = $request->user();
@@ -178,6 +181,7 @@ class WorkspaceController extends Controller
             $proxies,
             $context,
             scopeColumn: 'visibility',
+            alwaysVisibleColumn: 'managed_by_env',
         );
         /** @var \Illuminate\Database\Eloquent\Builder<Flow> $mcpFlows */
         $mcpFlows = Flow::query()
@@ -203,6 +207,7 @@ class WorkspaceController extends Controller
                     'port' => $proxy->port,
                     'country_code' => $proxy->country_code,
                     'has_authentication' => $proxy->username !== null,
+                    'is_readonly' => $proxy->managed_by_env,
                     'visibility' => $proxy->visibility,
                     'user_id' => $proxy->owner?->id,
                     'team_id' => $proxy->team?->id,

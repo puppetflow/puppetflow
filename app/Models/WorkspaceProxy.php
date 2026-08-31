@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $label
  * @property string $visibility
  * @property string|null $group
+ * @property bool $managed_by_env
+ * @property string|null $managed_key
  * @property string $scheme
  * @property string $host
  * @property int $port
@@ -30,6 +32,8 @@ class WorkspaceProxy extends Model
         'label',
         'visibility',
         'group',
+        'managed_by_env',
+        'managed_key',
         'scheme',
         'host',
         'port',
@@ -47,6 +51,7 @@ class WorkspaceProxy extends Model
     {
         return [
             'port' => 'integer',
+            'managed_by_env' => 'boolean',
             'username' => 'encrypted',
             'password' => 'encrypted',
         ];

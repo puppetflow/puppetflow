@@ -15,6 +15,7 @@ use App\Models\WorkspaceProxy;
 use App\Models\WorkspaceTeam;
 use App\Services\Library\BlueprintInputSchemaService;
 use App\Services\Library\LibraryCatalogService;
+use App\Services\Workspace\ManagedWorkspaceProxyService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,6 +34,7 @@ final class FlowEditorQuery
         private readonly FlowEditorResourceProjection $resources,
         private readonly LibraryCatalogService $catalog,
         private readonly BlueprintInputSchemaService $inputSchemas,
+        private readonly ManagedWorkspaceProxyService $managedProxies,
     ) {}
 
     public function render(Request $request, Flow $flow, User $user): Response
@@ -43,6 +45,8 @@ final class FlowEditorQuery
         if (! $workspace instanceof Workspace) {
             throw new \LogicException('Flow workspace could not be resolved.');
         }
+        $this->managedProxies->syncForWorkspace($workspace);
+        $flow->refresh();
         $context = $this->contexts->for($user, $flow->workspace_id);
         $teamIds = $this->scopes->isAdministrator($context)
             ? WorkspaceTeam::where('workspace_id', $flow->workspace_id)->pluck('id')->all()
@@ -81,6 +85,7 @@ final class FlowEditorQuery
             $workspaceProxies,
             $context,
             scopeColumn: 'visibility',
+            alwaysVisibleColumn: 'managed_by_env',
         );
 
         return Inertia::render('Flow/FlowEditor/FlowEditor', [
@@ -95,13 +100,12 @@ final class FlowEditorQuery
             'canEdit' => $canEdit,
             'canManageWorkspaceProxies' => $user->can(Ability::UPDATE->value, $workspace),
             'workspaceProxies' => $workspaceProxies
-                ->get(['id', 'label', 'scheme', 'host', 'port'])
+                ->get(['id', 'label', 'country_code', 'group'])
                 ->map(fn ($proxy) => [
                     'id' => $proxy->id,
                     'label' => $proxy->label,
-                    'scheme' => $proxy->scheme,
-                    'host' => $proxy->host,
-                    'port' => $proxy->port,
+                    'country_code' => $proxy->country_code,
+                    'group' => $proxy->group,
                 ])
                 ->values(),
             ...$resourceData,

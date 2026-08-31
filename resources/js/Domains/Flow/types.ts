@@ -5,6 +5,13 @@ import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEdit
 import type { FlowInputDefinition } from '@/Domains/Flow/Utils/flowInputsMetadata';
 import type { Id } from '@/Shared/types';
 
+export type ProxyFilterRule = {
+    rule_group: number;
+    field: 'country_code' | 'group';
+    operator: 'equals' | 'not_equals';
+    value: string;
+};
+
 export interface Flow {
     id: Id;
     name: string;
@@ -32,6 +39,7 @@ export interface Flow {
     queue_index: number | null;
     proxy_mode: 'none' | 'auto' | 'specific';
     workspace_proxy_id: number | null;
+    proxy_filter_rules: ProxyFilterRule[] | null;
     visibility: 'owner' | 'workspace' | 'team';
     timeout_seconds: number;
     operator_seconds: number;

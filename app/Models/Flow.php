@@ -42,6 +42,7 @@ use Illuminate\Validation\ValidationException;
  * @property int|null $queue_index
  * @property string $proxy_mode
  * @property int|null $workspace_proxy_id
+ * @property array<array-key, mixed>|null $proxy_filter_rules
  * @property bool $export_artifacts_recording
  * @property int $manual_run_score
  * @property bool $manual_run_production_mode
@@ -97,6 +98,7 @@ class Flow extends Model
         'queue_index',
         'proxy_mode',
         'workspace_proxy_id',
+        'proxy_filter_rules',
         'visibility',
         'timeout_seconds',
         'operator_seconds',
@@ -149,6 +151,7 @@ class Flow extends Model
             'available_in_mcp' => 'boolean',
             'queue_index' => 'integer',
             'workspace_proxy_id' => 'integer',
+            'proxy_filter_rules' => 'array',
             'visibility' => 'string',
             'flow_type' => 'string',
             'nodal_graph' => 'array',

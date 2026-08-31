@@ -84,7 +84,9 @@ export default function FlowEditorSidePanel({
     onDeleteSelected,
 }: FlowEditorSidePanelProps) {
     const { settings } = usePageProps();
-    const showRepository = canEdit && settings.vcs_enabled;
+    const showRepository = canEdit
+        && settings.vcs_enabled
+        && repositoryIntegrations.length > 0;
 
     return (
         <S.SidePanel

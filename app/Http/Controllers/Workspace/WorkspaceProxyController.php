@@ -112,6 +112,7 @@ class WorkspaceProxyController extends Controller
                 ->where('workspace_id', $workspace->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+            abort_if($lockedProxy->managed_by_env, 403, 'Managed proxies are read-only.');
             $visibility = $validated['visibility'];
             $teamId = $visibility === 'team'
                 ? $this->resolveWorkspaceTeamId($validated['team_id'] ?? $lockedProxy->team_id, $workspace->id)
@@ -161,6 +162,7 @@ class WorkspaceProxyController extends Controller
                     ->where('workspace_id', $workspace->id)
                     ->lockForUpdate()
                     ->firstOrFail();
+                abort_if($lockedProxy->managed_by_env, 403, 'Managed proxies are read-only.');
                 if (Flow::query()
                     ->where('workspace_id', $workspace->id)
                     ->where('proxy_mode', 'specific')
@@ -465,6 +467,7 @@ class WorkspaceProxyController extends Controller
             'port' => $proxy->port,
             'country_code' => $proxy->country_code,
             'has_authentication' => $proxy->username !== null,
+            'is_readonly' => $proxy->managed_by_env,
             'visibility' => $proxy->visibility,
             'user_id' => $proxy->owner?->id,
             'team_id' => $proxy->team?->id,

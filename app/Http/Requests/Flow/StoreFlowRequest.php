@@ -46,6 +46,12 @@ class StoreFlowRequest extends FormRequest
                 'required_if:proxy_mode,specific',
                 Rule::exists('workspace_proxies', 'id')->where('workspace_id', $workspaceId),
             ],
+            'proxy_filter_rules' => ['nullable', 'array', 'max:50'],
+            'proxy_filter_rules.*' => ['array:rule_group,field,operator,value'],
+            'proxy_filter_rules.*.rule_group' => ['required', 'integer', 'min:0', 'max:49'],
+            'proxy_filter_rules.*.field' => ['required', Rule::in(['country_code', 'group'])],
+            'proxy_filter_rules.*.operator' => ['required', Rule::in(['equals', 'not_equals'])],
+            'proxy_filter_rules.*.value' => ['required', 'string', 'max:255'],
             'repo_link' => ['required_if:source_type,repository', 'nullable', 'array'],
             'repo_link.integration_id' => [
                 'required_with:repo_link',

@@ -70,12 +70,13 @@ export const GroupRow = styled.tr`
     }
 `;
 
-export const GroupButton = styled.button`
+export const GroupButton = styled.button<{ $depth: number }>`
     display: flex;
     align-items: center;
     gap: 4px;
     width: 100%;
     padding: 6px 14px;
+    padding-left: ${({ $depth }) => `${14 + $depth * 16}px`};
     font: inherit;
     text-transform: inherit;
     letter-spacing: inherit;

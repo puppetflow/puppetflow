@@ -24,6 +24,7 @@ final class FlowCreationService
         private readonly AuthorizationContextFactory $contexts,
         private readonly SharedResourceVisibility $sharedVisibility,
         private readonly FeatureFlagService $features,
+        private readonly FlowProxyFilterRuleService $proxyFilters,
     ) {}
 
     /**
@@ -72,6 +73,9 @@ final class FlowCreationService
         $validated = validator($attributes, $rules)->validate();
         $data = array_intersect_key($attributes, array_flip((new Flow)->getFillable()));
         $data = [...$data, ...$validated];
+        $data['proxy_filter_rules'] = $this->proxyFilters->normalize(
+            $data['proxy_filter_rules'] ?? null,
+        );
         $flowType = (string) ($validated['flow_type'] ?? $workspace->default_flow_type ?? 'nodal');
         $data['flow_type'] = $flowType;
         $data['proxy_mode'] ??= 'none';
@@ -84,6 +88,7 @@ final class FlowCreationService
                 $proxyQuery,
                 $this->contexts->for($user, $workspace->id),
                 scopeColumn: 'visibility',
+                alwaysVisibleColumn: 'managed_by_env',
             );
             if (! $proxyQuery->lockForUpdate()->first() instanceof WorkspaceProxy) {
                 throw ValidationException::withMessages([

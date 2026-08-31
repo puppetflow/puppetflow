@@ -137,12 +137,13 @@ export const GroupRow = styled.tr`
     }
 `;
 
-export const GroupButton = styled.button`
+export const GroupButton = styled.button<{ $depth: number }>`
     display: flex;
     align-items: center;
     gap: 4px;
     width: 100%;
     padding: 6px 14px;
+    padding-left: ${({ $depth }) => `${14 + $depth * 16}px`};
     font: inherit;
     text-transform: inherit;
     letter-spacing: inherit;
@@ -163,8 +164,14 @@ export const GroupCount = styled.span`
     opacity: 0.8;
 `;
 
-export const Row = styled.tr`
-    td { background: ${({ theme }) => theme.colors.bg.primary}; }
+export const Row = styled.tr<{ $indent: number }>`
+    td {
+        background: ${({ theme }) => theme.colors.bg.primary};
+    }
+
+    td:first-child {
+        padding-left: ${({ $indent }) => $indent ? `${$indent}px` : undefined};
+    }
 `;
 
 export const ProxyName = styled.div`
@@ -186,6 +193,18 @@ export const ProxyIdentity = styled.div`
     display: flex;
     align-items: center;
     gap: 8px;
+`;
+
+export const ManagedBadge = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 10px;
+    font-weight: 500;
 `;
 
 export const CountryAvatar = styled.span`

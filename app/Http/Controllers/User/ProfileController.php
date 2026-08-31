@@ -39,6 +39,7 @@ class ProfileController extends Controller
         'snippets',
         'data-tables',
         'integrations',
+        'ai-models',
         'workspace.settings',
         'workspace.members',
         'profile',
