@@ -32,6 +32,9 @@ export const StickyHeader = styled.div`
 `;
 
 export const StickyHeaderTitle = styled.h3`
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;

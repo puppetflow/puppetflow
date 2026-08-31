@@ -33,6 +33,12 @@ export const HelpHeader = styled.div`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
 `;
 
+export const HelpHeaderActions = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+`;
+
 export const HelpTitle = styled.div`
     display: flex;
     flex-direction: column;

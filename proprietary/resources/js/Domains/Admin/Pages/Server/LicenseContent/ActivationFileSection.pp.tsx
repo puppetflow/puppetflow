@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { LicenseForm, LicenseFilePanel, LicenseFileIcon, LicenseFileInfo, LicenseFileName, LicenseFileLink, LicenseFileMeta, LicenseDropZone, LicenseDropTitle, LicenseDropHint, HiddenFileInput, LicenseActions, LicenseDangerButton } from './ActivationFileSection.styled.pp';
 import Button from '@/Shared/UI/Button/Button';
@@ -26,9 +27,10 @@ const S = {
 interface Props {
     license: LicenseInfo;
     actions: ReturnType<typeof useLicenseActions>;
+    headerAction?: ReactNode;
 }
 
-export default function ActivationFileSection({ license, actions }: Props) {
+export default function ActivationFileSection({ license, actions, headerAction }: Props) {
     const hasLicense = license.file_configured || !!license.file?.imported_at;
 
     return (
@@ -36,6 +38,7 @@ export default function ActivationFileSection({ license, actions }: Props) {
             <S.CardTitle>
                 <Icon icon="lucide:file-key-2" width={15} height={15} />
                 Activation file
+                {headerAction}
             </S.CardTitle>
             <S.LicenseForm onSubmit={actions.upload}>
                 {hasLicense && !actions.replacing ? (

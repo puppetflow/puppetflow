@@ -79,7 +79,11 @@ export default function DomainShow({ integration, domain, dnsRecords }: Props) {
     };
 
     return (
-        <AppLayout title={`DNS Setup - ${domain.name}`}>
+        <AppLayout
+            title={`DNS Setup - ${domain.name}`}
+            documentationPath="/guide/integrations#dns-setup"
+            documentationLabel="Open DNS setup documentation"
+        >
             <S.Page>
                 <S.Header>
                     <S.HeaderLeft>

@@ -308,6 +308,8 @@ export default function DataTables({
     return (
         <AppLayout
             title="Data Tables"
+            documentationPath="/guide/flows#data-tables"
+            documentationLabel="Open data tables documentation"
             noPadding
             headerRight={(
                 <S.HeaderActions>

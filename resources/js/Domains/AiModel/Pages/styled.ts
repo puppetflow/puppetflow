@@ -44,6 +44,13 @@ export const BetaBannerContent = styled.div`
     gap: 3px;
 `;
 
+export const BetaBannerHelp = styled.div`
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: auto;
+`;
+
 export const BetaBannerTitle = styled.div`
     display: flex;
     align-items: center;

@@ -21,12 +21,6 @@ class AuthenticateMcpOAuth
             return response()->json(['error' => 'MCP is disabled for this instance.'], 403);
         }
 
-        $user = $request->user('api');
-
-        if (! $user) {
-            return response()->json(['error' => 'OAuth token required.'], 401);
-        }
-
         $routeWorkspace = $request->route('workspace');
         $workspace = $routeWorkspace instanceof Workspace
             ? $routeWorkspace
@@ -37,6 +31,12 @@ class AuthenticateMcpOAuth
 
         if (! $workspace) {
             return response()->json(['error' => 'Workspace not found.'], 404);
+        }
+
+        $user = $request->user('api');
+
+        if (! $user) {
+            return $this->challenge($request, $workspace, 'OAuth access token required.');
         }
 
         if (! $user->isAdmin() && $workspace->isExpired()) {
@@ -87,5 +87,25 @@ class AuthenticateMcpOAuth
         $request->attributes->set('mcpArtifactRouteName', 'mcp.oauth.artifacts.download');
 
         return $next($request);
+    }
+
+    private function challenge(Request $request, Workspace $workspace, string $description): Response
+    {
+        $reference = $request->route('workspace');
+        $reference = is_string($reference)
+            ? $reference
+            : ($workspace->lookup_key ?: $workspace->id);
+        $metadataUrl = $request->getSchemeAndHttpHost()
+            .'/.well-known/oauth-protected-resource/api/workspaces/'
+            .rawurlencode($reference)
+            .'/mcp-server/http';
+
+        return response()->json([
+            'error' => 'invalid_token',
+            'error_description' => $description,
+        ], 401)->header(
+            'WWW-Authenticate',
+            'Bearer resource_metadata="'.$metadataUrl.'", scope="mcp"',
+        );
     }
 }

@@ -112,6 +112,12 @@ export const Title = styled.h2`
     letter-spacing: -0.025em;
 `;
 
+export const TitleRow = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+`;
+
 export const Intro = styled.p`
     margin: 8px 0 20px;
     color: ${({ theme }) => theme.colors.text.secondary};

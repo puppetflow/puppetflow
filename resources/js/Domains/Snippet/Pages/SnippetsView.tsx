@@ -58,10 +58,12 @@ export default function SnippetsView({ controller }: Props) {
     return (
         <AppLayout
             title="Snippets"
+            documentationPath="/guide/flows#snippets"
+            documentationLabel="Open snippets documentation"
             noPadding
-            headerRight={featureEnabled ? (
+            headerRight={(
                 <S.HeaderActions>
-                    {selectedIds.size > 0 && (
+                    {featureEnabled && selectedIds.size > 0 && (
                         <Button
                             variant="danger"
                             size="sm"
@@ -72,20 +74,24 @@ export default function SnippetsView({ controller }: Props) {
                             Delete ({selectedIds.size})
                         </Button>
                     )}
-                    <Button variant="secondary" size="sm" onClick={openLibraryStore}>
-                        <Icon icon="lucide:store" width={14} />
-                        <S.HeaderButtonLabel>Blueprints</S.HeaderButtonLabel>
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => setShowImportModal(true)}>
-                        <Icon icon="lucide:upload" width={14} />
-                        <S.HeaderButtonLabel>Import Snippets</S.HeaderButtonLabel>
-                    </Button>
-                    <Button size="sm" onClick={() => setShowTypePicker(true)}>
-                        <Icon icon="lucide:plus" width={14} />
-                        <S.HeaderButtonLabel>New Snippet</S.HeaderButtonLabel>
-                    </Button>
+                    {featureEnabled && (
+                        <>
+                            <Button variant="secondary" size="sm" onClick={openLibraryStore}>
+                                <Icon icon="lucide:store" width={14} />
+                                <S.HeaderButtonLabel>Blueprints</S.HeaderButtonLabel>
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => setShowImportModal(true)}>
+                                <Icon icon="lucide:upload" width={14} />
+                                <S.HeaderButtonLabel>Import Snippets</S.HeaderButtonLabel>
+                            </Button>
+                            <Button size="sm" onClick={() => setShowTypePicker(true)}>
+                                <Icon icon="lucide:plus" width={14} />
+                                <S.HeaderButtonLabel>New Snippet</S.HeaderButtonLabel>
+                            </Button>
+                        </>
+                    )}
                 </S.HeaderActions>
-            ) : undefined}
+            )}
         >
             {!featureEnabled ? (
                 <FeatureUnavailablePanel />

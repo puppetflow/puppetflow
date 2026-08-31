@@ -7,18 +7,21 @@ import { useToast } from '@/App/Hooks/useToast';
 import { PageOnboardingJumbo } from '@/App/Onboarding/PageOnboardingModal';
 import { usePageTitle } from '@/App/Utils/documentTitle';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import * as S from './styled';
 
 const EXPIRATION_WARNING_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface AppLayoutProps {
     title?: React.ReactNode;
+    documentationPath?: string;
+    documentationLabel?: string;
     headerRight?: React.ReactNode;
     noPadding?: boolean;
     children: React.ReactNode;
 }
 
-export default function AppLayout({ title, headerRight, noPadding, children }: AppLayoutProps) {
+export default function AppLayout({ title, documentationPath, documentationLabel, headerRight, noPadding, children }: AppLayoutProps) {
     const flash = useFlash();
     const { currentWorkspace, impersonating, safe_mode, run_quota } = usePageProps();
     const auth = useAuth();
@@ -105,7 +108,12 @@ export default function AppLayout({ title, headerRight, noPadding, children }: A
                             <S.BurgerButton onClick={() => setSidebarOpen(true)}>
                                 <Icon icon="lucide:menu" />
                             </S.BurgerButton>
-                            <S.PageTitle>{title}</S.PageTitle>
+                            <S.TitleGroup>
+                                <S.PageTitle>{title}</S.PageTitle>
+                                {documentationPath && (
+                                    <DocHelpLink path={documentationPath} label={documentationLabel} />
+                                )}
+                            </S.TitleGroup>
                         </S.HeaderLeft>
                         {headerRight && <S.HeaderRight>{headerRight}</S.HeaderRight>}
                     </S.Header>

@@ -1,5 +1,6 @@
 import React from 'react';
 import Modal from '@/Shared/UI/Modal/Modal';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import LibraryStoreListing from './LibraryStoreListing/LibraryStoreListing';
 import LibraryBlueprintDetail from './LibraryBlueprintDetail/LibraryBlueprintDetail';
 import LibraryUseItemModal from './LibraryUseItemModal/LibraryUseItemModal';
@@ -36,7 +37,12 @@ export default function LibraryStoreModal({ isOpen, onClose, teams = [] }: Props
         <Modal
             isOpen={isOpen}
             onClose={selection.close}
-            title="Blueprints"
+            title={(
+                <S.ModalTitle>
+                    Blueprints
+                    <DocHelpLink path="/guide/flows#blueprints" label="Open blueprints documentation" />
+                </S.ModalTitle>
+            )}
             caption="Import flows and snippets from public Puppetflow blueprints."
             fullScreen
             autoFocusInput={false}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import Button from '@/Shared/UI/Button/Button';
 import BulkDeleteConfirmation from '@/Shared/UI/BulkDeleteConfirmation/BulkDeleteConfirmation';
 import * as Layout from '@/Domains/Flow/Pages/FlowEditor/shared/paneLayout.styled';
@@ -111,7 +112,11 @@ export default function TriggersPane({ flowId, triggers, otherTriggers, teams, g
         <Layout.SidePanelSection>
             <Layout.SidePanelSectionInner>
                 <Layout.SectionHeader>
-                    <Layout.SectionTitle><Icon icon="lucide:zap" width={14} /> Triggers</Layout.SectionTitle>
+                    <Layout.SectionTitle>
+                        <Icon icon="lucide:zap" width={14} />
+                        Triggers
+                        <DocHelpLink path="/guide/triggers-actions#triggers" label="Open triggers documentation" />
+                    </Layout.SectionTitle>
                     <Layout.SectionHeaderActions>
                         {selectedIds.size > 0 && (
                             <Button

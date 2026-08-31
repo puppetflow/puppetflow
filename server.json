@@ -1,0 +1,28 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.puppetflow/mcp",
+  "title": "Puppetflow",
+  "description": "Build, run, monitor, and control Puppetflow browser automations from AI clients.",
+  "websiteUrl": "https://docs.puppetflow.com/guide/mcp",
+  "repository": {
+    "url": "https://github.com/puppetflow/puppetflow",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{instance_host}/api/workspaces/{workspace}/mcp-server/http",
+      "variables": {
+        "instance_host": {
+          "description": "Public hostname of your Puppetflow Cloud or self-hosted instance.",
+          "isRequired": true
+        },
+        "workspace": {
+          "description": "Workspace ID or lookup key shown in the Puppetflow OAuth MCP endpoint.",
+          "isRequired": true
+        }
+      }
+    }
+  ]
+}

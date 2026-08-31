@@ -8,6 +8,13 @@ import GeneralSettingsTab from './components/GeneralSettingsTab/GeneralSettingsT
 import WorkspaceSettingsTabs from './components/WorkspaceSettingsTabs/WorkspaceSettingsTabs';
 import { useWorkspaceSettingsTab } from './components/WorkspaceSettingsTabs/useWorkspaceSettingsTab';
 
+const documentationPaths = {
+    general: '/guide/workspaces#general-tab',
+    flows: '/guide/workspaces#flows-tab',
+    mcp: '/guide/mcp',
+    'private-libraries': '/guide/workspaces#private-libraries-tab',
+} as const;
+
 interface Props {
     workspace: Workspace;
     isWorkspaceAdmin: boolean;
@@ -31,9 +38,14 @@ interface Props {
 
 export default function WorkspaceSettings({ workspace, isWorkspaceAdmin, isOwner, proxies, privateLibrariesEnabled, mcpEnabled, privateLibraries, teams, mcpEndpoint, mcpOauthEndpoint, mcpOauthAuthorizeUrl, mcpOauthTokenUrl, mcpSettings, mcpTools, mcpTokens, mcpOauthClients, mcpOauthConnections, mcpFlows }: Props) {
     const { activeTab, handleTabChange } = useWorkspaceSettingsTab(privateLibrariesEnabled, mcpEnabled);
+    const documentationPath = activeTab === 'proxies' ? null : documentationPaths[activeTab];
 
     return (
-        <AppLayout title="Workspace Settings">
+        <AppLayout
+            title="Workspace Settings"
+            documentationPath={documentationPath ?? undefined}
+            documentationLabel="Open workspace settings documentation"
+        >
             <WorkspaceSettingsTabs
                 activeTab={activeTab}
                 privateLibrariesEnabled={privateLibrariesEnabled}

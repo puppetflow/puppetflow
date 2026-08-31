@@ -74,6 +74,17 @@ export const ViewToggleTab = styled.button<{ $active?: boolean }>`
     }
 `;
 
+export const FileNameGroup = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+
+    @media (max-width: 768px) {
+        display: none;
+    }
+`;
+
 export const FileName = styled.span`
     font-size: 12px;
     font-family: ${({ theme }) => theme.font.mono};
@@ -83,9 +94,6 @@ export const FileName = styled.span`
     text-overflow: ellipsis;
     min-width: 0;
 
-    @media (max-width: 768px) {
-        display: none;
-    }
 `;
 
 export const SavedIndicator = styled.span<{ $saved: boolean }>`

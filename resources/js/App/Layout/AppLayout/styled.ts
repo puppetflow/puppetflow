@@ -61,6 +61,13 @@ export const HeaderRight = styled.div`
     flex-shrink: 0;
 `;
 
+export const TitleGroup = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+`;
+
 export const BurgerButton = styled.button`
     display: none;
     align-items: center;
@@ -101,7 +108,6 @@ export const MobileMenuBar = styled.div`
 `;
 
 export const PageTitle = styled.h1`
-    flex: 1;
     font-size: 16px;
     font-weight: 600;
     min-width: 0;

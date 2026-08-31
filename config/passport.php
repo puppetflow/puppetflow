@@ -28,9 +28,9 @@ return [
     |
     */
 
-    'private_key' => env('PASSPORT_PRIVATE_KEY'),
+    'private_key' => env('PASSPORT_PRIVATE_KEY') ?: storage_path('mcp-oauth-private.key'),
 
-    'public_key' => env('PASSPORT_PUBLIC_KEY'),
+    'public_key' => env('PASSPORT_PUBLIC_KEY') ?: storage_path('mcp-oauth-public.key'),
 
     /*
     |--------------------------------------------------------------------------

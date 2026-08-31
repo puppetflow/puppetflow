@@ -1,5 +1,11 @@
 import styled from 'styled-components';
 
+export const ModalTitle = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+`;
+
 export const StoreContent = styled.div`
     display: flex;
     min-width: 0;

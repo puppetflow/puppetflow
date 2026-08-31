@@ -1,4 +1,5 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { Flow } from '@/Domains/Flow/types';
 import Button from '@/Shared/UI/Button/Button';
 import PublicationMenu from '@/Domains/Flow/Pages/FlowEditor/components/PublicationMenu/PublicationMenu';
@@ -75,7 +76,10 @@ export default function Toolbar({
                         </S.ViewToggleTab>
                     </S.ViewToggle>
                 )}
-                <S.FileName>{flow.name}.{documentExtension}</S.FileName>
+                <S.FileNameGroup>
+                    <S.FileName>{flow.name}.{documentExtension}</S.FileName>
+                    <DocHelpLink path="/guide/nodal-flows" label="Open nodal flows documentation" />
+                </S.FileNameGroup>
                 <S.SavedIndicator $saved={saved}>
                     {saved ? 'Saved' : 'Unsaved changes'}
                 </S.SavedIndicator>

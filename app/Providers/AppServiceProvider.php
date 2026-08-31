@@ -12,8 +12,8 @@ use App\Services\Flow\Source\Vendor\BitbucketFlowSourceHandler;
 use App\Services\Flow\Source\Vendor\GiteaFlowSourceHandler;
 use App\Services\Flow\Source\Vendor\GithubFlowSourceHandler;
 use App\Services\Flow\Source\Vendor\GitlabFlowSourceHandler;
-use App\Services\Integration\Ai\AiService;
 use App\Services\Integration\Ai\AiCleanupHandler;
+use App\Services\Integration\Ai\AiService;
 use App\Services\Integration\Ai\Vendor\Anthropic\AnthropicDriver;
 use App\Services\Integration\Ai\Vendor\Gemini\GeminiDriver;
 use App\Services\Integration\Ai\Vendor\Mistral\MistralDriver;
@@ -186,6 +186,7 @@ class AppServiceProvider extends ServiceProvider
         Passport::tokensCan([
             'mcp' => 'Use Puppetflow instance-level MCP tools.',
         ]);
+        Passport::authorizationView('oauth.authorize');
 
         Passport::tokensExpireIn(now()->addHours(8));
         Passport::refreshTokensExpireIn(now()->addDays(30));

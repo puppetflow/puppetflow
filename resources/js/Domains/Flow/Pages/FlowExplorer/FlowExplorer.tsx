@@ -142,6 +142,8 @@ export default function FlowExplorer({ flows, folders, currentFolder, breadcrumb
     return (
         <AppLayout
             title="Flow Explorer"
+            documentationPath="/guide/flows"
+            documentationLabel="Open flows documentation"
             noPadding
             headerRight={
                 <S.HeaderActions>

@@ -1,4 +1,5 @@
 import Switch from '@/Shared/UI/Switch/Switch';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
 import * as S from './styled';
 
@@ -12,7 +13,10 @@ export default function ArtifactsSection({ form, recordingEnabled, isNodalFlow }
     return (
         <>
             <S.SettingsSeparator />
-            <S.SettingsSectionLabel>Artifacts</S.SettingsSectionLabel>
+            <S.SettingsSectionLabel>
+                Artifacts
+                <DocHelpLink path="/guide/artifacts" label="Open artifacts documentation" />
+            </S.SettingsSectionLabel>
 
             <Switch
                 id="export_artifacts_screenshots"

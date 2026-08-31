@@ -98,9 +98,11 @@ export default function Variables({ variables, editingVariable, groups, teams, f
     return (
         <AppLayout
             title="Variables"
-            headerRight={settings.variables_enabled ? (
+            documentationPath="/guide/variables"
+            documentationLabel="Open variables documentation"
+            headerRight={(
                 <HeaderActions>
-                    {selectedIds.size > 0 && (
+                    {settings.variables_enabled && selectedIds.size > 0 && (
                         <Button
                             size="sm"
                             variant="danger"
@@ -111,16 +113,20 @@ export default function Variables({ variables, editingVariable, groups, teams, f
                             Delete ({selectedIds.size})
                         </Button>
                     )}
-                    <Button size="sm" variant="secondary" onClick={page.openImport}>
-                        <Icon icon="lucide:upload" width={14} />
-                        <ButtonLabel>Import Variables</ButtonLabel>
-                    </Button>
-                    <Button size="sm" onClick={page.openCreate}>
-                        <Icon icon="lucide:plus" width={14} />
-                        <ButtonLabel>New Variable</ButtonLabel>
-                    </Button>
+                    {settings.variables_enabled && (
+                        <>
+                            <Button size="sm" variant="secondary" onClick={page.openImport}>
+                                <Icon icon="lucide:upload" width={14} />
+                                <ButtonLabel>Import Variables</ButtonLabel>
+                            </Button>
+                            <Button size="sm" onClick={page.openCreate}>
+                                <Icon icon="lucide:plus" width={14} />
+                                <ButtonLabel>New Variable</ButtonLabel>
+                            </Button>
+                        </>
+                    )}
                 </HeaderActions>
-            ) : undefined}
+            )}
         >
             {!settings.variables_enabled ? (
                 <FeatureUnavailablePanel />

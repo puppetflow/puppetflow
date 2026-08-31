@@ -1,10 +1,12 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import {
     HelpBody,
     HelpCategoryPageButton,
     HelpCategoryPageIcon,
     HelpCategoryRail,
     HelpHeader,
+    HelpHeaderActions,
     HelpPanel,
     HelpTitle,
     HelpToolbar,
@@ -55,9 +57,12 @@ export function ToolboxPanel({
                     <strong>Code Toolbox</strong>
                     <span>Browse helpers by workflow step</span>
                 </HelpTitle>
-                <ToolbarBadge onClick={onClose} title="Close Help">
-                    <Icon icon="lucide:x" />
-                </ToolbarBadge>
+                <HelpHeaderActions>
+                    <DocHelpLink path="/reference/magic-methods" label="Open magic methods documentation" />
+                    <ToolbarBadge onClick={onClose} title="Close Help">
+                        <Icon icon="lucide:x" />
+                    </ToolbarBadge>
+                </HelpHeaderActions>
             </HelpHeader>
             <HelpToolbar>
                 <HelpSearchBar>

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import * as Layout from '@/Domains/Flow/Pages/FlowEditor/shared/paneLayout.styled';
 import Button from '@/Shared/UI/Button/Button';
 import FlowIconPicker from '@/Domains/Flow/Components/FlowIcon/FlowIconPicker';
@@ -127,7 +128,10 @@ export default function SettingsPane({
     return (
         <Layout.SidePanelSection style={{ paddingTop: 0 }}>
             <Layout.StickyHeader>
-                <Layout.StickyHeaderTitle>Settings</Layout.StickyHeaderTitle>
+                <Layout.StickyHeaderTitle>
+                    Settings
+                    <DocHelpLink path="/guide/flows#flow-settings" label="Open flow settings documentation" />
+                </Layout.StickyHeaderTitle>
                 <Button type="button" variant="secondary" size="sm" disabled={settingsForm.processing} onClick={handleSaveSettings}>
                     <Icon icon="lucide:save" width={13} height={13} />
                     {settingsForm.processing ? 'Saving...' : 'Save'}
