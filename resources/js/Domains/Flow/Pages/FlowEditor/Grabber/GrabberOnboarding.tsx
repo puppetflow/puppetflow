@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import * as S from './GrabberOnboarding.styled';
 
 interface GrabberOnboardingProps {
@@ -68,7 +69,10 @@ export default function GrabberOnboarding({
                         <Icon icon="lucide:arrow-up-right" width={15} height={15} />
                     </S.StoreBanner>
                 </S.StoreBanners>
-                <S.Title id="grabber-onboarding-title">Pick it from the page</S.Title>
+                <S.TitleRow>
+                    <S.Title id="grabber-onboarding-title">Pick it from the page</S.Title>
+                    <DocHelpLink path="/guide/grabber-browser-extension" label="Open Grabber documentation" />
+                </S.TitleRow>
                 <S.Intro>
                     Open the page, click what you need, and the selector will land right here.
                 </S.Intro>

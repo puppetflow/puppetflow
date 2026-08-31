@@ -104,13 +104,13 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
     return (
         <>
             <SharedS.Card>
-                <S.ModeLabel>Recommended app mode</S.ModeLabel>
+                <S.ModeLabel>Recommended for Claude and compatible clients</S.ModeLabel>
                 <SharedS.CardTitle>
                     <Icon icon="lucide:shield-check" width={15} height={15} />
-                    OAuth2 Clients Endpoint
+                    OAuth MCP Endpoint
                 </SharedS.CardTitle>
                 <S.SectionHint>
-                    Use this mode for MCP clients that support OAuth2. Users authorize the client with PKCE, and connected clients can be revoked without copying tokens manually.
+                    Add the OAuth MCP endpoint as a remote connector. Compatible clients discover OAuth automatically, register with PKCE, and ask each user to approve access without copying tokens.
                 </S.SectionHint>
                 <S.EndpointGrid>
                     <Input label="OAuth MCP endpoint" value={endpoint} readOnly />
@@ -120,6 +120,7 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
 
                 {!readOnly && (
                     <S.Form onSubmit={createClient}>
+                        <S.SubsectionTitle>Optional fixed OAuth client</S.SubsectionTitle>
                         <S.ClientForm>
                             <Input
                                 label="Client name"
@@ -143,7 +144,7 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
 
                 <S.Columns>
                     <S.Column>
-                        <S.SubsectionTitle>Configured OAuth clients</S.SubsectionTitle>
+                        <S.SubsectionTitle>Registered OAuth clients</S.SubsectionTitle>
                         {currentClients.length === 0 ? (
                             <S.EmptyState>No OAuth clients configured.</S.EmptyState>
                         ) : (

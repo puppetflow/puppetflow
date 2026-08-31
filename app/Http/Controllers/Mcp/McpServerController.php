@@ -28,6 +28,12 @@ use Symfony\Component\HttpFoundation\Response;
 /** @phpstan-import-type McpArguments from McpToolService */
 class McpServerController extends Controller
 {
+    private const SUPPORTED_PROTOCOL_VERSIONS = [
+        '2025-03-26',
+        '2025-06-18',
+        '2025-11-25',
+    ];
+
     public function __construct(
         private McpToolService $tools,
         private readonly ArtifactResponseFactory $artifactResponses,
@@ -36,25 +42,35 @@ class McpServerController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
+        if (! $this->acceptsRequest($request)) {
+            return response()->json([
+                'jsonrpc' => '2.0',
+                'id' => null,
+                'error' => ['code' => -32600, 'message' => 'Unsupported MCP request headers.'],
+            ], 406);
+        }
+
         $payload = $request->json()->all();
 
-        if (! isset($payload['method'])) {
+        if (($payload['jsonrpc'] ?? null) !== '2.0' || ! is_string($payload['method'] ?? null)) {
             return $this->error($payload['id'] ?? null, -32600, 'Invalid Request');
         }
 
         $id = $payload['id'] ?? null;
-        /** @var string|int|float|bool|null $methodValue */
-        $methodValue = $payload['method'];
-        $method = (string) $methodValue;
+        $method = $payload['method'];
         $params = is_array($payload['params'] ?? null) ? $payload['params'] : [];
 
-        if ($id === null && str_starts_with($method, 'notifications/')) {
+        if ($id === null) {
             return response()->json(null, 204);
+        }
+
+        if ($method !== 'initialize' && ! $this->supportsProtocolHeader($request)) {
+            return $this->error($id, -32600, 'Unsupported MCP-Protocol-Version header.');
         }
 
         try {
             $result = match ($method) {
-                'initialize' => $this->initialize(),
+                'initialize' => $this->initialize($params),
                 'tools/list' => ['tools' => $this->tools->listTools($this->setting($request))],
                 'tools/call' => $this->callTool($request, $params),
                 default => null,
@@ -128,11 +144,21 @@ class McpServerController extends Controller
 
     }
 
-    /** @return array<string, mixed> */
-    private function initialize(): array
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function initialize(array $params): array
     {
+        $requestedVersion = is_string($params['protocolVersion'] ?? null)
+            ? $params['protocolVersion']
+            : null;
+        $protocolVersion = in_array($requestedVersion, self::SUPPORTED_PROTOCOL_VERSIONS, true)
+            ? $requestedVersion
+            : self::SUPPORTED_PROTOCOL_VERSIONS[array_key_last(self::SUPPORTED_PROTOCOL_VERSIONS)];
+
         return [
-            'protocolVersion' => '2025-03-26',
+            'protocolVersion' => $protocolVersion,
             'capabilities' => [
                 'tools' => [
                     'listChanged' => false,
@@ -221,5 +247,33 @@ class McpServerController extends Controller
         $setting = $request->attributes->get('mcpSetting');
 
         return $setting instanceof WorkspaceMcpSetting ? $setting : null;
+    }
+
+    private function acceptsRequest(Request $request): bool
+    {
+        $contentType = strtolower((string) $request->header('Content-Type', ''));
+        if (! str_starts_with($contentType, 'application/json')) {
+            return false;
+        }
+
+        $accept = strtolower((string) $request->header('Accept', '*/*'));
+        if ($accept !== '*/*' && ! str_contains($accept, 'application/json')) {
+            return false;
+        }
+
+        $origin = $request->header('Origin');
+        if (! is_string($origin) || $origin === '') {
+            return true;
+        }
+
+        return rtrim(strtolower($origin), '/') === strtolower($request->getSchemeAndHttpHost());
+    }
+
+    private function supportsProtocolHeader(Request $request): bool
+    {
+        $version = $request->header('MCP-Protocol-Version');
+
+        return $version === null
+            || in_array($version, self::SUPPORTED_PROTOCOL_VERSIONS, true);
     }
 }

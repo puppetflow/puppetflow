@@ -41,7 +41,11 @@ export default function WorkspaceMembers({
     const { activeTab, handleTabChange } = useWorkspaceMembersTab();
 
     return (
-        <AppLayout title="Workspace Members">
+        <AppLayout
+            title="Workspace Members"
+            documentationPath="/guide/users-teams-access"
+            documentationLabel="Open users, teams, and access documentation"
+        >
             <PageTabs
                 tabs={memberTabs}
                 activeTab={activeTab}

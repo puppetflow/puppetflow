@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { router } from '@inertiajs/react';
+import { usePageProps } from '@/App/Hooks/usePageProps';
 import { DocsBanner, DocsBannerIcon, DocsBannerText, DocsBannerTitle, DocsBannerDescription } from './styled';
 import MagicLinkChallenge from '@/Domains/Admin/Pages/Server/MagicLinkChallenge/MagicLinkChallenge';
 import type { AboutInfo, ServerSettings, StorageInfo } from '@/Domains/Admin/Pages/Server/types';
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function GeneralContent({ active, serverSettings, about, storage, userEmail }: Props) {
+    const { settings } = usePageProps();
     const [invitationRequestsEnabled, setInvitationRequestsEnabled] = useState(
         serverSettings.invitation_requests_enabled,
     );
@@ -55,7 +57,7 @@ export default function GeneralContent({ active, serverSettings, about, storage,
 
                 <S.Column>
                     <AboutCard about={about} />
-                    <S.DocsBanner href="https://docs.puppetflow.com" target="_blank" rel="noopener noreferrer">
+                    <S.DocsBanner href={settings.documentation_url} target="_blank" rel="noopener noreferrer">
                         <S.DocsBannerIcon>
                             <Icon icon="lucide:book-open" width={18} height={18} />
                         </S.DocsBannerIcon>

@@ -2,7 +2,7 @@ import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { McpFlow } from '@/Domains/Workspace/types';
 
-export type McpToolCategory = 'all' | 'flows' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams' | 'sensitive';
+export type McpToolCategory = 'all' | 'flows' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams';
 
 export const MCP_TOOL_CATEGORIES: { key: McpToolCategory; label: string }[] = [
     { key: 'all', label: 'All' },
@@ -31,7 +31,6 @@ const TOOL_CATEGORIES: Record<Exclude<McpToolCategory, 'all'>, string[]> = {
     artifacts: ['list_artifacts', 'get_latest_screenshot', 'download_artifact', 'get_recording', 'get_recording_lastshot'],
     workspace: ['get_current_workspace', 'update_current_workspace'],
     teams: ['list_workspace_members', 'list_teams', 'get_team', 'create_team', 'update_team', 'add_team_members', 'replace_team_members', 'set_member_teams'],
-    sensitive: ['get_run_sensitive_data'],
 };
 
 export function toolCategory(name: string): Exclude<McpToolCategory, 'all'> {

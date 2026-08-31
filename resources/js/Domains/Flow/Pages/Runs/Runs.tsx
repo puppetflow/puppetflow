@@ -92,7 +92,11 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
     };
 
     return (
-        <AppLayout title="Runs">
+        <AppLayout
+            title="Runs"
+            documentationPath="/guide/flow-runs"
+            documentationLabel="Open flow runs documentation"
+        >
             <StatsGrid items={statItems} />
             <RunsFilters
                 ref={filtersRef}

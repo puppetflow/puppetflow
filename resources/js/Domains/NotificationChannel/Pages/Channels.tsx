@@ -96,9 +96,11 @@ export default function Channels({ channels, groups, messengerIntegrations, team
         >
         <AppLayout
             title="Notification Channels"
-            headerRight={settings.messenger_enabled ? (
+            documentationPath="/guide/channels"
+            documentationLabel="Open notification channels documentation"
+            headerRight={(
                 <HeaderActions>
-                    {selectedIds.size > 0 && (
+                    {settings.messenger_enabled && selectedIds.size > 0 && (
                         <Button
                             size="sm"
                             variant="danger"
@@ -109,12 +111,14 @@ export default function Channels({ channels, groups, messengerIntegrations, team
                             Delete ({selectedIds.size})
                         </Button>
                     )}
-                    <Button size="sm" onClick={page.openCreate}>
-                        <Icon icon="lucide:plus" width={14} />
-                        <BtnLabel>New Channel</BtnLabel>
-                    </Button>
+                    {settings.messenger_enabled && (
+                        <Button size="sm" onClick={page.openCreate}>
+                            <Icon icon="lucide:plus" width={14} />
+                            <BtnLabel>New Channel</BtnLabel>
+                        </Button>
+                    )}
                 </HeaderActions>
-            ) : undefined}
+            )}
         >
             {!settings.messenger_enabled ? (
                 <FeatureUnavailablePanel />

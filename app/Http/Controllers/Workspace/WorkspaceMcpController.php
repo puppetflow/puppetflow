@@ -12,12 +12,12 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMcpSetting;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Mcp\McpOauthClientService;
 use App\Services\Mcp\McpToolService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Laravel\Passport\Client;
-use Laravel\Passport\ClientRepository;
 use Laravel\Passport\RefreshToken;
 use Laravel\Passport\Token;
 
@@ -25,7 +25,7 @@ class WorkspaceMcpController extends Controller
 {
     public function __construct(
         private McpToolService $mcpTools,
-        private ClientRepository $passportClients,
+        private McpOauthClientService $oauthClients,
     ) {}
 
     public function update(Request $request): JsonResponse
@@ -110,20 +110,12 @@ class WorkspaceMcpController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $client = $this->passportClients->createAuthorizationCodeGrantClient(
+        $mcpClient = $this->oauthClients->create(
+            $workspace,
             $validated['name'],
             [$validated['redirect_uri']],
-            false,
             $user,
-        );
-
-        $mcpClient = McpOauthClient::create([
-            'workspace_id' => $workspace->id,
-            'user_id' => $user->id,
-            'oauth_client_id' => $client->id,
-            'name' => $validated['name'],
-            'redirect_uri' => $validated['redirect_uri'],
-        ]);
+        )['registration'];
         $mcpClient->load('user:id,name');
 
         return response()->json($this->serializeOauthClient($mcpClient), 201);

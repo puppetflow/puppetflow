@@ -11,6 +11,7 @@ import { getProviderConfig } from '@/Domains/Integration/Pages/providerConfig';
 import { IntegrationCreationProvider } from '@/Domains/Integration/Contexts/IntegrationCreationContext';
 import type { Flow } from '@/Domains/Flow/types';
 import Button from '@/Shared/UI/Button/Button';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import Modal from '@/Shared/UI/Modal/Modal';
 import FlowIcon from '@/Shared/UI/FlowIcon/FlowIcon';
 import AvatarSelectionToggle from '@/Shared/UI/AvatarSelectionToggle/AvatarSelectionToggle';
@@ -375,6 +376,9 @@ export default function AiModels({ aiModels, groups, aiIntegrations, teams, filt
                                 Provider compatibility and AI behavior may evolve. Validate critical automations before using them in production.
                             </S.BetaBannerDescription>
                         </S.BetaBannerContent>
+                        <S.BetaBannerHelp>
+                            <DocHelpLink path="/guide/flows#ai-models" />
+                        </S.BetaBannerHelp>
                     </S.BetaBanner>
                     <S.Toolbar>
                         <S.SearchBar onSubmit={event => { event.preventDefault(); tableFilters.applyFilters(); }}>

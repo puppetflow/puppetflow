@@ -26,6 +26,7 @@ export interface AppSettings {
     max_flow_timeout_seconds: number;
     grabber_chrome_store_url: string;
     grabber_firefox_store_url: string;
+    documentation_url: string;
     queues_counter: number;
     snippets_enabled: boolean;
     variables_enabled: boolean;

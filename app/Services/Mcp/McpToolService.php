@@ -17,10 +17,49 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * @phpstan-type McpArguments array<string, mixed>
- * @phpstan-type McpToolDefinition array{name: string, description: string, inputSchema: array<string, mixed>}
+ * @phpstan-type McpToolDefinition array{name: string, title: string, description: string, inputSchema: array<string, mixed>, annotations: array{title: string, readOnlyHint: bool, destructiveHint: bool}}
  */
 final class McpToolService
 {
+    /** @var array<string, array{title: string, readOnly: bool}> */
+    private const TOOL_METADATA = [
+        'search_flows' => ['title' => 'Search Flows', 'readOnly' => true],
+        'get_flow_details' => ['title' => 'Get Flow Details', 'readOnly' => true],
+        'get_flow_source' => ['title' => 'Get Flow Source', 'readOnly' => true],
+        'list_folders' => ['title' => 'List Folders', 'readOnly' => true],
+        'get_flow_creation_options' => ['title' => 'Get Flow Creation Options', 'readOnly' => true],
+        'get_nodal_catalog' => ['title' => 'Get Nodal Catalog', 'readOnly' => true],
+        'list_flow_resources' => ['title' => 'List Flow Resources', 'readOnly' => true],
+        'write_code_flow' => ['title' => 'Write Code Flow', 'readOnly' => false],
+        'write_nodal_flow' => ['title' => 'Write Nodal Flow', 'readOnly' => false],
+        'search_snippets' => ['title' => 'Search Snippets', 'readOnly' => true],
+        'get_snippet_source' => ['title' => 'Get Snippet Source', 'readOnly' => true],
+        'get_snippet_creation_options' => ['title' => 'Get Snippet Creation Options', 'readOnly' => true],
+        'write_code_snippet' => ['title' => 'Write Code Snippet', 'readOnly' => false],
+        'write_nodal_snippet' => ['title' => 'Write Nodal Snippet', 'readOnly' => false],
+        'search_runs' => ['title' => 'Search Runs', 'readOnly' => true],
+        'list_flow_runs' => ['title' => 'List Flow Runs', 'readOnly' => true],
+        'run_flow' => ['title' => 'Run Flow', 'readOnly' => false],
+        'get_run' => ['title' => 'Get Run', 'readOnly' => true],
+        'get_run_result' => ['title' => 'Get Run Result', 'readOnly' => true],
+        'continue_human_validation' => ['title' => 'Continue Human Validation', 'readOnly' => false],
+        'list_artifacts' => ['title' => 'List Artifacts', 'readOnly' => true],
+        'get_latest_screenshot' => ['title' => 'Get Latest Screenshot', 'readOnly' => true],
+        'download_artifact' => ['title' => 'Download Artifact', 'readOnly' => true],
+        'get_recording' => ['title' => 'Get Recording', 'readOnly' => true],
+        'get_recording_lastshot' => ['title' => 'Get Last Recording Frame', 'readOnly' => true],
+        'get_current_workspace' => ['title' => 'Get Current Workspace', 'readOnly' => true],
+        'update_current_workspace' => ['title' => 'Update Current Workspace', 'readOnly' => false],
+        'list_workspace_members' => ['title' => 'List Workspace Members', 'readOnly' => true],
+        'list_teams' => ['title' => 'List Teams', 'readOnly' => true],
+        'get_team' => ['title' => 'Get Team', 'readOnly' => true],
+        'create_team' => ['title' => 'Create Team', 'readOnly' => false],
+        'update_team' => ['title' => 'Update Team', 'readOnly' => false],
+        'add_team_members' => ['title' => 'Add Team Members', 'readOnly' => false],
+        'replace_team_members' => ['title' => 'Replace Team Members', 'readOnly' => false],
+        'set_member_teams' => ['title' => 'Set Member Teams', 'readOnly' => false],
+    ];
+
     private const ALWAYS_AVAILABLE_TOOLS = [
         'get_nodal_catalog',
     ];
@@ -96,10 +135,39 @@ final class McpToolService
     /** @return list<McpToolDefinition> */
     public function allTools(): array
     {
-        return $this->tools ??= array_merge(...array_map(
+        if ($this->tools !== null) {
+            return $this->tools;
+        }
+
+        $definitions = array_merge(...array_map(
             fn (McpToolHandler $handler) => $handler->definitions(),
             $this->handlers,
         ));
+
+        $this->tools = array_map(function (array $definition): array {
+            $name = $definition['name'];
+            $metadata = self::TOOL_METADATA[$name] ?? null;
+            if ($metadata === null) {
+                throw new \LogicException("MCP tool {$name} is missing directory metadata.");
+            }
+
+            return [
+                ...$definition,
+                'title' => $metadata['title'],
+                'annotations' => [
+                    'title' => $metadata['title'],
+                    'readOnlyHint' => $metadata['readOnly'],
+                    'destructiveHint' => ! $metadata['readOnly'],
+                ],
+            ];
+        }, $definitions);
+
+        $unusedMetadata = array_diff(array_keys(self::TOOL_METADATA), array_column($definitions, 'name'));
+        if ($unusedMetadata !== []) {
+            throw new \LogicException('MCP directory metadata references unknown tools: '.implode(', ', $unusedMetadata));
+        }
+
+        return $this->tools;
     }
 
     /**

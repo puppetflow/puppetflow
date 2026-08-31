@@ -97,7 +97,11 @@ export default function Integrations({ integrations, isWorkspaceAdmin, teams }: 
     };
 
     return (
-        <AppLayout title="Integrations">
+        <AppLayout
+            title="Integrations"
+            documentationPath="/guide/integrations"
+            documentationLabel="Open integrations documentation"
+        >
             <S.Page>
                 {CATEGORIES
                     .filter(cat => categoryEnabled(cat.key) || settings.promote_disabled_features)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import Button from '@/Shared/UI/Button/Button';
 import BulkDeleteConfirmation from '@/Shared/UI/BulkDeleteConfirmation/BulkDeleteConfirmation';
 import Modal from '@/Shared/UI/Modal/Modal';
@@ -91,7 +92,11 @@ export default function ActionsPane({ flowId, actions, otherActions, teams, grou
         <Layout.SidePanelSection>
             <Layout.SidePanelSectionInner>
                 <Layout.SectionHeader>
-                    <Layout.SectionTitle><Icon icon="lucide:send" width={14} /> Actions</Layout.SectionTitle>
+                    <Layout.SectionTitle>
+                        <Icon icon="lucide:send" width={14} />
+                        Actions
+                        <DocHelpLink path="/guide/triggers-actions#actions" label="Open actions documentation" />
+                    </Layout.SectionTitle>
                     <Layout.SectionHeaderActions>
                         {selectedIds.size > 0 && (
                             <Button

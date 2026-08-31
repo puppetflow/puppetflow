@@ -82,7 +82,7 @@ Route::middleware(\App\Http\Middleware\AuthenticateMcpToken::class)
         Route::get('flows/{id}/runs/{run}/recording/lastshot', [McpServerController::class, 'downloadRecordingLastshot'])->name('recording.lastshot');
     });
 
-Route::middleware(['auth:api', \App\Http\Middleware\AuthenticateMcpOAuth::class])
+Route::middleware(\App\Http\Middleware\AuthenticateMcpOAuth::class)
     ->prefix('workspaces/{workspace}/mcp-server')
     ->name('mcp.oauth.')
     ->group(function () {

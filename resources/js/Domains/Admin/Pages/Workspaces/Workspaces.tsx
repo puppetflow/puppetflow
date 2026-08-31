@@ -61,6 +61,8 @@ export default function Workspaces({ adminWorkspaces, editingWorkspace, workspac
     return (
         <AppLayout
             title="Workspaces"
+            documentationPath="/self-hosting/admin#workspace-management"
+            documentationLabel="Open workspace management documentation"
             headerRight={
                 <Button size="sm" onClick={handleAddWorkspace}>
                     <Icon icon="lucide:plus" width={14} height={14} />

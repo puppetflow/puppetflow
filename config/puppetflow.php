@@ -60,6 +60,8 @@ return [
 
     'blueprints_api_url' => env('BLUEPRINTS_API_URL', 'https://puppetflow.com/api/blueprints'),
 
+    'documentation_url' => env('DOCUMENTATION_URL', 'https://docs.puppetflow.com'),
+
     'feature_flags' => [
         'snippets_enabled' => filter_var(env('FF_SNIPPETS_ENABLED', true), FILTER_VALIDATE_BOOL),
         'variables_enabled' => filter_var(env('FF_VARIABLES_ENABLED', true), FILTER_VALIDATE_BOOL),

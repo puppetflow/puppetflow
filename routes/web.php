@@ -42,6 +42,7 @@ use App\Http\Controllers\Library\LibraryController;
 use App\Http\Controllers\Licensing\LicenseLauncherController;
 use App\Http\Controllers\Mailbox\MailboxController;
 use App\Http\Controllers\Mailbox\MailboxEmailController;
+use App\Http\Controllers\Mcp\McpOAuthController;
 use App\Http\Controllers\NotificationChannel\NotificationChannelController;
 use App\Http\Controllers\Snippet\SnippetController;
 use App\Http\Controllers\Snippet\SnippetVersionController;
@@ -59,6 +60,14 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 $guestMiddleware = config('app.safe_mode') ? [] : ['guest'];
+
+Route::get('.well-known/oauth-protected-resource/api/workspaces/{workspace}/mcp-server/http', [McpOAuthController::class, 'protectedResource'])
+    ->name('mcp.oauth.protected-resource');
+Route::get('.well-known/oauth-authorization-server/workspaces/{workspace}', [McpOAuthController::class, 'authorizationServer'])
+    ->name('mcp.oauth.authorization-server');
+Route::post('oauth/register/{workspace}', [McpOAuthController::class, 'register'])
+    ->middleware('throttle:20,1')
+    ->name('mcp.oauth.register');
 
 if (! config('license.managed_license')) {
     Route::get('license', [LicenseLauncherController::class, 'show'])->name('license.launcher');

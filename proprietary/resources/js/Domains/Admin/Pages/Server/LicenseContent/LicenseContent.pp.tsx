@@ -1,5 +1,6 @@
 import DeleteLicenseConfirmation from '@proprietary/Domains/Admin/Pages/Server/DeleteLicenseConfirmation/DeleteLicenseConfirmation.pp';
 import type { LicenseInfo } from '@/Domains/Admin/Pages/Server/types';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import ActivationFileSection from './ActivationFileSection.pp';
 import CycleUsageSection from './CycleUsageSection.pp';
 import EntitlementsSection from './EntitlementsSection.pp';
@@ -23,7 +24,16 @@ export default function LicenseContent({ active, license }: Props) {
                     <S.Column>
                         <OverviewSection license={license} pinging={actions.pinging} onPing={actions.ping} />
                         {!license.managed_license && (
-                            <ActivationFileSection license={license} actions={actions} />
+                            <ActivationFileSection
+                                license={license}
+                                actions={actions}
+                                headerAction={(
+                                    <DocHelpLink
+                                        path="/self-hosting/license-activation"
+                                        label="Open license activation documentation"
+                                    />
+                                )}
+                            />
                         )}
                     </S.Column>
 

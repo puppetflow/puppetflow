@@ -68,10 +68,12 @@ export default function MailboxesView({
     return (
         <AppLayout
             title="Mailboxes"
+            documentationPath="/guide/mailboxes"
+            documentationLabel="Open mailboxes documentation"
             noPadding
-            headerRight={mailboxEnabled && (isAdmin || selectedMailboxIds.size > 0) && (
+            headerRight={(
                 <S.HeaderActions>
-                    {selectedMailboxIds.size > 0 && (
+                    {mailboxEnabled && selectedMailboxIds.size > 0 && (
                         <Button
                             size="sm"
                             variant="danger"
@@ -82,7 +84,7 @@ export default function MailboxesView({
                             Delete ({selectedMailboxIds.size})
                         </Button>
                     )}
-                    {isAdmin && (
+                    {mailboxEnabled && isAdmin && (
                         <Button size="sm" onClick={modals.openCreate}>
                             <Icon icon="lucide:plus" width={14} />
                             <S.HeaderButtonLabel>New Mailbox</S.HeaderButtonLabel>

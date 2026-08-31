@@ -7,7 +7,7 @@ FROM php:8.4-fpm AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git unzip zip libpq-dev libsqlite3-dev libzip-dev libpng-dev libldap2-dev \
+    curl git openssl unzip zip libpq-dev libsqlite3-dev libzip-dev libpng-dev libldap2-dev \
     libjpeg62-turbo-dev libfreetype6-dev libonig-dev libxml2-dev libcurl4-openssl-dev \
     chromium fonts-liberation libappindicator3-1 libasound2 libatk-bridge2.0-0 \
     libdrm2 libgbm1 libgtk-3-0 libnss3 libx11-xcb1 libxcomposite1 \

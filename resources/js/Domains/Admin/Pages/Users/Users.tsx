@@ -131,6 +131,8 @@ export default function Users({ users, editingUser: initialEditingUser, allWorks
     return (
         <AppLayout
             title="Users"
+            documentationPath="/self-hosting/admin#user-management"
+            documentationLabel="Open user management documentation"
             headerRight={
                 <S.HeaderActions>
                     {selectedUserIds.size > 0 && (

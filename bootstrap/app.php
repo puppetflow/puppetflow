@@ -43,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(\App\Http\Middleware\AddSecurityHeaders::class);
         $middleware->validateCsrfTokens(except: [
             'sso/saml/acs',
+            'oauth/register/*',
         ]);
         $middleware->web(append: [
             \App\Http\Middleware\EnsureValidLicense::class,

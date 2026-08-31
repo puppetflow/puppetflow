@@ -130,7 +130,11 @@ export default function FlowCreate({ personalTree, defaultOwnerId = null, defaul
     ) : null;
 
     return (
-        <AppLayout title="Create Flow">
+        <AppLayout
+            title="Create Flow"
+            documentationPath="/guide/flows#flow-types"
+            documentationLabel="Open flow types documentation"
+        >
             <S.Container>
                 <S.TwoColumns onSubmit={handleSubmit}>
                     <S.Column>

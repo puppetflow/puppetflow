@@ -17,6 +17,7 @@ class McpOauthClient extends Model
         'oauth_client_id',
         'name',
         'redirect_uri',
+        'dynamically_registered',
         'revoked_at',
         'stale',
     ];
@@ -25,6 +26,7 @@ class McpOauthClient extends Model
     {
         return [
             'revoked_at' => 'datetime',
+            'dynamically_registered' => 'boolean',
             'stale' => 'boolean',
         ];
     }

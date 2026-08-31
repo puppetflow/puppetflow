@@ -1,4 +1,5 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { StorageInfo } from '@/Domains/Admin/Pages/Server/types';
 import { formatBytes, progressBarWidth } from '@/Domains/Admin/Pages/Server/utils';
 import * as S from '../shared.styled';
@@ -16,6 +17,10 @@ export default function StorageCard({ storage }: Props) {
             <S.CardTitle>
                 <Icon icon="lucide:database" width={15} height={15} />
                 Data storage
+                <DocHelpLink
+                    path="/self-hosting/storage"
+                    label="Open data storage documentation"
+                />
             </S.CardTitle>
             <S.StorageUsageHeader>
                 <S.StorageUsageTitle>Data directory</S.StorageUsageTitle>
