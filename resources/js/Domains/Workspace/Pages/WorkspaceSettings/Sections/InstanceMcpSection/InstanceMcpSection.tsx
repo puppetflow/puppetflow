@@ -73,17 +73,6 @@ export default function InstanceMcpSection({
             </S.TopGrid>
 
             <S.ConnectionModeGrid>
-                <TokensCard
-                    endpoint={endpoint}
-                    tokens={tokens}
-                    busy={busy}
-                    tokenBusy={tokenBusy}
-                    readOnly={readOnly}
-                    setBusy={setBusy}
-                    setTokenBusy={setTokenBusy}
-                    setOauthClientBusy={setOauthClientBusy}
-                    setError={setError}
-                />
                 <OauthCard
                     endpoint={oauthEndpoint}
                     authorizeUrl={oauthAuthorizeUrl}
@@ -95,6 +84,17 @@ export default function InstanceMcpSection({
                     readOnly={readOnly}
                     setBusy={setBusy}
                     setClientBusy={setOauthClientBusy}
+                    setError={setError}
+                />
+                <TokensCard
+                    endpoint={endpoint}
+                    tokens={tokens}
+                    busy={busy}
+                    tokenBusy={tokenBusy}
+                    readOnly={readOnly}
+                    setBusy={setBusy}
+                    setTokenBusy={setTokenBusy}
+                    setOauthClientBusy={setOauthClientBusy}
                     setError={setError}
                 />
             </S.ConnectionModeGrid>

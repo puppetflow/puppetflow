@@ -89,7 +89,6 @@ export const EndpointBox = styled.div`
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 18px;
     min-width: 0;
 `;
 

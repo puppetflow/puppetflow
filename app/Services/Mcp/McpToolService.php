@@ -32,11 +32,15 @@ final class McpToolService
         'list_flow_resources' => ['title' => 'List Flow Resources', 'readOnly' => true],
         'write_code_flow' => ['title' => 'Write Code Flow', 'readOnly' => false],
         'write_nodal_flow' => ['title' => 'Write Nodal Flow', 'readOnly' => false],
+        'publish_flow' => ['title' => 'Publish Flow', 'readOnly' => false],
+        'unpublish_flow' => ['title' => 'Unpublish Flow', 'readOnly' => false],
         'search_snippets' => ['title' => 'Search Snippets', 'readOnly' => true],
         'get_snippet_source' => ['title' => 'Get Snippet Source', 'readOnly' => true],
         'get_snippet_creation_options' => ['title' => 'Get Snippet Creation Options', 'readOnly' => true],
         'write_code_snippet' => ['title' => 'Write Code Snippet', 'readOnly' => false],
         'write_nodal_snippet' => ['title' => 'Write Nodal Snippet', 'readOnly' => false],
+        'publish_snippet' => ['title' => 'Publish Snippet', 'readOnly' => false],
+        'unpublish_snippet' => ['title' => 'Unpublish Snippet', 'readOnly' => false],
         'search_runs' => ['title' => 'Search Runs', 'readOnly' => true],
         'list_flow_runs' => ['title' => 'List Flow Runs', 'readOnly' => true],
         'run_flow' => ['title' => 'Run Flow', 'readOnly' => false],
@@ -70,6 +74,10 @@ final class McpToolService
         'write_code_snippet',
         'write_nodal_flow',
         'write_nodal_snippet',
+        'publish_flow',
+        'unpublish_flow',
+        'publish_snippet',
+        'unpublish_snippet',
         'search_snippets',
         'get_snippet_source',
         'list_folders',
@@ -93,11 +101,15 @@ final class McpToolService
         'list_flow_resources' => 'List the workspace resources that can be referenced by a flow or snippet.',
         'write_code_flow' => 'Create or update a flow written in JavaScript.',
         'write_nodal_flow' => 'Create or update a visual flow built from connected nodes.',
+        'publish_flow' => 'Publish the current flow draft as a new version.',
+        'unpublish_flow' => 'Unpublish a flow while keeping its draft and version history.',
         'search_snippets' => 'Find published snippets available in this workspace.',
         'get_snippet_source' => 'Read the editable source of a snippet.',
         'get_snippet_creation_options' => 'List the scopes and teams available when creating a snippet.',
         'write_code_snippet' => 'Create or update a reusable JavaScript snippet.',
         'write_nodal_snippet' => 'Create or update a reusable visual snippet.',
+        'publish_snippet' => 'Publish the current snippet draft as a new version.',
+        'unpublish_snippet' => 'Unpublish a snippet while keeping its draft and version history.',
     ];
 
     /** @var list<McpToolHandler> */
@@ -267,10 +279,10 @@ final class McpToolService
     {
         $effective = $this->configuredToolNames($setting);
 
-        if (array_intersect($effective, ['write_code_flow', 'write_nodal_flow']) !== []) {
+        if (array_intersect($effective, ['write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow']) !== []) {
             $effective = [...$effective, 'search_flows', 'get_flow_source', 'get_flow_creation_options', 'list_flow_resources'];
         }
-        if (array_intersect($effective, ['write_code_snippet', 'write_nodal_snippet']) !== []) {
+        if (array_intersect($effective, ['write_code_snippet', 'write_nodal_snippet', 'publish_snippet', 'unpublish_snippet']) !== []) {
             $effective = [...$effective, 'search_snippets', 'get_snippet_source', 'get_snippet_creation_options', 'list_flow_resources'];
         }
 

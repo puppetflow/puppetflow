@@ -7,12 +7,16 @@ use App\Authorization\Visibility\FolderVisibility;
 use App\Enums\Authorization\Ability;
 use App\Models\Flow;
 use App\Models\Folder;
+use App\Rules\ValidNodalGraph;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\FlowWriteService;
 use App\Services\Flow\NodalCatalogService;
 use App\Services\Mcp\AuthoringResourceProjection;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -31,6 +35,8 @@ final class FlowMcpTools implements McpToolHandler
         'list_flow_resources',
         'write_code_flow',
         'write_nodal_flow',
+        'publish_flow',
+        'unpublish_flow',
     ];
 
     public function __construct(
@@ -71,6 +77,32 @@ final class FlowMcpTools implements McpToolHandler
             ]]],
             $this->codeWriterDefinition(),
             $this->nodalWriterDefinition(),
+            [
+                'name' => 'publish_flow',
+                'description' => 'Publish the current editable flow draft as a new version. Call get_flow_source first and provide its exact content_updated_at value.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['flow_id', 'content_updated_at'],
+                    'properties' => [
+                        'flow_id' => $identifier,
+                        'content_updated_at' => ['type' => 'string', 'description' => 'Exact timestamp returned by get_flow_source.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'unpublish_flow',
+                'description' => 'Unpublish a flow without deleting its version history or editable draft. Call get_flow_source first and provide its exact content_updated_at value.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['flow_id', 'content_updated_at'],
+                    'properties' => [
+                        'flow_id' => $identifier,
+                        'content_updated_at' => ['type' => 'string', 'description' => 'Exact timestamp returned by get_flow_source.'],
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -91,6 +123,8 @@ final class FlowMcpTools implements McpToolHandler
             'list_flow_resources' => $this->flowResources($arguments, $context),
             'write_code_flow' => $this->write($arguments, $context, 'code'),
             'write_nodal_flow' => $this->write($arguments, $context, 'nodal'),
+            'publish_flow' => $this->setPublication($arguments, $context, true),
+            'unpublish_flow' => $this->setPublication($arguments, $context, false),
             default => throw ValidationException::withMessages(['name' => 'Unknown flow tool.']),
         };
     }
@@ -342,6 +376,91 @@ final class FlowMcpTools implements McpToolHandler
             'content_updated_at' => $flow->content_updated_at?->toJSON(),
             'url' => route('flows.show', $flow).'#code',
         ]];
+    }
+
+    /** @param Arguments $arguments
+     * @return array<string, mixed>
+     */
+    private function setPublication(array $arguments, McpToolContext $context, bool $publish): array
+    {
+        $flowId = trim(McpToolArguments::string($arguments, 'flow_id'));
+        $clientTimestamp = trim(McpToolArguments::string($arguments, 'content_updated_at'));
+        if ($flowId === '' || $clientTimestamp === '') {
+            throw ValidationException::withMessages([
+                $flowId === '' ? 'flow_id' : 'content_updated_at' => $flowId === ''
+                    ? 'Flow ID is required.'
+                    : 'The content timestamp is required.',
+            ]);
+        }
+
+        $flow = DB::transaction(function () use ($clientTimestamp, $context, $flowId, $publish): Flow {
+            $flow = Flow::query()
+                ->where('workspace_id', $context->workspace->id)
+                ->whereKey($flowId)
+                ->lockForUpdate()
+                ->first();
+            if (! $flow || Gate::forUser($context->user)->denies(Ability::UPDATE->value, $flow)) {
+                throw ValidationException::withMessages(['flow_id' => 'Flow not found or not editable.']);
+            }
+            if ($flow->library_locked) {
+                throw ValidationException::withMessages([
+                    'flow_id' => 'Library flows cannot be published. Duplicate the flow first.',
+                ]);
+            }
+            $this->ensureCurrent($clientTimestamp, $flow->content_updated_at ?? $flow->updated_at);
+
+            if (! $publish) {
+                $flow->update(['is_published' => false]);
+
+                return $flow;
+            }
+
+            $rules = ['code' => ['required', 'string']];
+            if ($flow->flow_type === 'nodal') {
+                $rules['nodal_graph'] = ['required', 'array', new ValidNodalGraph];
+            }
+            Validator::make($flow->only(['code', 'nodal_graph']), $rules)->validate();
+            $latestVersion = $flow->versions()->max('version');
+            $version = $flow->versions()->create([
+                'version' => is_numeric($latestVersion) ? ((int) $latestVersion) + 1 : 1,
+                'code' => $flow->code,
+                'nodal_graph' => $flow->flow_type === 'nodal' ? $flow->nodal_graph : null,
+                'flow_type' => $flow->flow_type,
+                'published_by' => $context->user->id,
+                'published_at' => now(),
+            ]);
+            $flow->update([
+                'published_version_id' => $version->id,
+                'is_published' => true,
+            ]);
+
+            return $flow;
+        }, 3);
+        $flow->load('publishedVersion');
+
+        return ['flow' => [
+            'id' => $flow->id,
+            'name' => $flow->name,
+            'is_published' => (bool) $flow->is_published,
+            'published_version' => $flow->published_version_number,
+            'content_updated_at' => $flow->content_updated_at?->toJSON(),
+        ]];
+    }
+
+    private function ensureCurrent(string $clientTimestamp, ?Carbon $serverTimestamp): void
+    {
+        try {
+            $client = Carbon::parse($clientTimestamp);
+        } catch (\Throwable) {
+            throw ValidationException::withMessages([
+                'content_updated_at' => 'The content timestamp is invalid.',
+            ]);
+        }
+        if (! $serverTimestamp || ! $serverTimestamp->equalTo($client)) {
+            throw ValidationException::withMessages([
+                'content_updated_at' => 'This flow changed since it was read. Read the latest source and retry.',
+            ]);
+        }
     }
 
     /** @return ToolDefinition */
