@@ -69,7 +69,24 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         };
     }
 
-    if (entry.name === '$gotoUrl' || entry.name === '$gotoTab') {
+    if (entry.name === '$gotoUrl') {
+        return {
+            tabName: { mode: 'fixed' as const, value: 'Default' },
+            options: {
+                mode: 'object' as const,
+                inputMode: 'form' as const,
+                jsonMode: 'fixed' as const,
+                value: '{"settleDelay":2000}',
+                fields: [{
+                    id: 'goto-settle-delay',
+                    key: 'settleDelay',
+                    value: { mode: 'fixed' as const, value: '2000' },
+                }],
+            },
+        };
+    }
+
+    if (entry.name === '$gotoTab') {
         return {
             tabName: { mode: 'fixed' as const, value: 'Default' },
         };

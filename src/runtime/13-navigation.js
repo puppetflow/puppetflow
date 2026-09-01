@@ -18,13 +18,14 @@ const __normalizeBrowserTabName = function(tabName, helperName) {
  * @desc Open a URL in a named browser tab with configurable wait strategy, headers and CSP bypass. Creates the tab when needed and returns the Puppeteer HTTPResponse from page.goto.
  * @nodal-desc Open a URL in a named browser tab and wait for the page to be ready.
  * @nodal-output httpResponse
- * @opt waitUntil: "networkidle0"|"domcontentloaded"|"networkidle2"|"load"|"commit", timeout: flow timeout, headers: {}, bypassCSP: true
+ * @opt waitUntil: "networkidle0"|"domcontentloaded"|"networkidle2"|"load"|"commit", timeout: flow timeout, headers: {}, bypassCSP: true, settleDelay: 2000
  * @nodal-param url [string, required]: Web page URL to open.
  * @nodal-param tabName [tab-name]: Browser tab to create or reuse.
  * @nodal-param options: Navigation options.
  * @nodal-param options.waitUntil [string]: Browser loading state to wait for before continuing.
  * @nodal-param options.headers [custom-object]: Extra HTTP headers to send for this navigation.
  * @nodal-param options.bypassCSP [boolean]: Allow helper scripts to run even when the page has a strict Content Security Policy.
+ * @nodal-param options.settleDelay [number]: Grace period in milliseconds after navigation completes. Defaults to 2000. Set to 0 to continue immediately.
  * @site-url output: url
  */
 const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
@@ -65,7 +66,12 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
     timeout = Number.isFinite(defaultNavigationTimeout) && defaultNavigationTimeout > 0 ? defaultNavigationTimeout : 30000,
     headers = {},
     bypassCSP = true,
+    settleDelay = 2000,
   } = opts;
+  const normalizedSettleDelay = Number(settleDelay);
+  if (!Number.isFinite(normalizedSettleDelay) || normalizedSettleDelay < 0) {
+    throw new TypeError('$gotoUrl: options.settleDelay must be a non-negative finite number.');
+  }
 
   console.debug('Navigating tab "' + tabName + '" to:', url, 'timeout:', timeout);
 
@@ -106,7 +112,9 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
     await page.setBypassCSP(true);
   }
 
-  await __internalSleep(2000);
+  if (normalizedSettleDelay > 0) {
+    await __internalSleep(normalizedSettleDelay);
+  }
   await __captureBrowserStorage().catch(error => {
     console.error('Cannot save browser storage after navigation:', error && error.message ? error.message : error);
   });
