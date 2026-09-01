@@ -556,6 +556,11 @@ const __readCookieJar = async function(jarName, helperName) {
   };
 };
 
+const __restoreCookies = async function(cookies) {
+  if (!Array.isArray(cookies) || cookies.length === 0) return;
+  await $client.send('Network.setCookies', { cookies });
+};
+
 const __capturePageLocalStorage = async function(page) {
   return page.evaluate(() => {
     try {
@@ -646,8 +651,8 @@ const __internalLoadCookies = async function(jarName) {
   const resolvedJarName = __resolveCookieJarName(jarName);
   try {
     const jar = await __readCookieJar(resolvedJarName, '$loadCookies');
-    await $page.setCookie(...jar.cookies);
-    return true;
+    await __restoreCookies(jar.cookies);
+    return jar;
   } catch {
     return false;
   }
@@ -658,13 +663,9 @@ const $loadCookies = async function(jarName, options) {
   __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
   __emitAction('cookies', resolved.jarName);
   console.debug('Loading browser storage from store:', resolved.jarName);
-  let jar = null;
   __localStorageByOrigin = {};
-  try {
-    jar = await __readCookieJar(resolved.jarName, '$loadCookies');
-    await $page.setCookie(...jar.cookies);
-  } catch {}
-  if (jar === null) {
+  const jar = await __internalLoadCookies(resolved.jarName);
+  if (!jar) {
     console.error('Cannot load browser storage from store:', resolved.jarName);
   } else {
     __localStorageByOrigin = resolved.persistLocalStorage ? jar.localStorage : {};
