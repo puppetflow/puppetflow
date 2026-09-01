@@ -2,11 +2,12 @@ import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { McpFlow } from '@/Domains/Workspace/types';
 
-export type McpToolCategory = 'all' | 'flows' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams';
+export type McpToolCategory = 'all' | 'flows' | 'automation' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams';
 
 export const MCP_TOOL_CATEGORIES: { key: McpToolCategory; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'flows', label: 'Flows' },
+    { key: 'automation', label: 'Automation' },
     { key: 'snippets', label: 'Snippets' },
     { key: 'runs', label: 'Runs' },
     { key: 'artifacts', label: 'Artifacts' },
@@ -21,6 +22,10 @@ const TOOL_CATEGORIES: Record<Exclude<McpToolCategory, 'all'>, string[]> = {
         'search_flows', 'get_flow_details', 'get_flow_source', 'list_folders',
         'get_flow_creation_options', 'get_nodal_catalog', 'list_flow_resources',
         'write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow',
+    ],
+    automation: [
+        'list_flow_triggers', 'create_flow_trigger', 'update_flow_trigger', 'delete_flow_trigger',
+        'list_flow_actions', 'create_flow_action', 'update_flow_action', 'delete_flow_action',
     ],
     snippets: [
         'search_snippets',

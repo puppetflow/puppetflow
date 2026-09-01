@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMcpSetting;
 use App\Services\Mcp\Tools\ArtifactMcpTools;
+use App\Services\Mcp\Tools\FlowAutomationMcpTools;
 use App\Services\Mcp\Tools\FlowMcpTools;
 use App\Services\Mcp\Tools\McpToolContext;
 use App\Services\Mcp\Tools\McpToolHandler;
@@ -34,6 +35,14 @@ final class McpToolService
         'write_nodal_flow' => ['title' => 'Write Nodal Flow', 'readOnly' => false],
         'publish_flow' => ['title' => 'Publish Flow', 'readOnly' => false],
         'unpublish_flow' => ['title' => 'Unpublish Flow', 'readOnly' => false],
+        'list_flow_triggers' => ['title' => 'List Flow Triggers', 'readOnly' => true],
+        'create_flow_trigger' => ['title' => 'Create Flow Trigger', 'readOnly' => false],
+        'update_flow_trigger' => ['title' => 'Update Flow Trigger', 'readOnly' => false],
+        'delete_flow_trigger' => ['title' => 'Delete Flow Trigger', 'readOnly' => false],
+        'list_flow_actions' => ['title' => 'List Flow Actions', 'readOnly' => true],
+        'create_flow_action' => ['title' => 'Create Flow Action', 'readOnly' => false],
+        'update_flow_action' => ['title' => 'Update Flow Action', 'readOnly' => false],
+        'delete_flow_action' => ['title' => 'Delete Flow Action', 'readOnly' => false],
         'search_snippets' => ['title' => 'Search Snippets', 'readOnly' => true],
         'get_snippet_source' => ['title' => 'Get Snippet Source', 'readOnly' => true],
         'get_snippet_creation_options' => ['title' => 'Get Snippet Creation Options', 'readOnly' => true],
@@ -76,6 +85,14 @@ final class McpToolService
         'write_nodal_snippet',
         'publish_flow',
         'unpublish_flow',
+        'list_flow_triggers',
+        'create_flow_trigger',
+        'update_flow_trigger',
+        'delete_flow_trigger',
+        'list_flow_actions',
+        'create_flow_action',
+        'update_flow_action',
+        'delete_flow_action',
         'publish_snippet',
         'unpublish_snippet',
         'search_snippets',
@@ -103,6 +120,14 @@ final class McpToolService
         'write_nodal_flow' => 'Create or update a visual flow built from connected nodes.',
         'publish_flow' => 'Publish the current flow draft as a new version.',
         'unpublish_flow' => 'Unpublish a flow while keeping its draft and version history.',
+        'list_flow_triggers' => 'List the cron and webhook triggers configured for a flow.',
+        'create_flow_trigger' => 'Create a cron schedule or webhook trigger for a flow.',
+        'update_flow_trigger' => 'Update a cron schedule or webhook trigger.',
+        'delete_flow_trigger' => 'Permanently delete a flow trigger.',
+        'list_flow_actions' => 'List the post-run webhook actions configured for a flow.',
+        'create_flow_action' => 'Create a post-run webhook action for a flow.',
+        'update_flow_action' => 'Update a post-run webhook action.',
+        'delete_flow_action' => 'Permanently delete a post-run webhook action.',
         'search_snippets' => 'Find published snippets available in this workspace.',
         'get_snippet_source' => 'Read the editable source of a snippet.',
         'get_snippet_creation_options' => 'List the scopes and teams available when creating a snippet.',
@@ -123,13 +148,14 @@ final class McpToolService
 
     public function __construct(
         FlowMcpTools $flows,
+        FlowAutomationMcpTools $flowAutomations,
         RunMcpTools $runs,
         ArtifactMcpTools $artifacts,
         SnippetMcpTools $snippets,
         WorkspaceMcpTools $workspace,
         TeamMcpTools $teams,
     ) {
-        $this->handlers = [$flows, $snippets, $runs, $artifacts, $workspace, $teams];
+        $this->handlers = [$flows, $flowAutomations, $snippets, $runs, $artifacts, $workspace, $teams];
     }
 
     /** @return list<McpToolDefinition> */
