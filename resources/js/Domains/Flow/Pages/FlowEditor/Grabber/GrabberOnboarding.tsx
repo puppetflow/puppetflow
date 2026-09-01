@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import * as S from './GrabberOnboarding.styled';
 
 interface GrabberOnboardingProps {
     chromeStoreUrl: string;
     firefoxStoreUrl: string;
+    documentationUrl: string;
     onClose: () => void;
     onStart: () => void;
     onDismissFuture: () => void;
@@ -14,6 +14,7 @@ interface GrabberOnboardingProps {
 export default function GrabberOnboarding({
     chromeStoreUrl,
     firefoxStoreUrl,
+    documentationUrl,
     onClose,
     onStart,
     onDismissFuture,
@@ -71,7 +72,15 @@ export default function GrabberOnboarding({
                 </S.StoreBanners>
                 <S.TitleRow>
                     <S.Title id="grabber-onboarding-title">Pick it from the page</S.Title>
-                    <DocHelpLink path="/guide/grabber-browser-extension" label="Open Grabber documentation" />
+                    <S.HelpLink
+                        href={`${documentationUrl.replace(/\/+$/, '')}/guide/grabber-browser-extension`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Open Grabber documentation"
+                        aria-label="Open Grabber documentation"
+                    >
+                        <Icon icon="lucide:circle-help" width={15} height={15} />
+                    </S.HelpLink>
                 </S.TitleRow>
                 <S.Intro>
                     Open the page, click what you need, and the selector will land right here.

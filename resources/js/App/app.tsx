@@ -74,6 +74,17 @@ function getGrabberFirefoxStoreUrl(props: Record<string, unknown>): string {
         : '';
 }
 
+function getDocumentationUrl(props: Record<string, unknown>): string {
+    const settings = props.settings;
+    if (!settings || typeof settings !== 'object' || !('documentation_url' in settings)) {
+        return '';
+    }
+
+    return typeof settings.documentation_url === 'string'
+        ? settings.documentation_url
+        : '';
+}
+
 router.on('navigate', (event) => {
     syncAppPage(event.detail.page);
 });
@@ -92,6 +103,7 @@ createInertiaApp({
         const branding = getAppPageBranding(props.initialPage.props);
         const grabberChromeStoreUrl = getGrabberChromeStoreUrl(props.initialPage.props);
         const grabberFirefoxStoreUrl = getGrabberFirefoxStoreUrl(props.initialPage.props);
+        const documentationUrl = getDocumentationUrl(props.initialPage.props);
 
         createRoot(el).render(
             <ThemeModeProvider initialAccentColor={branding?.accentColor}>
@@ -100,6 +112,7 @@ createInertiaApp({
                     <GrabberProvider
                         chromeStoreUrl={grabberChromeStoreUrl}
                         firefoxStoreUrl={grabberFirefoxStoreUrl}
+                        documentationUrl={documentationUrl}
                     >
                         <PageOnboardingProvider initialPage={props.initialPage}>
                             <App {...props} />

@@ -84,10 +84,12 @@ export function GrabberProvider({
     children,
     chromeStoreUrl,
     firefoxStoreUrl,
+    documentationUrl,
 }: {
     children: ReactNode;
     chromeStoreUrl: string;
     firefoxStoreUrl: string;
+    documentationUrl: string;
 }) {
     const { toast } = useToast();
     const [available, setAvailable] = useState(false);
@@ -291,6 +293,7 @@ export function GrabberProvider({
                 <GrabberOnboarding
                     chromeStoreUrl={chromeStoreUrl}
                     firefoxStoreUrl={firefoxStoreUrl}
+                    documentationUrl={documentationUrl}
                     onClose={closeOnboarding}
                     onStart={startOnboardingGrab}
                     onDismissFuture={dismissFutureOnboarding}

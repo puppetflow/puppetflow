@@ -118,6 +118,31 @@ export const TitleRow = styled.div`
     gap: 4px;
 `;
 
+export const HelpLink = styled.a`
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    text-decoration: none;
+    transition:
+        background ${({ theme }) => theme.transition.fast},
+        color ${({ theme }) => theme.transition.fast};
+
+    &:hover {
+        background: ${({ theme }) => theme.colors.bg.hover};
+        color: ${({ theme }) => theme.colors.text.primary};
+    }
+
+    &:focus-visible {
+        outline: 2px solid ${({ theme }) => theme.colors.border.focus};
+        outline-offset: 2px;
+    }
+`;
+
 export const Intro = styled.p`
     margin: 8px 0 20px;
     color: ${({ theme }) => theme.colors.text.secondary};
