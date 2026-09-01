@@ -75,6 +75,12 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         };
     }
 
+    if (entry.name === '$saveCookies' || entry.name === '$loadCookies') {
+        return {
+            jarName: { mode: 'fixed' as const, value: 'default' },
+        };
+    }
+
     if (entry.name === '$sleep') {
         return {
             milliseconds: { mode: 'fixed' as const, value: '1000' },

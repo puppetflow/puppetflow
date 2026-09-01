@@ -1,17 +1,22 @@
 /* @help Cookies
  * @sig $saveCookies(jarName?)
- * @desc Save current page cookies to a JSON file. Default jar name: "cookies".
- * @nodal-param jarName: Name of the cookie jar to save. Use a simple label like "main" or leave empty for "cookies".
+ * @desc Save current page cookies to a JSON file. Default jar name: "default".
+ * @nodal-param jarName: Name of the cookie jar to save. Use a simple label like "main" or leave empty for "default".
  */
+const __resolveCookieJarName = function(jarName) {
+  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'default';
+};
 const __internalSaveCookies = async function(jarName) {
+  const resolvedJarName = __resolveCookieJarName(jarName);
   const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  const cookiePath = __resolveArtifactPath(paths.cookies, (jarName || 'cookies') + '.json', '$saveCookies path');
+  const cookiePath = __resolveArtifactPath(paths.cookies, resolvedJarName + '.json', '$saveCookies path');
   fs.writeFileSync(cookiePath, JSON.stringify(cookies, null, 2), { mode: 0o600 });
 };
 const $saveCookies = async function(jarName) {
-  __emitAction('cookies', jarName || 'cookies');
-  console.debug('Saving cookies to:', jarName);
-  await __internalSaveCookies(jarName);
+  const resolvedJarName = __resolveCookieJarName(jarName);
+  __emitAction('cookies', resolvedJarName);
+  console.debug('Saving cookies to:', resolvedJarName);
+  await __internalSaveCookies(resolvedJarName);
 };
 
 /* @help Cookies
@@ -19,29 +24,29 @@ const $saveCookies = async function(jarName) {
  * @desc Load cookies from a JSON file and set them on the page. Returns false on error, true on success.
  * @nodal-desc Restore previously saved cookies on the current page.
  * @nodal-output boolean
- * @nodal-param jarName: Name of the cookie jar to load. Use the same name used when saving cookies.
+ * @nodal-param jarName: Name of the cookie jar to load. Leave empty for "default".
  */
 const __internalLoadCookies = async function(jarName) {
+  const resolvedJarName = __resolveCookieJarName(jarName);
   try {
-    const cookiePath = __resolveArtifactPath(paths.cookies, (jarName || 'cookies') + '.json', '$loadCookies path');
+    const cookiePath = __resolveArtifactPath(paths.cookies, resolvedJarName + '.json', '$loadCookies path');
     const cookiesString = await fs.promises.readFile(cookiePath, 'utf8');
     const cookies = JSON.parse(cookiesString);
     await $page.setCookie(...cookies);
-  } catch (err) {
-    console.error('Cannot load cookies from store:', jarName);
+  } catch {
     return false;
   }
-  console.debug('Successfully loaded cookies from store:', jarName);
   return true;
 };
 const $loadCookies = async function(jarName) {
-  __emitAction('cookies', jarName || 'cookies');
-  console.debug('Loading cookies from store:', jarName);
-  const response = await __internalLoadCookies(jarName);
+  const resolvedJarName = __resolveCookieJarName(jarName);
+  __emitAction('cookies', resolvedJarName);
+  console.debug('Loading cookies from store:', resolvedJarName);
+  const response = await __internalLoadCookies(resolvedJarName);
   if (!response) {
-    console.error('Cannot load cookies from store:', jarName);
+    console.error('Cannot load cookies from store:', resolvedJarName);
   } else {
-    console.debug('Successfully loaded cookies from store:', jarName);
+    console.debug('Successfully loaded cookies from store:', resolvedJarName);
   }
   return response;
 };
