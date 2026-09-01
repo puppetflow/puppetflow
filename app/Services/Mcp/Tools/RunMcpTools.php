@@ -43,8 +43,13 @@ final class RunMcpTools implements McpToolHandler
                 'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 20],
                 'include_logs' => ['type' => 'boolean'], 'include_code' => ['type' => 'boolean'],
             ]]],
-            ['name' => 'run_flow', 'description' => 'Run an MCP-enabled flow with optional JSON input.', 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => [
-                'flow_id' => $identifier, 'input' => ['type' => 'object', 'additionalProperties' => true],
+            ['name' => 'run_flow', 'description' => 'Run an MCP-enabled flow. Call get_flow_details first to inspect default_inputs, called Flow Inputs in the editor. These defaults are shared across all users and trigger types. The optional input object contains values for this run only and overrides default_inputs with the same top-level key; omitted keys keep their configured defaults.', 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => [
+                'flow_id' => $identifier,
+                'input' => [
+                    'type' => 'object',
+                    'additionalProperties' => true,
+                    'description' => 'Per-run Flow Input values. Each provided top-level key overrides the corresponding value from the flow\'s default_inputs for this run only.',
+                ],
             ]]],
             ['name' => 'get_run', 'description' => 'Get an MCP-enabled flow run, optionally including logs and code.', 'inputSchema' => ['type' => 'object', 'required' => ['flow_id', 'run_id'], 'properties' => [
                 ...$runProperties, 'include_logs' => ['type' => 'boolean'], 'include_code' => ['type' => 'boolean'],
