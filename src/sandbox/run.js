@@ -963,6 +963,12 @@ module.exports = async function(appDir, flowId, quiet) {
         }
       }
 
+      try {
+        await __captureBrowserStorage();
+      } catch (_storageError) {
+        console.error('Cannot save browser storage at flow end:', _storageError && _storageError.message ? _storageError.message : _storageError);
+      }
+
       if (typeof _pendingCleanup !== 'undefined' && Array.isArray(_pendingCleanup)) {
         for (const _cleanPath of _pendingCleanup) {
           try { fs.rmSync(_cleanPath, { recursive: true, force: true }); } catch (_) {}

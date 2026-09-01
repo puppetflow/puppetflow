@@ -1,3 +1,5 @@
+/* global __captureBrowserStorage, __installLocalStorageRestore */
+
 const __normalizeBrowserTabName = function(tabName, helperName) {
   if (typeof tabName !== 'string' || !tabName.trim()) {
     throw new Error(helperName + ': tabName must be a non-empty string.');
@@ -47,7 +49,13 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
     url = 'https://' + url;
   }
 
+  await __captureBrowserStorage().catch(error => {
+    console.error('Cannot save browser storage before navigation:', error && error.message ? error.message : error);
+  });
   const page = await __activateOrCreateNamedPage(tabName);
+  await __installLocalStorageRestore(page).catch(error => {
+    console.error('Cannot prepare localStorage restore before navigation:', error && error.message ? error.message : error);
+  });
   __emitAction('goto', url);
 
   const defaultNavigationTimeout = parseInt(process.env.FLOW_NAVIGATION_TIMEOUT_MS || '30000', 10);
@@ -99,6 +107,9 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
   }
 
   await __internalSleep(2000);
+  await __captureBrowserStorage().catch(error => {
+    console.error('Cannot save browser storage after navigation:', error && error.message ? error.message : error);
+  });
 
   return response;
 };

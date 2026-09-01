@@ -501,56 +501,179 @@ const $setViewport = async function(width, height) {
 $setViewport();
 
 /* @help Cookies
- * @sig $saveCookies(jarName?)
- * @desc Save current page cookies to a JSON file. Default jar name: "default".
- * @nodal-param jarName: Name of the cookie jar to save. Use a simple label like "main" or leave empty for "default".
+ * @sig $saveCookies(jarName?, options?)
+ * @desc Save browser cookies and localStorage by origin. Default jar name: "default".
+ * @nodal-desc Save cookies and localStorage for reuse in later runs.
+ * @opt persistLocalStorage: true
+ * @nodal-param jarName: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "default".
+ * @nodal-param options: Browser storage options.
+ * @nodal-param options.persistLocalStorage [boolean]: Save localStorage with cookies. Enabled by default.
  */
 const __resolveCookieJarName = function(jarName) {
   return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'default';
 };
+const __resolveCookieHelperArguments = function(jarName, options) {
+  if (jarName && typeof jarName === 'object' && !Array.isArray(jarName)) {
+    options = jarName;
+    jarName = undefined;
+  }
+  const resolvedOptions = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+  return {
+    jarName: __resolveCookieJarName(jarName),
+    persistLocalStorage: resolvedOptions.persistLocalStorage !== false,
+  };
+};
+let __activeBrowserStorageJarName = null;
+let __activeBrowserStoragePersistLocalStorage = true;
+let __localStorageByOrigin = {};
+const __localStorageRestoreScriptByPage = new WeakMap();
+
+const __cookieJarPath = function(jarName, helperName) {
+  return __resolveArtifactPath(paths.cookies, __resolveCookieJarName(jarName) + '.json', helperName + ' path');
+};
+
+const __normalizeLocalStorageByOrigin = function(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).flatMap(([origin, entries]) => {
+    if (typeof origin !== 'string' || !entries || typeof entries !== 'object' || Array.isArray(entries)) return [];
+    return [[origin, Object.fromEntries(Object.entries(entries)
+      .filter(([key, item]) => typeof key === 'string' && typeof item === 'string'))]];
+  }));
+};
+
+const __readCookieJar = async function(jarName, helperName) {
+  const raw = JSON.parse(await fs.promises.readFile(__cookieJarPath(jarName, helperName), 'utf8'));
+  if (Array.isArray(raw)) {
+    return { version: 1, cookies: raw, localStorage: {} };
+  }
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.cookies)) {
+    throw new Error(helperName + ': invalid browser storage jar.');
+  }
+  return {
+    version: 1,
+    cookies: raw.cookies,
+    localStorage: __normalizeLocalStorageByOrigin(raw.localStorage),
+  };
+};
+
+const __capturePageLocalStorage = async function(page) {
+  return page.evaluate(() => {
+    try {
+      if (!/^https?:$/.test(window.location.protocol)) return null;
+      const entries = [];
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key !== null) entries.push([key, window.localStorage.getItem(key)]);
+      }
+      return { origin: window.location.origin, entries: Object.fromEntries(entries) };
+    } catch (_) {
+      return null;
+    }
+  }).catch(() => null);
+};
+
+const __installLocalStorageRestore = async function(page) {
+  if (!page || !__activeBrowserStorageJarName) return;
+  const previous = __localStorageRestoreScriptByPage.get(page);
+  if (previous) {
+    await page.removeScriptToEvaluateOnNewDocument(previous).catch(() => {});
+    __localStorageRestoreScriptByPage.delete(page);
+  }
+  if (!__activeBrowserStoragePersistLocalStorage) return;
+  const snapshot = __normalizeLocalStorageByOrigin(__localStorageByOrigin);
+  const applySnapshot = originStorage => {
+    try {
+      const entries = originStorage[window.location.origin];
+      if (!entries) return;
+      window.localStorage.clear();
+      Object.entries(entries).forEach(([key, value]) => window.localStorage.setItem(key, value));
+    } catch (_) {}
+  };
+  const script = await page.evaluateOnNewDocument(applySnapshot, snapshot);
+  __localStorageRestoreScriptByPage.set(page, script.identifier);
+  await page.evaluate(applySnapshot, snapshot).catch(() => {});
+};
+
+const __captureBrowserStorage = async function(
+  jarName = __activeBrowserStorageJarName,
+  persistLocalStorage = __activeBrowserStoragePersistLocalStorage,
+) {
+  if (!jarName) return false;
+  const resolvedJarName = __resolveCookieJarName(jarName);
+  if (persistLocalStorage) {
+    for (const page of await $browser.pages()) {
+      const captured = await __capturePageLocalStorage(page);
+      if (captured && typeof captured.origin === 'string') {
+        __localStorageByOrigin[captured.origin] = captured.entries;
+      }
+    }
+  }
+  const cookies = (await $client.send('Network.getAllCookies')).cookies;
+  fs.writeFileSync(__cookieJarPath(resolvedJarName, '$saveCookies'), JSON.stringify({
+    version: 1,
+    cookies,
+    localStorage: persistLocalStorage ? __localStorageByOrigin : {},
+  }, null, 2), { mode: 0o600 });
+  return true;
+};
+
 const __internalSaveCookies = async function(jarName) {
   const resolvedJarName = __resolveCookieJarName(jarName);
   const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  const cookiePath = __resolveArtifactPath(paths.cookies, resolvedJarName + '.json', '$saveCookies path');
-  fs.writeFileSync(cookiePath, JSON.stringify(cookies, null, 2), { mode: 0o600 });
+  fs.writeFileSync(__cookieJarPath(resolvedJarName, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
 };
-const $saveCookies = async function(jarName) {
-  const resolvedJarName = __resolveCookieJarName(jarName);
-  __emitAction('cookies', resolvedJarName);
-  console.debug('Saving cookies to:', resolvedJarName);
-  await __internalSaveCookies(resolvedJarName);
+const $saveCookies = async function(jarName, options) {
+  const resolved = __resolveCookieHelperArguments(jarName, options);
+  __activeBrowserStorageJarName = resolved.jarName;
+  __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
+  if (!resolved.persistLocalStorage) __localStorageByOrigin = {};
+  __emitAction('cookies', resolved.jarName);
+  console.debug('Saving browser storage to:', resolved.jarName);
+  await __captureBrowserStorage(resolved.jarName, resolved.persistLocalStorage);
 };
 
 /* @help Cookies
- * @sig $loadCookies(jarName?)
- * @desc Load cookies from a JSON file and set them on the page. Returns false on error, true on success.
- * @nodal-desc Restore previously saved cookies on the current page.
+ * @sig $loadCookies(jarName?, options?)
+ * @desc Load cookies and restore localStorage before page scripts run. Returns false on error, true on success.
+ * @nodal-desc Restore previously saved cookies and localStorage.
  * @nodal-output boolean
- * @nodal-param jarName: Name of the cookie jar to load. Leave empty for "default".
+ * @opt persistLocalStorage: true
+ * @nodal-param jarName: Name of the browser storage jar to load. Leave empty for "default".
+ * @nodal-param options: Browser storage options.
+ * @nodal-param options.persistLocalStorage [boolean]: Restore and continue persisting localStorage. Enabled by default.
  */
 const __internalLoadCookies = async function(jarName) {
   const resolvedJarName = __resolveCookieJarName(jarName);
   try {
-    const cookiePath = __resolveArtifactPath(paths.cookies, resolvedJarName + '.json', '$loadCookies path');
-    const cookiesString = await fs.promises.readFile(cookiePath, 'utf8');
-    const cookies = JSON.parse(cookiesString);
-    await $page.setCookie(...cookies);
+    const jar = await __readCookieJar(resolvedJarName, '$loadCookies');
+    await $page.setCookie(...jar.cookies);
+    return true;
   } catch {
     return false;
   }
-  return true;
 };
-const $loadCookies = async function(jarName) {
-  const resolvedJarName = __resolveCookieJarName(jarName);
-  __emitAction('cookies', resolvedJarName);
-  console.debug('Loading cookies from store:', resolvedJarName);
-  const response = await __internalLoadCookies(resolvedJarName);
-  if (!response) {
-    console.error('Cannot load cookies from store:', resolvedJarName);
+const $loadCookies = async function(jarName, options) {
+  const resolved = __resolveCookieHelperArguments(jarName, options);
+  __activeBrowserStorageJarName = resolved.jarName;
+  __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
+  __emitAction('cookies', resolved.jarName);
+  console.debug('Loading browser storage from store:', resolved.jarName);
+  let jar = null;
+  __localStorageByOrigin = {};
+  try {
+    jar = await __readCookieJar(resolved.jarName, '$loadCookies');
+    await $page.setCookie(...jar.cookies);
+  } catch {}
+  if (jar === null) {
+    console.error('Cannot load browser storage from store:', resolved.jarName);
   } else {
-    console.debug('Successfully loaded cookies from store:', resolvedJarName);
+    __localStorageByOrigin = resolved.persistLocalStorage ? jar.localStorage : {};
+    console.debug('Successfully loaded browser storage from store:', resolved.jarName);
   }
-  return response;
+  for (const page of await $browser.pages()) {
+    await __installLocalStorageRestore(page);
+  }
+  return Boolean(jar);
 };
 
 /* @help Navigation
@@ -1528,6 +1651,8 @@ const $shadowInputFill = async function(inputSelector, inputValue, options = {})
   return true;
 };
 
+/* global __captureBrowserStorage, __installLocalStorageRestore */
+
 const __normalizeBrowserTabName = function(tabName, helperName) {
   if (typeof tabName !== 'string' || !tabName.trim()) {
     throw new Error(helperName + ': tabName must be a non-empty string.');
@@ -1577,7 +1702,13 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
     url = 'https://' + url;
   }
 
+  await __captureBrowserStorage().catch(error => {
+    console.error('Cannot save browser storage before navigation:', error && error.message ? error.message : error);
+  });
   const page = await __activateOrCreateNamedPage(tabName);
+  await __installLocalStorageRestore(page).catch(error => {
+    console.error('Cannot prepare localStorage restore before navigation:', error && error.message ? error.message : error);
+  });
   __emitAction('goto', url);
 
   const defaultNavigationTimeout = parseInt(process.env.FLOW_NAVIGATION_TIMEOUT_MS || '30000', 10);
@@ -1629,6 +1760,9 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
   }
 
   await __internalSleep(2000);
+  await __captureBrowserStorage().catch(error => {
+    console.error('Cannot save browser storage after navigation:', error && error.message ? error.message : error);
+  });
 
   return response;
 };

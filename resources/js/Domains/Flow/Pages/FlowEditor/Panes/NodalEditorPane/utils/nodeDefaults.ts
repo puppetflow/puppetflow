@@ -78,6 +78,17 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
     if (entry.name === '$saveCookies' || entry.name === '$loadCookies') {
         return {
             jarName: { mode: 'fixed' as const, value: 'default' },
+            options: {
+                mode: 'object' as const,
+                inputMode: 'form' as const,
+                jsonMode: 'fixed' as const,
+                value: '{"persistLocalStorage":true}',
+                fields: [{
+                    id: 'cookie-persist-local-storage',
+                    key: 'persistLocalStorage',
+                    value: { mode: 'fixed' as const, value: 'true' },
+                }],
+            },
         };
     }
 
