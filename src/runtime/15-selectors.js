@@ -442,28 +442,47 @@ const $clickAtCoordinates = async function(coordinateX, coordinateY, options = {
 };
 
 /* @help Interaction
- * @sig $scroll(scrollPixels, selectorOrHandle?)
- * @desc Scroll an element by the given pixel amount (positive = down, negative = up). Defaults to document body. Accepts a CSS selector string or an ElementHandle as second argument.
- * @nodal-desc Scroll the page or a selected element up or down.
- * @nodal-param scrollPixels [number]: Pixels to scroll. Positive scrolls down, negative scrolls up.
- * @nodal-param selectorOrHandle [string, selector]: Optional CSS selector or ElementHandle to scroll. Leave empty to scroll the page.
+ * @sig $scrollByPixels(scrollPixels)
+ * @desc Scroll the page vertically by a pixel amount. Positive values scroll down and negative values scroll up.
+ * @nodal-desc Scroll the page up or down by an exact pixel amount.
+ * @nodal-param scrollPixels [number, required]: Pixels to scroll. Positive scrolls down, negative scrolls up.
  */
-const $scroll = async function(scrollPixels, selectorOrHandle) {
-  __emitAction('scroll', scrollPixels + 'px');
+const $scrollByPixels = async function(scrollPixels) {
+  if (!Number.isFinite(scrollPixels)) {
+    throw new TypeError('$scrollByPixels: scrollPixels must be a finite number.');
+  }
+  __emitAction('scrollByPixels', scrollPixels + 'px');
+  await __retryOnContextDestroyed(() => $page.evaluate(px => window.scrollBy(0, px), scrollPixels));
+  console.debug('Scrolled page', scrollPixels + 'px');
+};
+
+/* @help Interaction
+ * @sig $scrollToElement(selectorOrHandle)
+ * @desc Scroll the page or nearest scrollable container until a CSS selector or ElementHandle is visible.
+ * @nodal-desc Scroll until the selected element is visible.
+ * @nodal-param selectorOrHandle [string, selector, required]: CSS selector or ElementHandle to bring into view.
+ */
+const $scrollToElement = async function(selectorOrHandle) {
   const isHandle = selectorOrHandle && typeof selectorOrHandle === 'object';
   const isSelector = selectorOrHandle && typeof selectorOrHandle === 'string';
+  let element = null;
 
   if (isHandle) {
-    await __retryOnContextDestroyed(() => selectorOrHandle.evaluate((el, px) => el.scrollBy(0, px), scrollPixels));
+    element = selectorOrHandle;
   } else if (isSelector) {
     const selection = await __internalSelect(selectorOrHandle, { timeout: 30000 });
-    const el = selection?.handle;
-    if (!el) throw new Error('$scroll: no element found for selector: ' + selectorOrHandle);
-    await __retryOnContextDestroyed(() => el.evaluate((el, px) => el.scrollBy(0, px), scrollPixels));
-  } else {
-    await __retryOnContextDestroyed(() => $page.evaluate((px) => window.scrollBy(0, px), scrollPixels));
+    element = selection?.handle;
+  }
+  if (!element) {
+    throw new Error('$scrollToElement: no element found for selector or handle: ' + selectorOrHandle);
   }
 
-  console.debug('Scrolled', scrollPixels + 'px', isHandle ? '(handle)' : (isSelector ? selectorOrHandle : 'body'));
+  __emitAction('scrollToElement', isSelector ? selectorOrHandle : '(handle)');
+  await __retryOnContextDestroyed(() => element.evaluate(el => el.scrollIntoView({
+    behavior: 'auto',
+    block: 'center',
+    inline: 'nearest',
+  })));
+  console.debug('Scrolled to element', isHandle ? '(handle)' : selectorOrHandle);
 };
 

@@ -1,4 +1,4 @@
-/* global $clickElement, $clickElementAtIndex, $createArtifact, $scroll, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue */
+/* global $clickElement, $clickElementAtIndex, $createArtifact, $scrollByPixels, $scrollToElement, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue */
 
 const __aiMaxImageBytes = 5 * 1024 * 1024;
 
@@ -131,7 +131,7 @@ const __aiParseProgram = function(code, options = {}) {
   const program = acorn.parse(code, { ecmaVersion: 2022, sourceType: 'script', allowAwaitOutsideFunction: true });
   if (program.body.length > 6) throw new Error('AI action program contains too many calls.');
   const allowed = {
-    puppetflow: new Set(['goto', 'click', 'fill', 'scroll', 'wait', 'extract', 'shadowClick', 'shadowFill', 'captureScreenshot', 'createArtifact', 'output', 'return', 'finish']),
+    puppetflow: new Set(['goto', 'click', 'fill', 'scrollByPixels', 'scrollToElement', 'wait', 'extract', 'shadowClick', 'shadowFill', 'captureScreenshot', 'createArtifact', 'output', 'return', 'finish']),
     browser: new Set(['goto', 'click', 'type', 'press', 'hover', 'select', 'scroll', 'waitForSelector', 'wait', 'finish']),
   };
   const hasPuppetflowFailure = Array.isArray(options.previousActions)
@@ -448,11 +448,14 @@ const __aiExecutePuppetflowAction = async function(call) {
         speed: Math.min(Math.max(Number(args.speed) || 20, 0), 1000),
       });
       break;
-    case 'scroll':
-      await $scroll(
-        Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000)),
-        typeof args.selector === 'string' ? args.selector : undefined,
-      );
+    case 'scrollByPixels':
+      await $scrollByPixels(Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000)));
+      break;
+    case 'scrollToElement':
+      if (typeof args.selector !== 'string' || !args.selector) {
+        throw new Error('Puppetflow scrollToElement requires selector.');
+      }
+      await $scrollToElement(args.selector);
       break;
     case 'wait':
       if (typeof args.selector === 'string' && args.selector) {
@@ -679,7 +682,8 @@ Primary Puppetflow browser framework:
 - puppetflow.goto({url, waitUntil?, timeout?})
 - puppetflow.click({selector?, text?, index?, delay?, timeout?})
 - puppetflow.fill({selector, value, mode?:"replace"|"append"|"prepend", text?, tabCount?, sleep?, speed?, timeout?})
-- puppetflow.scroll({pixels, selector?})
+- puppetflow.scrollByPixels({pixels})
+- puppetflow.scrollToElement({selector})
 - puppetflow.wait({milliseconds?, selector?, text?, visible?, timeout?})
 - puppetflow.extract({selector?, limit?})
 - puppetflow.shadowClick({selector, rootSelector?, delay?, timeout?})

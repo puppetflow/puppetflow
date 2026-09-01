@@ -351,10 +351,10 @@ const VISUAL_NODE_CATEGORIES: NodeCategory[] = VISUAL_NODE_CATEGORY_PAGES;
 
 export const NODE_CATEGORIES: NodeCategory[] = [
     ...VISUAL_NODE_CATEGORIES.filter(category => category.key === 'start'),
-    CONTROL_NODE_CATEGORY,
     ...VISUAL_NODE_CATEGORIES
         .filter(category => !['start', 'snippets'].includes(category.key))
         .flatMap(category => {
+            if (category.key === 'ai') return [category, CONTROL_NODE_CATEGORY];
             if (category.key === 'output') return [DATA_NODE_CATEGORY, category];
             return [category];
         }),
@@ -393,7 +393,8 @@ export const NODE_ICON_BY_NAME: Record<string, string> = {
     $clickElement: 'lucide:mouse-pointer-click',
     $clickElementAtIndex: 'lucide:list-ordered',
     $clickAtCoordinates: 'lucide:locate-fixed',
-    $scroll: 'lucide:scroll-text',
+    $scrollByPixels: 'lucide:arrow-up-down',
+    $scrollToElement: 'lucide:scan-line',
     $extractAttribute: 'lucide:scan-text',
     $extractAttributes: 'lucide:list-checks',
     $selectElement: 'lucide:scan-line',

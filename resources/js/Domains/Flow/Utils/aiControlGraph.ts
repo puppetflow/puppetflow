@@ -219,11 +219,17 @@ const mapActionToNode = (action: ActionLogEntry) => {
                     }),
                 },
             };
-        case 'scroll':
+        case 'scrollByPixels':
             return {
-                name: '$scroll',
+                name: '$scrollByPixels',
                 values: scalarValues({
                     scrollPixels: Number(args.pixels) || 0,
+                }),
+            };
+        case 'scrollToElement':
+            return {
+                name: '$scrollToElement',
+                values: scalarValues({
                     selectorOrHandle: args.selector,
                 }),
             };
