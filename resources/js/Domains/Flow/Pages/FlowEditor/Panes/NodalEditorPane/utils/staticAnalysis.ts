@@ -5,6 +5,7 @@ import {
 } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import {
     collectNamedSniffProfilesFromCode,
+    DEFAULT_SNIFF_PROFILE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/sniffProfileSuggestions';
 import {
     collectNamedCookieJarsFromCode,
@@ -530,7 +531,7 @@ export function collectDeclaredStopwatchNamesFromGraph(graph: NodalGraph): strin
 }
 
 export function collectDeclaredSniffProfileNamesFromGraph(graph: NodalGraph): string[] {
-    const profileNames = new Set<string>();
+    const profileNames = new Set([DEFAULT_SNIFF_PROFILE_NAME]);
 
     graph.nodes.forEach(node => {
         if (node.system || node.deactivated) return;

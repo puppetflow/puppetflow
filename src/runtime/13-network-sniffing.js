@@ -99,6 +99,17 @@ const __networkSniffingTabName = function(page) {
     .find(([, candidate]) => candidate === page)?.[0] || null;
 };
 
+const __networkSniffingLogUrl = function(value) {
+  try {
+    const url = new URL(value);
+    if (url.search) url.search = '?[redacted]';
+    url.hash = '';
+    return url.toString();
+  } catch (_) {
+    return '[invalid URL]';
+  }
+};
+
 const __networkSniffingResponseBody = async function(client, requestId, response, encodedDataLength) {
   const declaredBytes = Math.max(
     Number(encodedDataLength) || 0,
@@ -116,22 +127,23 @@ const __networkSniffingResponseBody = async function(client, requestId, response
 
   try {
     const result = await client.send('Network.getResponseBody', { requestId });
-    const body = result.base64Encoded
-      ? Buffer.from(result.body || '', 'base64')
-      : Buffer.from(result.body || '');
-    if (body.length > __networkSniffingMaxBodyBytes) {
+    const content = result.body || '';
+    const bodyBytes = result.base64Encoded
+      ? Math.max(0, Math.floor(content.length * 3 / 4) - (content.endsWith('==') ? 2 : content.endsWith('=') ? 1 : 0))
+      : Buffer.byteLength(content, 'utf8');
+    if (bodyBytes > __networkSniffingMaxBodyBytes) {
       return {
         body: null,
         bodyEncoding: null,
-        bodyBytes: body.length,
+        bodyBytes,
         bodyTruncated: true,
         bodyUnavailable: false,
       };
     }
     return {
-      body: result.body || '',
+      body: content,
       bodyEncoding: result.base64Encoded ? 'base64' : 'utf8',
-      bodyBytes: body.length,
+      bodyBytes,
       bodyTruncated: false,
       bodyUnavailable: false,
     };
@@ -275,7 +287,7 @@ const __attachNetworkSniffingProfileToPage = async function(profile, page) {
       if (matchesFilters || profile.showUnfilteredInLogs) {
         console.log(
           'Sniff Network ' + profile.name + ' ' + (hasFilters && matchesFilters ? ' (hit)' : '(miss)'),
-          params.request.url,
+          __networkSniffingLogUrl(params.request.url),
         );
       }
       if (!matchesFilters) return;

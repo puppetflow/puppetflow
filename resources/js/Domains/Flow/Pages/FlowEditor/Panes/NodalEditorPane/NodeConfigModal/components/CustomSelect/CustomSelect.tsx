@@ -99,6 +99,7 @@ export default function CustomSelect<T extends Id>({
     const selectedOption = options.find(option => option.value === value);
     const showSearch = options.length >= searchThreshold;
     const refreshInActionRow = Boolean(actionSlot && onRefresh && !showSearch && !headerSlot);
+    const clearInHeader = Boolean(onClear && value && !actionSlot);
     const filteredOptions = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
         if (!normalizedQuery) return options;
@@ -271,7 +272,7 @@ export default function CustomSelect<T extends Id>({
                         transform: dropdownRect.placement === 'above' ? 'translateY(-100%)' : undefined,
                     }}
                 >
-                    {(showSearch || headerSlot || (onRefresh && !refreshInActionRow)) && (
+                    {(showSearch || headerSlot || clearInHeader || (onRefresh && !refreshInActionRow)) && (
                         <S.SelectDropdownHeader>
                             {showSearch && (
                                 <S.SelectSearchInput
@@ -296,9 +297,23 @@ export default function CustomSelect<T extends Id>({
                                     <Icon icon="lucide:refresh-cw" width={13} height={13} />
                                 </S.SelectHeaderButton>
                             )}
+                            {clearInHeader && (
+                                <S.SelectHeaderButton
+                                    type="button"
+                                    title="Clear selection"
+                                    aria-label="Clear selection"
+                                    onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+                                    onClick={() => {
+                                        onClear?.();
+                                        close();
+                                    }}
+                                >
+                                    <Icon icon="lucide:trash-2" width={13} height={13} />
+                                </S.SelectHeaderButton>
+                            )}
                         </S.SelectDropdownHeader>
                     )}
-                    {(actionSlot || (onClear && value)) && (
+                    {(actionSlot || (onClear && value && !clearInHeader)) && (
                         <S.SelectActionRow>
                             {actionSlot && (
                                 <S.SelectAction

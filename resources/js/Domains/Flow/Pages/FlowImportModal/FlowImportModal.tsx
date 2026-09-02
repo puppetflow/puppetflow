@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 import type { FormDataConvertible } from '@inertiajs/core';
 import Button from '@/Shared/UI/Button/Button';
 import Modal from '@/Shared/UI/Modal/Modal';
 import Switch from '@/Shared/UI/Switch/Switch';
+import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
+import CreateMailboxModal from '@/Domains/Mailbox/Pages/CreateMailboxModal/CreateMailboxModal';
+import type { CreatedMailbox, MailboxDomain } from '@/Domains/Mailbox/types';
 import type { VisibilityPickerValue } from '@proprietary/Domains/Flow/Components/VisibilityPicker/VisibilityPicker.pp';
 import { useResetOnOpen } from '@/Shared/Hooks/useResetOnOpen';
 import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
@@ -37,7 +40,24 @@ interface Props {
 interface ImportMailboxOption {
     id: Id;
     address: string;
+    group: string | null;
 }
+
+interface ImportMailboxResources {
+    mailboxes: ImportMailboxOption[];
+    domains: Pick<MailboxDomain, 'id' | 'name'>[];
+}
+
+const fetchImportMailboxResources = async (): Promise<ImportMailboxResources> => {
+    const response = await fetch('/flows/import-mailboxes');
+    if (!response.ok) throw new Error();
+    const result = await response.json() as Partial<ImportMailboxResources>;
+
+    return {
+        mailboxes: result.mailboxes ?? [],
+        domains: result.domains ?? [],
+    };
+};
 
 export default function FlowImportModal({
     isOpen,
@@ -56,14 +76,19 @@ export default function FlowImportModal({
     const [createDataTables, setCreateDataTables] = useState(false);
     const [createMailboxWatchers, setCreateMailboxWatchers] = useState(false);
     const [mailboxOptions, setMailboxOptions] = useState<ImportMailboxOption[]>([]);
+    const [mailboxDomains, setMailboxDomains] = useState<Pick<MailboxDomain, 'id' | 'name'>[]>([]);
     const [mailboxMappings, setMailboxMappings] = useState<Record<string, string>>({});
+    const [mailboxCreationOpen, setMailboxCreationOpen] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
     const [visibility, setVisibility] = useState<VisibilityPickerValue>(() => buildInitialVisibility(defaultVisibility, defaultFolderId, defaultTeamId));
     const [dragging, setDragging] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const fileReadId = useRef(0);
+    const mailboxCreationResolver = useRef<((mailboxId: string | null) => void) | null>(null);
 
     useResetOnOpen(isOpen, () => {
+        fileReadId.current += 1;
         setName('');
         setDescription('');
         setDefaultInputs(null);
@@ -71,7 +96,11 @@ export default function FlowImportModal({
         setCreateDataTables(false);
         setCreateMailboxWatchers(false);
         setMailboxOptions([]);
+        setMailboxDomains([]);
         setMailboxMappings({});
+        mailboxCreationResolver.current?.(null);
+        mailboxCreationResolver.current = null;
+        setMailboxCreationOpen(false);
         setFileName(null);
         setVisibility(buildInitialVisibility(defaultVisibility, defaultFolderId, defaultTeamId));
         setDragging(false);
@@ -80,42 +109,86 @@ export default function FlowImportModal({
     });
 
     const readFile = async (file: File) => {
+        const requestId = ++fileReadId.current;
         try {
             const content = await file.text();
+            if (requestId !== fileReadId.current) return;
             const parsed = parseFlowFile(content, file.name);
             const baseName = baseNameFromFile(file.name);
             const fallbackName = titleFromBaseName(baseName);
             const metadata = parsed.flowType === 'code' ? metadataFromCode(content) : metadataFromJson(content);
 
-            setFileName(file.name);
-            setParsedFile(parsed);
-            setCreateDataTables(false);
-            setCreateMailboxWatchers(false);
+            let mailboxLoadError: string | null = null;
             if (parsed.mailboxWatchers.length > 0) {
-                const response = await fetch('/flows/import-mailboxes');
-                if (!response.ok) throw new Error('Unable to load available mailboxes.');
-                const result = await response.json() as { mailboxes?: ImportMailboxOption[] };
-                const options = result.mailboxes ?? [];
+                let options: ImportMailboxOption[] = [];
+                let domains: Pick<MailboxDomain, 'id' | 'name'>[] = [];
+                try {
+                    const resources = await fetchImportMailboxResources();
+                    options = resources.mailboxes;
+                    domains = resources.domains;
+                } catch {
+                    mailboxLoadError = 'Unable to load available mailboxes. You can still import without creating Mailbox Watchers.';
+                }
+                if (requestId !== fileReadId.current) return;
                 const mappings = Object.fromEntries(parsed.mailboxWatchers.map(watcher => {
                     const address = watcher.mailbox.address.trim().toLowerCase();
                     const match = options.find(option => option.address.trim().toLowerCase() === address);
                     return [watcher.mailbox.source_id, match ? String(match.id) : ''];
                 }));
                 setMailboxOptions(options);
+                setMailboxDomains(domains);
                 setMailboxMappings(mappings);
             } else {
                 setMailboxOptions([]);
+                setMailboxDomains([]);
                 setMailboxMappings({});
             }
+            setFileName(file.name);
+            setParsedFile(parsed);
+            setCreateDataTables(false);
+            setCreateMailboxWatchers(false);
             setName(metadata.title || (parsed.flowType === 'code' ? labelFromCode(content, fallbackName) : fallbackName));
             setDescription(metadata.description || '');
             setDefaultInputs(metadata.defaultInputs ?? null);
-            setSubmitError(null);
+            setSubmitError(mailboxLoadError);
         } catch (error) {
+            if (requestId !== fileReadId.current) return;
             setFileName(file.name);
             setParsedFile(null);
             setSubmitError(error instanceof Error ? error.message : 'Unable to read this flow file.');
         }
+    };
+
+    const createMailbox = () => new Promise<string | null>(resolve => {
+        mailboxCreationResolver.current = resolve;
+        setMailboxCreationOpen(true);
+    });
+
+    const closeMailboxCreation = () => {
+        setMailboxCreationOpen(false);
+        mailboxCreationResolver.current?.(null);
+        mailboxCreationResolver.current = null;
+    };
+
+    const handleMailboxCreated = async (mailbox: CreatedMailbox) => {
+        const mailboxId = String(mailbox.id);
+        try {
+            const resources = await fetchImportMailboxResources();
+            setMailboxOptions(resources.mailboxes);
+            setMailboxDomains(resources.domains);
+        } catch {
+            setMailboxOptions(current => [
+                ...current.filter(option => String(option.id) !== mailboxId),
+                {
+                    id: mailbox.id,
+                    address: `${mailbox.slug}@${mailbox.domain.name}`,
+                    group: null,
+                },
+            ]);
+        }
+        setMailboxCreationOpen(false);
+        mailboxCreationResolver.current?.(mailboxId);
+        mailboxCreationResolver.current = null;
     };
 
     const handleSubmit = (event: React.FormEvent) => {
@@ -194,6 +267,7 @@ export default function FlowImportModal({
     };
 
     return (
+        <>
         <Modal
             isOpen={isOpen}
             onClose={onClose}
@@ -228,8 +302,9 @@ export default function FlowImportModal({
                                         onVisibilityChange={setVisibility}
                                     />
                                     {parsedFile.dataTables.length > 0 && (
-                                        <S.ResourceImportOption>
+                                        <S.ResourceImportOption htmlFor="create-referenced-data-tables">
                                             <Switch
+                                                id="create-referenced-data-tables"
                                                 checked={createDataTables}
                                                 onChange={setCreateDataTables}
                                                 ariaLabel="Create referenced Data Tables"
@@ -244,9 +319,10 @@ export default function FlowImportModal({
                                         </S.ResourceImportOption>
                                     )}
                                     {parsedFile.mailboxWatchers.length > 0 && (
-                                        <>
-                                            <S.ResourceImportOption>
+                                        <S.MailboxImportOption>
+                                            <S.ResourceImportHeader htmlFor="create-referenced-mailbox-watchers">
                                                 <Switch
+                                                    id="create-referenced-mailbox-watchers"
                                                     checked={createMailboxWatchers}
                                                     onChange={setCreateMailboxWatchers}
                                                     ariaLabel="Create referenced Mailbox Watchers"
@@ -258,7 +334,7 @@ export default function FlowImportModal({
                                                         {parsedFile.mailboxWatchers.length === 1 ? '' : 's'} with the imported flow.
                                                     </S.ResourceImportDescription>
                                                 </S.ResourceImportText>
-                                            </S.ResourceImportOption>
+                                            </S.ResourceImportHeader>
                                             {createMailboxWatchers && (
                                                 <S.MailboxMappings>
                                                     {[...new Map(parsedFile.mailboxWatchers.map(watcher => [
@@ -266,27 +342,31 @@ export default function FlowImportModal({
                                                         watcher.mailbox,
                                                     ])).values()].map(mailbox => (
                                                         <S.MailboxMapping key={mailbox.source_id}>
-                                                            <S.MailboxMappingLabel>{mailbox.address}</S.MailboxMappingLabel>
-                                                            <S.MailboxSelect
+                                                            <S.MailboxMappingLabel>Select destination mailbox</S.MailboxMappingLabel>
+                                                            <CustomSelect
                                                                 value={mailboxMappings[mailbox.source_id] ?? ''}
-                                                                onChange={event => setMailboxMappings(current => ({
-                                                                    ...current,
-                                                                    [mailbox.source_id]: event.target.value,
+                                                                options={mailboxOptions.map(option => ({
+                                                                    value: String(option.id),
+                                                                    label: option.address,
+                                                                    group: option.group || 'Ungrouped',
                                                                 }))}
-                                                                required
-                                                            >
-                                                                <option value="">Select destination mailbox</option>
-                                                                {mailboxOptions.map(option => (
-                                                                    <option key={String(option.id)} value={String(option.id)}>
-                                                                        {option.address}
-                                                                    </option>
-                                                                ))}
-                                                            </S.MailboxSelect>
+                                                                placeholder="Select destination mailbox"
+                                                                searchThreshold={0}
+                                                                showOptionValue={false}
+                                                                actionSlot={mailboxDomains.length > 0 ? {
+                                                                    label: '+ Add Mailbox',
+                                                                    onAction: createMailbox,
+                                                                } : undefined}
+                                                                onChange={value => setMailboxMappings(current => ({
+                                                                    ...current,
+                                                                    [mailbox.source_id]: value,
+                                                                }))}
+                                                            />
                                                         </S.MailboxMapping>
                                                     ))}
                                                 </S.MailboxMappings>
                                             )}
-                                        </>
+                                        </S.MailboxImportOption>
                                     )}
                                 </>
                             )}
@@ -315,5 +395,18 @@ export default function FlowImportModal({
                 </S.ImportLayout>
             </S.ImportForm>
         </Modal>
+        <CreateMailboxModal
+            isOpen={mailboxCreationOpen}
+            onClose={closeMailboxCreation}
+            domains={mailboxDomains}
+            teams={teamTrees.map(team => ({ id: team.id, name: team.name }))}
+            groups={[...new Set(mailboxOptions
+                .map(option => option.group)
+                .filter((group): group is string => Boolean(group)))]}
+            onCreated={mailbox => void handleMailboxCreated(mailbox)}
+            zIndex={1100}
+            quickMode
+        />
+        </>
     );
 }

@@ -44,7 +44,9 @@ final class FlowMailboxWatcherImportService
         foreach ($sourceIds as $sourceId) {
             $definition = $schemasBySourceId->get($sourceId);
             if (! is_array($definition)) {
-                continue;
+                throw ValidationException::withMessages([
+                    'mailbox_watcher_schemas' => "The referenced Mailbox Watcher {$sourceId} is missing from the import.",
+                ]);
             }
 
             $sourceMailboxId = $definition['mailbox']['source_id'];
@@ -101,14 +103,17 @@ final class FlowMailboxWatcherImportService
     {
         foreach ($watchers as $definition) {
             $rules = $definition['rules'];
-            unset($definition['rules']);
-            $watcher = $flow->mailboxWatchers()->create([
+            $watcherId = $definition['id'];
+            unset($definition['id'], $definition['rules']);
+            $watcher = $flow->mailboxWatchers()->make([
                 ...$definition,
                 'user_id' => $flow->owner_id,
                 'scope' => $flow->visibility,
                 'team_id' => $flow->team_id,
                 'stale' => false,
             ]);
+            $watcher->id = $watcherId;
+            $watcher->save();
             foreach ($rules as $rule) {
                 $watcher->rules()->create($rule);
             }

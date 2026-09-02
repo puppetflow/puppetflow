@@ -348,7 +348,11 @@ export const arrangeGraphSelection = (
     edges: CanvasEdge[],
     selectedNodeIds: Set<string>,
 ): CanvasNode[] => {
-    const selectedNodes = nodes.filter(node => selectedNodeIds.has(node.id) && node.kind !== 'stickyNote');
+    const selectedNodes = nodes.filter(node => (
+        selectedNodeIds.has(node.id)
+        && !node.system
+        && node.kind !== 'stickyNote'
+    ));
     if (selectedNodes.length === 0) return nodes;
 
     const selectedIds = new Set(selectedNodes.map(node => node.id));

@@ -18,17 +18,19 @@ use App\Http\Requests\Flow\StoreFlowRequest;
 use App\Http\Requests\Flow\UpdateFlowRequest;
 use App\Models\DataTable;
 use App\Models\Flow;
-use App\Models\Mailbox;
-use App\Models\MailboxWatcher;
 use App\Models\FlowRepositoryLink;
 use App\Models\Folder;
 use App\Models\Integration;
+use App\Models\Mailbox;
+use App\Models\MailboxDomain;
+use App\Models\MailboxWatcher;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceProxy;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\FlowCreationService;
 use App\Services\Flow\FlowDataTableImportService;
+use App\Services\Flow\FlowInputResourceImportService;
 use App\Services\Flow\FlowMailboxWatcherImportService;
 use App\Services\Flow\FlowPlacementService;
 use App\Services\Flow\FlowProxyFilterRuleService;
@@ -37,8 +39,8 @@ use App\Services\Flow\Query\FlowEditorQuery;
 use App\Services\Flow\Query\FlowExplorerQuery;
 use App\Services\Flow\Query\FlowTreeBuilder;
 use App\Services\Library\BlueprintInputSchemaService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -58,6 +60,7 @@ final class FlowController extends Controller
         private readonly ResourceAssignmentValidator $assignments,
         private readonly FlowCreationService $creation,
         private readonly FlowDataTableImportService $dataTableImports,
+        private readonly FlowInputResourceImportService $inputResourceImports,
         private readonly FlowMailboxWatcherImportService $mailboxWatcherImports,
         private readonly FlowRepositoryLinkService $repositoryLinks,
         private readonly FlowPlacementService $placement,
@@ -118,7 +121,7 @@ final class FlowController extends Controller
     public function importMailboxOptions(Request $request): JsonResponse
     {
         if (! $this->features->enabled('mailbox_enabled')) {
-            return response()->json(['mailboxes' => []]);
+            return response()->json(['mailboxes' => [], 'domains' => []]);
         }
 
         $user = $this->user($request);
@@ -128,22 +131,32 @@ final class FlowController extends Controller
             ->where('is_active', true)
             ->where('stale', false)
             ->whereHas('domain', fn ($query) => $query->where('stale', false))
+            ->orderBy('group')
             ->orderBy('address');
         $this->sharedVisibility->applyUse($query, $this->contexts->for($user, $workspaceId));
         $mailboxes = $query->get()
             ->map(fn (Mailbox $mailbox): array => [
                 'id' => $mailbox->id,
                 'address' => $mailbox->address,
+                'group' => $mailbox->group,
             ])
             ->values();
+        $domains = MailboxDomain::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('is_verified', true)
+            ->where('is_active', true)
+            ->where('stale', false)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
-        return response()->json(['mailboxes' => $mailboxes]);
+        return response()->json(['mailboxes' => $mailboxes, 'domains' => $domains]);
     }
 
     public function store(StoreFlowRequest $request): RedirectResponse|\Symfony\Component\HttpFoundation\Response
     {
         $workspaceId = $this->workspaceId();
         $user = $this->user($request);
+        $workspace = Workspace::findOrFail($workspaceId);
         /** @var array{
          *   name: string, description?: string|null, visibility?: string,
          *   team_id?: string|null, owner_id?: string|null,
@@ -252,6 +265,7 @@ final class FlowController extends Controller
             $repositoryIntegration,
             $user,
             $validated,
+            $workspace,
             $workspaceId,
         ): Flow {
             if (
@@ -283,9 +297,23 @@ final class FlowController extends Controller
             }
             $flow = ($validated['source_type'] ?? 'code') === 'repository'
                 ? Flow::create($data)
-                : $this->creation->create($data, $user, Workspace::findOrFail($workspaceId));
+                : $this->creation->create(
+                    $data,
+                    $user,
+                    $workspace,
+                    ownerId: $data['owner_id'],
+                );
             if ($createMailboxWatchers) {
                 $this->mailboxWatcherImports->create($flow, $preparedWatchers['watchers']);
+            }
+            $defaultInputs = $this->inputResourceImports->clearUnavailable(
+                is_array($flow->default_inputs) ? $flow->default_inputs : null,
+                $flow,
+                $user,
+                $workspace,
+            );
+            if ($defaultInputs !== $flow->default_inputs) {
+                $flow->update(['default_inputs' => $defaultInputs]);
             }
             if (($validated['source_type'] ?? null) === 'repository' && $repoLink !== null) {
                 abort_unless($repositoryIntegration instanceof Integration, 422);

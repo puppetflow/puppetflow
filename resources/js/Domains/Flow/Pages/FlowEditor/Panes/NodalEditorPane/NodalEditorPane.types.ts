@@ -30,6 +30,7 @@ export interface NodalEditorPaneProps {
     publicationEditable?: boolean;
     saveButtonStyle?: 'toolbar' | 'standard';
     readOnly?: boolean;
+    hideToolbar?: boolean;
     allowShortcutsInModal?: boolean;
     runProgress?: {
         activeNodeId: string | null;

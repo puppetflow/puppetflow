@@ -208,6 +208,7 @@ export default function NodeParameterField({
                         options={options}
                         searchThreshold={0}
                         placeholder="Select a Data Table..."
+                        onClear={() => updateSelection('')}
                         onChange={updateSelection}
                     />
                 )}

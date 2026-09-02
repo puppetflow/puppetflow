@@ -41,7 +41,14 @@ const __normalizeLocalStorageByOrigin = function(value) {
 };
 
 const __readCookieJar = async function(jarName, helperName) {
-  const raw = JSON.parse(await fs.promises.readFile(__cookieJarPath(jarName, helperName), 'utf8'));
+  let content;
+  try {
+    content = await fs.promises.readFile(__cookieJarPath(jarName, helperName), 'utf8');
+  } catch (error) {
+    if (jarName !== 'Default' || !error || error.code !== 'ENOENT') throw error;
+    content = await fs.promises.readFile(__cookieJarPath('default', helperName), 'utf8');
+  }
+  const raw = JSON.parse(content);
   if (Array.isArray(raw)) {
     return { version: 1, cookies: raw, localStorage: {} };
   }

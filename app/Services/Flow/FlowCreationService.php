@@ -30,10 +30,22 @@ final class FlowCreationService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function create(array $attributes, User $user, Workspace $workspace, bool $strictContent = false): Flow
+    public function create(
+        array $attributes,
+        User $user,
+        Workspace $workspace,
+        bool $strictContent = false,
+        ?string $ownerId = null,
+    ): Flow
     {
         return DB::transaction(
-            fn (): Flow => $this->createWithinTransaction($attributes, $user, $workspace, $strictContent),
+            fn (): Flow => $this->createWithinTransaction(
+                $attributes,
+                $user,
+                $workspace,
+                $strictContent,
+                $ownerId ?? $user->id,
+            ),
             3,
         );
     }
@@ -46,6 +58,7 @@ final class FlowCreationService
         User $user,
         Workspace $workspace,
         bool $strictContent,
+        string $ownerId,
     ): Flow {
         Gate::forUser($user)->authorize(Ability::CREATE->value, Flow::class);
 
@@ -115,7 +128,7 @@ final class FlowCreationService
 
         $this->assignments->validate(
             $workspace->id,
-            $user->id,
+            $ownerId,
             $visibility,
             $teamId,
             $folderId,
@@ -126,7 +139,7 @@ final class FlowCreationService
             ...$data,
             'source_type' => 'code',
             'workspace_id' => $workspace->id,
-            'owner_id' => $user->id,
+            'owner_id' => $ownerId,
             'visibility' => $visibility,
             'team_id' => $teamId,
             'folder_id' => $folderId,

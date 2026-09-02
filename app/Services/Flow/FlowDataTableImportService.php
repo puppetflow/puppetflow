@@ -4,6 +4,7 @@ namespace App\Services\Flow;
 
 use App\Enums\DataTableColumnType;
 use App\Services\DataTable\DataTableSchemaService;
+use Illuminate\Validation\ValidationException;
 
 final class FlowDataTableImportService
 {
@@ -45,7 +46,9 @@ final class FlowDataTableImportService
         foreach ($sourceIds as $sourceId) {
             $definition = $schemasBySourceId->get($sourceId);
             if (! is_array($definition)) {
-                continue;
+                throw ValidationException::withMessages([
+                    'data_table_schemas' => "The referenced Data Table {$sourceId} is missing from the import.",
+                ]);
             }
 
             $dataTable = $this->schema->createDataTable([

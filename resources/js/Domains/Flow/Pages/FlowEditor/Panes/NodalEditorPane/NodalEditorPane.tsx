@@ -26,6 +26,7 @@ function NodalEditorPane(props: NodalEditorPaneProps) {
         publicationEditable = false,
         saveButtonStyle = 'toolbar',
         readOnly = false,
+        hideToolbar = false,
         documentExtension = 'flow',
     } = props;
     const controller = useNodalEditorPaneController(props);
@@ -33,30 +34,32 @@ function NodalEditorPane(props: NodalEditorPaneProps) {
     return (
         <S.Wrapper>
             <S.Column>
-                <Toolbar
-                    flow={flow}
-                    saved={saved}
-                    readOnly={readOnly}
-                    documentExtension={documentExtension}
-                    leftView={leftView}
-                    sidePanelOpen={sidePanelOpen}
-                    onSave={onSave}
-                    isPublished={flow.is_published}
-                    saveStatus={saveStatus}
-                    publishedVersion={publishedVersion}
-                    onPublish={onPublish}
-                    onUnpublish={onUnpublish}
-                    onViewTimeline={onViewTimeline}
-                    savingPublication={savingPublication}
-                    publicationEditable={publicationEditable}
-                    saveButtonStyle={saveButtonStyle}
-                    onRun={onRun}
-                    onOpenLibraryStore={onOpenLibraryStore}
-                    onDownloadFlow={onDownloadFlow}
-                    onDuplicateFlow={onDuplicateFlow}
-                    onSwitchView={onSwitchView}
-                    onToggleSidePanel={onToggleSidePanel}
-                />
+                {!hideToolbar && (
+                    <Toolbar
+                        flow={flow}
+                        saved={saved}
+                        readOnly={readOnly}
+                        documentExtension={documentExtension}
+                        leftView={leftView}
+                        sidePanelOpen={sidePanelOpen}
+                        onSave={onSave}
+                        isPublished={flow.is_published}
+                        saveStatus={saveStatus}
+                        publishedVersion={publishedVersion}
+                        onPublish={onPublish}
+                        onUnpublish={onUnpublish}
+                        onViewTimeline={onViewTimeline}
+                        savingPublication={savingPublication}
+                        publicationEditable={publicationEditable}
+                        saveButtonStyle={saveButtonStyle}
+                        onRun={onRun}
+                        onOpenLibraryStore={onOpenLibraryStore}
+                        onDownloadFlow={onDownloadFlow}
+                        onDuplicateFlow={onDuplicateFlow}
+                        onSwitchView={onSwitchView}
+                        onToggleSidePanel={onToggleSidePanel}
+                    />
+                )}
                 <NodalEditorCanvas controller={controller} />
             </S.Column>
         </S.Wrapper>
