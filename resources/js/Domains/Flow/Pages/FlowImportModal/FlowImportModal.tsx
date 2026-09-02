@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 import type { FormDataConvertible } from '@inertiajs/core';
 import Button from '@/Shared/UI/Button/Button';
+import { Icon } from '@/Shared/UI/Icon/Icon';
 import Modal from '@/Shared/UI/Modal/Modal';
 import Switch from '@/Shared/UI/Switch/Switch';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
@@ -302,24 +303,60 @@ export default function FlowImportModal({
                                         onVisibilityChange={setVisibility}
                                     />
                                     {parsedFile.dataTables.length > 0 && (
-                                        <S.ResourceImportOption htmlFor="create-referenced-data-tables">
-                                            <Switch
-                                                id="create-referenced-data-tables"
-                                                checked={createDataTables}
-                                                onChange={setCreateDataTables}
-                                                ariaLabel="Create referenced Data Tables"
-                                            />
-                                            <S.ResourceImportText>
-                                                <S.ResourceImportTitle>Create referenced Data Tables</S.ResourceImportTitle>
-                                                <S.ResourceImportDescription>
-                                                    Create {parsedFile.dataTables.length} Data Table
-                                                    {parsedFile.dataTables.length === 1 ? '' : 's'} with the imported flow.
-                                                </S.ResourceImportDescription>
-                                            </S.ResourceImportText>
-                                        </S.ResourceImportOption>
+                                        <S.ResourceImportCard>
+                                            <S.ResourceImportHeader htmlFor="create-referenced-data-tables">
+                                                <Switch
+                                                    id="create-referenced-data-tables"
+                                                    checked={createDataTables}
+                                                    onChange={setCreateDataTables}
+                                                    ariaLabel="Create referenced Data Tables"
+                                                />
+                                                <S.ResourceImportText>
+                                                    <S.ResourceImportTitle>Create referenced Data Tables</S.ResourceImportTitle>
+                                                    <S.ResourceImportDescription>
+                                                        Create {parsedFile.dataTables.length} Data Table
+                                                        {parsedFile.dataTables.length === 1 ? '' : 's'} with the imported flow.
+                                                    </S.ResourceImportDescription>
+                                                </S.ResourceImportText>
+                                            </S.ResourceImportHeader>
+                                            {createDataTables && (
+                                                <S.ResourceImportDetails>
+                                                    {parsedFile.dataTables.map(dataTable => (
+                                                        <S.DataTableImportItem key={dataTable.source_id}>
+                                                            <S.DataTableImportName>{dataTable.name}</S.DataTableImportName>
+                                                            <S.DataTableImportMeta>
+                                                                <S.DataTableImportColumns>
+                                                                    {dataTable.columns.length} column
+                                                                    {dataTable.columns.length === 1 ? '' : 's'}
+                                                                </S.DataTableImportColumns>
+                                                                <S.SchemaInfo>
+                                                                    <S.SchemaInfoButton
+                                                                        type="button"
+                                                                        aria-label={`View schema for ${dataTable.name}`}
+                                                                    >
+                                                                        <Icon icon="lucide:info" width={11} />
+                                                                    </S.SchemaInfoButton>
+                                                                    <S.SchemaTooltip role="tooltip">
+                                                                        <S.SchemaTooltipTitle>{dataTable.name} schema</S.SchemaTooltipTitle>
+                                                                        <S.SchemaColumnList>
+                                                                            {dataTable.columns.map(column => (
+                                                                                <S.SchemaColumn key={column.name}>
+                                                                                    <S.SchemaColumnName>{column.name}</S.SchemaColumnName>
+                                                                                    <S.SchemaColumnType>{column.type}</S.SchemaColumnType>
+                                                                                </S.SchemaColumn>
+                                                                            ))}
+                                                                        </S.SchemaColumnList>
+                                                                    </S.SchemaTooltip>
+                                                                </S.SchemaInfo>
+                                                            </S.DataTableImportMeta>
+                                                        </S.DataTableImportItem>
+                                                    ))}
+                                                </S.ResourceImportDetails>
+                                            )}
+                                        </S.ResourceImportCard>
                                     )}
                                     {parsedFile.mailboxWatchers.length > 0 && (
-                                        <S.MailboxImportOption>
+                                        <S.ResourceImportCard>
                                             <S.ResourceImportHeader htmlFor="create-referenced-mailbox-watchers">
                                                 <Switch
                                                     id="create-referenced-mailbox-watchers"
@@ -336,7 +373,7 @@ export default function FlowImportModal({
                                                 </S.ResourceImportText>
                                             </S.ResourceImportHeader>
                                             {createMailboxWatchers && (
-                                                <S.MailboxMappings>
+                                                <S.ResourceImportDetails>
                                                     {[...new Map(parsedFile.mailboxWatchers.map(watcher => [
                                                         watcher.mailbox.source_id,
                                                         watcher.mailbox,
@@ -364,9 +401,9 @@ export default function FlowImportModal({
                                                             />
                                                         </S.MailboxMapping>
                                                     ))}
-                                                </S.MailboxMappings>
+                                                </S.ResourceImportDetails>
                                             )}
-                                        </S.MailboxImportOption>
+                                        </S.ResourceImportCard>
                                     )}
                                 </>
                             )}
