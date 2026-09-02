@@ -41,7 +41,7 @@ const $screenshot = async function(screenshotName, options = {}) {
 
 /* @help Utility
  * @sig $sleep(milliseconds)
- * @aliases pause flow, wait delay
+ * @aliases wait, pause flow, wait delay
  * @desc Async sleep for the given milliseconds.
  * @nodal-desc Pause the flow for a fixed duration.
  * @nodal-param milliseconds [integer]: Time to wait before continuing, in milliseconds.

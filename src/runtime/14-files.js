@@ -1,11 +1,11 @@
 /* @help Files
- * @sig $createArtifact(artifactName, content, options?)
+ * @sig $writeFile(fileName, content, options?)
  * @aliases create file, write file, save file
- * @desc Create an artifact in the run downloads directory.
+ * @desc Write a file in the run downloads directory.
  * @nodal-desc Create a file and attach it to the run artifacts.
  * @nodal-output string
  * @opt format: text, output: true, overwrite: true, structuredSpacing: 2
- * @nodal-param artifactName [string, required]: Filename or relative path for the artifact.
+ * @nodal-param fileName [string, required]: Filename or relative path for the artifact.
  * @nodal-param content [string, textarea, required]: Content to write to the artifact.
  * @nodal-param options [object]: Configure the content format, artifact output, replacement, and indentation.
  * @nodal-param options.format [string]: Content format: text, json, yaml, csv, toml, or xml.
@@ -13,18 +13,18 @@
  * @nodal-param options.overwrite [boolean]: Replace an existing artifact with the same name.
  * @nodal-param options.structuredSpacing [number]: Number of spaces used to indent structured content, from 0 to 10.
  */
-const $createArtifact = async function(artifactName, content, options = {}) {
-  if (typeof artifactName !== 'string' || !artifactName.trim()) {
-    throw new TypeError('$createArtifact: artifactName must be a non-empty string.');
+const $writeFile = async function(fileName, content, options = {}) {
+  if (typeof fileName !== 'string' || !fileName.trim()) {
+    throw new TypeError('$writeFile: fileName must be a non-empty string.');
   }
   if (typeof content === 'undefined') {
-    throw new TypeError('$createArtifact: content is required.');
+    throw new TypeError('$writeFile: content is required.');
   }
 
   const opts = { format: 'text', output: true, overwrite: true, structuredSpacing: 2, ...(options || {}) };
   const format = String(opts.format || 'text').trim().toLowerCase();
   if (!['text', 'json', 'yaml', 'csv', 'toml', 'xml'].includes(format)) {
-    throw new TypeError('$createArtifact: format must be text, json, yaml, csv, toml, or xml.');
+    throw new TypeError('$writeFile: format must be text, json, yaml, csv, toml, or xml.');
   }
   const structuredSpacing = Math.max(0, Math.min(10, Math.trunc(Number(opts.structuredSpacing) || 0)));
   let structuredContent = content;
@@ -35,7 +35,7 @@ const $createArtifact = async function(artifactName, content, options = {}) {
       parsedStringContent = true;
     } catch (_) {
       if (format === 'json') {
-        throw new TypeError('$createArtifact: content must contain valid JSON when format is json.');
+        throw new TypeError('$writeFile: content must contain valid JSON when format is json.');
       }
     }
   }
@@ -48,7 +48,7 @@ const $createArtifact = async function(artifactName, content, options = {}) {
       try {
         serializedContent = JSON.stringify(content, null, structuredSpacing);
       } catch (error) {
-        throw new TypeError('$createArtifact: content cannot be serialized. ' + (error && error.message ? error.message : ''));
+        throw new TypeError('$writeFile: content cannot be serialized. ' + (error && error.message ? error.message : ''));
       }
     }
   } else if (!parsedStringContent && typeof content === 'string') {
@@ -57,14 +57,14 @@ const $createArtifact = async function(artifactName, content, options = {}) {
     try {
       serializedContent = JSON.stringify(structuredContent, null, structuredSpacing);
     } catch (error) {
-      throw new TypeError('$createArtifact: content cannot be serialized as JSON. ' + (error && error.message ? error.message : ''));
+      throw new TypeError('$writeFile: content cannot be serialized as JSON. ' + (error && error.message ? error.message : ''));
     }
   } else if (format === 'yaml') {
     const YAML = __requireSandboxModule('yaml');
     serializedContent = YAML.stringify(structuredContent, null, { indent: Math.max(1, structuredSpacing) });
   } else if (format === 'toml') {
     if (!structuredContent || typeof structuredContent !== 'object' || Array.isArray(structuredContent)) {
-      throw new TypeError('$createArtifact: TOML content must be an object.');
+      throw new TypeError('$writeFile: TOML content must be an object.');
     }
     const TOML = __requireSandboxModule('@iarna/toml');
     serializedContent = TOML.stringify(structuredContent);
@@ -112,16 +112,16 @@ const $createArtifact = async function(artifactName, content, options = {}) {
   }
 
   if (typeof serializedContent !== 'string') {
-    throw new TypeError('$createArtifact: content could not be serialized.');
+    throw new TypeError('$writeFile: content could not be serialized.');
   }
 
-  const targetPath = __resolveArtifactPath(paths.downloads, artifactName, '$createArtifact destination');
+  const targetPath = __resolveArtifactPath(paths.downloads, fileName, '$writeFile destination');
   const artifactRelativePath = path.relative(paths.downloads, targetPath).split(path.sep).join('/');
   if (!opts.overwrite && fs.existsSync(targetPath)) {
-    throw new Error('$createArtifact: artifact already exists: ' + artifactName);
+    throw new Error('$writeFile: file already exists: ' + fileName);
   }
 
-  __emitAction('createArtifact', artifactRelativePath);
+  __emitAction('writeFile', artifactRelativePath);
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, serializedContent, 'utf8');
   if (opts.output) {

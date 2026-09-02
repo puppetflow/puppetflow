@@ -283,11 +283,11 @@ const mapActionToNode = (action: ActionLogEntry) => {
                     options: object({ output: true }),
                 },
             };
-        case 'createArtifact':
+        case 'writeFile':
             return {
-                name: '$createArtifact',
+                name: '$writeFile',
                 values: {
-                    artifactName: fixed(args.name),
+                    fileName: fixed(args.name),
                     content: fixed(args.content),
                     options: object({
                         format: typeof args.format === 'string' ? args.format : 'text',

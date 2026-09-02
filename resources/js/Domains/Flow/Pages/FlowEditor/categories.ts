@@ -12,7 +12,7 @@ export interface HelpCategoryPage {
 }
 
 export const FILE_HELPER_NAMES = [
-    '$createArtifact',
+    '$writeFile',
     '$scanDirectory',
     '$scanDownloadsDirectory',
     '$download',
@@ -92,7 +92,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Create, download, move, unzip, search, and upload files.',
         icon: 'lucide:folder-down',
         color: '#06b6d4',
-        priority: ['$download', '$downloadFromBrowser', '$waitForFile', '$moveDownloadedFile', '$getDownloadsPathFile', '$scanDirectory', '$scanDownloadsDirectory', '$unzipFile', '$createArtifact', '$pdfSearch', '$pdfGetText'],
+        priority: ['$download', '$downloadFromBrowser', '$waitForFile', '$moveDownloadedFile', '$getDownloadsPathFile', '$scanDirectory', '$scanDownloadsDirectory', '$unzipFile', '$writeFile', '$pdfSearch', '$pdfGetText'],
         match: entry => entry.category === 'Files' || FILE_HELPER_NAMES.includes(entry.name),
     },
     {
