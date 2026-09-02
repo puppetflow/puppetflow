@@ -1,5 +1,6 @@
 import { getPrimaryHelpCategory, HELP_CATEGORY_PAGES } from '@/Domains/Flow/Pages/FlowEditor/categories';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { HELPER_ICON_BY_NAME } from './helperIcons';
 import { HELP_ENTRIES } from './helpCatalog';
 
 export const sortHelpEntries = (entries: HelpEntryDef[], priority: string[] = []) => {
@@ -70,69 +71,6 @@ export const getHelpCategoryColor = (entry: HelpEntryDef) => {
 };
 
 export const NATIVE_HELPER_REFERENCES = new Set(HELP_ENTRIES.map(entry => entry.name.replace(/^\$/, '')));
-
-const HELPER_ICON_BY_NAME: Record<string, string> = {
-    $gotoUrl: 'lucide:compass',
-    $gotoTab: 'lucide:panels-top-left',
-    $screenshot: 'lucide:camera',
-    $aiMessage: 'lucide:message-square-text',
-    $aiControl: 'lucide:brain-circuit',
-    $httpRequest: 'lucide:send',
-    $waitHumanValidation: 'lucide:hand',
-    $generateResponseSuccess: 'lucide:circle-check',
-    $generateResponseError: 'lucide:circle-x',
-    $generateResponse: 'lucide:message-square-reply',
-    $stopFail: 'lucide:octagon-alert',
-    $stopSuccess: 'lucide:badge-check',
-    $fillInput: 'lucide:keyboard',
-    $clickElement: 'lucide:mouse-pointer-click',
-    $clickElementAtIndex: 'lucide:list-ordered',
-    $clickAtCoordinates: 'lucide:locate-fixed',
-    $scrollByPixels: 'lucide:arrow-up-down',
-    $scrollToElement: 'lucide:scan-line',
-    $selectElement: 'lucide:scan-line',
-    $selectManyElements: 'lucide:list-tree',
-    $selectShadow: 'lucide:layers',
-    $shadowInputFill: 'lucide:panel-top',
-    $injectScriptLibrary: 'lucide:file-code-2',
-    $bridgeEvaluate: 'lucide:code-2',
-    $setOutput: 'lucide:package-plus',
-    $if: 'lucide:git-branch',
-    $ifEmpty: 'lucide:replace',
-    $max: 'lucide:arrow-up-1-0',
-    $min: 'lucide:arrow-down-1-0',
-    $vars: 'lucide:key-round',
-    $meta: 'lucide:tags',
-    $legend: 'lucide:text-cursor-input',
-    $log: 'lucide:terminal',
-    $sleep: 'lucide:timer',
-    $keyboardSpeed: 'lucide:gauge',
-    $setViewport: 'lucide:monitor',
-    $currentDate: 'lucide:calendar',
-    $currentDateMinusOneMonth: 'lucide:calendar-minus',
-    $currentDatePlusOneMonth: 'lucide:calendar-plus',
-    $now: 'lucide:calendar-clock',
-    $today: 'lucide:calendar-days',
-    $parseDates: 'lucide:calendar-search',
-    $sortDates: 'lucide:arrow-up-down',
-    $saveCookies: 'lucide:cookie',
-    $loadCookies: 'lucide:cookie',
-    $loginRemember: 'lucide:shield-check',
-    $scanDirectory: 'lucide:folder-search',
-    $download: 'lucide:download',
-    $downloadFromBrowser: 'lucide:cloud-download',
-    $waitForFile: 'lucide:file-clock',
-    $moveDownloadedFile: 'lucide:file-input',
-    $getDownloadsPathFile: 'lucide:file-search',
-    $upload: 'lucide:upload',
-    $unzipFile: 'lucide:archive',
-    $pdfSearch: 'lucide:file-search',
-    $notify: 'lucide:bell',
-    $waitForEmail: 'lucide:mail-search',
-    $input: 'lucide:braces',
-    $page: 'lucide:panel-top',
-    $client: 'lucide:plug',
-};
 
 const HELPER_ICON_BY_CATEGORY: Record<string, string> = {
     Navigation: 'lucide:compass',
