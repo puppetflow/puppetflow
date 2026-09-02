@@ -195,7 +195,8 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
         const path = match[1];
         const hintTokens = parseNodalParamHintTokens(match[2]);
         const tabNameInput = hintTokens.includes('tab-name');
-        const valueType = tabNameInput
+        const stopwatchNameInput = hintTokens.includes('stopwatch-name');
+        const valueType = tabNameInput || stopwatchNameInput
             ? 'string'
             : normalizeNodalParamType(hintTokens.find(token => token !== 'required'));
         const required = hintTokens.includes('required');
@@ -205,6 +206,8 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
             ? 'logged-marker-condition'
             : tabNameInput
             ? 'tab-name'
+            : stopwatchNameInput
+            ? 'stopwatch-name'
             : hintTokens.includes('textarea')
             ? 'textarea'
             : valueType === 'boolean'

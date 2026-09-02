@@ -140,7 +140,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Timing, selector helpers, and small automation helpers.',
         icon: 'lucide:wrench',
         color: '#64748b',
-        priority: ['$sleep', '$waitForSelectorCondition', '$if', '$ifEmpty', '$min', '$max', '$matchSequence'],
+        priority: ['$stopwatchStart', '$stopwatchCheck', '$stopwatchStop', '$sleep', '$waitForSelectorCondition', '$if', '$ifEmpty', '$min', '$max', '$matchSequence'],
         match: entry => entry.category === 'Utility' && !['$vars', '$setOutput', '$meta', '$legend', '$log', '$setViewport'].includes(entry.name),
     },
     {

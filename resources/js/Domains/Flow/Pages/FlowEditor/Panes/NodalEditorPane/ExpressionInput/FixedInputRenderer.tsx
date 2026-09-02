@@ -32,6 +32,7 @@ interface FixedInputRendererProps {
     value: ScalarNodeParameterValue;
     options: NodalSelectOption[];
     allowCustomSelectValue?: boolean;
+    customSelectValueLabel?: string;
     selectSearchThreshold: number;
     placeholder?: string;
     readOnly?: boolean;
@@ -56,6 +57,7 @@ export default function FixedInputRenderer({
     value,
     options,
     allowCustomSelectValue,
+    customSelectValueLabel,
     selectSearchThreshold,
     placeholder,
     readOnly,
@@ -133,6 +135,7 @@ export default function FixedInputRenderer({
                 value={value.value}
                 placeholder={placeholder}
                 allowCustomValue={allowCustomSelectValue}
+                customValueLabel={customSelectValueLabel}
                 readOnly={readOnly}
                 onChange={onChange}
             />

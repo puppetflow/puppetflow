@@ -26,6 +26,7 @@ interface ExpressionInputProps {
     inputType?: ExpressionInputType;
     options?: NodalSelectOption[];
     allowCustomSelectValue?: boolean;
+    customSelectValueLabel?: string;
     selectSearchThreshold?: number;
     flowId?: Id;
     value: ScalarNodeParameterValue;
@@ -48,6 +49,7 @@ export default function ExpressionInput({
     inputType = 'text',
     options = [],
     allowCustomSelectValue,
+    customSelectValueLabel,
     selectSearchThreshold = DEFAULT_SELECT_SEARCH_THRESHOLD,
     flowId,
     value,
@@ -259,6 +261,7 @@ export default function ExpressionInput({
                     value={value}
                     options={options}
                     allowCustomSelectValue={allowCustomSelectValue}
+                    customSelectValueLabel={customSelectValueLabel}
                     selectSearchThreshold={selectSearchThreshold}
                     placeholder={placeholder}
                     readOnly={readOnly}

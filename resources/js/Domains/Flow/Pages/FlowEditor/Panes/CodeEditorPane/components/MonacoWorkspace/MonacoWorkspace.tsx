@@ -85,6 +85,8 @@ export const MonacoWorkspace = forwardRef<MonacoWorkspaceHandle, MonacoWorkspace
             padding: { top: 12 },
             readOnly,
             wordBasedSuggestions: 'off' as const,
+            quickSuggestions: { strings: true, other: true, comments: false },
+            suggestOnTriggerCharacters: true,
             suggest: {
                 showFiles: false,
                 showWords: false,

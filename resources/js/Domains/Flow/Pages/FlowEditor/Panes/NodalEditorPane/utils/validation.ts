@@ -157,6 +157,33 @@ export function getUnavailableBrowserTabIssue(
     };
 }
 
+export function getUnavailableStopwatchIssue(
+    entry: HelpEntryDef,
+    values: Record<string, NodeParameterValue>,
+    availableStopwatchNames: readonly string[],
+): NodeValidationIssue | null {
+    if (entry.name !== '$stopwatchStop' && entry.name !== '$stopwatchCheck') return null;
+
+    const stopwatchName = normalizeScalarParameterValue(values.stopwatchName);
+    if (stopwatchName.mode !== 'fixed') return null;
+
+    const normalizedName = stopwatchName.value.trim();
+    if (!normalizedName) {
+        return {
+            path: 'stopwatchName',
+            label: 'Stopwatch Name',
+            message: 'Select a stopwatch.',
+        };
+    }
+    if (availableStopwatchNames.includes(normalizedName)) return null;
+
+    return {
+        path: 'stopwatchName',
+        label: 'Stopwatch Name',
+        message: `Stopwatch "${normalizedName}" is not defined in this flow.`,
+    };
+}
+
 function cleanArgName(arg: string) {
     return arg.replace(/\?$/, '').replace(/^\.\.\./, '');
 }

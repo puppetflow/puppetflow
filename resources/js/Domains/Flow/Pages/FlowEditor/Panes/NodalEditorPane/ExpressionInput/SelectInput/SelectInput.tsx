@@ -12,6 +12,7 @@ interface SelectInputProps {
     value: string;
     placeholder?: string;
     allowCustomValue?: boolean;
+    customValueLabel?: string;
     readOnly?: boolean;
     onChange: (value: ScalarNodeParameterValue) => void;
 }
@@ -22,6 +23,7 @@ export default function SelectInput({
     value,
     placeholder,
     allowCustomValue = false,
+    customValueLabel = 'tab name',
     readOnly,
     onChange,
 }: SelectInputProps) {
@@ -54,12 +56,12 @@ export default function SelectInput({
             ? {
                 value: customValue,
                 label: `Use "${customValue}"`,
-                detail: 'Custom tab name',
+                detail: `Custom ${customValueLabel}`,
             }
             : null;
 
         return customOption ? [customOption, ...filteredOptions] : filteredOptions;
-    }, [allowCustomValue, filteredOptions, options, query]);
+    }, [allowCustomValue, customValueLabel, filteredOptions, options, query]);
 
     useEffect(() => {
         if (!open) return;
@@ -160,7 +162,7 @@ export default function SelectInput({
                         <S.SelectSearchInput
                             autoFocus
                             value={query}
-                            placeholder={allowCustomValue ? 'Search or enter a tab name...' : 'Search option...'}
+                            placeholder={allowCustomValue ? `Search or enter a ${customValueLabel}...` : 'Search option...'}
                             onChange={event => {
                                 setQuery(event.target.value);
                                 setActiveIndex(0);

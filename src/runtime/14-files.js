@@ -1,5 +1,6 @@
 /* @help Files
  * @sig $createArtifact(artifactName, content, options?)
+ * @aliases create file
  * @desc Create an artifact in the run downloads directory.
  * @nodal-desc Create a file and attach it to the run artifacts.
  * @nodal-output string

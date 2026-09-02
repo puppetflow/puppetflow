@@ -5,7 +5,10 @@ import CanvasNodeCard from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPan
 import StickyNoteCard from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/CanvasNode/StickyNoteCard/StickyNoteCard';
 import { getMarqueeSelectedNodeIds } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/selection';
 import { EMPTY_OUTPUT_PORT_SET, getConnectedOutputPortsByNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
-import { collectDeclaredNamedTabsFromGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
+import {
+    collectDeclaredNamedTabsFromGraph,
+    collectDeclaredStopwatchNamesFromGraph,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import { CODE_NODE_NAME, CODE_NODE_VALUE_KEY } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import type {
     CanvasEdge,
@@ -78,20 +81,27 @@ export default function CanvasNodeLayer({
         return getMarqueeSelectedNodeIds(nodes, selectionBox);
     }, [nodes, selectionBox]);
     const connectedOutputPortsByNode = useMemo(() => getConnectedOutputPortsByNode(edges), [edges]);
-    const tabDeclarationSignature = JSON.stringify(graph.nodes.flatMap(node => {
+    const resourceDeclarationSignature = JSON.stringify(graph.nodes.flatMap(node => {
         if (node.deactivated || node.system) return [];
         if (node.name === '$gotoUrl') return [[node.id, node.name, node.values?.tabName]];
+        if (node.name === '$stopwatchStart') return [[node.id, node.name, node.values?.stopwatchName]];
         if (node.name === CODE_NODE_NAME) return [[node.id, node.name, node.values?.[CODE_NODE_VALUE_KEY]]];
         return [];
     }));
-    const tabDeclarationsRef = useRef<{ signature: string; names: string[] } | null>(null);
-    if (tabDeclarationsRef.current?.signature !== tabDeclarationSignature) {
-        tabDeclarationsRef.current = {
-            signature: tabDeclarationSignature,
-            names: collectDeclaredNamedTabsFromGraph(graph),
+    const resourceDeclarationsRef = useRef<{
+        signature: string;
+        tabNames: string[];
+        stopwatchNames: string[];
+    } | null>(null);
+    if (resourceDeclarationsRef.current?.signature !== resourceDeclarationSignature) {
+        resourceDeclarationsRef.current = {
+            signature: resourceDeclarationSignature,
+            tabNames: collectDeclaredNamedTabsFromGraph(graph),
+            stopwatchNames: collectDeclaredStopwatchNamesFromGraph(graph),
         };
     }
-    const availableTabNames = tabDeclarationsRef.current.names;
+    const availableTabNames = resourceDeclarationsRef.current.tabNames;
+    const availableStopwatchNames = resourceDeclarationsRef.current.stopwatchNames;
 
     return (
         <>
@@ -128,6 +138,7 @@ export default function CanvasNodeLayer({
                     key={node.id}
                     node={node}
                     availableTabNames={availableTabNames}
+                    availableStopwatchNames={availableStopwatchNames}
                     connectedOutputPorts={connectedOutputPortsByNode.get(node.id) ?? EMPTY_OUTPUT_PORT_SET}
                     selected={selectedNodeIds.has(node.id)}
                     selectionPreview={selectionPreviewNodeIds.has(node.id)}

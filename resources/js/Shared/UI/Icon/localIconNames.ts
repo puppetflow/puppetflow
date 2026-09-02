@@ -250,6 +250,8 @@ export const localIconNames = new Set<string>([
     "lucide:text-cursor-input",
     "lucide:thumbs-up",
     "lucide:timer",
+    "lucide:timer-off",
+    "lucide:timer-reset",
     "lucide:toggle-left",
     "lucide:toggle-right",
     "lucide:trash-2",

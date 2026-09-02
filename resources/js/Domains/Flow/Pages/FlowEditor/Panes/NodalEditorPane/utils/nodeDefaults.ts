@@ -115,6 +115,29 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         };
     }
 
+    if (entry.name === '$stopwatchStop') {
+        return {
+            stopwatchName: { mode: 'fixed' as const, value: 'default' },
+            options: {
+                mode: 'object' as const,
+                inputMode: 'form' as const,
+                jsonMode: 'fixed' as const,
+                value: '{"reset":false}',
+                fields: [{
+                    id: 'stopwatch-reset',
+                    key: 'reset',
+                    value: { mode: 'fixed' as const, value: 'false' },
+                }],
+            },
+        };
+    }
+
+    if (entry.name === '$stopwatchStart' || entry.name === '$stopwatchCheck') {
+        return {
+            stopwatchName: { mode: 'fixed' as const, value: 'default' },
+        };
+    }
+
     if (entry.name === FILTER_NODE_NAME) {
         return {
             array: { mode: 'expression' as const, value: '{{ $input.items || [] }}' },

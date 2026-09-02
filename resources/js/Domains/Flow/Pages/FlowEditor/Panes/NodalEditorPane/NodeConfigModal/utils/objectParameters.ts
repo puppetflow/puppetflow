@@ -371,7 +371,12 @@ export function prependCustomObjectField(
 }
 
 export function getExpressionInputType(meta?: NodalParamDef): 'text' | 'textarea' | 'code' | 'boolean' | 'number' | 'select' | 'channel' | 'mailbox-watcher' {
-    if (meta?.input === 'select' || meta?.input === 'tab-name' || (meta?.options?.length ?? 0) > 0) return 'select';
+    if (
+        meta?.input === 'select'
+        || meta?.input === 'tab-name'
+        || meta?.input === 'stopwatch-name'
+        || (meta?.options?.length ?? 0) > 0
+    ) return 'select';
     if (meta?.input === 'boolean' || meta?.valueType === 'boolean') return 'boolean';
     if (meta?.input === 'number' || meta?.valueType === 'number') return 'number';
     if (meta?.input === 'textarea' || meta?.valueType === 'array') return 'textarea';

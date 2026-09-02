@@ -40,6 +40,8 @@ export const EXPRESSION_EDITOR_OPTIONS = {
     guides: { indentation: false },
     bracketPairColorization: { enabled: true },
     wordBasedSuggestions: 'off' as const,
+    quickSuggestions: { strings: true, other: true, comments: false },
+    suggestOnTriggerCharacters: true,
     suggest: {
         showFiles: false,
         showWords: false,

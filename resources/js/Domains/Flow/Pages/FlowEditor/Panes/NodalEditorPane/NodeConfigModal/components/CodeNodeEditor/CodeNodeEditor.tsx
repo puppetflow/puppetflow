@@ -10,6 +10,7 @@ import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monac
 import { registerNodalAutocompleteCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
+import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
@@ -28,6 +29,8 @@ const CODE_NODE_EDITOR_OPTIONS = {
     contextmenu: false,
     bracketPairColorization: { enabled: true },
     wordBasedSuggestions: 'off' as const,
+    quickSuggestions: { strings: true, other: true, comments: false },
+    suggestOnTriggerCharacters: true,
     suggest: {
         showFiles: false,
         showWords: false,
@@ -74,6 +77,7 @@ export default function CodeNodeEditor({
             ...(flowId ? [registerDataTableCompletions(monaco, flowId, modelUri)] : []),
             registerSnippetCompletions(monaco, modelUri),
             registerTabNameCompletions(monaco, modelUri, autocompleteContext.tabNames),
+            registerStopwatchNameCompletions(monaco, modelUri, autocompleteContext.stopwatchNames),
         ];
     }, [autocompleteContext, flowId, outputData]);
 

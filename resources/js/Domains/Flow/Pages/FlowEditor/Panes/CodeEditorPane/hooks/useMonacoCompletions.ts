@@ -9,6 +9,7 @@ import { registerInputCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/
 import { registerMailboxWatcherCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
+import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
 
@@ -40,6 +41,7 @@ export function useMonacoCompletions({
         input?: Disposable;
         snippet?: Disposable;
         tabName?: Disposable;
+        stopwatchName?: Disposable;
         referenceLabels?: Disposable;
     }>({});
 
@@ -67,6 +69,7 @@ export function useMonacoCompletions({
         disposablesRef.current.input?.dispose();
         disposablesRef.current.snippet?.dispose();
         disposablesRef.current.tabName?.dispose();
+        disposablesRef.current.stopwatchName?.dispose();
         disposablesRef.current.referenceLabels?.dispose();
         disposablesRef.current.aiModel = registerAiModelCompletions(monaco, modelUri);
         disposablesRef.current.channel = registerChannelCompletions(monaco, modelUri);
@@ -76,6 +79,7 @@ export function useMonacoCompletions({
         disposablesRef.current.input = registerInputCompletions(monaco, defaultInputs, modelUri);
         disposablesRef.current.snippet = registerSnippetCompletions(monaco, modelUri);
         disposablesRef.current.tabName = registerTabNameCompletions(monaco, modelUri);
+        disposablesRef.current.stopwatchName = registerStopwatchNameCompletions(monaco, modelUri);
         disposablesRef.current.referenceLabels = registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
 
         editorInstance.addCommand(

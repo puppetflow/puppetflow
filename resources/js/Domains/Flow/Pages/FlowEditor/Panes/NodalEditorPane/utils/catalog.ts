@@ -167,6 +167,7 @@ const OPTION_DESCRIPTIONS: Record<string, string> = {
     sleep: 'Pause duration between low-level browser actions, in milliseconds.',
     speed: 'Typing speed for human-like input, in milliseconds between keystrokes.',
     continueOnError: 'When enabled, the flow continues even if this step cannot complete.',
+    reset: 'Reset the stopwatch to 0 milliseconds after stopping it.',
     textMatch: 'Text to match against the element visible text.',
     textFilter: 'Text filter mode: contains, exact, startsWith, or endsWith.',
     textCaseSensitive: 'Preserve letter casing when matching text.',

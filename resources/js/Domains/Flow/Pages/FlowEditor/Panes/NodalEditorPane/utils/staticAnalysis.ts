@@ -1,5 +1,8 @@
 import type { VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { collectNamedTabsFromCode, DEFAULT_TAB_NAME } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
+import {
+    collectNamedStopwatchesFromCode,
+} from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import { createPagePreviewData } from '@/Domains/Flow/Pages/FlowEditor/utils/pageAutocomplete';
 import { createNodalOutputPreview } from '@/Domains/Flow/Pages/FlowEditor/utils/outputPreview';
 import type { NodalGraph, NodeParameterValue, ObjectFieldValueType, RawNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
@@ -35,6 +38,7 @@ export interface NodalAutocompleteContext {
     pageData: Record<string, unknown> | null;
     locals: VariableSuggestion[];
     tabNames: string[];
+    stopwatchNames: string[];
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -497,6 +501,24 @@ export function collectDeclaredNamedTabsFromGraph(graph: NodalGraph): string[] {
     return [...tabNames];
 }
 
+export function collectDeclaredStopwatchNamesFromGraph(graph: NodalGraph): string[] {
+    const stopwatchNames = new Set<string>();
+
+    graph.nodes.forEach(node => {
+        if (node.system || node.deactivated) return;
+        if (node.name === '$stopwatchStart') {
+            const stopwatchName = readFixedScalar(node.values?.stopwatchName);
+            if (stopwatchName) stopwatchNames.add(stopwatchName);
+        }
+        if (node.name === CODE_NODE_NAME) {
+            collectNamedStopwatchesFromCode(readFixedScalar(node.values?.[CODE_NODE_VALUE_KEY]))
+                .forEach(stopwatchName => stopwatchNames.add(stopwatchName));
+        }
+    });
+
+    return [...stopwatchNames];
+}
+
 const isInternalNodeOutputKey = (key: string, nodeId: string) => {
     if (!key) return false;
     if (key === nodeId) return true;
@@ -702,6 +724,7 @@ export function analyzeNodalAutocompleteContext(
         ...defaults.contextData,
     };
     const tabNames = new Set(collectDeclaredNamedTabsFromGraph(graph));
+    const stopwatchNames = new Set(collectDeclaredStopwatchNamesFromGraph(graph));
     const runScopeNodeIds = targetIsFinally
         ? reachableInRunOrder(runNodeId, outgoing).filter(nodeId => !finallyNodeIds.has(nodeId))
         : [];
@@ -831,5 +854,6 @@ export function analyzeNodalAutocompleteContext(
         pageData: createPagePreviewData(),
         locals: [...locals.values()],
         tabNames: [...tabNames],
+        stopwatchNames: [...stopwatchNames],
     };
 }

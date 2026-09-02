@@ -8,6 +8,7 @@ import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monac
 import { registerNodalAutocompleteCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
+import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
@@ -70,6 +71,7 @@ export function useExpressionEditors({
             ),
             registerSnippetCompletions(monaco, modelUri),
             registerTabNameCompletions(monaco, modelUri, autocompleteContext.tabNames),
+            registerStopwatchNameCompletions(monaco, modelUri, autocompleteContext.stopwatchNames),
         ];
     }, [autocompleteContext, autocompleteOutputData, disposeCompletions, flowId]);
 

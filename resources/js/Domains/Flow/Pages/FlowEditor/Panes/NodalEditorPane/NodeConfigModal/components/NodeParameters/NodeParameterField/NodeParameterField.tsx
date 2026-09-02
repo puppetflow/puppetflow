@@ -17,6 +17,7 @@ import {
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import {
     getUnavailableBrowserTabIssue,
+    getUnavailableStopwatchIssue,
     getNodeParameterDisplayLabel,
     type NodeValidationIssue,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
@@ -80,8 +81,14 @@ export default function NodeParameterField({
     const cleanArg = arg.replace(/\?$/, '').replace(/^\.\.\./, '');
     const fieldLabel = getNodeParameterDisplayLabel(entry, cleanArg);
     const isTabName = meta.input === 'tab-name';
-    const tabNameOptions = isTabName
+    const isStopwatchName = meta.input === 'stopwatch-name';
+    const selectOptions = isTabName
         ? autocompleteContext.tabNames.map(tabName => ({ value: tabName, label: tabName }))
+        : isStopwatchName
+        ? autocompleteContext.stopwatchNames.map(stopwatchName => ({
+            value: stopwatchName,
+            label: stopwatchName,
+        }))
         : meta.options;
     const scalarValue = normalizeScalarParameterValue(node.values[cleanArg]);
     const unavailableTabIssue = getUnavailableBrowserTabIssue(
@@ -89,8 +96,15 @@ export default function NodeParameterField({
         node.values,
         autocompleteContext.tabNames,
     );
-    const invalid = Boolean(missingRequiredIssue || unavailableTabIssue);
-    const errorMessage = unavailableTabIssue?.message ?? missingRequiredIssue?.message;
+    const unavailableStopwatchIssue = getUnavailableStopwatchIssue(
+        entry,
+        node.values,
+        autocompleteContext.stopwatchNames,
+    );
+    const invalid = Boolean(missingRequiredIssue || unavailableTabIssue || unavailableStopwatchIssue);
+    const errorMessage = unavailableTabIssue?.message
+        ?? unavailableStopwatchIssue?.message
+        ?? missingRequiredIssue?.message;
     const { available: grabberAvailable, grabSelector } = useGrabber();
     const [grabbing, setGrabbing] = useState(false);
     const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -400,10 +414,18 @@ export default function NodeParameterField({
                 </S.PickerLabel>
             ) : undefined}
             hint={hint}
-            placeholder={isTabName ? 'Default' : meta.placeholder}
+            placeholder={isTabName
+                ? 'Default'
+                : isStopwatchName
+                    ? 'Select a stopwatch...'
+                    : meta.placeholder}
             inputType={getExpressionInputType(meta)}
-            options={tabNameOptions}
-            allowCustomSelectValue={isTabName && entry.name === '$gotoUrl'}
+            options={selectOptions}
+            allowCustomSelectValue={
+                (isTabName && entry.name === '$gotoUrl')
+                || (isStopwatchName && entry.name === '$stopwatchStart')
+            }
+            customSelectValueLabel={isStopwatchName ? 'stopwatch name' : undefined}
             value={scalarValue}
             outputData={expressionOutputData}
             autocompleteContext={autocompleteContext}

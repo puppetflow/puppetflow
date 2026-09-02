@@ -13,6 +13,7 @@ import { getNodeSiteUrl, getSiteFaviconUrl } from '@/Domains/Flow/Pages/FlowEdit
 import {
     getMissingRequiredParameters,
     getUnavailableBrowserTabIssue,
+    getUnavailableStopwatchIssue,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import { canDeactivateNode, EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import { useNodeValidationResources } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/NodeValidationContext';
@@ -22,6 +23,7 @@ import * as SharedS from '../shared.styled';
 interface CanvasNodeCardProps {
     node: CanvasNode;
     availableTabNames?: readonly string[];
+    availableStopwatchNames?: readonly string[];
     connectedOutputPorts?: ReadonlySet<string>;
     selected: boolean;
     selectionPreview?: boolean;
@@ -43,6 +45,7 @@ interface CanvasNodeCardProps {
 export default function CanvasNodeCard({
     node,
     availableTabNames = [],
+    availableStopwatchNames = [],
     connectedOutputPorts = EMPTY_OUTPUT_PORT_SET,
     selected,
     selectionPreview,
@@ -86,8 +89,18 @@ export default function CanvasNodeCard({
             validationResources,
         );
         const unavailableTabIssue = getUnavailableBrowserTabIssue(entry, node.values, availableTabNames);
-        return unavailableTabIssue ? [...issues, unavailableTabIssue] : issues;
+        const unavailableStopwatchIssue = getUnavailableStopwatchIssue(
+            entry,
+            node.values,
+            availableStopwatchNames,
+        );
+        return [
+            ...issues,
+            ...(unavailableTabIssue ? [unavailableTabIssue] : []),
+            ...(unavailableStopwatchIssue ? [unavailableStopwatchIssue] : []),
+        ];
     }, [
+        availableStopwatchNames,
         availableTabNames,
         connectedOutputPorts,
         entry,
