@@ -22,6 +22,8 @@ use App\Enums\Authorization\Ability;
 use App\Models\PrivateLibrary;
 use App\Models\User;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Flow\NodalGraphCompiler;
+use App\Services\Snippet\SnippetArgumentValidator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -43,6 +45,8 @@ class LibraryCatalogService
         private readonly AuthorizationContextFactory $authorizationContexts,
         private readonly SharedResourceVisibility $sharedVisibility,
         private readonly BlueprintInputSchemaService $inputSchemas,
+        private readonly NodalGraphCompiler $nodalCompiler,
+        private readonly SnippetArgumentValidator $snippetArguments,
     ) {}
 
     public function items(?string $type = null, ?string $search = null, ?string $category = null, string $sort = 'popular', bool $refresh = false, ?string $identityHash = null, ?string $workspaceId = null, ?string $userId = null): LibraryCatalog
@@ -729,6 +733,22 @@ class LibraryCatalogService
         return isset($decoded['code']) && is_string($decoded['code']) ? $decoded['code'] : '';
     }
 
+    /**
+     * @param  list<string>  $functionArguments
+     * @return array{code: string, graph: array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>}|null}
+     */
+    private function nodalSource(string $source, string $context, array $functionArguments = []): array
+    {
+        $graph = $this->nodalGraphFromJson($source);
+
+        return [
+            'code' => $graph === null
+                ? $this->codeFromJson($source)
+                : $this->nodalCompiler->compile($graph, $context, $functionArguments),
+            'graph' => $graph,
+        ];
+    }
+
     /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>} */
     private function metadataFromCode(string $code): array
     {
@@ -893,9 +913,13 @@ class LibraryCatalogService
             $defaultInputs = $metadata['default_inputs'] ?? $item->defaultInputs;
             $inputDefinitions = $metadata['input_definitions'] ?? $item->inputDefinitions;
 
-            return $item->flowType === 'nodal'
-                ? $item->withCode($this->codeFromJson($source), $this->nodalGraphFromJson($source), $defaultInputs, $inputDefinitions)
-                : $item->withCode($source, defaultInputs: $defaultInputs, inputDefinitions: $inputDefinitions);
+            if ($item->flowType !== 'nodal') {
+                return $item->withCode($source, defaultInputs: $defaultInputs, inputDefinitions: $inputDefinitions);
+            }
+
+            $nodalSource = $this->nodalSource($source, 'flow');
+
+            return $item->withCode($nodalSource['code'], $nodalSource['graph'], $defaultInputs, $inputDefinitions);
         }, $blueprint->flows);
         $snippets = array_map(function (LibrarySnippetItem $item): LibrarySnippetItem {
             if ($item->code !== null) {
@@ -904,9 +928,17 @@ class LibraryCatalogService
 
             $source = Storage::disk('local')->get($item->cachePath) ?? '';
 
-            return $item->snippetType === 'nodal'
-                ? $item->withCode($this->codeFromJson($source), $this->nodalGraphFromJson($source))
-                : $item->withCode($source);
+            if ($item->snippetType !== 'nodal') {
+                return $item->withCode($source);
+            }
+
+            $nodalSource = $this->nodalSource(
+                $source,
+                'function',
+                $this->snippetArguments->validate($item->args),
+            );
+
+            return $item->withCode($nodalSource['code'], $nodalSource['graph']);
         }, $blueprint->snippets);
 
         return $blueprint->withChildren($flows, $snippets);
