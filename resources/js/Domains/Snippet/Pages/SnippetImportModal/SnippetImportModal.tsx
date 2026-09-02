@@ -7,9 +7,9 @@ import type { IntegrationScope } from '@/Domains/Integration/types';
 import type { Snippet, SnippetType } from '@/Domains/Snippet/types';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { compileNodalGraphToSnippetCode, normalizeNodalFunctionGraph } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
+import FlowPreview from '@/Domains/Flow/Pages/FlowImportModal/components/FlowPreview/FlowPreview';
 import SnippetImportFields from './components/SnippetImportFields/SnippetImportFields';
 import SourceInput from './components/SourceInput/SourceInput';
-import SourcePreview from './components/SourcePreview/SourcePreview';
 import * as S from './styled';
 import {
     baseNameFromFile,
@@ -41,7 +41,6 @@ interface Props {
 
 export default function SnippetImportModal({ isOpen, onClose, groups, teams, onImport }: Props) {
     const [code, setCode] = useState('');
-    const [sourcePreview, setSourcePreview] = useState('');
     const [snippetType, setSnippetType] = useState<SnippetType>('code');
     const [nodalGraph, setNodalGraph] = useState<NodalGraph | null>(null);
     const [label, setLabel] = useState('');
@@ -57,7 +56,6 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
 
     useResetOnOpen(isOpen, () => {
         setCode('');
-        setSourcePreview('');
         setSnippetType('code');
         setNodalGraph(null);
         setLabel('');
@@ -86,9 +84,6 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
                 : parsed.code;
 
             setFileName(file.name);
-            setSourcePreview(parsed.snippetType === 'nodal'
-                ? `${JSON.stringify(JSON.parse(content), null, 2)}\n`
-                : parsed.code);
             setSnippetType(parsed.snippetType);
             setNodalGraph(normalizedGraph);
             setCode(compiledCode);
@@ -99,7 +94,6 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
         } catch (error) {
             setFileName(null);
             setCode('');
-            setSourcePreview('');
             setSnippetType('code');
             setNodalGraph(null);
             setSubmitError(error instanceof Error ? error.message : 'Unable to read the selected snippet.');
@@ -146,53 +140,81 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Import Snippets" width="680px">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Import Snippet"
+            caption={fileName ?? 'Configure and review the snippet before importing'}
+            fullScreen
+        >
             <S.ImportForm onSubmit={handleSubmit}>
-                <SourceInput
-                    fileName={fileName}
-                    dragging={dragging}
-                    hasError={!!submitError && !fileName}
-                    onFile={readFile}
-                    onDraggingChange={setDragging}
-                />
+                <S.ImportLayout>
+                    <S.FormPanel>
+                        <S.FormScroller>
+                            <SourceInput
+                                fileName={fileName}
+                                dragging={dragging}
+                                hasError={!!submitError && !fileName}
+                                onFile={readFile}
+                                onDraggingChange={setDragging}
+                            />
 
-                {fileName && (
-                    <>
-                        <SnippetImportFields
-                            label={label}
-                            args={args}
-                            group={group}
-                            description={description}
-                            scope={scope}
-                            teamId={teamId}
-                            groups={groups}
-                            teams={teams}
-                            onLabelChange={setLabel}
-                            onArgsChange={setArgs}
-                            onGroupChange={setGroup}
-                            onDescriptionChange={setDescription}
-                            onScopeChange={(nextScope, nextTeamId) => {
-                                setScope(nextScope);
-                                setTeamId(nextTeamId);
-                            }}
-                        />
-                        <SourcePreview code={sourcePreview} snippetType={snippetType} />
-                    </>
-                )}
+                            {fileName && (
+                                <SnippetImportFields
+                                    label={label}
+                                    args={args}
+                                    group={group}
+                                    description={description}
+                                    scope={scope}
+                                    teamId={teamId}
+                                    groups={groups}
+                                    teams={teams}
+                                    onLabelChange={setLabel}
+                                    onArgsChange={setArgs}
+                                    onGroupChange={setGroup}
+                                    onDescriptionChange={setDescription}
+                                    onScopeChange={(nextScope, nextTeamId) => {
+                                        setScope(nextScope);
+                                        setTeamId(nextTeamId);
+                                    }}
+                                />
+                            )}
 
-                {submitError && (
-                    <S.Status $error>
-                        <Icon icon="lucide:alert-triangle" width={14} />
-                        {submitError}
-                    </S.Status>
-                )}
-
-                <S.Footer>
-                    <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button type="submit" loading={submitting} disabled={!fileName || !label.trim()}>
-                        Import
-                    </Button>
-                </S.Footer>
+                            {submitError && (
+                                <S.Status $error>
+                                    <Icon icon="lucide:alert-triangle" width={14} />
+                                    {submitError}
+                                </S.Status>
+                            )}
+                        </S.FormScroller>
+                        <S.Footer>
+                            <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+                            <Button type="submit" loading={submitting} disabled={!fileName || !label.trim()}>
+                                Import
+                            </Button>
+                        </S.Footer>
+                    </S.FormPanel>
+                    <S.PreviewPanel>
+                        {fileName ? (
+                            <FlowPreview
+                                source={{
+                                    flowType: snippetType === 'nodal' && nodalGraph ? 'nodal' : 'code',
+                                    code,
+                                    nodalGraph,
+                                    graphContext: 'function',
+                                    documentExtension: 'snippet',
+                                }}
+                            />
+                        ) : (
+                            <S.PreviewPlaceholder>
+                                <S.PreviewPlaceholderTitle>Snippet preview</S.PreviewPlaceholderTitle>
+                                <S.PreviewPlaceholderText>
+                                    Select a JavaScript or JSON snippet to inspect it before import.
+                                </S.PreviewPlaceholderText>
+                            </S.PreviewPlaceholder>
+                        )}
+                    </S.PreviewPanel>
+                </S.ImportLayout>
             </S.ImportForm>
         </Modal>
     );
