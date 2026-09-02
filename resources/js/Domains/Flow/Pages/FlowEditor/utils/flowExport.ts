@@ -3,7 +3,6 @@ import { buildLibraryCompliantCode, buildLibraryCompliantNodalGraph, buildLibrar
 import { createZipBlob } from '@/Shared/Utils/zip';
 import {
     compileNodalGraphToCode,
-    compileNodalGraphToSnippetCode,
     normalizeNodalFunctionGraph,
     normalizeNodalGraph,
 } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
@@ -206,7 +205,6 @@ export const downloadFlow = async ({
                         description: snippet.description,
                         args: snippet.args,
                         graph,
-                        code: compileNodalGraphToSnippetCode(graph, snippet.args),
                     }),
                 };
             }

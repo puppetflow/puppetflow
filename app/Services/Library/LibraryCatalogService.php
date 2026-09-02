@@ -726,13 +726,7 @@ class LibraryCatalogService
             return '';
         }
 
-        foreach (['code', 'compiled_code', 'compiledCode'] as $key) {
-            if (isset($decoded[$key]) && is_string($decoded[$key])) {
-                return $decoded[$key];
-            }
-        }
-
-        return '';
+        return isset($decoded['code']) && is_string($decoded['code']) ? $decoded['code'] : '';
     }
 
     /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>} */

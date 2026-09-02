@@ -158,7 +158,6 @@ export function useSnippetsController({
                 description: form.description,
                 args: form.args,
                 graph: form.nodalGraph,
-                code: form.code,
             }) : buildLibraryCompliantCode({
                 title: form.label || form.active?.label || 'Snippet',
                 description: form.description,

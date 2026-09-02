@@ -117,7 +117,6 @@ export function buildLibraryCompliantNodalSnippet(item: {
     description?: string | null;
     args?: string | null;
     graph: unknown;
-    code: string;
 }) {
     return `${JSON.stringify({
         format: 'puppetflow.snippet',
@@ -130,6 +129,5 @@ export function buildLibraryCompliantNodalSnippet(item: {
             args: item.args?.trim() || '',
         },
         graph: item.graph,
-        compiled_code: item.code.replace(/\s*$/, '\n'),
     }, null, 2)}\n`;
 }

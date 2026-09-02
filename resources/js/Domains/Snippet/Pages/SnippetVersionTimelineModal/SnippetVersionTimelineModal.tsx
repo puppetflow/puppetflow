@@ -254,7 +254,6 @@ export default function SnippetVersionTimelineModal({
                     description: snippet.description ?? '',
                     args: snapshot.args ?? '',
                     graph: normalizeNodalFunctionGraph(snapshot.nodal_graph),
-                    code: snapshot.code ?? '',
                 })
                 : buildLibraryCompliantCode({
                     title: `${snippet.label} v${version.version}`,

@@ -134,10 +134,6 @@ export function parseSnippetSource(content: string, fileName: string): ParsedSni
     const args = Array.isArray(rawArgs)
         ? rawArgs.filter((arg): arg is string => typeof arg === 'string').map(arg => arg.trim()).filter(Boolean).join(', ')
         : stringValue(rawArgs);
-    const compiledCode = stringValue(decoded.compiled_code ?? decoded.compiledCode ?? decoded.code);
-    if (!compiledCode) {
-        throw new Error('The nodal snippet must contain compiled_code.');
-    }
     const normalizedGraph = normalizeNodalFunctionGraph(graph);
     const normalizedCode = compileNodalGraphToSnippetCode(normalizedGraph, args);
 
