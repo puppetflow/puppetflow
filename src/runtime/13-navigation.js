@@ -15,6 +15,7 @@ const __normalizeBrowserTabName = function(tabName, helperName) {
 
 /* @help Navigation
  * @sig $gotoUrl(url, tabName?, options?)
+ * @aliases open page, navigate page, visit url
  * @desc Open a URL in a named browser tab with configurable wait strategy, headers and CSP bypass. Creates the tab when needed and returns the Puppeteer HTTPResponse from page.goto.
  * @nodal-desc Open a URL in a named browser tab and wait for the page to be ready.
  * @nodal-output httpResponse
@@ -124,6 +125,7 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
 
 /* @help Navigation
  * @sig $gotoTab(tabName?)
+ * @aliases switch tab, open browser tab
  * @desc Switch to an existing named browser tab. Defaults to Default and throws when the tab does not exist or has been closed.
  * @nodal-desc Switch to an existing named browser tab.
  * @nodal-output page
@@ -138,6 +140,7 @@ const $gotoTab = async function(tabName = 'Default') {
 
 /* @help Page Eval
  * @sig $injectScriptLibrary(libraryUrl)
+ * @aliases load script library, inject javascript
  * @desc Load an external JavaScript library into the current page from a URL.
  * @nodal-desc Inject a JavaScript library into the page from its URL.
  * @nodal-output boolean
@@ -183,6 +186,7 @@ const __internalBridgeEvaluate = async function(evaluationCode, bridgeValues = {
 
 /* @help Page Eval
  * @sig $bridgeEvaluate(evaluationCode, bridgeValues?, bridgeFunctions?)
+ * @aliases run page script, browser evaluate, execute in page
  * @desc Evaluate a function in the page context while bridging flow input, serializable values and functions.
  * @nodal-desc Run page-context logic with access to flow input, bridged values and bridged functions.
  * @nodal-output unknown

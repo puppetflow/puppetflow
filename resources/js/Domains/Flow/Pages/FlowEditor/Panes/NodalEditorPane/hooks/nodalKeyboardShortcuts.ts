@@ -16,6 +16,7 @@ export function createNodalKeyDownHandler(options: NodalKeyboardShortcutsOptions
     return (event: KeyboardEvent) => {
         const isEscape = event.key === 'Escape';
         const isCopyShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c';
+        const isCutShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'x';
 
         if (isAnotherPaneActive()) return;
 
@@ -52,6 +53,19 @@ export function createNodalKeyDownHandler(options: NodalKeyboardShortcutsOptions
             event.preventDefault();
             event.stopImmediatePropagation();
             copySelectedNodes();
+            return;
+        }
+
+        if (isCutShortcut && isActivePane() && !readOnly && canvasMode === 'canvas') {
+            const selectedEditableNodeIds = new Set(
+                nodes.filter(node => selectedNodeIds.has(node.id) && !node.system).map(node => node.id),
+            );
+            if (selectedEditableNodeIds.size === 0) return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            copySelectedNodes();
+            deleteNodes(selectedEditableNodeIds);
             return;
         }
 

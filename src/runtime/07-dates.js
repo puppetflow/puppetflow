@@ -1,5 +1,6 @@
 /* @help Date
  * @sig $sortDates(dateFormat, dateValues, sortOrder?)
+ * @aliases order dates, arrange dates
  * @desc Sort an array of date strings by chronological order. Uses the same format tokens as $parseDates (dd, mm, yyyy). Default order: "asc".
  * @nodal-output array<string>
  * @nodal-param dateFormat [string]: Date format used by every value, for example "dd/mm/yyyy".
@@ -28,6 +29,7 @@ const $sortDates = function(dateFormat, dateValues, sortOrder = 'asc') {
 
 /* @help Date
  * @sig $parseDates(dateFormat, ...dateStrings)
+ * @aliases parse date strings, convert dates
  * @desc Parse date strings according to a format pattern (tokens: dd, mm, yyyy, yy). Returns an array of Date objects.
  * @nodal-desc Convert one or more text dates into sortable date values.
  * @nodal-output array<date>

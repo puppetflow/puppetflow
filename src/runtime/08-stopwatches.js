@@ -35,6 +35,7 @@ const __getStopwatchElapsedMilliseconds = function(stopwatch) {
 
 /* @help Utility
  * @sig $stopwatchStart(stopwatchName?)
+ * @aliases start timer, begin stopwatch
  * @desc Start or resume a named stopwatch and return its current elapsed time in milliseconds.
  * @nodal-desc Start or resume a named stopwatch without resetting its elapsed time.
  * @nodal-output number
@@ -62,6 +63,7 @@ const $stopwatchStart = function(stopwatchName = 'default') {
 
 /* @help Utility
  * @sig $stopwatchStop(stopwatchName?, options?)
+ * @aliases stop timer, end stopwatch
  * @desc Stop a named stopwatch and return its elapsed time in milliseconds. The elapsed time remains available unless reset is enabled.
  * @nodal-desc Stop a named stopwatch and optionally reset its elapsed time.
  * @nodal-output number
@@ -97,6 +99,7 @@ const $stopwatchStop = function(stopwatchName = 'default', options = {}) {
 
 /* @help Utility
  * @sig $stopwatchCheck(stopwatchName?)
+ * @aliases check timer, elapsed time, read stopwatch
  * @desc Return the elapsed time of a named stopwatch in milliseconds without stopping it.
  * @nodal-desc Check a named stopwatch without stopping it and return its elapsed time in milliseconds.
  * @nodal-output number

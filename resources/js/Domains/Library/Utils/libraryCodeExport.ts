@@ -1,6 +1,8 @@
 import {
     formatCodeInputDefinition,
     inputDefinitionsFromDefaults,
+    type ExportedDataTableSchema,
+    type ExportedMailboxWatcherSchema,
     type FlowInputDefinition,
 } from '@/Domains/Flow/Utils/flowInputsMetadata';
 
@@ -22,7 +24,7 @@ const stripLibraryMetadataHeader = (code: string) => {
             break;
         }
 
-        if (/^\/\/\s*@(title|description|param|input)\s+/i.test(line)) {
+        if (/^\/\/\s*@(title|description|param|input|resource)\s+/i.test(line)) {
             sawMetadata = true;
             index += 1;
             continue;
@@ -54,6 +56,8 @@ export function buildLibraryCompliantCode(item: {
     args?: string | null;
     inputs?: Record<string, unknown> | null;
     inputDefinitions?: FlowInputDefinition[] | null;
+    dataTables?: ExportedDataTableSchema[];
+    mailboxWatchers?: ExportedMailboxWatcherSchema[];
     code: string;
 }) {
     const sourceCode = stripLibraryMetadataHeader(item.code);
@@ -61,6 +65,12 @@ export function buildLibraryCompliantCode(item: {
         libraryDocLine('title', item.title),
         item.description?.trim() ? libraryDocLine('description', item.description) : null,
         ...inputDefinitionsWithValues(item.inputs, item.inputDefinitions).map(formatCodeInputDefinition),
+        ...(item.dataTables ?? []).map(dataTable => (
+            libraryDocLine('resource', `data-table ${JSON.stringify(dataTable)}`)
+        )),
+        ...(item.mailboxWatchers ?? []).map(watcher => (
+            libraryDocLine('resource', `mailbox-watcher ${JSON.stringify(watcher)}`)
+        )),
         ...(item.args ?? '')
             .split(',')
             .map(arg => arg.trim())
@@ -76,6 +86,8 @@ export function buildLibraryCompliantNodalGraph(item: {
     description?: string | null;
     inputs?: Record<string, unknown> | null;
     inputDefinitions?: FlowInputDefinition[] | null;
+    dataTables?: ExportedDataTableSchema[];
+    mailboxWatchers?: ExportedMailboxWatcherSchema[];
     graph: unknown;
 }) {
     return `${JSON.stringify({
@@ -86,6 +98,16 @@ export function buildLibraryCompliantNodalGraph(item: {
                 ? { inputs: inputDefinitionsWithValues(item.inputs, item.inputDefinitions) }
                 : {}),
         },
+        ...((item.dataTables?.length ?? 0) > 0 || (item.mailboxWatchers?.length ?? 0) > 0
+            ? {
+                  resources: {
+                      ...((item.dataTables?.length ?? 0) > 0 ? { data_tables: item.dataTables } : {}),
+                      ...((item.mailboxWatchers?.length ?? 0) > 0
+                          ? { mailbox_watchers: item.mailboxWatchers }
+                          : {}),
+                  },
+              }
+            : {}),
         graph: item.graph,
     }, null, 2)}\n`;
 }

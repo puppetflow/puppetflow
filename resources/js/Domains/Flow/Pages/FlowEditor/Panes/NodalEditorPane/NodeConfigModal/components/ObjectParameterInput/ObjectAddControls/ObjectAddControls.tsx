@@ -7,6 +7,7 @@ interface ObjectAddControlsProps {
     availableFieldKeys: string[];
     meta: NodalParamDef;
     allowCustomFields: boolean;
+    addCustomFieldLabel?: string;
     readOnly?: boolean;
     onAddField: (key: string) => void;
     onAddCustomField: () => void;
@@ -16,26 +17,34 @@ export default function ObjectAddControls({
     availableFieldKeys,
     meta,
     allowCustomFields,
+    addCustomFieldLabel,
     readOnly,
     onAddField,
     onAddCustomField,
 }: ObjectAddControlsProps) {
     return (
         <>
-            {availableFieldKeys.length > 0 && (
+            {(availableFieldKeys.length > 0 || (allowCustomFields && addCustomFieldLabel)) && (
                 <CustomSelect
                     value=""
                     disabled={readOnly}
-                    placeholder="Add option..."
+                    placeholder={addCustomFieldLabel ? 'Add Column Value...' : 'Add option...'}
                     showOptionValue={false}
                     options={availableFieldKeys.map(key => ({
                         value: key,
                         label: meta.objectFields?.[key]?.label ?? key,
                     }))}
+                    actionSlot={allowCustomFields && addCustomFieldLabel ? {
+                        label: addCustomFieldLabel,
+                        onAction: async () => {
+                            onAddCustomField();
+                            return null;
+                        },
+                    } : undefined}
                     onChange={onAddField}
                 />
             )}
-            {allowCustomFields && (
+            {allowCustomFields && !addCustomFieldLabel && (
                 <S.AddRow>
                     <S.AddButton
                         type="button"

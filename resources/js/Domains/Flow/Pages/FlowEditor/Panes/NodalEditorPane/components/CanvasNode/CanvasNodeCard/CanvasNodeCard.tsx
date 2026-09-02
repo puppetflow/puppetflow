@@ -13,6 +13,7 @@ import { getNodeSiteUrl, getSiteFaviconUrl } from '@/Domains/Flow/Pages/FlowEdit
 import {
     getMissingRequiredParameters,
     getUnavailableBrowserTabIssue,
+    getUnavailableSniffProfileIssue,
     getUnavailableStopwatchIssue,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import { canDeactivateNode, EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
@@ -24,6 +25,7 @@ interface CanvasNodeCardProps {
     node: CanvasNode;
     availableTabNames?: readonly string[];
     availableStopwatchNames?: readonly string[];
+    availableSniffProfileNames?: readonly string[];
     connectedOutputPorts?: ReadonlySet<string>;
     selected: boolean;
     selectionPreview?: boolean;
@@ -46,6 +48,7 @@ export default function CanvasNodeCard({
     node,
     availableTabNames = [],
     availableStopwatchNames = [],
+    availableSniffProfileNames = [],
     connectedOutputPorts = EMPTY_OUTPUT_PORT_SET,
     selected,
     selectionPreview,
@@ -94,12 +97,19 @@ export default function CanvasNodeCard({
             node.values,
             availableStopwatchNames,
         );
+        const unavailableSniffProfileIssue = getUnavailableSniffProfileIssue(
+            entry,
+            node.values,
+            availableSniffProfileNames,
+        );
         return [
             ...issues,
             ...(unavailableTabIssue ? [unavailableTabIssue] : []),
             ...(unavailableStopwatchIssue ? [unavailableStopwatchIssue] : []),
+            ...(unavailableSniffProfileIssue ? [unavailableSniffProfileIssue] : []),
         ];
     }, [
+        availableSniffProfileNames,
         availableStopwatchNames,
         availableTabNames,
         connectedOutputPorts,

@@ -22,15 +22,8 @@ class UpdateDataTableRequest extends FormRequest
     /** @return array<string, list<mixed>> */
     public function rules(): array
     {
-        $dataTable = $this->route('dataTable');
-
         return [
-            'name' => [
-                'sometimes', 'string', 'max:128',
-                Rule::unique('data_tables', 'name')
-                    ->where('workspace_id', $dataTable instanceof DataTable ? $dataTable->workspace_id : '')
-                    ->ignore($dataTable instanceof DataTable ? $dataTable->id : null),
-            ],
+            'name' => ['sometimes', 'string', 'max:128'],
             'description' => ['nullable', 'string'],
             'group' => ['nullable', 'string', 'max:100'],
             'visibility' => [

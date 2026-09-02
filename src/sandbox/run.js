@@ -316,9 +316,14 @@ module.exports = async function(appDir, flowId, quiet) {
 
       const creation = (async () => {
         const page = await $browser.newPage();
-        await __prepareNamedPage(page);
-        __registerNamedPage(tabName, page);
-        return page;
+        try {
+          await __prepareNamedPage(page);
+          __registerNamedPage(tabName, page);
+          return page;
+        } catch (error) {
+          try { await page.close(); } catch (_) {}
+          throw error;
+        }
       })();
       __namedPageCreations.set(tabName, creation);
       try {
@@ -961,6 +966,12 @@ module.exports = async function(appDir, flowId, quiet) {
         } catch (_tErr) {
           if (!_runError && (!_tErr || _tErr.name !== 'StopRun')) _runError = _tErr;
         }
+      }
+
+      try {
+        await __stopAllNetworkSniffing('flow-ended');
+      } catch (_sniffingError) {
+        if (!_runError) _runError = _sniffingError;
       }
 
       try {

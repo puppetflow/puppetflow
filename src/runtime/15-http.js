@@ -347,6 +347,7 @@ const __httpParseResponse = function(response, options) {
 
 /* @help Advanced
  * @sig $httpRequest(url, options?)
+ * @aliases call api, send http request, fetch url
  * @desc Send an HTTP request with query parameters, headers, authentication, multiple body formats, redirects, retries, and structured responses.
  * @nodal-desc Call an HTTP API and return its response.
  * @nodal-output any

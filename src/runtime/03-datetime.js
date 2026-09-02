@@ -6,6 +6,7 @@
 
 /* @help Globals
  * @sig $now
+ * @aliases current time, current date and time
  * @desc Current run DateTime. Supports Luxon methods like format(), plus(), minus(), startOf(), endOf() and toISO().
  * @nodal-desc Current date and time for this run.
  */
@@ -118,6 +119,7 @@ const $now = DateTime.now();
 
 /* @help Globals
  * @sig $today
+ * @aliases start of today, today's date
  * @desc Current day at midnight as a DateTime. Useful for date-only comparisons and ranges.
  */
 const $today = DateTime.now().startOf('day');

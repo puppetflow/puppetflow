@@ -2,6 +2,7 @@ import MenuItem from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/comp
 import {
     AddNodeShortcut,
     PasteShortcut,
+    ReorganizeShortcut,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/ContextMenu/components/MenuShortcuts/MenuShortcuts';
 import { Divider } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/ContextMenu/components/shared.styled';
 
@@ -43,20 +44,20 @@ export default function CanvasActionsSection({
                 onSelect={() => run(() => onAddStickyNote(position))}
             />
             <Divider role="separator" />
+            <MenuItem
+                icon="lucide:wand-sparkles"
+                label="Reorganize"
+                shortcut={<ReorganizeShortcut />}
+                onSelect={() => run(onTidyWorkflow)}
+            />
             {canPasteHere && (
                 <MenuItem
-                    icon="lucide:wand-sparkles"
-                    label="Tidy up workflow"
-                    shortcut={<kbd><b>T</b></kbd>}
-                    onSelect={() => run(onTidyWorkflow)}
+                    icon="lucide:clipboard-paste"
+                    label="Paste here"
+                    shortcut={<PasteShortcut />}
+                    onSelect={() => run(() => onPasteHere(position))}
                 />
             )}
-            <MenuItem
-                icon="lucide:clipboard-paste"
-                label="Paste here"
-                shortcut={<PasteShortcut />}
-                onSelect={() => run(() => onPasteHere(position))}
-            />
         </>
     );
 }

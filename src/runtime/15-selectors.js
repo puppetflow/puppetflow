@@ -207,6 +207,7 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
 
 /* @help Selectors
  * @sig $selectElement(selectorOrHandle, options?)
+ * @aliases find element, query element
  * @desc Get an ElementHandle matching a selector with optional text and visibility filtering. Accepts a CSS selector string or an ElementHandle. Returns ElementHandle or null.
  * @nodal-desc Find one element on the page, with optional text and visibility filters.
  * @nodal-output element
@@ -227,6 +228,7 @@ const $selectElement = async function(selectorOrHandle, options = {}) {
 
 /* @help Selectors
  * @sig $selectManyElements(cssSelector, options?)
+ * @aliases find elements, query elements, select all elements
  * @desc Get all ElementHandles matching a selector with optional text and visibility filtering. Returns an array of ElementHandle (empty array if none found).
  * @nodal-desc Find all matching elements on the page, with optional text and visibility filters.
  * @nodal-output array<element>
@@ -309,6 +311,7 @@ const __extractElementAttributes = async function(handle, getters) {
 
 /* @help Selectors
  * @sig $extractAttribute(selectorOrHandle, getters)
+ * @aliases read attribute, get element value
  * @desc Extract named, JSON-compatible values from an element. Accepts a CSS selector string or an ElementHandle.
  * @nodal-desc Extract attributes and values from an element selected by CSS selector or provided as an ElementHandle.
  * @nodal-output object
@@ -322,6 +325,7 @@ const $extractAttribute = async function(selectorOrHandle, getters) {
 
 /* @help Selectors
  * @sig $extractAttributes(selectorOrHandle, getters)
+ * @aliases scrape attributes, read element values
  * @desc Extract named, JSON-compatible values from elements. Accepts a CSS selector string, an ElementHandle, or an array of ElementHandle.
  * @nodal-desc Extract attributes and values from each element selected by CSS selector or provided as ElementHandles.
  * @nodal-output array<object>
@@ -336,6 +340,7 @@ const $extractAttributes = async function(selectorOrHandle, getters) {
 
 /* @help Interaction
  * @sig $clickElement(selectorOrHandle, options?)
+ * @aliases click button, press element
  * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. Throws StopRun if not found.
  * @nodal-desc Find and click an element after an optional delay.
  * @nodal-output boolean
@@ -372,6 +377,7 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
 
 /* @help Interaction
  * @sig $clickElementAtIndex(elementsSelector, elementIndex, options?)
+ * @aliases click nth element, click item by index
  * @desc Click an element at a specific index after an optional delay (ms). Throws StopRun if not found or index out of bounds.
  * @nodal-desc Click one matching element by its position after an optional delay.
  * @nodal-output boolean
@@ -408,6 +414,7 @@ const $clickElementAtIndex = async function(elementsSelector, elementIndex, opti
 
 /* @help Interaction
  * @sig $clickAtCoordinates(coordinateX, coordinateY, options?)
+ * @aliases click position, click coordinates
  * @desc Click a point on the page using viewport coordinates. Supports left, right, and middle mouse buttons.
  * @nodal-desc Click a point on the page using X and Y viewport coordinates.
  * @opt delay: 1000, buttonType: left
@@ -443,6 +450,7 @@ const $clickAtCoordinates = async function(coordinateX, coordinateY, options = {
 
 /* @help Interaction
  * @sig $scrollByPixels(scrollPixels)
+ * @aliases scroll page, scroll distance
  * @desc Scroll the page vertically by a pixel amount. Positive values scroll down and negative values scroll up.
  * @nodal-desc Scroll the page up or down by an exact pixel amount.
  * @nodal-param scrollPixels [number, required]: Pixels to scroll. Positive scrolls down, negative scrolls up.
@@ -458,6 +466,7 @@ const $scrollByPixels = async function(scrollPixels) {
 
 /* @help Interaction
  * @sig $scrollToElement(selectorOrHandle)
+ * @aliases bring element into view, scroll to item
  * @desc Scroll the page or nearest scrollable container until a CSS selector or ElementHandle is visible.
  * @nodal-desc Scroll until the selected element is visible.
  * @nodal-param selectorOrHandle [string, selector, required]: CSS selector or ElementHandle to bring into view.

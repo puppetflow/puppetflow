@@ -39,6 +39,7 @@ interface ObjectParameterInputProps {
     invalid?: boolean;
     errorMessage?: string;
     validationIssues?: NodeValidationIssue[];
+    addCustomFieldLabel?: string;
     onRemove?: () => void;
     onChange: (value: ObjectNodeParameterValue) => void;
 }
@@ -57,6 +58,7 @@ export default function ObjectParameterInput({
     invalid,
     errorMessage,
     validationIssues = [],
+    addCustomFieldLabel,
     onRemove,
     onChange,
 }: ObjectParameterInputProps) {
@@ -210,6 +212,7 @@ export default function ObjectParameterInput({
                             availableFieldKeys={availableFieldKeys}
                             meta={meta}
                             allowCustomFields={allowCustomFields}
+                            addCustomFieldLabel={addCustomFieldLabel}
                             readOnly={readOnly}
                             onAddField={addField}
                             onAddCustomField={addCustomField}

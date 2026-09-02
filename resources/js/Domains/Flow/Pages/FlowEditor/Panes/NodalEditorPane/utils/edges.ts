@@ -179,11 +179,6 @@ export function analyzeStructuredGraph(nodes: TopologyNode[], edges: CanvasEdge[
                 ['loop', 'done'],
                 topology.edgeByOutput.get(outputKey(node.id, 'done'))?.targetNodeId ?? null,
             );
-        } else {
-            (topology.outgoing.get(node.id) ?? [])
-                .map(edgeSourcePort)
-                .filter(port => port.startsWith('flow-'))
-                .forEach(port => registerSplit(node, [DEFAULT_OUTPUT_PORT, port]));
         }
     });
 
@@ -237,6 +232,13 @@ export function connectEdgeWithStructuredJoins(
     edges: CanvasEdge[],
     edge: CanvasEdge,
 ): CanvasEdge[] {
+    if (
+        edgeSourcePort(edge).startsWith('flow-')
+        && edges.some(existing => existing.targetNodeId === edge.targetNodeId)
+    ) {
+        return edges;
+    }
+
     return replaceEdgesWithStructuredJoins(nodes, edges, [edge]);
 }
 

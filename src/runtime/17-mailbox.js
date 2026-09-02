@@ -65,6 +65,7 @@ const __trackPendingMailboxClaim = function(claim, leaseDeadline) {
 
 /* @help Mailbox
  * @sig $waitForEmail(mailboxWatcherId, options?)
+ * @aliases await email, receive email, wait for message
  * @desc Wait for an email matching the named mailbox watcher's rules. Returns email metadata and optional parsed value. Timeout priority: options > watcher config > 300s default.
  * @nodal-desc Wait until a configured mailbox watcher receives a matching email.
  * @nodal-output object from:string, to:string, subject:string, date:string, received_at:string, text:string, html:string, parsed:unknown, body:string, parsed_value:unknown, sender_authentication:string

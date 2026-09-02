@@ -3,11 +3,13 @@ import type { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { registerAiModelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/aiModelSuggestions';
 import { registerChannelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
+import { registerCookieJarCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
 import { registerDataTableCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
 import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monacoBase';
 import { registerNodalAutocompleteCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
+import { registerSniffProfileCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/sniffProfileSuggestions';
 import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
@@ -72,6 +74,8 @@ export function useExpressionEditors({
             registerSnippetCompletions(monaco, modelUri),
             registerTabNameCompletions(monaco, modelUri, autocompleteContext.tabNames),
             registerStopwatchNameCompletions(monaco, modelUri, autocompleteContext.stopwatchNames),
+            registerSniffProfileCompletions(monaco, modelUri, autocompleteContext.sniffProfileNames),
+            registerCookieJarCompletions(monaco, modelUri, autocompleteContext.cookieJarNames),
         ];
     }, [autocompleteContext, autocompleteOutputData, disposeCompletions, flowId]);
 

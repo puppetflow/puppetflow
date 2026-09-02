@@ -347,6 +347,7 @@ class StopRun extends Error {
 
 /* @help Globals
  * @sig $now
+ * @aliases current time, current date and time
  * @desc Current run DateTime. Supports Luxon methods like format(), plus(), minus(), startOf(), endOf() and toISO().
  * @nodal-desc Current date and time for this run.
  */
@@ -459,6 +460,7 @@ const $now = DateTime.now();
 
 /* @help Globals
  * @sig $today
+ * @aliases start of today, today's date
  * @desc Current day at midnight as a DateTime. Useful for date-only comparisons and ranges.
  */
 const $today = DateTime.now().startOf('day');
@@ -484,6 +486,7 @@ const __retryOnContextDestroyed = async function(fn, retries = 2, delayMs = 300)
 
 /* @help Utility
  * @sig $setViewport(width?, height?)
+ * @aliases resize browser, set screen size, change viewport
  * @desc Set the viewport size. Defaults to the flow viewport settings if not provided.
  * @nodal-param width [integer]: Browser viewport width in pixels. Leave empty to use the flow default.
  * @nodal-param height [integer]: Browser viewport height in pixels. Leave empty to use the flow default.
@@ -502,15 +505,16 @@ $setViewport();
 
 /* @help Cookies
  * @sig $saveCookies(jarName?, options?)
- * @desc Save browser cookies and localStorage by origin. Default jar name: "default".
+ * @aliases save browser session, persist login, store cookies
+ * @desc Save browser cookies and localStorage by origin. Default jar name: "Default".
  * @nodal-desc Save cookies and localStorage for reuse in later runs.
  * @opt persistLocalStorage: true
- * @nodal-param jarName: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "default".
+ * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Save localStorage with cookies. Enabled by default.
  */
 const __resolveCookieJarName = function(jarName) {
-  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'default';
+  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'Default';
 };
 const __resolveCookieHelperArguments = function(jarName, options) {
   if (jarName && typeof jarName === 'object' && !Array.isArray(jarName)) {
@@ -639,11 +643,12 @@ const $saveCookies = async function(jarName, options) {
 
 /* @help Cookies
  * @sig $loadCookies(jarName?, options?)
+ * @aliases restore browser session, restore login, reuse cookies
  * @desc Load cookies and restore localStorage before page scripts run. Returns false on error, true on success.
  * @nodal-desc Restore previously saved cookies and localStorage.
  * @nodal-output boolean
  * @opt persistLocalStorage: true
- * @nodal-param jarName: Name of the browser storage jar to load. Leave empty for "default".
+ * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to load. Leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Restore and continue persisting localStorage. Enabled by default.
  */
@@ -679,6 +684,7 @@ const $loadCookies = async function(jarName, options) {
 
 /* @help Navigation
  * @sig $loginRemember(options)
+ * @aliases remembered login, persistent login, reuse session
  * @desc Login remember function. Saves cookies to a JSON file and loads them back on the next run.
  * @nodal-desc Reuse saved login cookies, or run the login steps again when the session is expired.
  * @opt loginUrl: null, loginRecipe: null, loggedUrl: null, loggedMarkerCondition: null, loggedMarkerConditionRaw: null, loggedMarkerTimeout: 5000, password: $input.password
@@ -838,6 +844,7 @@ const $loginRemember = async function(options = {}) {
 
 /* @help Date
  * @sig $sortDates(dateFormat, dateValues, sortOrder?)
+ * @aliases order dates, arrange dates
  * @desc Sort an array of date strings by chronological order. Uses the same format tokens as $parseDates (dd, mm, yyyy). Default order: "asc".
  * @nodal-output array<string>
  * @nodal-param dateFormat [string]: Date format used by every value, for example "dd/mm/yyyy".
@@ -866,6 +873,7 @@ const $sortDates = function(dateFormat, dateValues, sortOrder = 'asc') {
 
 /* @help Date
  * @sig $parseDates(dateFormat, ...dateStrings)
+ * @aliases parse date strings, convert dates
  * @desc Parse date strings according to a format pattern (tokens: dd, mm, yyyy, yy). Returns an array of Date objects.
  * @nodal-desc Convert one or more text dates into sortable date values.
  * @nodal-output array<date>
@@ -945,6 +953,7 @@ const __getStopwatchElapsedMilliseconds = function(stopwatch) {
 
 /* @help Utility
  * @sig $stopwatchStart(stopwatchName?)
+ * @aliases start timer, begin stopwatch
  * @desc Start or resume a named stopwatch and return its current elapsed time in milliseconds.
  * @nodal-desc Start or resume a named stopwatch without resetting its elapsed time.
  * @nodal-output number
@@ -972,6 +981,7 @@ const $stopwatchStart = function(stopwatchName = 'default') {
 
 /* @help Utility
  * @sig $stopwatchStop(stopwatchName?, options?)
+ * @aliases stop timer, end stopwatch
  * @desc Stop a named stopwatch and return its elapsed time in milliseconds. The elapsed time remains available unless reset is enabled.
  * @nodal-desc Stop a named stopwatch and optionally reset its elapsed time.
  * @nodal-output number
@@ -1007,6 +1017,7 @@ const $stopwatchStop = function(stopwatchName = 'default', options = {}) {
 
 /* @help Utility
  * @sig $stopwatchCheck(stopwatchName?)
+ * @aliases check timer, elapsed time, read stopwatch
  * @desc Return the elapsed time of a named stopwatch in milliseconds without stopping it.
  * @nodal-desc Check a named stopwatch without stopping it and return its elapsed time in milliseconds.
  * @nodal-output number
@@ -1070,6 +1081,7 @@ const $min = function(...numbers) {
 
 /* @help Date
  * @sig $currentDate(timestamp?)
+ * @aliases format current date, today's date
  * @desc Get the current date from a timestamp. Defaults to current date.
  * @eval $currentDate($now)
  * @nodal-output object day:string, month:string, year:number
@@ -1088,6 +1100,7 @@ const $currentDate = function(timestamp) {
 
 /* @help Date
  * @sig $currentDateMinusOneMonth(timestamp?)
+ * @aliases previous month date, one month ago
  * @desc Get the latest month and year from a timestamp. Defaults to current date.
  * @eval $currentDateMinusOneMonth($now)
  * @nodal-output object day:string, month:string, year:number
@@ -1107,6 +1120,7 @@ const $currentDateMinusOneMonth = function(timestamp) {
 
 /* @help Date
  * @sig $currentDatePlusOneMonth(timestamp?)
+ * @aliases next month date, one month later
  * @desc Get the current date plus one month from a timestamp. Defaults to current date.
  * @eval $currentDatePlusOneMonth($now)
  * @nodal-output object day:string, month:string, year:number
@@ -1126,6 +1140,7 @@ const $currentDatePlusOneMonth = function(timestamp) {
 
 /* @help Navigation
  * @sig $screenshot(screenshotName?, options?)
+ * @aliases capture screen, take screenshot, screen capture
  * @desc Take a screenshot. If no name given, auto-increments (screenshot_00, screenshot_01...).
  * @nodal-desc Capture the current page as a screenshot artifact.
  * @opt output: true - include this screenshot in $artifacts output
@@ -1166,6 +1181,7 @@ const $screenshot = async function(screenshotName, options = {}) {
 
 /* @help Utility
  * @sig $sleep(milliseconds)
+ * @aliases pause flow, wait delay
  * @desc Async sleep for the given milliseconds.
  * @nodal-desc Pause the flow for a fixed duration.
  * @nodal-param milliseconds [integer]: Time to wait before continuing, in milliseconds.
@@ -1181,6 +1197,7 @@ const $sleep = async function(milliseconds) {
 
 /* @help Selectors
  * @sig $selectAtIndex(cssSelector, elementIndex)
+ * @aliases select nth element, element by index
  * @desc Get the nth element matching a CSS selector (0-indexed). Returns null if not enough elements.
  * @nodal-desc Pick one matching element by its position on the page.
  * @nodal-output element
@@ -1197,6 +1214,7 @@ const $selectAtIndex = async function(cssSelector, elementIndex) {
 
 /* @help Utility
  * @sig $matchSequence(sourceItems, sequencePatterns)
+ * @aliases match ordered sequence, find sequence
  * @desc Find the first consecutive sequence in items where each element matches the corresponding regex. With 1 pattern returns the matching string, with N patterns returns an array of N consecutive matches. Returns null if no match.
  * @nodal-desc Find a consecutive sequence of values that matches one or more patterns.
  * @nodal-output unknown
@@ -1221,6 +1239,7 @@ const $matchSequence = function(sourceItems, sequencePatterns) {
 
 /* @help Utility
  * @sig $log(...messages)
+ * @aliases write log, console message, debug message
  * @desc Log messages to the run console for output tracing.
  * @nodal-desc Add messages to the run logs.
  * @nodal-param messages: One or more values to write to the run logs.
@@ -1232,6 +1251,7 @@ const $log = function(...messages) {
 
 /* @help Utility
  * @sig $legend(legendText)
+ * @aliases set run legend, label run, name run
  * @desc Set a legend/caption for this run. Displayed wherever the run appears.
  * @nodal-param legendText [string]: Human-readable caption shown on this run.
  */
@@ -1243,6 +1263,7 @@ const $legend = function(legendText) {
 
 /* @help Utility
  * @sig $meta(metadata)
+ * @aliases run metadata, tag run
  * @desc Put meta data to filter runs by. Markdown is supported.
  * @nodal-param metadata [custom-object, required]: Metadata keys to store on the run. Use Form for named metadata, or JSON for an object.
  */
@@ -1267,6 +1288,7 @@ const $meta = function(metadataKey, metadataValue) {
 
 /* @help Response
  * @sig $setOutput(outputKeyOrObject, outputValue?)
+ * @aliases output variable, add output field, set result
  * @desc Add data to the response output. Pass an object to merge multiple keys, or a key + value pair.
  * @nodal-desc Add one or more values to the final run output.
  * @nodal-param outputKeyOrObject: Output key to set, or an object containing several output keys.
@@ -1410,6 +1432,7 @@ const $vars = (() => {
 
 /* @help Response
  * @sig $generateResponse(responseStatus, responseMessage, responseData?)
+ * @aliases custom response, build response
  * @desc Build a response object. When "Include input in output" is enabled in flow settings, the input is copied under a $input key.
  * @nodal-desc Build the final response returned by the flow.
  * @nodal-output object status:string, message:string, $context:object
@@ -1442,6 +1465,7 @@ const $generateResponse = function(responseStatus, responseMessage, responseData
 
 /* @help Response
  * @sig $generateResponseError(errorMessage, responseData?)
+ * @aliases error response, failure response
  * @desc Shorthand for $generateResponse("error", ...). Logs to stderr.
  * @nodal-desc Finish the flow with an error response.
  * @nodal-output object status:string, message:string, $context:object
@@ -1454,6 +1478,7 @@ const $generateResponseError = function(errorMessage, responseData) {
 
 /* @help Response
  * @sig $generateResponseSuccess(successMessage, responseData?)
+ * @aliases success response, successful response
  * @desc Shorthand for $generateResponse("success", ...). Logs to stdout.
  * @nodal-desc Finish the flow with a success response.
  * @nodal-output object status:string, message:string, $context:object
@@ -1466,6 +1491,7 @@ const $generateResponseSuccess = function(successMessage, responseData) {
 
 /* @help Response
  * @sig $stopFail(errorMessage, responseData?)
+ * @aliases fail flow, stop with error, end as failed
  * @desc Like $generateResponseError but immediately stops the run by throwing StopRun. Useful inside nested functions where you can't return from run().
  * @nodal-desc Stop the flow immediately and mark the run as failed.
  * @nodal-param errorMessage: Error message shown before stopping the flow.
@@ -1477,6 +1503,7 @@ const $stopFail = function(errorMessage, responseData) {
 
 /* @help Response
  * @sig $stopSuccess(successMessage, responseData?)
+ * @aliases complete flow, stop successfully, end as success
  * @desc Like $generateResponseSuccess but immediately stops the run by throwing StopRun. Useful inside nested functions where you can't return from run().
  * @nodal-desc Stop the flow immediately and mark the run as successful.
  * @nodal-param successMessage: Success message shown before stopping the flow.
@@ -1490,6 +1517,7 @@ const $stopSuccess = function(successMessage, responseData) {
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
+ * @aliases typing speed, keyboard delay
  * @desc Set the default typing speed for subsequent input actions.
  * @nodal-desc Set the typing speed used by subsequent input nodes.
  * @nodal-output number
@@ -1508,7 +1536,7 @@ const $keyboardSpeed = function(keyboardSpeedValue) {
 
 /* @help Interaction
  * @sig $fillInput(inputSelectorOrHandle, inputValue, options?)
- * @aliases form, field, type
+ * @aliases form, field, type, enter text, fill field
  * @desc Replace, append, or prepend text in an input. Handles detached nodes. Selector can be a CSS string or an ElementHandle.
  * @nodal-desc Find an input on the page, then replace, append, or prepend its value.
  * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
@@ -1600,6 +1628,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
 
 /* @help Utility
  * @sig $waitForSelectorCondition(cssSelector, readinessCondition, options?)
+ * @aliases wait for element state, wait for element
  * @desc Wait for a selector to match a condition.
  * @opt timeout: 10000
  * @nodal-param cssSelector [string, selector]: CSS selector to watch on the page.
@@ -1646,6 +1675,7 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
 
 /* @help Selectors
  * @sig $selectShadow(cssSelector, shadowRootSelector?, options?)
+ * @aliases find shadow element, select shadow dom
  * @desc Traverse open shadow DOM roots to find an element matching selector. Returns ElementHandle or null.
  * @nodal-desc Find an element inside open shadow DOM areas.
  * @nodal-output element
@@ -1718,7 +1748,7 @@ const $selectShadow = async function(cssSelector, shadowRootSelector, options = 
 
 /* @help Interaction
  * @sig $shadowInputFill(inputSelector, inputValue, options?)
- * @aliases form, field, type
+ * @aliases form, field, type, fill shadow input, enter shadow text
  * @desc Fill an input located inside shadow DOM. Options extend $fillInput options + rootSelector.
  * @nodal-desc Fill an input located inside a shadow DOM area.
  * @opt rootSelector: null, mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 5000, continueOnError: false, visibleOnly: false, index: 0
@@ -1779,6 +1809,7 @@ const __normalizeBrowserTabName = function(tabName, helperName) {
 
 /* @help Navigation
  * @sig $gotoUrl(url, tabName?, options?)
+ * @aliases open page, navigate page, visit url
  * @desc Open a URL in a named browser tab with configurable wait strategy, headers and CSP bypass. Creates the tab when needed and returns the Puppeteer HTTPResponse from page.goto.
  * @nodal-desc Open a URL in a named browser tab and wait for the page to be ready.
  * @nodal-output httpResponse
@@ -1888,6 +1919,7 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
 
 /* @help Navigation
  * @sig $gotoTab(tabName?)
+ * @aliases switch tab, open browser tab
  * @desc Switch to an existing named browser tab. Defaults to Default and throws when the tab does not exist or has been closed.
  * @nodal-desc Switch to an existing named browser tab.
  * @nodal-output page
@@ -1902,6 +1934,7 @@ const $gotoTab = async function(tabName = 'Default') {
 
 /* @help Page Eval
  * @sig $injectScriptLibrary(libraryUrl)
+ * @aliases load script library, inject javascript
  * @desc Load an external JavaScript library into the current page from a URL.
  * @nodal-desc Inject a JavaScript library into the page from its URL.
  * @nodal-output boolean
@@ -1947,6 +1980,7 @@ const __internalBridgeEvaluate = async function(evaluationCode, bridgeValues = {
 
 /* @help Page Eval
  * @sig $bridgeEvaluate(evaluationCode, bridgeValues?, bridgeFunctions?)
+ * @aliases run page script, browser evaluate, execute in page
  * @desc Evaluate a function in the page context while bridging flow input, serializable values and functions.
  * @nodal-desc Run page-context logic with access to flow input, bridged values and bridged functions.
  * @nodal-output unknown
@@ -1960,9 +1994,545 @@ const $bridgeEvaluate = async function(evaluationCode, bridgeValues = {}, bridge
   return __internalBridgeEvaluate(evaluationCode, bridgeValues, bridgeFunctions);
 };
 
+/* global __namedPages, __pageClients */
+
+const __networkSniffingProfiles = new Map();
+let __networkSniffingCallbackQueue = Promise.resolve();
+let __networkSniffingFirstError = null;
+let __networkSniffingCallbackActive = false;
+const __configuredNetworkSniffingMaxBodyBytes = Number.parseInt(
+  process.env.RUNNER_HTTP_SNIFFING_MAX_BODY_BYTES || '',
+  10,
+);
+const __networkSniffingMaxBodyBytes = Number.isInteger(__configuredNetworkSniffingMaxBodyBytes)
+  && __configuredNetworkSniffingMaxBodyBytes > 0
+  ? __configuredNetworkSniffingMaxBodyBytes
+  : 5 * 1024 * 1024;
+delete process.env.RUNNER_HTTP_SNIFFING_MAX_BODY_BYTES;
+
+const __normalizeNetworkSniffingProfileName = function(profileName, helperName) {
+  if (typeof profileName !== 'string' || !profileName.trim()) {
+    throw new TypeError(helperName + ': profileName must be a non-empty string.');
+  }
+
+  const normalized = profileName.trim();
+  const hasControlCharacter = Array.from(normalized)
+    .some(character => character.charCodeAt(0) <= 31 || character.charCodeAt(0) === 127);
+  if (normalized.length > 128 || hasControlCharacter) {
+    throw new TypeError(helperName + ': profileName must be at most 128 characters and cannot contain control characters.');
+  }
+
+  return normalized;
+};
+
+const __compileNetworkSniffingMatcher = function(value, fieldName) {
+  if (value === undefined || value === null || value === '') return null;
+  if (value instanceof RegExp) {
+    const flags = value.flags.replace(/[gy]/g, '');
+    return new RegExp(value.source, flags);
+  }
+  if (typeof value !== 'string') {
+    throw new TypeError('$sniffNetwork: filters.' + fieldName + ' must be a string or RegExp.');
+  }
+  const normalized = value.trim();
+  if (normalized.startsWith('#') && normalized.endsWith('#')) {
+    try {
+      return new RegExp(normalized.slice(1, -1));
+    } catch (error) {
+      throw new TypeError('$sniffNetwork: filters.' + fieldName + ' contains an invalid regular expression: ' + error.message);
+    }
+  }
+  const source = normalized
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*');
+  return new RegExp('^' + source + '$', 'i');
+};
+
+const __compileNetworkSniffingPatterns = function(value, fieldName) {
+  if (value === undefined || value === null || value === '') return null;
+  const values = Array.isArray(value) ? value : [value];
+  if (!values.every(item => item instanceof RegExp || (typeof item === 'string' && item.trim()))) {
+    throw new TypeError('$sniffNetwork: filters.' + fieldName + ' must contain strings or RegExp values.');
+  }
+  return values.map(item => __compileNetworkSniffingMatcher(item, fieldName));
+};
+
+const __normalizeNetworkSniffingFilters = function(filters) {
+  if (filters === undefined || filters === null) filters = {};
+  if (typeof filters !== 'object' || Array.isArray(filters)) {
+    throw new TypeError('$sniffNetwork: filters must be an object.');
+  }
+
+  return {
+    url: __compileNetworkSniffingMatcher(filters.url, 'url'),
+    host: __compileNetworkSniffingMatcher(filters.host, 'host'),
+    path: __compileNetworkSniffingMatcher(filters.path, 'path'),
+    schemes: __compileNetworkSniffingPatterns(filters.scheme, 'scheme'),
+    methods: __compileNetworkSniffingPatterns(filters.method, 'method'),
+    resourceTypes: __compileNetworkSniffingPatterns(filters.resourceType, 'resourceType'),
+  };
+};
+
+const __matchesNetworkSniffingFilters = function(filters, params) {
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(params.request.url);
+  } catch (_) {
+    return false;
+  }
+
+  if (filters.url && !filters.url.test(params.request.url)) return false;
+  if (filters.host && !filters.host.test(parsedUrl.hostname)) return false;
+  if (filters.path && !filters.path.test(parsedUrl.pathname + parsedUrl.search)) return false;
+  if (filters.schemes && !filters.schemes.some(pattern => pattern.test(parsedUrl.protocol.replace(/:$/, '')))) return false;
+  if (filters.methods && !filters.methods.some(pattern => pattern.test(String(params.request.method || '')))) return false;
+  if (filters.resourceTypes && !filters.resourceTypes.some(pattern => pattern.test(String(params.type || '')))) return false;
+  return true;
+};
+
+const __networkSniffingTabName = function(page) {
+  return Array.from(__namedPages.entries())
+    .find(([, candidate]) => candidate === page)?.[0] || null;
+};
+
+const __networkSniffingResponseBody = async function(client, requestId, response, encodedDataLength) {
+  const declaredBytes = Math.max(
+    Number(encodedDataLength) || 0,
+    Number(response?.encodedDataLength) || 0,
+  );
+  if (declaredBytes > __networkSniffingMaxBodyBytes) {
+    return {
+      body: null,
+      bodyEncoding: null,
+      bodyBytes: declaredBytes,
+      bodyTruncated: true,
+      bodyUnavailable: false,
+    };
+  }
+
+  try {
+    const result = await client.send('Network.getResponseBody', { requestId });
+    const body = result.base64Encoded
+      ? Buffer.from(result.body || '', 'base64')
+      : Buffer.from(result.body || '');
+    if (body.length > __networkSniffingMaxBodyBytes) {
+      return {
+        body: null,
+        bodyEncoding: null,
+        bodyBytes: body.length,
+        bodyTruncated: true,
+        bodyUnavailable: false,
+      };
+    }
+    return {
+      body: result.body || '',
+      bodyEncoding: result.base64Encoded ? 'base64' : 'utf8',
+      bodyBytes: body.length,
+      bodyTruncated: false,
+      bodyUnavailable: false,
+    };
+  } catch (_) {
+    return {
+      body: null,
+      bodyEncoding: null,
+      bodyBytes: declaredBytes,
+      bodyTruncated: false,
+      bodyUnavailable: true,
+    };
+  }
+};
+
+const __networkSniffingRequestPayload = function(params) {
+  return {
+    url: params.request.url,
+    method: params.request.method,
+    headers: params.request.headers || {},
+  };
+};
+
+const __networkSniffingResponsePayload = function(response, body) {
+  let contentJson = null;
+  if (
+    body.bodyEncoding === 'utf8'
+    && typeof body.body === 'string'
+    && /(?:\/|\+)json(?:;|$)/i.test(response?.mimeType || '')
+  ) {
+    try {
+      contentJson = JSON.parse(body.body);
+    } catch (_) {}
+  }
+
+  return {
+    status: {
+      code: response?.status ?? null,
+      text: response?.statusText ?? null,
+    },
+    headers: response?.headers || {},
+    mimeType: response?.mimeType || null,
+    body: {
+      content: body.body,
+      contentJson,
+      encoding: body.bodyEncoding,
+      bytes: body.bodyBytes,
+      truncated: body.bodyTruncated,
+      unavailable: body.bodyUnavailable,
+    },
+  };
+};
+
+const __queueNetworkSniffingRecord = function(profile, record) {
+  profile.queue = profile.queue
+    .catch(() => {})
+    .then(async () => {
+      const payload = await record.completion;
+      if (!profile.callback) return;
+      const callbackTask = __networkSniffingCallbackQueue
+        .catch(() => {})
+        .then(async () => {
+          const previousCallbackActive = __networkSniffingCallbackActive;
+          __networkSniffingCallbackActive = true;
+          try {
+            await profile.callback(payload);
+          } catch (error) {
+            if (!profile.firstError) profile.firstError = error;
+            console.error(
+              'Sniff Network ' + profile.name + ' callback failed:',
+              error && error.message ? error.message : error,
+            );
+          } finally {
+            __networkSniffingCallbackActive = previousCallbackActive;
+          }
+        });
+      __networkSniffingCallbackQueue = callbackTask.catch(() => {});
+      await callbackTask;
+    });
+};
+
+const __completeNetworkSniffingRecord = async function(profile, pageState, record, details = {}) {
+  if (record.completed) return;
+  record.completed = true;
+  pageState.pending.delete(record.requestId);
+
+  let responseBody = {
+    body: null,
+    bodyEncoding: null,
+    bodyBytes: Number(details.encodedDataLength) || 0,
+    bodyTruncated: false,
+    bodyUnavailable: true,
+  };
+  if (record.response && details.loadFinished === true) {
+    responseBody = await __networkSniffingResponseBody(
+      pageState.client,
+      record.requestId,
+      record.response,
+      details.encodedDataLength,
+    );
+  }
+
+  const finishedAt = Date.now();
+  profile.captured += 1;
+  record.resolve({
+    profile: profile.name,
+    index: record.index,
+    tabName: record.tabName,
+    resourceType: record.resourceType || null,
+    request: record.request,
+    response: __networkSniffingResponsePayload(record.response, responseBody),
+    error: details.error || null,
+    durationMs: Math.max(0, finishedAt - record.startedAt),
+  });
+};
+
+const __attachNetworkSniffingProfileToPage = async function(profile, page) {
+  if (profile.stopping || page.isClosed() || profile.pages.has(page)) return;
+    const client = __pageClients.get(page);
+    if (!client) {
+      throw new Error('$sniffNetwork: CDP session is not ready for a browser tab.');
+    }
+    const pageState = { client, pending: new Map(), listeners: [], closeListener: null };
+    profile.pages.set(page, pageState);
+
+    const listen = (eventName, listener) => {
+      client.on(eventName, listener);
+      pageState.listeners.push([eventName, listener]);
+    };
+
+    listen('Network.requestWillBeSent', params => {
+      if (profile.stopping) return;
+      const previous = pageState.pending.get(params.requestId);
+      if (previous) {
+        previous.response = params.redirectResponse || previous.response;
+        void __completeNetworkSniffingRecord(profile, pageState, previous, {
+          error: params.redirectResponse ? null : 'Request identifier was reused before completion.',
+        });
+      }
+      const matchesFilters = __matchesNetworkSniffingFilters(profile.filters, params);
+      const hasFilters = Object.values(profile.filters).some(Boolean);
+      if (matchesFilters || profile.showUnfilteredInLogs) {
+        console.log(
+          'Sniff Network ' + profile.name + ' ' + (hasFilters && matchesFilters ? ' (hit)' : '(miss)'),
+          params.request.url,
+        );
+      }
+      if (!matchesFilters) return;
+
+      let resolve;
+      const completion = new Promise(done => { resolve = done; });
+      const record = {
+        requestId: params.requestId,
+        resourceType: params.type,
+        request: __networkSniffingRequestPayload(params),
+        response: null,
+        tabName: __networkSniffingTabName(page),
+        index: profile.nextIndex,
+        startedAt: Date.now(),
+        completed: false,
+        completion,
+        resolve,
+      };
+      profile.nextIndex += 1;
+      pageState.pending.set(params.requestId, record);
+      __queueNetworkSniffingRecord(profile, record);
+    });
+
+    listen('Network.responseReceived', params => {
+      const record = pageState.pending.get(params.requestId);
+      if (record) record.response = params.response;
+    });
+
+    listen('Network.loadingFinished', params => {
+      const record = pageState.pending.get(params.requestId);
+      if (record) {
+        void __completeNetworkSniffingRecord(profile, pageState, record, {
+          loadFinished: true,
+          encodedDataLength: params.encodedDataLength,
+        });
+      }
+    });
+
+    listen('Network.loadingFailed', params => {
+      const record = pageState.pending.get(params.requestId);
+      if (record) {
+        void __completeNetworkSniffingRecord(profile, pageState, record, {
+          error: params.errorText || 'Request failed.',
+        });
+      }
+    });
+
+    pageState.closeListener = () => {
+      for (const [eventName, listener] of pageState.listeners) {
+        client.off(eventName, listener);
+      }
+      profile.pages.delete(page);
+      for (const record of [...pageState.pending.values()]) {
+        void __completeNetworkSniffingRecord(profile, pageState, record, {
+          error: 'Browser tab closed before the request completed.',
+        });
+      }
+    };
+    page.once('close', pageState.closeListener);
+
+  try {
+    await client.send('Network.enable');
+  } catch (error) {
+    for (const [eventName, listener] of pageState.listeners) {
+      client.off(eventName, listener);
+    }
+    page.off('close', pageState.closeListener);
+    profile.pages.delete(page);
+    throw error;
+  }
+};
+
+await __registerNamedPageInitializer(async page => {
+  await Promise.all(
+    Array.from(__networkSniffingProfiles.values())
+      .map(profile => __attachNetworkSniffingProfileToPage(profile, page)),
+  );
+});
+
+const __stopNetworkSniffingProfile = async function(profileName, reason, suppressMissing = false) {
+  const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$stopSniffing');
+  const profile = __networkSniffingProfiles.get(normalizedName);
+  if (!profile) {
+    if (suppressMissing) return null;
+    throw new Error('$stopSniffing: sniffing profile "' + normalizedName + '" is not active.');
+  }
+  if (profile.stopPromise) return profile.stopPromise;
+
+  profile.stopping = true;
+  clearTimeout(profile.timeoutHandle);
+  profile.stopPromise = (async () => {
+    for (const [page, pageState] of profile.pages) {
+      for (const [eventName, listener] of pageState.listeners) {
+        pageState.client.off(eventName, listener);
+      }
+      page.off('close', pageState.closeListener);
+      for (const record of [...pageState.pending.values()]) {
+        await __completeNetworkSniffingRecord(profile, pageState, record, {
+          error: 'Sniffing stopped before the request completed.',
+        });
+      }
+    }
+    await profile.queue;
+    const summary = {
+      profile: profile.name,
+      reason,
+      captured: profile.captured,
+      startedAt: profile.startedAt,
+      stoppedAt: Date.now(),
+      draining: false,
+    };
+    console.debug('Sniff Network ' + profile.name + ' stopped: ' + profile.captured + ' request(s)');
+    if (profile.firstError) throw profile.firstError;
+    return summary;
+  })().finally(() => {
+    if (__networkSniffingProfiles.get(profile.name) === profile) {
+      __networkSniffingProfiles.delete(profile.name);
+    }
+  });
+  return profile.stopPromise;
+};
+
+const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
+  const profiles = [...__networkSniffingProfiles.keys()];
+  let firstError = null;
+  for (const profileName of profiles) {
+    try {
+      await __stopNetworkSniffingProfile(profileName, reason, true);
+    } catch (error) {
+      if (!firstError) firstError = error;
+    }
+  }
+  if (firstError) throw firstError;
+  if (__networkSniffingFirstError) throw __networkSniffingFirstError;
+};
+
+/* @help Advanced
+ * @sig $sniffNetwork(profileName?, filters?, options?)
+ * @aliases capture network, monitor requests, inspect traffic
+ * @desc Start a named asynchronous network capture. Matching request and response pairs are passed to options.sniffing in request arrival order while the main flow continues immediately.
+ * @nodal-desc Capture matching browser requests and responses in a named profile while the main flow continues.
+ * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number }
+ * @opt timeout: 60000, showUnfilteredInLogs: false
+ * @nodal-param profileName [sniff-profile]: Name of the sniffing profile to create. Defaults to Default.
+ * @nodal-param filters [object]: Optional filters combined with AND logic.
+ * @nodal-param filters.url [string]: Complete URL pattern. Use wildcards by default, or wrap the value in # characters for a regular expression.
+ * @nodal-param filters.host [string]: Host pattern such as *.example.*. Wrap the value in # characters for a regular expression.
+ * @nodal-param filters.scheme [string]: URL scheme pattern such as https or http*. Wrap the value in # characters for a regular expression.
+ * @nodal-param filters.path [string]: URL path pattern such as /api/*. Wrap the value in # characters for a regular expression.
+ * @nodal-param filters.method [string]: HTTP method pattern such as GET or P*. Wrap the value in # characters for a regular expression.
+ * @nodal-param filters.resourceType [string]: CDP resource type pattern such as XHR, Fetch or *script*. Wrap the value in # characters for a regular expression.
+ * @nodal-param options [object]: Sniffing callback and lifetime options.
+ * @nodal-param options.sniffing [flow]: Flow executed once for every captured pair. The payload contains request, response, error and durationMs. Response status and body details are grouped under response.status and response.body.
+ * @nodal-param options.timeout [number]: Maximum capture lifetime in milliseconds. Defaults to 60000. Set to 0 to disable the timeout.
+ * @nodal-param options.showUnfilteredInLogs [boolean]: Log requests that do not match the filters. Defaults to false.
+ */
+const $sniffNetwork = async function(profileName = 'Default', filters = {}, options = {}) {
+  const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$sniffNetwork');
+  if (__networkSniffingProfiles.has(normalizedName)) {
+    throw new Error('$sniffNetwork: sniffing profile "' + normalizedName + '" is already active.');
+  }
+  if (options === undefined || options === null) options = {};
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new TypeError('$sniffNetwork: options must be an object.');
+  }
+  if (options.sniffing !== undefined && typeof options.sniffing !== 'function') {
+    throw new TypeError('$sniffNetwork: options.sniffing must be a function.');
+  }
+  if (options.showUnfilteredInLogs !== undefined && typeof options.showUnfilteredInLogs !== 'boolean') {
+    throw new TypeError('$sniffNetwork: options.showUnfilteredInLogs must be a boolean.');
+  }
+  const timeout = options.timeout === undefined ? 60000 : Number(options.timeout);
+  if (!Number.isFinite(timeout) || timeout < 0) {
+    throw new TypeError('$sniffNetwork: options.timeout must be a non-negative finite number.');
+  }
+
+  const profile = {
+    name: normalizedName,
+    filters: __normalizeNetworkSniffingFilters(filters),
+    callback: options.sniffing || null,
+    showUnfilteredInLogs: options.showUnfilteredInLogs === true,
+    pages: new Map(),
+    queue: Promise.resolve(),
+    nextIndex: 0,
+    captured: 0,
+    firstError: null,
+    startedAt: Date.now(),
+    stopping: false,
+    stopPromise: null,
+    timeoutHandle: null,
+  };
+  __networkSniffingProfiles.set(profile.name, profile);
+  try {
+    await Promise.all(
+      Array.from(__namedPages.values())
+        .filter(page => !page.isClosed())
+        .map(page => __attachNetworkSniffingProfileToPage(profile, page)),
+    );
+  } catch (error) {
+    try {
+      await __stopNetworkSniffingProfile(profile.name, 'startup-failed', true);
+    } catch (_) {}
+    throw error;
+  }
+
+  if (timeout > 0) {
+    profile.timeoutHandle = setTimeout(() => {
+      __stopNetworkSniffingProfile(profile.name, 'timeout', true).catch(error => {
+        if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
+        console.error(
+          'Sniff Network ' + profile.name + ' timeout cleanup failed:',
+          error && error.message ? error.message : error,
+        );
+      });
+    }, timeout);
+  }
+  console.debug('Sniff Network ' + profile.name + ' started');
+  return {
+    profile: profile.name,
+    timeout,
+    maxBodyBytes: __networkSniffingMaxBodyBytes,
+    startedAt: profile.startedAt,
+  };
+};
+
+/* @help Advanced
+ * @sig $stopSniffing(profileName?)
+ * @aliases stop network capture, stop monitoring requests
+ * @desc Stop a named network capture, complete pending request records, drain its callback queue and return a summary.
+ * @nodal-desc Stop and drain an active named network sniffing profile.
+ * @nodal-output object { profile:string, reason:string, captured:number, startedAt:number, stoppedAt:number, draining:boolean }
+ * @nodal-param profileName [sniff-profile]: Existing sniffing profile to stop. Defaults to Default.
+ */
+const $stopSniffing = async function(profileName = 'Default') {
+  const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$stopSniffing');
+  if (__networkSniffingCallbackActive) {
+    const profile = __networkSniffingProfiles.get(normalizedName);
+    if (!profile) {
+      throw new Error('$stopSniffing: sniffing profile "' + normalizedName + '" is not active.');
+    }
+    void __stopNetworkSniffingProfile(normalizedName, 'manual').catch(error => {
+      if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
+      console.error(
+        'Sniff Network ' + normalizedName + ' deferred cleanup failed:',
+        error && error.message ? error.message : error,
+      );
+    });
+    return {
+      profile: normalizedName,
+      reason: 'manual',
+      captured: profile.captured,
+      startedAt: profile.startedAt,
+      stoppedAt: Date.now(),
+      draining: true,
+    };
+  }
+  return await __stopNetworkSniffingProfile(profileName, 'manual');
+};
 /* @help Files
  * @sig $createArtifact(artifactName, content, options?)
- * @aliases create file
+ * @aliases create file, write file, save file
  * @desc Create an artifact in the run downloads directory.
  * @nodal-desc Create a file and attach it to the run artifacts.
  * @nodal-output string
@@ -2097,6 +2667,7 @@ const $createArtifact = async function(artifactName, content, options = {}) {
 
 /* @help Files
  * @sig $scanDirectory(directoryPath, filenameContains?)
+ * @aliases list files, browse directory
  * @desc List files in a directory, optionally filtering by name substring. Excludes .crdownload temp files.
  * @nodal-desc List completed files in a folder, optionally filtered by filename.
  * @nodal-output array<string>
@@ -2118,6 +2689,7 @@ const $scanDirectory = async function(directoryPath, filenameContains) {
 
 /* @help Files
  * @sig $scanDownloadsDirectory(downloadsSubPath, filenameContains?)
+ * @aliases list downloads, browse downloads
  * @desc List files in a directory, optionally filtering by name substring. Excludes .crdownload temp files.
  * @nodal-desc List completed files in the downloads folder, optionally filtered by filename.
  * @nodal-output array<string>
@@ -2130,6 +2702,7 @@ const $scanDownloadsDirectory = async function(downloadsSubPath, filenameContain
 
 /* @help Files
  * @sig $moveDownloadedFile(sourceFilename, destinationPath)
+ * @aliases move download, rename download, organize file
  * @desc Move a file from the downloads directory to a destination path.
  * @nodal-param sourceFilename: Filename currently in the downloads directory.
  * @nodal-param destinationPath: Destination filename or path.
@@ -2144,6 +2717,7 @@ const $moveDownloadedFile = function(sourceFilename, destinationPath) {
 
 /* @help Files
  * @sig $waitForFile(destinationFilename?, options?)
+ * @aliases wait for download, await file
  * @desc Wait for a file to appear in the downloading dir, then move it to downloads. Default timeout: 100s.
  * @nodal-desc Wait for a browser download to finish and save it in downloads.
  * @nodal-output boolean
@@ -2244,6 +2818,7 @@ async function $_nodeDownload(url, targetPath, timeout) {
 
 /* @help Files
  * @sig $getDownloadsPathFile(downloadsFile)
+ * @aliases resolve download path, get file path
  * @desc Get the absolute path to a file in the downloads directory.
  * @nodal-desc Resolve a file stored in downloads so another node can use it.
  * @nodal-output string
@@ -2255,6 +2830,7 @@ const $getDownloadsPathFile = function(downloadsFile) {
 
 /* @help Files
  * @sig $download(fileUrl, destinationFilename?, options?)
+ * @aliases download url, fetch file, save remote file
  * @desc Download a file from a URL using Node.js (works with both local and remote browsers).
  * @nodal-desc Download a file from a URL into the run downloads.
  * @opt output: true - include this download in $artifacts output
@@ -2289,6 +2865,7 @@ const $download = async function(fileUrl, destinationFilename, options = {}) {
 
 /* @help Files
  * @sig $downloadFromBrowser(fileUrl, destinationFilename?, options?)
+ * @aliases authenticated download, session download, download with browser
  * @desc Download via browser click (uses page cookies/session). Falls back to Node.js download if the file never appears locally (remote browser).
  * @nodal-desc Download a file using the active browser session, including its current cookies.
  * @nodal-output string
@@ -2355,6 +2932,7 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
 
 /* @help Interaction
  * @sig $upload(fileInputSelectorOrHandle, uploadFilename, options?)
+ * @aliases attach file, upload file, choose file
  * @desc Upload a file from the downloads directory to a file input element. Accepts a CSS selector string or an ElementHandle.
  * @nodal-desc Upload a downloaded file into a file input on the page.
  * @opt timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
@@ -2399,6 +2977,7 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
 
 /* @help Files
  * @sig $unzipFile(zipFilename, extractDirectory, options?)
+ * @aliases extract archive, unzip archive, unpack file
  * @desc Unzip a file from downloads into a subdirectory. Removes the zip afterwards. Returns list of extracted filenames.
  * @nodal-desc Extract a zip file from downloads into a folder.
  * @nodal-output array<string>
@@ -2800,6 +3379,7 @@ const __httpParseResponse = function(response, options) {
 
 /* @help Advanced
  * @sig $httpRequest(url, options?)
+ * @aliases call api, send http request, fetch url
  * @desc Send an HTTP request with query parameters, headers, authentication, multiple body formats, redirects, retries, and structured responses.
  * @nodal-desc Call an HTTP API and return its response.
  * @nodal-output any
@@ -3084,6 +3664,7 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
 
 /* @help Selectors
  * @sig $selectElement(selectorOrHandle, options?)
+ * @aliases find element, query element
  * @desc Get an ElementHandle matching a selector with optional text and visibility filtering. Accepts a CSS selector string or an ElementHandle. Returns ElementHandle or null.
  * @nodal-desc Find one element on the page, with optional text and visibility filters.
  * @nodal-output element
@@ -3104,6 +3685,7 @@ const $selectElement = async function(selectorOrHandle, options = {}) {
 
 /* @help Selectors
  * @sig $selectManyElements(cssSelector, options?)
+ * @aliases find elements, query elements, select all elements
  * @desc Get all ElementHandles matching a selector with optional text and visibility filtering. Returns an array of ElementHandle (empty array if none found).
  * @nodal-desc Find all matching elements on the page, with optional text and visibility filters.
  * @nodal-output array<element>
@@ -3186,6 +3768,7 @@ const __extractElementAttributes = async function(handle, getters) {
 
 /* @help Selectors
  * @sig $extractAttribute(selectorOrHandle, getters)
+ * @aliases read attribute, get element value
  * @desc Extract named, JSON-compatible values from an element. Accepts a CSS selector string or an ElementHandle.
  * @nodal-desc Extract attributes and values from an element selected by CSS selector or provided as an ElementHandle.
  * @nodal-output object
@@ -3199,6 +3782,7 @@ const $extractAttribute = async function(selectorOrHandle, getters) {
 
 /* @help Selectors
  * @sig $extractAttributes(selectorOrHandle, getters)
+ * @aliases scrape attributes, read element values
  * @desc Extract named, JSON-compatible values from elements. Accepts a CSS selector string, an ElementHandle, or an array of ElementHandle.
  * @nodal-desc Extract attributes and values from each element selected by CSS selector or provided as ElementHandles.
  * @nodal-output array<object>
@@ -3213,6 +3797,7 @@ const $extractAttributes = async function(selectorOrHandle, getters) {
 
 /* @help Interaction
  * @sig $clickElement(selectorOrHandle, options?)
+ * @aliases click button, press element
  * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. Throws StopRun if not found.
  * @nodal-desc Find and click an element after an optional delay.
  * @nodal-output boolean
@@ -3249,6 +3834,7 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
 
 /* @help Interaction
  * @sig $clickElementAtIndex(elementsSelector, elementIndex, options?)
+ * @aliases click nth element, click item by index
  * @desc Click an element at a specific index after an optional delay (ms). Throws StopRun if not found or index out of bounds.
  * @nodal-desc Click one matching element by its position after an optional delay.
  * @nodal-output boolean
@@ -3285,6 +3871,7 @@ const $clickElementAtIndex = async function(elementsSelector, elementIndex, opti
 
 /* @help Interaction
  * @sig $clickAtCoordinates(coordinateX, coordinateY, options?)
+ * @aliases click position, click coordinates
  * @desc Click a point on the page using viewport coordinates. Supports left, right, and middle mouse buttons.
  * @nodal-desc Click a point on the page using X and Y viewport coordinates.
  * @opt delay: 1000, buttonType: left
@@ -3320,6 +3907,7 @@ const $clickAtCoordinates = async function(coordinateX, coordinateY, options = {
 
 /* @help Interaction
  * @sig $scrollByPixels(scrollPixels)
+ * @aliases scroll page, scroll distance
  * @desc Scroll the page vertically by a pixel amount. Positive values scroll down and negative values scroll up.
  * @nodal-desc Scroll the page up or down by an exact pixel amount.
  * @nodal-param scrollPixels [number, required]: Pixels to scroll. Positive scrolls down, negative scrolls up.
@@ -3335,6 +3923,7 @@ const $scrollByPixels = async function(scrollPixels) {
 
 /* @help Interaction
  * @sig $scrollToElement(selectorOrHandle)
+ * @aliases bring element into view, scroll to item
  * @desc Scroll the page or nearest scrollable container until a CSS selector or ElementHandle is visible.
  * @nodal-desc Scroll until the selected element is visible.
  * @nodal-param selectorOrHandle [string, selector, required]: CSS selector or ElementHandle to bring into view.
@@ -3463,6 +4052,7 @@ const $_sendNotification = (() => {
 
 /* @help Notification
  * @sig $notify(channelId, notificationMessage, options?)
+ * @aliases send notification, alert person, send message
  * @desc Send a notification via a configured channel (Slack, Discord, Telegram).
  * @nodal-desc Send a message to a configured notification channel.
  * @nodal-param channelId [channel]: Notification channel ID.
@@ -3481,6 +4071,7 @@ const $notify = async function(channelId, notificationMessage, options = {}) {
 
 /* @help Notification
  * @sig $waitHumanValidation(channelId?, validationMessage?, options?)
+ * @aliases request approval, wait for approval, human review
  * @desc Pause the run until a human clicks "Continue run". Optionally sends a notification if channelId and validationMessage are provided.
  * @nodal-desc Pause the run until someone approves it in Puppetflow.
  * @nodal-param channelId [channel]: Optional notification channel ID.
@@ -3622,6 +4213,7 @@ const __dataTableOptions = function(options) {
 
 /* @help Data Tables
  * @sig $dataTableInsertRow(tableId, values)
+ * @aliases add table row, insert record
  * @desc Insert one row into a Data Table and return the complete stored row.
  * @nodal-desc Insert a row into a Data Table.
  * @nodal-output object
@@ -3639,6 +4231,7 @@ const $dataTableInsertRow = async function(tableId, values) {
 
 /* @help Data Tables
  * @sig $dataTableUpdateRows(tableId, filters, values, options?)
+ * @aliases edit table rows, update records
  * @desc Update rows matching all or any filters. Set options.updateAll to explicitly update every row and options.dryRun to preview before and after rows.
  * @nodal-desc Update matching rows in a Data Table.
  * @nodal-output array<object>
@@ -3666,6 +4259,7 @@ const $dataTableUpdateRows = async function(tableId, filters, values, options = 
 
 /* @help Data Tables
  * @sig $dataTableUpsertRows(tableId, filters, values, options?)
+ * @aliases insert or update rows, upsert records
  * @desc Update rows matching the filters, or insert one row when no match exists. The operation is serialized per table.
  * @nodal-desc Update matching rows or insert a new row.
  * @nodal-output array<object>
@@ -3691,6 +4285,7 @@ const $dataTableUpsertRows = async function(tableId, filters, values, options = 
 
 /* @help Data Tables
  * @sig $dataTableRowExists(tableId, filters, options?)
+ * @aliases check row exists, find matching row
  * @desc Return true when at least one row matches the filters.
  * @nodal-desc Branch depending on whether a matching row exists.
  * @nodal-output boolean
@@ -3714,6 +4309,7 @@ const $dataTableRowExists = async function(tableId, filters, options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableRowDoesNotExist(tableId, filters, options?)
+ * @aliases check row missing, no matching row
  * @desc Return true when no row matches the filters.
  * @nodal-desc Branch depending on whether no matching row exists.
  * @nodal-output boolean
@@ -3737,6 +4333,7 @@ const $dataTableRowDoesNotExist = async function(tableId, filters, options = {})
 
 /* @help Data Tables
  * @sig $dataTableGetRows(tableId, filters?, options?)
+ * @aliases find table rows, query table, read records
  * @desc Return rows matching typed filters with optional AND or OR matching, sorting, limits, and returnAll.
  * @nodal-desc Get matching rows from a Data Table.
  * @nodal-output array<object>
@@ -3766,6 +4363,7 @@ const $dataTableGetRows = async function(tableId, filters = [], options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableDeleteRows(tableId, filters, options?)
+ * @aliases remove table rows, delete records
  * @desc Delete rows matching typed filters, or preview the deletion with options.dryRun.
  * @nodal-desc Delete matching rows from a Data Table.
  * @nodal-output array<object>
@@ -3789,6 +4387,7 @@ const $dataTableDeleteRows = async function(tableId, filters, options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableCreate(name, columns?, options?)
+ * @aliases new data table, create database table
  * @desc Create a physical data table with automatic id, created_at, and updated_at columns, and return the new table id.
  * @nodal-desc Create a Data Table and return its id.
  * @nodal-output string
@@ -3819,6 +4418,7 @@ const $dataTableCreate = async function(name, columns = [], options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableDelete(tableId)
+ * @aliases remove data table, drop table
  * @desc Permanently delete a Data Table and all of its rows.
  * @nodal-desc Delete a Data Table.
  * @nodal-output object
@@ -3834,6 +4434,7 @@ const $dataTableDelete = async function(tableId) {
 
 /* @help Data Tables
  * @sig $dataTableList(options?)
+ * @aliases show data tables, list tables
  * @desc List Data Tables visible to the flow run actor.
  * @nodal-desc List visible Data Tables.
  * @nodal-output array<object>
@@ -3855,6 +4456,7 @@ const $dataTableList = async function(options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableUpdate(tableId, changes)
+ * @aliases edit data table, rename table
  * @desc Update Data Table metadata without changing physical storage or column types.
  * @nodal-desc Update a Data Table.
  * @nodal-output object
@@ -3941,6 +4543,7 @@ const __trackPendingMailboxClaim = function(claim, leaseDeadline) {
 
 /* @help Mailbox
  * @sig $waitForEmail(mailboxWatcherId, options?)
+ * @aliases await email, receive email, wait for message
  * @desc Wait for an email matching the named mailbox watcher's rules. Returns email metadata and optional parsed value. Timeout priority: options > watcher config > 300s default.
  * @nodal-desc Wait until a configured mailbox watcher receives a matching email.
  * @nodal-output object from:string, to:string, subject:string, date:string, received_at:string, text:string, html:string, parsed:unknown, body:string, parsed_value:unknown, sender_authentication:string
@@ -4027,6 +4630,7 @@ const $waitForEmail = async function(mailboxWatcherId, options = {}) {
 
 /* @help Files
  * @sig $pdfSearch(pdfFilePath, searchText)
+ * @aliases find text in pdf, search document
  * @desc Search for a text occurrence in a PDF file. Returns an object with { found, count, pages } where pages lists page numbers containing the match.
  * @nodal-desc Search text inside a PDF and report where it appears.
  * @nodal-output object found:boolean, count:number, pages:array<number>, totalPages:number
@@ -4076,6 +4680,7 @@ const $pdfSearch = async function(pdfFilePath, searchText) {
 
 /* @help Files
  * @sig $pdfGetText(pdfFilePath)
+ * @aliases extract pdf text, read pdf, parse document
  * @desc Extract all text content from a PDF file. Returns an object with { text, pages, totalPages } where pages is an array of per-page text strings.
  * @nodal-desc Extract readable text from a PDF file.
  * @nodal-output object text:string, pages:array<object>, totalPages:number
@@ -4292,6 +4897,7 @@ const __aiTextContent = function(text) {
 
 /* @help AI
  * @sig $aiMessage(aiModelId, message, options?)
+ * @aliases ask ai, generate text, chat with ai
  * @desc Send text messages through a configured AI model.
  * @nodal-desc Ask an AI model a text-only question.
  * @nodal-output object
@@ -4986,6 +5592,7 @@ const __aiControlResponseFormat = {
 
 /* @help AI
  * @sig $aiControl(aiModelId, prompt, options?)
+ * @aliases ai browser control, autonomous browser, browse with ai
  * @desc Repeatedly analyze the current page screenshot and execute validated browser facade actions until the objective is complete.
  * @nodal-desc Let a vision model inspect and operate the current browser page.
  * @nodal-output object

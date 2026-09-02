@@ -76,6 +76,9 @@ export function getNodeParameterDisplayLabel(entry: HelpEntryDef, key: string): 
     if ((entry.name === '$aiControl' || entry.name === '$aiMessage') && key === 'aiModelId') {
         return 'AI Model';
     }
+    if ((entry.name === '$saveCookies' || entry.name === '$loadCookies') && key === 'jarName') {
+        return 'Profile';
+    }
     return meta.label ?? key;
 }
 
@@ -130,31 +133,38 @@ export interface NodeValidationIssue {
     kind?: 'connect-flow';
 }
 
+const getUnavailableNamedResourceIssue = (
+    values: Record<string, NodeParameterValue>,
+    availableNames: readonly string[],
+    key: string,
+    label: string,
+    selectMessage: string,
+    unavailableMessage: (name: string) => string,
+): NodeValidationIssue | null => {
+    const value = normalizeScalarParameterValue(values[key]);
+    if (value.mode !== 'fixed') return null;
+
+    const normalizedName = value.value.trim();
+    if (!normalizedName) return { path: key, label, message: selectMessage };
+    if (availableNames.includes(normalizedName)) return null;
+
+    return { path: key, label, message: unavailableMessage(normalizedName) };
+};
+
 export function getUnavailableBrowserTabIssue(
     entry: HelpEntryDef,
     values: Record<string, NodeParameterValue>,
     availableTabNames: readonly string[],
 ): NodeValidationIssue | null {
     if (entry.name !== '$gotoTab') return null;
-
-    const tabName = normalizeScalarParameterValue(values.tabName);
-    if (tabName.mode !== 'fixed') return null;
-
-    const normalizedName = tabName.value.trim();
-    if (!normalizedName) {
-        return {
-            path: 'tabName',
-            label: 'Tab Name',
-            message: 'Select a browser tab.',
-        };
-    }
-    if (availableTabNames.includes(normalizedName)) return null;
-
-    return {
-        path: 'tabName',
-        label: 'Tab Name',
-        message: `Browser tab "${normalizedName}" is not defined in this flow.`,
-    };
+    return getUnavailableNamedResourceIssue(
+        values,
+        availableTabNames,
+        'tabName',
+        'Tab Name',
+        'Select a browser tab.',
+        name => `Browser tab "${name}" is not defined in this flow.`,
+    );
 }
 
 export function getUnavailableStopwatchIssue(
@@ -163,25 +173,30 @@ export function getUnavailableStopwatchIssue(
     availableStopwatchNames: readonly string[],
 ): NodeValidationIssue | null {
     if (entry.name !== '$stopwatchStop' && entry.name !== '$stopwatchCheck') return null;
+    return getUnavailableNamedResourceIssue(
+        values,
+        availableStopwatchNames,
+        'stopwatchName',
+        'Stopwatch Name',
+        'Select a stopwatch.',
+        name => `Stopwatch "${name}" is not defined in this flow.`,
+    );
+}
 
-    const stopwatchName = normalizeScalarParameterValue(values.stopwatchName);
-    if (stopwatchName.mode !== 'fixed') return null;
-
-    const normalizedName = stopwatchName.value.trim();
-    if (!normalizedName) {
-        return {
-            path: 'stopwatchName',
-            label: 'Stopwatch Name',
-            message: 'Select a stopwatch.',
-        };
-    }
-    if (availableStopwatchNames.includes(normalizedName)) return null;
-
-    return {
-        path: 'stopwatchName',
-        label: 'Stopwatch Name',
-        message: `Stopwatch "${normalizedName}" is not defined in this flow.`,
-    };
+export function getUnavailableSniffProfileIssue(
+    entry: HelpEntryDef,
+    values: Record<string, NodeParameterValue>,
+    availableProfileNames: readonly string[],
+): NodeValidationIssue | null {
+    if (entry.name !== '$stopSniffing') return null;
+    return getUnavailableNamedResourceIssue(
+        values,
+        availableProfileNames,
+        'profileName',
+        'Sniffing Profile',
+        'Select a sniffing profile.',
+        name => `Sniffing profile "${name}" is not defined in this flow.`,
+    );
 }
 
 function cleanArgName(arg: string) {

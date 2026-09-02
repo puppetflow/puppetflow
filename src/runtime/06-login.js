@@ -1,5 +1,6 @@
 /* @help Navigation
  * @sig $loginRemember(options)
+ * @aliases remembered login, persistent login, reuse session
  * @desc Login remember function. Saves cookies to a JSON file and loads them back on the next run.
  * @nodal-desc Reuse saved login cookies, or run the login steps again when the session is expired.
  * @opt loginUrl: null, loginRecipe: null, loggedUrl: null, loggedMarkerCondition: null, loggedMarkerConditionRaw: null, loggedMarkerTimeout: 5000, password: $input.password

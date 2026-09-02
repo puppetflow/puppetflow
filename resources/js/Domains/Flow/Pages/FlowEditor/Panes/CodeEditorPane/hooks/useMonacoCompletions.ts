@@ -3,12 +3,14 @@ import type { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { registerAiModelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/aiModelSuggestions';
 import { registerChannelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
+import { registerCookieJarCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
 import { registerDataTableCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
 import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monacoBase';
 import { registerInputCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
 import { registerMailboxWatcherCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
+import { registerSniffProfileCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/sniffProfileSuggestions';
 import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
 import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
@@ -42,6 +44,8 @@ export function useMonacoCompletions({
         snippet?: Disposable;
         tabName?: Disposable;
         stopwatchName?: Disposable;
+        sniffProfile?: Disposable;
+        cookieJar?: Disposable;
         referenceLabels?: Disposable;
     }>({});
 
@@ -70,6 +74,8 @@ export function useMonacoCompletions({
         disposablesRef.current.snippet?.dispose();
         disposablesRef.current.tabName?.dispose();
         disposablesRef.current.stopwatchName?.dispose();
+        disposablesRef.current.sniffProfile?.dispose();
+        disposablesRef.current.cookieJar?.dispose();
         disposablesRef.current.referenceLabels?.dispose();
         disposablesRef.current.aiModel = registerAiModelCompletions(monaco, modelUri);
         disposablesRef.current.channel = registerChannelCompletions(monaco, modelUri);
@@ -80,6 +86,8 @@ export function useMonacoCompletions({
         disposablesRef.current.snippet = registerSnippetCompletions(monaco, modelUri);
         disposablesRef.current.tabName = registerTabNameCompletions(monaco, modelUri);
         disposablesRef.current.stopwatchName = registerStopwatchNameCompletions(monaco, modelUri);
+        disposablesRef.current.sniffProfile = registerSniffProfileCompletions(monaco, modelUri);
+        disposablesRef.current.cookieJar = registerCookieJarCompletions(monaco, modelUri);
         disposablesRef.current.referenceLabels = registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
 
         editorInstance.addCommand(

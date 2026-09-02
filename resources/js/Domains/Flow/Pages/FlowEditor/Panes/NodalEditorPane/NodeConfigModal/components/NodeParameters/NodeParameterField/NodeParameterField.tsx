@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { parseResourceReference } from '@/Domains/Flow/Utils/flowInputsMetadata';
 import { useGrabber } from '@/Domains/Flow/Pages/FlowEditor/Grabber/GrabberContext';
 import type { CanvasNode, NodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
@@ -14,9 +15,13 @@ import {
     LOOP_NODE_NAME,
     MERGE_NODE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
-import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
+import {
+    evaluateExpressionPreview,
+    normalizeScalarParameterValue,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import {
     getUnavailableBrowserTabIssue,
+    getUnavailableSniffProfileIssue,
     getUnavailableStopwatchIssue,
     getNodeParameterDisplayLabel,
     type NodeValidationIssue,
@@ -82,12 +87,24 @@ export default function NodeParameterField({
     const fieldLabel = getNodeParameterDisplayLabel(entry, cleanArg);
     const isTabName = meta.input === 'tab-name';
     const isStopwatchName = meta.input === 'stopwatch-name';
+    const isSniffProfile = meta.input === 'sniff-profile';
+    const isCookieJar = meta.input === 'cookie-jar';
     const selectOptions = isTabName
         ? autocompleteContext.tabNames.map(tabName => ({ value: tabName, label: tabName }))
         : isStopwatchName
         ? autocompleteContext.stopwatchNames.map(stopwatchName => ({
             value: stopwatchName,
             label: stopwatchName,
+        }))
+        : isSniffProfile
+        ? autocompleteContext.sniffProfileNames.map(profileName => ({
+            value: profileName,
+            label: profileName,
+        }))
+        : isCookieJar
+        ? autocompleteContext.cookieJarNames.map(jarName => ({
+            value: jarName,
+            label: jarName,
         }))
         : meta.options;
     const scalarValue = normalizeScalarParameterValue(node.values[cleanArg]);
@@ -101,14 +118,44 @@ export default function NodeParameterField({
         node.values,
         autocompleteContext.stopwatchNames,
     );
-    const invalid = Boolean(missingRequiredIssue || unavailableTabIssue || unavailableStopwatchIssue);
+    const unavailableSniffProfileIssue = getUnavailableSniffProfileIssue(
+        entry,
+        node.values,
+        autocompleteContext.sniffProfileNames,
+    );
+    const invalid = Boolean(
+        missingRequiredIssue
+        || unavailableTabIssue
+        || unavailableStopwatchIssue
+        || unavailableSniffProfileIssue,
+    );
     const errorMessage = unavailableTabIssue?.message
         ?? unavailableStopwatchIssue?.message
+        ?? unavailableSniffProfileIssue?.message
         ?? missingRequiredIssue?.message;
     const { available: grabberAvailable, grabSelector } = useGrabber();
     const [grabbing, setGrabbing] = useState(false);
     const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const longPressTriggeredRef = useRef(false);
+    const resolveDataTableId = () => {
+        const value = normalizeScalarParameterValue(node.values.tableId);
+        const resolved = value.mode === 'expression'
+            ? evaluateExpressionPreview(value.value, {
+                inputData: autocompleteContext.inputData,
+                outputData: expressionOutputData,
+                nodeData: autocompleteContext.nodeData,
+                runData: autocompleteContext.runData,
+                contextData: autocompleteContext.contextData,
+            })
+            : { ok: true as const, value: value.value };
+        if (!resolved.ok) return '';
+
+        const reference = parseResourceReference(resolved.value);
+        if (reference?.type === 'datatable') return reference.key;
+        return typeof resolved.value === 'string' || typeof resolved.value === 'number'
+            ? String(resolved.value)
+            : '';
+    };
 
     useEffect(() => () => {
         if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
@@ -170,7 +217,7 @@ export default function NodeParameterField({
     }
 
     if (meta.input === 'data-table-values') {
-        const tableId = normalizeScalarParameterValue(node.values.tableId).value;
+        const tableId = resolveDataTableId();
         const table = validationResources.dataTables?.items
             .find(candidate => String(candidate.id) === tableId);
         const objectFields = Object.fromEntries((table?.columns ?? []).map(column => [
@@ -193,8 +240,8 @@ export default function NodeParameterField({
                 path={cleanArg}
                 meta={{
                     ...meta,
-                    input: 'object',
-                    valueType: 'object',
+                    input: 'custom-object',
+                    valueType: 'custom-object',
                     objectFields,
                     placeholder: '{\n  "column_name": "value"\n}',
                 }}
@@ -207,13 +254,14 @@ export default function NodeParameterField({
                 invalid={Boolean(missingRequiredIssue)}
                 errorMessage={missingRequiredIssue?.message}
                 validationIssues={nestedRequiredIssues}
+                addCustomFieldLabel="+ Add Column Value"
                 onChange={value => onUpdateValue(node.id, cleanArg, value)}
             />
         );
     }
 
     if (meta.input === 'data-table-filters' || meta.input === 'data-table-columns') {
-        const tableId = normalizeScalarParameterValue(node.values.tableId).value;
+        const tableId = resolveDataTableId();
         const columns = validationResources.dataTables?.items
             .find(table => String(table.id) === tableId)
             ?.columns ?? [];
@@ -418,14 +466,26 @@ export default function NodeParameterField({
                 ? 'Default'
                 : isStopwatchName
                     ? 'Select a stopwatch...'
+                    : isSniffProfile
+                        ? 'Select a sniffing profile...'
+                        : isCookieJar
+                            ? 'Select a profile...'
                     : meta.placeholder}
             inputType={getExpressionInputType(meta)}
             options={selectOptions}
             allowCustomSelectValue={
                 (isTabName && entry.name === '$gotoUrl')
                 || (isStopwatchName && entry.name === '$stopwatchStart')
+                || (isSniffProfile && entry.name === '$sniffNetwork')
+                || isCookieJar
             }
-            customSelectValueLabel={isStopwatchName ? 'stopwatch name' : undefined}
+            customSelectValueLabel={isStopwatchName
+                ? 'stopwatch name'
+                : isSniffProfile
+                    ? 'sniffing profile name'
+                    : isCookieJar
+                        ? 'profile name'
+                    : undefined}
             value={scalarValue}
             outputData={expressionOutputData}
             autocompleteContext={autocompleteContext}

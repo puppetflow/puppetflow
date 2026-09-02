@@ -6,6 +6,7 @@ export const DuplicateShortcut = () => <kbd><b>D</b></kbd>;
 export const DeactivateShortcut = () => <kbd><b>M</b></kbd>;
 export const DeleteShortcut = () => <kbd>Del / <b>X</b></kbd>;
 export const PasteShortcut = () => <kbd><span>⌘</span><b>V</b></kbd>;
+export const ReorganizeShortcut = () => <kbd><b>B</b></kbd>;
 export const AddNodeShortcut = () => (
     <S.CompactKeyCombo>
         <S.Key>A</S.Key>

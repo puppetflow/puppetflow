@@ -8,7 +8,11 @@ import {
     normalizeNodalGraph,
 } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import type { FlowInputDefinition } from '@/Domains/Flow/Utils/flowInputsMetadata';
+import type {
+    ExportedDataTableSchema,
+    ExportedMailboxWatcherSchema,
+    FlowInputDefinition,
+} from '@/Domains/Flow/Utils/flowInputsMetadata';
 
 interface ExportedSnippet {
     id: Id;
@@ -121,12 +125,22 @@ const fetchFlowInputs = async (flowId: Id) => {
         throw new FlowInputExportError('Unable to download flow inputs.');
     }
 
-    const result = await response.json() as { inputs?: unknown };
-    if (!result.inputs || typeof result.inputs !== 'object' || Array.isArray(result.inputs)) {
-        return {};
-    }
+    const result = await response.json() as {
+        inputs?: unknown;
+        data_tables?: unknown;
+        mailbox_watchers?: unknown;
+    };
+    const inputs = result.inputs && typeof result.inputs === 'object' && !Array.isArray(result.inputs)
+        ? result.inputs as Record<string, unknown>
+        : {};
+    const dataTables = Array.isArray(result.data_tables)
+        ? result.data_tables as ExportedDataTableSchema[]
+        : [];
+    const mailboxWatchers = Array.isArray(result.mailbox_watchers)
+        ? result.mailbox_watchers as ExportedMailboxWatcherSchema[]
+        : [];
 
-    return result.inputs as Record<string, unknown>;
+    return { inputs, dataTables, mailboxWatchers };
 };
 
 export const downloadFlow = async ({
@@ -141,13 +155,15 @@ export const downloadFlow = async ({
     const baseName = getFlowDownloadBaseName(name, flowId);
     const baseExtension = isNodalFlow ? 'json' : 'js';
     const currentNodalGraph = normalizeNodalGraph(nodalGraph);
-    const inputs = await fetchFlowInputs(flowId);
+    const { inputs, dataTables, mailboxWatchers } = await fetchFlowInputs(flowId);
     const baseContent = isNodalFlow
         ? buildLibraryCompliantNodalGraph({
             title: name,
             description,
             inputs,
             inputDefinitions,
+            dataTables,
+            mailboxWatchers,
             graph: currentNodalGraph,
         })
         : buildLibraryCompliantCode({
@@ -155,6 +171,8 @@ export const downloadFlow = async ({
             description,
             inputs,
             inputDefinitions,
+            dataTables,
+            mailboxWatchers,
             code,
         });
     const codeContent = isNodalFlow ? compileNodalGraphToCode(currentNodalGraph) : code;

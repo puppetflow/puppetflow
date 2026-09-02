@@ -4,6 +4,7 @@
 
 /* @help Files
  * @sig $pdfSearch(pdfFilePath, searchText)
+ * @aliases find text in pdf, search document
  * @desc Search for a text occurrence in a PDF file. Returns an object with { found, count, pages } where pages lists page numbers containing the match.
  * @nodal-desc Search text inside a PDF and report where it appears.
  * @nodal-output object found:boolean, count:number, pages:array<number>, totalPages:number
@@ -53,6 +54,7 @@ const $pdfSearch = async function(pdfFilePath, searchText) {
 
 /* @help Files
  * @sig $pdfGetText(pdfFilePath)
+ * @aliases extract pdf text, read pdf, parse document
  * @desc Extract all text content from a PDF file. Returns an object with { text, pages, totalPages } where pages is an array of per-page text strings.
  * @nodal-desc Extract readable text from a PDF file.
  * @nodal-output object text:string, pages:array<object>, totalPages:number

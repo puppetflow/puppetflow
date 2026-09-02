@@ -7,6 +7,7 @@ import { getMarqueeSelectedNodeIds } from '@/Domains/Flow/Pages/FlowEditor/Panes
 import { EMPTY_OUTPUT_PORT_SET, getConnectedOutputPortsByNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import {
     collectDeclaredNamedTabsFromGraph,
+    collectDeclaredSniffProfileNamesFromGraph,
     collectDeclaredStopwatchNamesFromGraph,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import { CODE_NODE_NAME, CODE_NODE_VALUE_KEY } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
@@ -85,6 +86,7 @@ export default function CanvasNodeLayer({
         if (node.deactivated || node.system) return [];
         if (node.name === '$gotoUrl') return [[node.id, node.name, node.values?.tabName]];
         if (node.name === '$stopwatchStart') return [[node.id, node.name, node.values?.stopwatchName]];
+        if (node.name === '$sniffNetwork') return [[node.id, node.name, node.values?.profileName]];
         if (node.name === CODE_NODE_NAME) return [[node.id, node.name, node.values?.[CODE_NODE_VALUE_KEY]]];
         return [];
     }));
@@ -92,16 +94,19 @@ export default function CanvasNodeLayer({
         signature: string;
         tabNames: string[];
         stopwatchNames: string[];
+        sniffProfileNames: string[];
     } | null>(null);
     if (resourceDeclarationsRef.current?.signature !== resourceDeclarationSignature) {
         resourceDeclarationsRef.current = {
             signature: resourceDeclarationSignature,
             tabNames: collectDeclaredNamedTabsFromGraph(graph),
             stopwatchNames: collectDeclaredStopwatchNamesFromGraph(graph),
+            sniffProfileNames: collectDeclaredSniffProfileNamesFromGraph(graph),
         };
     }
     const availableTabNames = resourceDeclarationsRef.current.tabNames;
     const availableStopwatchNames = resourceDeclarationsRef.current.stopwatchNames;
+    const availableSniffProfileNames = resourceDeclarationsRef.current.sniffProfileNames;
 
     return (
         <>
@@ -139,6 +144,7 @@ export default function CanvasNodeLayer({
                     node={node}
                     availableTabNames={availableTabNames}
                     availableStopwatchNames={availableStopwatchNames}
+                    availableSniffProfileNames={availableSniffProfileNames}
                     connectedOutputPorts={connectedOutputPortsByNode.get(node.id) ?? EMPTY_OUTPUT_PORT_SET}
                     selected={selectedNodeIds.has(node.id)}
                     selectionPreview={selectionPreviewNodeIds.has(node.id)}

@@ -27,6 +27,11 @@ return [
         FILTER_VALIDATE_BOOL,
     ),
 
+    'runner_http_sniffing_max_body_bytes' => max(
+        1,
+        (int) env('RUNNER_HTTP_SNIFFING_MAX_BODY_BYTES', 5242880),
+    ),
+
     'integration_http_allow_private' => filter_var(
         env('INTEGRATION_HTTP_ALLOW_PRIVATE', true),
         FILTER_VALIDATE_BOOL,

@@ -149,7 +149,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Use browser internals, cookies, raw Puppeteer objects, globals, and custom code.',
         icon: 'lucide:binary',
         color: '#6366f1',
-        priority: ['Code', '$httpRequest', '$bridgeEvaluate', '$injectScriptLibrary', '$saveCookies', '$loadCookies'],
+        priority: ['Code', '$httpRequest', '$sniffNetwork', '$stopSniffing', '$bridgeEvaluate', '$injectScriptLibrary', '$saveCookies', '$loadCookies'],
         match: entry => entry.category === 'Advanced' || entry.category === 'Cookies' || ADVANCED_EVAL_HELPER_NAMES.includes(entry.name),
     },
     {

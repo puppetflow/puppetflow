@@ -155,6 +155,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::post('flows/batch-delete', [FlowBatchController::class, 'destroy'])->name('flows.destroyBatch');
     Route::get('flows/runs', FlowRunsPageController::class)->name('flows.runs.page');
     Route::delete('flows/runs/batch-delete', [FlowRunsPageController::class, 'destroyBatch'])->name('flows.runs.page.destroyBatch');
+    Route::get('flows/import-mailboxes', [FlowController::class, 'importMailboxOptions'])->name('flows.importMailboxes');
     Route::resource('flows', FlowController::class)->except(['edit']);
     Route::get('flows/{flow}/version', [FlowContentController::class, 'version'])->name('flows.version');
     Route::get('flows/{flow}/export-inputs', [FlowContentController::class, 'exportInputs'])->name('flows.exportInputs');

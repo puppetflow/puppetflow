@@ -8,6 +8,7 @@ import {
 } from './constants';
 import { formatEntryLabel, formatNodeLabel, getEntryByName } from './catalog';
 import { cloneNodeValues } from './expression';
+import { snapCanvasPosition } from './grid';
 import { sanitizeNodeValuesForEntry } from './nodeValues';
 import { uniqueNodeLabel } from './node';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
@@ -95,8 +96,8 @@ export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
             label: isStickyNote || node.system
                 ? node.label
                 : uniqueNodeLabel(savedLabel || fallbackLabel, acc, undefined, reservedIds),
-            x: node.x,
-            y: node.y,
+            x: snapCanvasPosition(node.x),
+            y: snapCanvasPosition(node.y),
             values: sanitizeNodeValuesForEntry(entry, node.values),
             system: node.system,
             callArguments: node.callArguments,

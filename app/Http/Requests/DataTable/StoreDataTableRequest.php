@@ -18,14 +18,8 @@ class StoreDataTableRequest extends FormRequest
     /** @return array<string, list<mixed>> */
     public function rules(): array
     {
-        $workspaceId = session('current_workspace_id');
-
         return [
-            'name' => [
-                'required', 'string', 'max:128',
-                Rule::unique('data_tables', 'name')
-                    ->where('workspace_id', is_string($workspaceId) ? $workspaceId : ''),
-            ],
+            'name' => ['required', 'string', 'max:128'],
             'description' => ['nullable', 'string'],
             'group' => ['nullable', 'string', 'max:100'],
             'visibility' => [

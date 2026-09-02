@@ -964,9 +964,25 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                         convergenceNodeId,
                         allowedNodeIds,
                     );
-                    const callbackSource = `async () => {\n${callbackLines.length
+                    const isNetworkSniffingCallback = node.name === '$sniffNetwork'
+                        && parameter.path.join('.') === 'options.sniffing';
+                    const callbackBody = callbackLines.length
                         ? callbackLines.join('\n')
-                        : `${makeIndent(indentLevel + 1)}// Empty ${callbackPort.label} flow.`}\n${indent}}`;
+                        : `${makeIndent(indentLevel + 1)}// Empty ${callbackPort.label} flow.`;
+                    const callbackSource = isNetworkSniffingCallback
+                        ? [
+                            'async (__pfSniffingPayload) => {',
+                            `${makeIndent(indentLevel + 1)}const __pfPreviousSniffing = $run.$sniffing;`,
+                            `${makeIndent(indentLevel + 1)}$run.$sniffing = __pfSniffingPayload;`,
+                            `${makeIndent(indentLevel + 1)}try {`,
+                            callbackBody.split('\n').map(line => `    ${line}`).join('\n'),
+                            `${makeIndent(indentLevel + 1)}} finally {`,
+                            `${makeIndent(indentLevel + 2)}if (__pfPreviousSniffing === undefined) delete $run.$sniffing;`,
+                            `${makeIndent(indentLevel + 2)}else $run.$sniffing = __pfPreviousSniffing;`,
+                            `${makeIndent(indentLevel + 1)}}`,
+                            `${indent}}`,
+                        ].join('\n')
+                        : `async () => {\n${callbackBody}\n${indent}}`;
                     source = injectFlowCallbackSource(
                         source,
                         parameter.path.slice(1),

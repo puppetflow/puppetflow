@@ -1,14 +1,15 @@
 /* @help Cookies
  * @sig $saveCookies(jarName?, options?)
- * @desc Save browser cookies and localStorage by origin. Default jar name: "default".
+ * @aliases save browser session, persist login, store cookies
+ * @desc Save browser cookies and localStorage by origin. Default jar name: "Default".
  * @nodal-desc Save cookies and localStorage for reuse in later runs.
  * @opt persistLocalStorage: true
- * @nodal-param jarName: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "default".
+ * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Save localStorage with cookies. Enabled by default.
  */
 const __resolveCookieJarName = function(jarName) {
-  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'default';
+  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'Default';
 };
 const __resolveCookieHelperArguments = function(jarName, options) {
   if (jarName && typeof jarName === 'object' && !Array.isArray(jarName)) {
@@ -137,11 +138,12 @@ const $saveCookies = async function(jarName, options) {
 
 /* @help Cookies
  * @sig $loadCookies(jarName?, options?)
+ * @aliases restore browser session, restore login, reuse cookies
  * @desc Load cookies and restore localStorage before page scripts run. Returns false on error, true on success.
  * @nodal-desc Restore previously saved cookies and localStorage.
  * @nodal-output boolean
  * @opt persistLocalStorage: true
- * @nodal-param jarName: Name of the browser storage jar to load. Leave empty for "default".
+ * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to load. Leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Restore and continue persisting localStorage. Enabled by default.
  */

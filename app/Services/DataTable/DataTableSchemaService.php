@@ -27,7 +27,7 @@ final class DataTableSchemaService
     public function createDataTable(array $attributes): DataTable
     {
         return DB::transaction(function () use ($attributes): DataTable {
-            $this->assertTableNameAvailable($attributes['workspace_id'], $attributes['name']);
+            $this->assertTableNameValid($attributes['name']);
 
             $table = new DataTable($attributes);
             $tableId = DataTable::generateId();
@@ -46,7 +46,7 @@ final class DataTableSchemaService
         return DB::transaction(function () use ($table, $attributes): DataTable {
             $locked = DataTable::query()->whereKey($table->id)->lockForUpdate()->firstOrFail();
             if (isset($attributes['name']) && is_string($attributes['name'])) {
-                $this->assertTableNameAvailable($locked->workspace_id, $attributes['name'], $locked->id);
+                $this->assertTableNameValid($attributes['name']);
             }
             $locked->update($attributes);
 
@@ -215,23 +215,11 @@ final class DataTableSchemaService
         }
     }
 
-    private function assertTableNameAvailable(string $workspaceId, string $name, ?string $exceptId = null): void
+    private function assertTableNameValid(string $name): void
     {
         if (trim($name) === '' || mb_strlen($name) > 128) {
             throw ValidationException::withMessages([
                 'name' => 'Table names must contain between 1 and 128 characters.',
-            ]);
-        }
-
-        $query = DataTable::query()
-            ->where('workspace_id', $workspaceId)
-            ->where('name', $name);
-        if ($exceptId !== null) {
-            $query->where('id', '!=', $exceptId);
-        }
-        if ($query->exists()) {
-            throw ValidationException::withMessages([
-                'name' => 'A data table with this name already exists in the workspace.',
             ]);
         }
     }

@@ -6,9 +6,12 @@ use App\DTO\Library\LibraryBlueprint;
 use App\DTO\Library\LibraryFlowItem;
 use App\Enums\Authorization\Ability;
 use App\Http\Controllers\Controller;
+use App\Models\DataTable;
+use App\Models\DataTableColumn;
 use App\Models\Flow;
 use App\Models\FlowUserInput;
 use App\Models\FlowVersion;
+use App\Models\MailboxWatcher;
 use App\Models\User;
 use App\Rules\ValidDraftNodalGraph;
 use App\Rules\ValidNodalGraph;
@@ -57,9 +60,78 @@ final class FlowContentController extends Controller
     public function exportInputs(Request $request, Flow $flow): JsonResponse
     {
         $this->authorize(Ability::VIEW->value, $flow);
+        $inputs = is_array($flow->default_inputs) ? $flow->default_inputs : [];
+        $dataTableIds = collect($inputs)
+            ->filter(fn (mixed $value): bool => is_string($value))
+            ->map(function (string $value): ?string {
+                return preg_match('/^\$\{dataTables\.([^}]+)\}$/', $value, $matches) === 1
+                    ? $matches[1]
+                    : null;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+        $dataTables = DataTable::query()
+            ->where('workspace_id', $flow->workspace_id)
+            ->whereIn('id', $dataTableIds)
+            ->with('columns')
+            ->get()
+            ->filter(fn (DataTable $dataTable): bool => $request->user()?->can(Ability::VIEW->value, $dataTable) ?? false)
+            ->map(fn (DataTable $dataTable): array => [
+                'source_id' => $dataTable->id,
+                'name' => $dataTable->name,
+                'description' => $dataTable->description,
+                'group' => $dataTable->group,
+                'columns' => $dataTable->columns->map(fn (DataTableColumn $column): array => [
+                    'name' => $column->name,
+                    'type' => $column->type->value,
+                ])->values()->all(),
+            ])
+            ->values()
+            ->all();
+        $mailboxWatcherIds = collect($inputs)
+            ->filter(fn (mixed $value): bool => is_string($value))
+            ->map(function (string $value): ?string {
+                return preg_match('/^\$\{mailboxWatchers\.([^}]+)\}$/', $value, $matches) === 1
+                    ? $matches[1]
+                    : null;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+        $mailboxWatchers = MailboxWatcher::query()
+            ->where('flow_id', $flow->id)
+            ->whereIn('id', $mailboxWatcherIds)
+            ->with(['rules', 'mailbox'])
+            ->get()
+            ->filter(fn (MailboxWatcher $watcher): bool => $request->user()?->can(Ability::VIEW->value, $watcher) ?? false)
+            ->map(fn (MailboxWatcher $watcher): array => [
+                'source_id' => $watcher->id,
+                'name' => $watcher->name,
+                'group' => $watcher->group,
+                'mailbox' => [
+                    'source_id' => $watcher->mailbox_id,
+                    'address' => $watcher->mailbox?->address ?? '',
+                ],
+                'extract_enabled' => $watcher->extract_enabled,
+                'extract_mode' => $watcher->extract_mode,
+                'extract_expression' => $watcher->extract_expression,
+                'is_active' => $watcher->is_active,
+                'timeout' => $watcher->timeout,
+                'rules' => $watcher->rules->map(fn ($rule): array => [
+                    'rule_group' => $rule->rule_group,
+                    'field' => $rule->field->value,
+                    'operator' => $rule->operator->value,
+                    'value' => $rule->value,
+                ])->values()->all(),
+            ])
+            ->values()
+            ->all();
 
         return response()->json([
-            'inputs' => is_array($flow->default_inputs) ? $flow->default_inputs : [],
+            'inputs' => $inputs,
+            'data_tables' => $dataTables,
+            'mailbox_watchers' => $mailboxWatchers,
         ]);
     }
 

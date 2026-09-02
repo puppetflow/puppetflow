@@ -28,6 +28,7 @@ const __dataTableOptions = function(options) {
 
 /* @help Data Tables
  * @sig $dataTableInsertRow(tableId, values)
+ * @aliases add table row, insert record
  * @desc Insert one row into a Data Table and return the complete stored row.
  * @nodal-desc Insert a row into a Data Table.
  * @nodal-output object
@@ -45,6 +46,7 @@ const $dataTableInsertRow = async function(tableId, values) {
 
 /* @help Data Tables
  * @sig $dataTableUpdateRows(tableId, filters, values, options?)
+ * @aliases edit table rows, update records
  * @desc Update rows matching all or any filters. Set options.updateAll to explicitly update every row and options.dryRun to preview before and after rows.
  * @nodal-desc Update matching rows in a Data Table.
  * @nodal-output array<object>
@@ -72,6 +74,7 @@ const $dataTableUpdateRows = async function(tableId, filters, values, options = 
 
 /* @help Data Tables
  * @sig $dataTableUpsertRows(tableId, filters, values, options?)
+ * @aliases insert or update rows, upsert records
  * @desc Update rows matching the filters, or insert one row when no match exists. The operation is serialized per table.
  * @nodal-desc Update matching rows or insert a new row.
  * @nodal-output array<object>
@@ -97,6 +100,7 @@ const $dataTableUpsertRows = async function(tableId, filters, values, options = 
 
 /* @help Data Tables
  * @sig $dataTableRowExists(tableId, filters, options?)
+ * @aliases check row exists, find matching row
  * @desc Return true when at least one row matches the filters.
  * @nodal-desc Branch depending on whether a matching row exists.
  * @nodal-output boolean
@@ -120,6 +124,7 @@ const $dataTableRowExists = async function(tableId, filters, options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableRowDoesNotExist(tableId, filters, options?)
+ * @aliases check row missing, no matching row
  * @desc Return true when no row matches the filters.
  * @nodal-desc Branch depending on whether no matching row exists.
  * @nodal-output boolean
@@ -143,6 +148,7 @@ const $dataTableRowDoesNotExist = async function(tableId, filters, options = {})
 
 /* @help Data Tables
  * @sig $dataTableGetRows(tableId, filters?, options?)
+ * @aliases find table rows, query table, read records
  * @desc Return rows matching typed filters with optional AND or OR matching, sorting, limits, and returnAll.
  * @nodal-desc Get matching rows from a Data Table.
  * @nodal-output array<object>
@@ -172,6 +178,7 @@ const $dataTableGetRows = async function(tableId, filters = [], options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableDeleteRows(tableId, filters, options?)
+ * @aliases remove table rows, delete records
  * @desc Delete rows matching typed filters, or preview the deletion with options.dryRun.
  * @nodal-desc Delete matching rows from a Data Table.
  * @nodal-output array<object>
@@ -195,6 +202,7 @@ const $dataTableDeleteRows = async function(tableId, filters, options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableCreate(name, columns?, options?)
+ * @aliases new data table, create database table
  * @desc Create a physical data table with automatic id, created_at, and updated_at columns, and return the new table id.
  * @nodal-desc Create a Data Table and return its id.
  * @nodal-output string
@@ -225,6 +233,7 @@ const $dataTableCreate = async function(name, columns = [], options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableDelete(tableId)
+ * @aliases remove data table, drop table
  * @desc Permanently delete a Data Table and all of its rows.
  * @nodal-desc Delete a Data Table.
  * @nodal-output object
@@ -240,6 +249,7 @@ const $dataTableDelete = async function(tableId) {
 
 /* @help Data Tables
  * @sig $dataTableList(options?)
+ * @aliases show data tables, list tables
  * @desc List Data Tables visible to the flow run actor.
  * @nodal-desc List visible Data Tables.
  * @nodal-output array<object>
@@ -261,6 +271,7 @@ const $dataTableList = async function(options = {}) {
 
 /* @help Data Tables
  * @sig $dataTableUpdate(tableId, changes)
+ * @aliases edit data table, rename table
  * @desc Update Data Table metadata without changing physical storage or column types.
  * @nodal-desc Update a Data Table.
  * @nodal-output object

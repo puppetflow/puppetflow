@@ -375,6 +375,8 @@ export function getExpressionInputType(meta?: NodalParamDef): 'text' | 'textarea
         meta?.input === 'select'
         || meta?.input === 'tab-name'
         || meta?.input === 'stopwatch-name'
+        || meta?.input === 'sniff-profile'
+        || meta?.input === 'cookie-jar'
         || (meta?.options?.length ?? 0) > 0
     ) return 'select';
     if (meta?.input === 'boolean' || meta?.valueType === 'boolean') return 'boolean';

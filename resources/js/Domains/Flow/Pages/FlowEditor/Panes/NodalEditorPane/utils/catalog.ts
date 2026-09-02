@@ -289,6 +289,7 @@ const NODE_LABEL_BY_NAME: Record<string, string> = {
     $aiMessage: 'AI Message',
     $aiControl: 'AI Control',
     $httpRequest: 'HTTP Request',
+    $createArtifact: 'Write File',
     $dataTableInsertRow: 'Insert Row',
     $dataTableUpdateRows: 'Update Row(s)',
     $dataTableUpsertRows: 'Upsert Row(s)',

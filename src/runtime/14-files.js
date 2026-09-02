@@ -1,6 +1,6 @@
 /* @help Files
  * @sig $createArtifact(artifactName, content, options?)
- * @aliases create file
+ * @aliases create file, write file, save file
  * @desc Create an artifact in the run downloads directory.
  * @nodal-desc Create a file and attach it to the run artifacts.
  * @nodal-output string
@@ -135,6 +135,7 @@ const $createArtifact = async function(artifactName, content, options = {}) {
 
 /* @help Files
  * @sig $scanDirectory(directoryPath, filenameContains?)
+ * @aliases list files, browse directory
  * @desc List files in a directory, optionally filtering by name substring. Excludes .crdownload temp files.
  * @nodal-desc List completed files in a folder, optionally filtered by filename.
  * @nodal-output array<string>
@@ -156,6 +157,7 @@ const $scanDirectory = async function(directoryPath, filenameContains) {
 
 /* @help Files
  * @sig $scanDownloadsDirectory(downloadsSubPath, filenameContains?)
+ * @aliases list downloads, browse downloads
  * @desc List files in a directory, optionally filtering by name substring. Excludes .crdownload temp files.
  * @nodal-desc List completed files in the downloads folder, optionally filtered by filename.
  * @nodal-output array<string>
@@ -168,6 +170,7 @@ const $scanDownloadsDirectory = async function(downloadsSubPath, filenameContain
 
 /* @help Files
  * @sig $moveDownloadedFile(sourceFilename, destinationPath)
+ * @aliases move download, rename download, organize file
  * @desc Move a file from the downloads directory to a destination path.
  * @nodal-param sourceFilename: Filename currently in the downloads directory.
  * @nodal-param destinationPath: Destination filename or path.
@@ -182,6 +185,7 @@ const $moveDownloadedFile = function(sourceFilename, destinationPath) {
 
 /* @help Files
  * @sig $waitForFile(destinationFilename?, options?)
+ * @aliases wait for download, await file
  * @desc Wait for a file to appear in the downloading dir, then move it to downloads. Default timeout: 100s.
  * @nodal-desc Wait for a browser download to finish and save it in downloads.
  * @nodal-output boolean
@@ -282,6 +286,7 @@ async function $_nodeDownload(url, targetPath, timeout) {
 
 /* @help Files
  * @sig $getDownloadsPathFile(downloadsFile)
+ * @aliases resolve download path, get file path
  * @desc Get the absolute path to a file in the downloads directory.
  * @nodal-desc Resolve a file stored in downloads so another node can use it.
  * @nodal-output string
@@ -293,6 +298,7 @@ const $getDownloadsPathFile = function(downloadsFile) {
 
 /* @help Files
  * @sig $download(fileUrl, destinationFilename?, options?)
+ * @aliases download url, fetch file, save remote file
  * @desc Download a file from a URL using Node.js (works with both local and remote browsers).
  * @nodal-desc Download a file from a URL into the run downloads.
  * @opt output: true - include this download in $artifacts output
@@ -327,6 +333,7 @@ const $download = async function(fileUrl, destinationFilename, options = {}) {
 
 /* @help Files
  * @sig $downloadFromBrowser(fileUrl, destinationFilename?, options?)
+ * @aliases authenticated download, session download, download with browser
  * @desc Download via browser click (uses page cookies/session). Falls back to Node.js download if the file never appears locally (remote browser).
  * @nodal-desc Download a file using the active browser session, including its current cookies.
  * @nodal-output string
@@ -393,6 +400,7 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
 
 /* @help Interaction
  * @sig $upload(fileInputSelectorOrHandle, uploadFilename, options?)
+ * @aliases attach file, upload file, choose file
  * @desc Upload a file from the downloads directory to a file input element. Accepts a CSS selector string or an ElementHandle.
  * @nodal-desc Upload a downloaded file into a file input on the page.
  * @opt timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
@@ -437,6 +445,7 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
 
 /* @help Files
  * @sig $unzipFile(zipFilename, extractDirectory, options?)
+ * @aliases extract archive, unzip archive, unpack file
  * @desc Unzip a file from downloads into a subdirectory. Removes the zip afterwards. Returns list of extracted filenames.
  * @nodal-desc Extract a zip file from downloads into a folder.
  * @nodal-output array<string>

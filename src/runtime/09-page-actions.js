@@ -1,5 +1,6 @@
 /* @help Navigation
  * @sig $screenshot(screenshotName?, options?)
+ * @aliases capture screen, take screenshot, screen capture
  * @desc Take a screenshot. If no name given, auto-increments (screenshot_00, screenshot_01...).
  * @nodal-desc Capture the current page as a screenshot artifact.
  * @opt output: true - include this screenshot in $artifacts output
@@ -40,6 +41,7 @@ const $screenshot = async function(screenshotName, options = {}) {
 
 /* @help Utility
  * @sig $sleep(milliseconds)
+ * @aliases pause flow, wait delay
  * @desc Async sleep for the given milliseconds.
  * @nodal-desc Pause the flow for a fixed duration.
  * @nodal-param milliseconds [integer]: Time to wait before continuing, in milliseconds.
@@ -55,6 +57,7 @@ const $sleep = async function(milliseconds) {
 
 /* @help Selectors
  * @sig $selectAtIndex(cssSelector, elementIndex)
+ * @aliases select nth element, element by index
  * @desc Get the nth element matching a CSS selector (0-indexed). Returns null if not enough elements.
  * @nodal-desc Pick one matching element by its position on the page.
  * @nodal-output element
@@ -71,6 +74,7 @@ const $selectAtIndex = async function(cssSelector, elementIndex) {
 
 /* @help Utility
  * @sig $matchSequence(sourceItems, sequencePatterns)
+ * @aliases match ordered sequence, find sequence
  * @desc Find the first consecutive sequence in items where each element matches the corresponding regex. With 1 pattern returns the matching string, with N patterns returns an array of N consecutive matches. Returns null if no match.
  * @nodal-desc Find a consecutive sequence of values that matches one or more patterns.
  * @nodal-output unknown
@@ -95,6 +99,7 @@ const $matchSequence = function(sourceItems, sequencePatterns) {
 
 /* @help Utility
  * @sig $log(...messages)
+ * @aliases write log, console message, debug message
  * @desc Log messages to the run console for output tracing.
  * @nodal-desc Add messages to the run logs.
  * @nodal-param messages: One or more values to write to the run logs.
@@ -106,6 +111,7 @@ const $log = function(...messages) {
 
 /* @help Utility
  * @sig $legend(legendText)
+ * @aliases set run legend, label run, name run
  * @desc Set a legend/caption for this run. Displayed wherever the run appears.
  * @nodal-param legendText [string]: Human-readable caption shown on this run.
  */
@@ -117,6 +123,7 @@ const $legend = function(legendText) {
 
 /* @help Utility
  * @sig $meta(metadata)
+ * @aliases run metadata, tag run
  * @desc Put meta data to filter runs by. Markdown is supported.
  * @nodal-param metadata [custom-object, required]: Metadata keys to store on the run. Use Form for named metadata, or JSON for an object.
  */
@@ -141,6 +148,7 @@ const $meta = function(metadataKey, metadataValue) {
 
 /* @help Response
  * @sig $setOutput(outputKeyOrObject, outputValue?)
+ * @aliases output variable, add output field, set result
  * @desc Add data to the response output. Pass an object to merge multiple keys, or a key + value pair.
  * @nodal-desc Add one or more values to the final run output.
  * @nodal-param outputKeyOrObject: Output key to set, or an object containing several output keys.

@@ -80,6 +80,10 @@ final class PuppeteerEnvironmentBuilder
             'RUNNER_LOG_DEPTH' => (string) min(20, max(0, $workspace->debug_log_object_depth)),
             'RUNNER_LOG_ARRAY_LIMIT' => (string) min(1000, max(1, $workspace->debug_log_array_limit)),
             'RUNNER_HTTP_REQUEST_ALLOW_PRIVATE' => config('puppetflow.runner_http_request_allow_private', false) ? 'true' : 'false',
+            'RUNNER_HTTP_SNIFFING_MAX_BODY_BYTES' => $this->scalarConfig(
+                'puppetflow.runner_http_sniffing_max_body_bytes',
+                '5242880',
+            ),
             'APP_URL' => $this->stringConfig('app.url'),
             ...$this->pinokioConfig->toEnv(),
         ];

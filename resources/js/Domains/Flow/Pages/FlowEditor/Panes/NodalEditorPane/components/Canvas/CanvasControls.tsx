@@ -52,7 +52,11 @@ export default function CanvasControls({
                     <Icon icon="lucide:plus" width={14} height={14} />
                 </S.CanvasControlButton>
                 {!readOnly && (
-                    <S.CanvasControlButton type="button" onClick={onReorder} title="Broom. Reorder graph">
+                    <S.CanvasControlButton
+                        type="button"
+                        onClick={onReorder}
+                        title={selectedCount > 0 ? 'Reorganize selection (B)' : 'Reorganize graph (B)'}
+                    >
                         <Icon icon="lucide:wand-sparkles" width={14} height={14} />
                     </S.CanvasControlButton>
                 )}

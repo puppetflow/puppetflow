@@ -98,6 +98,7 @@ const $_sendNotification = (() => {
 
 /* @help Notification
  * @sig $notify(channelId, notificationMessage, options?)
+ * @aliases send notification, alert person, send message
  * @desc Send a notification via a configured channel (Slack, Discord, Telegram).
  * @nodal-desc Send a message to a configured notification channel.
  * @nodal-param channelId [channel]: Notification channel ID.
@@ -116,6 +117,7 @@ const $notify = async function(channelId, notificationMessage, options = {}) {
 
 /* @help Notification
  * @sig $waitHumanValidation(channelId?, validationMessage?, options?)
+ * @aliases request approval, wait for approval, human review
  * @desc Pause the run until a human clicks "Continue run". Optionally sends a notification if channelId and validationMessage are provided.
  * @nodal-desc Pause the run until someone approves it in Puppetflow.
  * @nodal-param channelId [channel]: Optional notification channel ID.

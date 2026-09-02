@@ -16,6 +16,38 @@ export interface FlowInputDefinition {
     default?: unknown;
 }
 
+export interface ExportedDataTableSchema {
+    source_id: string;
+    name: string;
+    description: string | null;
+    group: string | null;
+    columns: Array<{
+        name: string;
+        type: 'string' | 'number' | 'boolean' | 'datetime';
+    }>;
+}
+
+export interface ExportedMailboxWatcherSchema {
+    source_id: string;
+    name: string;
+    group: string | null;
+    mailbox: {
+        source_id: string;
+        address: string;
+    };
+    extract_enabled: boolean;
+    extract_mode: 'regex' | 'selector';
+    extract_expression: string | null;
+    is_active: boolean;
+    timeout: number | null;
+    rules: Array<{
+        rule_group: number;
+        field: 'body' | 'subject' | 'to' | 'from' | 'has_attachments' | 'size';
+        operator: 'contains' | 'not_contains' | 'equals' | 'greater_than' | 'less_than' | 'regex';
+        value: string;
+    }>;
+}
+
 export type ResourceFlowInputType = Extract<FlowInputType, 'channel' | 'mailbox-watcher' | 'ai-model' | 'datatable'>;
 
 const INPUT_NAME = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;

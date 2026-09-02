@@ -1,5 +1,6 @@
 /* @help Response
  * @sig $generateResponse(responseStatus, responseMessage, responseData?)
+ * @aliases custom response, build response
  * @desc Build a response object. When "Include input in output" is enabled in flow settings, the input is copied under a $input key.
  * @nodal-desc Build the final response returned by the flow.
  * @nodal-output object status:string, message:string, $context:object
@@ -32,6 +33,7 @@ const $generateResponse = function(responseStatus, responseMessage, responseData
 
 /* @help Response
  * @sig $generateResponseError(errorMessage, responseData?)
+ * @aliases error response, failure response
  * @desc Shorthand for $generateResponse("error", ...). Logs to stderr.
  * @nodal-desc Finish the flow with an error response.
  * @nodal-output object status:string, message:string, $context:object
@@ -44,6 +46,7 @@ const $generateResponseError = function(errorMessage, responseData) {
 
 /* @help Response
  * @sig $generateResponseSuccess(successMessage, responseData?)
+ * @aliases success response, successful response
  * @desc Shorthand for $generateResponse("success", ...). Logs to stdout.
  * @nodal-desc Finish the flow with a success response.
  * @nodal-output object status:string, message:string, $context:object
@@ -56,6 +59,7 @@ const $generateResponseSuccess = function(successMessage, responseData) {
 
 /* @help Response
  * @sig $stopFail(errorMessage, responseData?)
+ * @aliases fail flow, stop with error, end as failed
  * @desc Like $generateResponseError but immediately stops the run by throwing StopRun. Useful inside nested functions where you can't return from run().
  * @nodal-desc Stop the flow immediately and mark the run as failed.
  * @nodal-param errorMessage: Error message shown before stopping the flow.
@@ -67,6 +71,7 @@ const $stopFail = function(errorMessage, responseData) {
 
 /* @help Response
  * @sig $stopSuccess(successMessage, responseData?)
+ * @aliases complete flow, stop successfully, end as success
  * @desc Like $generateResponseSuccess but immediately stops the run by throwing StopRun. Useful inside nested functions where you can't return from run().
  * @nodal-desc Stop the flow immediately and mark the run as successful.
  * @nodal-param successMessage: Success message shown before stopping the flow.

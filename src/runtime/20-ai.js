@@ -31,6 +31,7 @@ const __aiTextContent = function(text) {
 
 /* @help AI
  * @sig $aiMessage(aiModelId, message, options?)
+ * @aliases ask ai, generate text, chat with ai
  * @desc Send text messages through a configured AI model.
  * @nodal-desc Ask an AI model a text-only question.
  * @nodal-output object
@@ -725,6 +726,7 @@ const __aiControlResponseFormat = {
 
 /* @help AI
  * @sig $aiControl(aiModelId, prompt, options?)
+ * @aliases ai browser control, autonomous browser, browse with ai
  * @desc Repeatedly analyze the current page screenshot and execute validated browser facade actions until the objective is complete.
  * @nodal-desc Let a vision model inspect and operate the current browser page.
  * @nodal-output object

@@ -196,7 +196,9 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
         const hintTokens = parseNodalParamHintTokens(match[2]);
         const tabNameInput = hintTokens.includes('tab-name');
         const stopwatchNameInput = hintTokens.includes('stopwatch-name');
-        const valueType = tabNameInput || stopwatchNameInput
+        const sniffProfileInput = hintTokens.includes('sniff-profile');
+        const cookieJarInput = hintTokens.includes('cookie-jar');
+        const valueType = tabNameInput || stopwatchNameInput || sniffProfileInput || cookieJarInput
             ? 'string'
             : normalizeNodalParamType(hintTokens.find(token => token !== 'required'));
         const required = hintTokens.includes('required');
@@ -208,6 +210,10 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
             ? 'tab-name'
             : stopwatchNameInput
             ? 'stopwatch-name'
+            : sniffProfileInput
+            ? 'sniff-profile'
+            : cookieJarInput
+            ? 'cookie-jar'
             : hintTokens.includes('textarea')
             ? 'textarea'
             : valueType === 'boolean'
@@ -527,6 +533,12 @@ function getParameterDeclaration(entry: HelpEntryDef, arg: string): string {
     const paramName = trimmedArg.replace(/\?$/, '').replace(/\.\.\./g, '');
     const variadic = trimmedArg.startsWith('...');
     const optional = trimmedArg.endsWith('?') || trimmedArg.includes('...');
+    if (entry.name === '$sniffNetwork' && paramName === 'filters') {
+        return 'filters?: PuppetflowNetworkSniffingFilters';
+    }
+    if (entry.name === '$sniffNetwork' && paramName === 'options') {
+        return 'options?: { sniffing?: (payload: PuppetflowNetworkSniffingPayload) => void | Promise<void>; timeout?: number; showUnfilteredInLogs?: boolean; }';
+    }
     const paramMeta = entry.nodalParams?.[paramName];
     const paramType = toTypeScriptType(paramMeta);
 
@@ -605,6 +617,43 @@ type DataTableFilter = {
 type DataTableColumnDefinition = {
     name: string;
     type: 'string' | 'number' | 'boolean' | 'datetime';
+};
+type PuppetflowNetworkSniffingFilters = {
+    url?: string | RegExp;
+    host?: string | RegExp;
+    scheme?: string | RegExp | Array<string | RegExp>;
+    path?: string | RegExp;
+    method?: string | RegExp | Array<string | RegExp>;
+    resourceType?: string | RegExp | Array<string | RegExp>;
+};
+type PuppetflowNetworkSniffingPayload = {
+    profile: string;
+    index: number;
+    tabName: string | null;
+    resourceType: string | null;
+    request: {
+        url: string;
+        method: string;
+        headers: Record<string, string | number>;
+    };
+    response: {
+        status: {
+            code: number | null;
+            text: string | null;
+        };
+        headers: Record<string, string | number>;
+        mimeType: string | null;
+        body: {
+            content: string | null;
+            contentJson: unknown | null;
+            encoding: 'utf8' | 'base64' | null;
+            bytes: number;
+            truncated: boolean;
+            unavailable: boolean;
+        };
+    };
+    error: string | null;
+    durationMs: number;
 };`,
         'declare const $input: any;',
         'declare const $output: any;',

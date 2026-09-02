@@ -94,7 +94,7 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
 
     if (entry.name === '$saveCookies' || entry.name === '$loadCookies') {
         return {
-            jarName: { mode: 'fixed' as const, value: 'default' },
+            jarName: { mode: 'fixed' as const, value: 'Default' },
             options: {
                 mode: 'object' as const,
                 inputMode: 'form' as const,
@@ -135,6 +135,36 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
     if (entry.name === '$stopwatchStart' || entry.name === '$stopwatchCheck') {
         return {
             stopwatchName: { mode: 'fixed' as const, value: 'default' },
+        };
+    }
+
+    if (entry.name === '$sniffNetwork') {
+        return {
+            profileName: { mode: 'fixed' as const, value: 'Default' },
+            filters: {
+                mode: 'object' as const,
+                inputMode: 'form' as const,
+                jsonMode: 'fixed' as const,
+                value: '{}',
+                fields: [],
+            },
+            options: {
+                mode: 'object' as const,
+                inputMode: 'form' as const,
+                jsonMode: 'fixed' as const,
+                value: '{"showUnfilteredInLogs":false}',
+                fields: [{
+                    id: 'sniff-network-show-unfiltered-in-logs',
+                    key: 'showUnfilteredInLogs',
+                    value: { mode: 'fixed' as const, value: 'false' },
+                }],
+            },
+        };
+    }
+
+    if (entry.name === '$stopSniffing') {
+        return {
+            profileName: { mode: 'fixed' as const, value: 'Default' },
         };
     }
 

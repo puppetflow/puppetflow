@@ -19,6 +19,7 @@ const __retryOnContextDestroyed = async function(fn, retries = 2, delayMs = 300)
 
 /* @help Utility
  * @sig $setViewport(width?, height?)
+ * @aliases resize browser, set screen size, change viewport
  * @desc Set the viewport size. Defaults to the flow viewport settings if not provided.
  * @nodal-param width [integer]: Browser viewport width in pixels. Leave empty to use the flow default.
  * @nodal-param height [integer]: Browser viewport height in pixels. Leave empty to use the flow default.

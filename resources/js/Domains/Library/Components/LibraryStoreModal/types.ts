@@ -1,3 +1,5 @@
+import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+
 export type LibraryType = 'flow' | 'snippet';
 export type SortKey = 'popular' | 'downloaded' | 'liked' | 'newest' | 'used';
 export type LibraryCollection = 'flows' | 'snippets';
@@ -33,8 +35,10 @@ export interface LibraryStoreChild {
     reference: string;
     label: string;
     description: string | null;
+    code?: string | null;
     flow_type?: 'code' | 'nodal' | null;
     snippet_type?: 'code' | 'nodal' | null;
+    nodal_graph?: NodalGraph | null;
     source_path: string;
     source_url: string;
     used_count?: number;

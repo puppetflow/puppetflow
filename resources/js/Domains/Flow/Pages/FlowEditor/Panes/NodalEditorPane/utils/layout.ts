@@ -21,6 +21,11 @@ export type ArrangeGraphResult = {
     graphCenter: Point;
 };
 
+const getNodesCenter = (nodes: CanvasNode[]): Point => ({
+    x: (Math.min(...nodes.map(node => node.x)) + Math.max(...nodes.map(node => node.x))) / 2,
+    y: (Math.min(...nodes.map(node => node.y)) + Math.max(...nodes.map(node => node.y))) / 2,
+});
+
 const groupNodesByDepth = (nodes: CanvasNode[], depthById: Map<string, number>) => {
     const columns = new Map<number, CanvasNode[]>();
 
@@ -336,4 +341,42 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): ArrangeG
     };
 
     return { nodes: arranged, graphCenter };
+};
+
+export const arrangeGraphSelection = (
+    nodes: CanvasNode[],
+    edges: CanvasEdge[],
+    selectedNodeIds: Set<string>,
+): CanvasNode[] => {
+    const selectedNodes = nodes.filter(node => selectedNodeIds.has(node.id) && node.kind !== 'stickyNote');
+    if (selectedNodes.length === 0) return nodes;
+
+    const selectedIds = new Set(selectedNodes.map(node => node.id));
+    const selectedEdges = edges.filter(edge => (
+        selectedIds.has(edge.sourceNodeId) && selectedIds.has(edge.targetNodeId)
+    ));
+    const layoutNodes = selectedNodes.map(node => ({
+        ...node,
+        system: undefined,
+        scopeId: undefined,
+    }));
+    const arrangedSelection = arrangeGraph(layoutNodes, selectedEdges).nodes;
+    const previousCenter = getNodesCenter(selectedNodes);
+    const arrangedCenter = getNodesCenter(arrangedSelection);
+    const offset = {
+        x: previousCenter.x - arrangedCenter.x,
+        y: previousCenter.y - arrangedCenter.y,
+    };
+    const arrangedById = new Map(arrangedSelection.map(node => [
+        node.id,
+        {
+            x: snapCanvasPosition(node.x + offset.x),
+            y: snapCanvasPosition(node.y + offset.y),
+        },
+    ]));
+
+    return nodes.map(node => {
+        const arrangedPosition = arrangedById.get(node.id);
+        return arrangedPosition ? { ...node, ...arrangedPosition } : node;
+    });
 };

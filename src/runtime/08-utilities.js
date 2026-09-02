@@ -50,6 +50,7 @@ const $min = function(...numbers) {
 
 /* @help Date
  * @sig $currentDate(timestamp?)
+ * @aliases format current date, today's date
  * @desc Get the current date from a timestamp. Defaults to current date.
  * @eval $currentDate($now)
  * @nodal-output object day:string, month:string, year:number
@@ -68,6 +69,7 @@ const $currentDate = function(timestamp) {
 
 /* @help Date
  * @sig $currentDateMinusOneMonth(timestamp?)
+ * @aliases previous month date, one month ago
  * @desc Get the latest month and year from a timestamp. Defaults to current date.
  * @eval $currentDateMinusOneMonth($now)
  * @nodal-output object day:string, month:string, year:number
@@ -87,6 +89,7 @@ const $currentDateMinusOneMonth = function(timestamp) {
 
 /* @help Date
  * @sig $currentDatePlusOneMonth(timestamp?)
+ * @aliases next month date, one month later
  * @desc Get the current date plus one month from a timestamp. Defaults to current date.
  * @eval $currentDatePlusOneMonth($now)
  * @nodal-output object day:string, month:string, year:number

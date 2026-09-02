@@ -47,6 +47,7 @@ export const CODE_NODE_ENTRY: HelpEntryDef = {
     name: CODE_NODE_NAME,
     signature: 'Code(code)',
     desc: 'Run a custom JavaScript step exactly at this position in the visual flow.',
+    aliases: ['custom javascript', 'run script', 'execute code'],
     category: 'Advanced',
     availability: 'nodal',
     nodalParams: {
@@ -65,6 +66,7 @@ export const STICKY_NOTE_ENTRY: HelpEntryDef = {
     name: STICKY_NOTE_NODE_NAME,
     signature: 'Sticky Note',
     desc: 'Markdown note for documenting the visual canvas.',
+    aliases: ['add note', 'canvas note', 'comment'],
     category: 'Canvas',
     availability: 'nodal',
 };
@@ -73,6 +75,7 @@ export const FUNCTION_DECLARATION_ENTRY: HelpEntryDef = {
     name: FUNCTION_DECLARATION_NODE_NAME,
     signature: `${FUNCTION_DECLARATION_NODE_NAME}(name, arguments)`,
     desc: 'Declare a private function available inside this visual graph.',
+    aliases: ['declare function', 'create function', 'define function'],
     category: 'Functions',
     availability: 'nodal',
     nodalParams: {
@@ -98,6 +101,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: IF_ELSE_NODE_NAME,
         signature: `${IF_ELSE_NODE_NAME}(condition)`,
         desc: 'Branch the visual flow depending on a boolean expression.',
+        aliases: ['condition', 'branch', 'conditional'],
         category: 'Control',
         availability: 'nodal',
         nodalFlowPorts: [
@@ -118,6 +122,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: LOOP_NODE_NAME,
         signature: `${LOOP_NODE_NAME}(mode, items, iterations, condition, maxIterations)`,
         desc: 'Repeat a branch over items, a fixed iteration count, or until a condition stops it.',
+        aliases: ['repeat items', 'iterate', 'for each'],
         category: 'Control',
         availability: 'nodal',
         nodalFlowPorts: [
@@ -165,6 +170,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: MERGE_NODE_NAME,
         signature: `${MERGE_NODE_NAME}(strategy)`,
         desc: 'Merge incoming branch results using the selected strategy.',
+        aliases: ['join branches', 'combine paths', 'merge results'],
         category: 'Control',
         availability: 'nodal',
         nodalParams: {
@@ -186,6 +192,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: NO_OP_NODE_NAME,
         signature: `${NO_OP_NODE_NAME}()`,
         desc: 'Pass through without doing anything. Useful to organize and route the visual flow.',
+        aliases: ['pass through', 'do nothing', 'placeholder'],
         category: 'Control',
         availability: 'nodal',
     },
@@ -193,6 +200,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: FILTER_NODE_NAME,
         signature: `${FILTER_NODE_NAME}(array, predicate)`,
         desc: 'Filter an array using a predicate expression evaluated for each item.',
+        aliases: ['filter list', 'keep matching items', 'remove items'],
         category: 'Data',
         availability: 'nodal',
         nodalParams: {
@@ -216,6 +224,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: LIMIT_NODE_NAME,
         signature: `${LIMIT_NODE_NAME}(array, count, offset)`,
         desc: 'Limit an array to a count and optional offset.',
+        aliases: ['take items', 'slice list', 'max results'],
         category: 'Data',
         availability: 'nodal',
         nodalParams: {
@@ -246,6 +255,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: SET_NODE_NAME,
         signature: `${SET_NODE_NAME}(variables)`,
         desc: 'Store reusable run variables for the following visual nodes.',
+        aliases: ['set variable', 'store variable', 'create variable'],
         category: 'Data',
         availability: 'nodal',
         nodalParams: {
@@ -263,6 +273,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: SET_OUTPUT_NODE_NAME,
         signature: `${SET_OUTPUT_NODE_NAME}(variables)`,
         desc: 'Store variables in the final run output.',
+        aliases: ['output variable', 'add output field', 'set result'],
         category: 'Response',
         availability: 'nodal',
         nodalParams: {
@@ -280,6 +291,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: META_NODE_NAME,
         signature: `${META_NODE_NAME}(metadata)`,
         desc: 'Store metadata used to label and filter runs.',
+        aliases: ['run metadata', 'tag run', 'label run'],
         category: 'Data',
         availability: 'nodal',
         nodalParams: {
@@ -382,6 +394,8 @@ export const NODE_ICON_BY_NAME: Record<string, string> = {
     $stopwatchStart: 'lucide:timer',
     $stopwatchStop: 'lucide:timer-off',
     $stopwatchCheck: 'lucide:timer-reset',
+    $sniffNetwork: 'lucide:radio-tower',
+    $stopSniffing: 'lucide:circle-off',
     $screenshot: 'lucide:camera',
     $aiMessage: 'lucide:message-square-text',
     $aiControl: 'lucide:brain-circuit',

@@ -2,6 +2,7 @@
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
+ * @aliases typing speed, keyboard delay
  * @desc Set the default typing speed for subsequent input actions.
  * @nodal-desc Set the typing speed used by subsequent input nodes.
  * @nodal-output number
@@ -20,7 +21,7 @@ const $keyboardSpeed = function(keyboardSpeedValue) {
 
 /* @help Interaction
  * @sig $fillInput(inputSelectorOrHandle, inputValue, options?)
- * @aliases form, field, type
+ * @aliases form, field, type, enter text, fill field
  * @desc Replace, append, or prepend text in an input. Handles detached nodes. Selector can be a CSS string or an ElementHandle.
  * @nodal-desc Find an input on the page, then replace, append, or prepend its value.
  * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
@@ -112,6 +113,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
 
 /* @help Utility
  * @sig $waitForSelectorCondition(cssSelector, readinessCondition, options?)
+ * @aliases wait for element state, wait for element
  * @desc Wait for a selector to match a condition.
  * @opt timeout: 10000
  * @nodal-param cssSelector [string, selector]: CSS selector to watch on the page.
@@ -158,6 +160,7 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
 
 /* @help Selectors
  * @sig $selectShadow(cssSelector, shadowRootSelector?, options?)
+ * @aliases find shadow element, select shadow dom
  * @desc Traverse open shadow DOM roots to find an element matching selector. Returns ElementHandle or null.
  * @nodal-desc Find an element inside open shadow DOM areas.
  * @nodal-output element
@@ -230,7 +233,7 @@ const $selectShadow = async function(cssSelector, shadowRootSelector, options = 
 
 /* @help Interaction
  * @sig $shadowInputFill(inputSelector, inputValue, options?)
- * @aliases form, field, type
+ * @aliases form, field, type, fill shadow input, enter shadow text
  * @desc Fill an input located inside shadow DOM. Options extend $fillInput options + rootSelector.
  * @nodal-desc Fill an input located inside a shadow DOM area.
  * @opt rootSelector: null, mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 5000, continueOnError: false, visibleOnly: false, index: 0

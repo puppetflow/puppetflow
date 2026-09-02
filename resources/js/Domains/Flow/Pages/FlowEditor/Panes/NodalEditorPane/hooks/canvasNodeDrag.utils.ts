@@ -22,7 +22,7 @@ const DRAG_AUTO_PAN_EDGE_SIZE = 72;
 const DRAG_AUTO_PAN_MAX_SPEED = 18;
 const NODE_DRAG_START_THRESHOLD = 4;
 
-export const EDGE_DROP_INFLUENCE_RADIUS = 42;
+export const EDGE_DROP_INFLUENCE_RADIUS = 24;
 
 export const getDragAutoPanDelta = (rect: DOMRect, clientX: number, clientY: number) => {
     const speedForDistance = (distance: number) => {

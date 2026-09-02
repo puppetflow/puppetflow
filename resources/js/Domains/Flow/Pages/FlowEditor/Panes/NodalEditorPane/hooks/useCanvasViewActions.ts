@@ -8,7 +8,10 @@ import type {
     PendingEdgeInsertion,
     Point,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import { arrangeGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/layout';
+import {
+    arrangeGraph,
+    arrangeGraphSelection,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/layout';
 import { hasOpenModal } from './nodalKeyboardShortcuts.utils';
 
 const STICKY_NOTE_BUTTON_RANDOM_OFFSET = 96;
@@ -28,6 +31,8 @@ interface UseCanvasViewActionsOptions {
     editingNode: CanvasNode | null;
     viewport: Viewport;
     readOnly: boolean;
+    isActivePane: () => boolean;
+    isAnotherPaneActive: () => boolean;
     lastPointerWorldRef: React.MutableRefObject<Point | null>;
     pendingNodePlacementRef: React.MutableRefObject<Point | null>;
     recordHistory: () => void;
@@ -61,6 +66,8 @@ export function useCanvasViewActions({
     editingNode,
     viewport,
     readOnly,
+    isActivePane,
+    isAnotherPaneActive,
     lastPointerWorldRef,
     pendingNodePlacementRef,
     recordHistory,
@@ -128,11 +135,23 @@ export function useCanvasViewActions({
 
     const reorderGraph = useCallback(() => {
         if (readOnly) return;
-        recordHistory();
+
+        if (selectedNodeIds.size > 0) {
+            const arrangedNodes = arrangeGraphSelection(nodes, edges, selectedNodeIds);
+            const hasPositionChanges = arrangedNodes.some((node, index) => (
+                node.x !== nodes[index]?.x || node.y !== nodes[index]?.y
+            ));
+            if (!hasPositionChanges) return;
+
+            recordHistory();
+            setNodes(arrangedNodes);
+            return;
+        }
 
         const rect = canvasRef.current?.getBoundingClientRect();
         const arranged = arrangeGraph(nodes, edges);
 
+        recordHistory();
         setNodes(arranged.nodes);
 
         if (!rect || arranged.nodes.length === 0) return;
@@ -142,13 +161,14 @@ export function useCanvasViewActions({
             x: rect.width / 2 - arranged.graphCenter.x * current.zoom,
             y: rect.height / 2 - arranged.graphCenter.y * current.zoom,
         }));
-    }, [canvasRef, edges, nodes, readOnly, recordHistory, setNodes, setViewport]);
+    }, [canvasRef, edges, nodes, readOnly, recordHistory, selectedNodeIds, setNodes, setViewport]);
 
     useEffect(() => {
         if (readOnly || canvasMode !== 'canvas') return;
 
         const handleTidyShortcut = (event: KeyboardEvent) => {
-            if (event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 't') return;
+            if (event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 'b') return;
+            if (isAnotherPaneActive() || !isActivePane()) return;
             if (editingNode || hasOpenModal()) return;
             const target = event.target instanceof Element ? event.target : null;
             if (target?.closest('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"], [role="textbox"], .monaco-editor, .cm-editor')) return;
@@ -160,7 +180,7 @@ export function useCanvasViewActions({
 
         window.addEventListener('keydown', handleTidyShortcut);
         return () => window.removeEventListener('keydown', handleTidyShortcut);
-    }, [canvasMode, editingNode, readOnly, reorderGraph]);
+    }, [canvasMode, editingNode, isActivePane, isAnotherPaneActive, readOnly, reorderGraph]);
 
     const handleAddStickyNote = useCallback(() => {
         const rect = canvasRef.current?.getBoundingClientRect();
