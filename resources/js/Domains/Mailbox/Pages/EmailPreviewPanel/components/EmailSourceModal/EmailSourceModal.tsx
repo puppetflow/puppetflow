@@ -1,7 +1,7 @@
-import Editor from '@monaco-editor/react';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import type { MailboxEmail } from '@/Domains/Mailbox/types';
 import Modal from '@/Shared/UI/Modal/Modal';
+import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import ExtractionTester, { type TesterMode } from '@/Domains/Mailbox/Pages/EmailPreviewPanel/components/ExtractionTester/ExtractionTester';
 import * as S from './styled';
 
@@ -39,25 +39,18 @@ export default function EmailSourceModal({
         >
             <S.SourceLayout>
                 <S.SourceEditor>
-                    <Editor
+                    <CodeEditor
+                        height="100%"
                         language="html"
                         theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
                         value={sourceCode}
                         options={{
                             readOnly: true,
-                            minimap: { enabled: false },
                             fontSize: 12,
                             fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                             lineNumbers: 'on',
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
                             wordWrap: 'off',
                             padding: { top: 8 },
-                            wordBasedSuggestions: 'off',
-                            suggest: {
-                                showFiles: false,
-                                showWords: false,
-                            },
                         }}
                     />
                 </S.SourceEditor>

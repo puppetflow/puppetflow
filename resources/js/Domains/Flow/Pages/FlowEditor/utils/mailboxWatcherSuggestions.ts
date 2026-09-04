@@ -1,6 +1,3 @@
-import type { OnMount } from '@monaco-editor/react';
-import { matchesCompletionModelUri, idCompletionItem, type CompletionModel, type CompletionPosition } from './completionCore';
-
 export type WatcherSuggestion = {
     id: Id;
     name: string;
@@ -40,42 +37,4 @@ export function fetchMailboxWatcherSuggestions(flowId: Id, force = false): Promi
 
 export function invalidateWatcherCache() {
     cachedWatcherSuggestions.clear();
-}
-
-const WATCHER_FN_PATTERN = /\$waitForEmail\(\s*(["'])([a-zA-Z0-9_-]*)$/;
-
-export function registerMailboxWatcherCompletions(monaco: Parameters<OnMount>[1], flowId: Id, modelUri?: string | null) {
-    if (!monaco) return { dispose: () => {} };
-    return monaco.languages.registerCompletionItemProvider('javascript', {
-        triggerCharacters: ['"', "'"],
-        provideCompletionItems: async (model: CompletionModel, position: CompletionPosition) => {
-            if (!matchesCompletionModelUri(model, modelUri)) return { suggestions: [] };
-
-            const lineContent = model.getLineContent(position.lineNumber);
-            const textBefore = lineContent.substring(0, position.column - 1);
-
-            const match = textBefore.match(WATCHER_FN_PATTERN);
-            if (!match) return { suggestions: [] };
-
-            const typed = match[2];
-            const startCol = position.column - typed.length;
-            const range = {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: startCol,
-                endColumn: position.column,
-            };
-
-            const watchers = await fetchMailboxWatcherSuggestions(flowId);
-
-            const suggestions = watchers.map(watcher => idCompletionItem(watcher, {
-                kind: monaco.languages.CompletionItemKind.Value,
-                detail: `${watcher.address} - ${watcher.id}`,
-                documentation: `${watcher.name}\n$waitForEmail("${watcher.id}")`,
-                range,
-            }));
-
-            return { suggestions };
-        },
-    });
 }

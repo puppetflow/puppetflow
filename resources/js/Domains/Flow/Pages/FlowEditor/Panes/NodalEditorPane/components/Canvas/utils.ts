@@ -1,5 +1,3 @@
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
 import {
     NODE_CARD_WIDTH,
     NODE_TILE_SIZE,
@@ -15,21 +13,6 @@ export const MINI_MAP_NODE_SIZE = 7;
 const DEFAULT_NODE_HEIGHT = 120;
 const MINI_MAP_EDGE_HANDLE_OFFSET = 10;
 const MINI_MAP_EDGE_CORNER_RADIUS = 2.5;
-
-type MonacoInstance = Parameters<OnMount>[1];
-
-export const toDecorations = (
-    monaco: MonacoInstance,
-    lines: number[],
-    state: 'passed' | 'active' | 'error',
-): editor.IModelDeltaDecoration[] => lines.map(line => ({
-    range: new monaco.Range(line, 1, line, 1),
-    options: {
-        isWholeLine: true,
-        className: `nop-run-line-${state}`,
-        linesDecorationsClassName: `nop-run-line-${state}-gutter`,
-    },
-}));
 
 const countChars = (value: string, chars: string) =>
     [...value].filter(char => chars.includes(char)).length;

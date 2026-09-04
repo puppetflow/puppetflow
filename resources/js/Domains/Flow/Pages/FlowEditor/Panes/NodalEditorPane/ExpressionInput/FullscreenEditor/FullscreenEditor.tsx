@@ -1,6 +1,8 @@
 import { useMemo, type DragEvent } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import type { Extension } from '@codemirror/state';
+import type { EditorView } from '@codemirror/view';
+import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import DataInspector from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/DataInspector';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
@@ -18,7 +20,8 @@ interface FullscreenEditorProps {
     readOnly?: boolean;
     renderedExpression: { ok: true; value: unknown } | { ok: false; error: string };
     onClose: () => void;
-    onMount: OnMount;
+    extensions: Extension[];
+    onMount: (view: EditorView) => void;
     onChange: (value: string) => void;
     onDropPath: (path: string, event?: DragEvent<HTMLElement>) => void;
 }
@@ -33,6 +36,7 @@ export default function FullscreenEditor({
     readOnly,
     renderedExpression,
     onClose,
+    extensions,
     onMount,
     onChange,
     onDropPath,
@@ -99,14 +103,15 @@ export default function FullscreenEditor({
                             onDropPath(event.dataTransfer.getData('text/plain'), event);
                         }}
                     >
-                        <Editor
+                        <CodeEditor
                             height="100%"
                             language={value.mode === 'expression' || inputType === 'code' ? 'javascript' : inputType === 'textarea' ? 'json' : 'plaintext'}
                             theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                            defaultValue={value.value}
+                            placeholder={placeholder}
+                            value={value.value}
+                            extensions={extensions}
                             options={{
                                 ...EXPRESSION_FULLSCREEN_EDITOR_OPTIONS,
-                                placeholder,
                                 readOnly,
                                 domReadOnly: readOnly,
                                 ...(inputType === 'code'

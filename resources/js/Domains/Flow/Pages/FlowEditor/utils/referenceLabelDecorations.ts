@@ -1,5 +1,12 @@
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import { useEffect, useMemo, useRef } from 'react';
+import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
+import {
+    Decoration,
+    EditorView,
+    WidgetType,
+    type DecorationSet,
+    ViewPlugin,
+} from '@codemirror/view';
 import { fetchAiModelSuggestions } from '@/Domains/AiModel/aiModelSuggestions';
 import { fetchChannelSuggestions } from './channelSuggestions';
 import { fetchDataTableSuggestions } from './dataTableSuggestions';
@@ -7,11 +14,6 @@ import { fetchMailboxWatcherSuggestions } from './mailboxWatcherSuggestions';
 import { fetchSnippetSuggestions, invalidateSnippetCache } from './snippetSuggestions';
 import { fetchVariableSuggestions } from './variableSuggestions';
 
-type Monaco = Parameters<OnMount>[1];
-
-const UPDATE_DEBOUNCE_MS = 150;
-
-const decoratedEditors = new WeakSet<editor.IStandaloneCodeEditor>();
 const labelRefreshers = new Set<(force: boolean) => Promise<void>>();
 
 export function refreshReferenceLabelDecorations(force = true) {
@@ -28,123 +30,146 @@ async function buildLabelMap(flowId: Id | null, force: boolean): Promise<Map<str
         flowId ? fetchMailboxWatcherSuggestions(flowId, force) : Promise.resolve([]),
         flowId ? fetchDataTableSuggestions(flowId, force) : Promise.resolve([]),
     ] as const);
-
-    const map = new Map<string, string>();
+    const labels = new Map<string, string>();
     const [variables, channels, aiModels, snippets, watchers, dataTables] = results;
 
     if (variables.status === 'fulfilled') {
-        for (const variable of variables.value) {
-            if (variable.type !== 'json_path') map.set(String(variable.id), variable.key);
-        }
+        variables.value.forEach(item => {
+            if (item.type !== 'json_path') labels.set(String(item.id), item.key);
+        });
     }
     if (channels.status === 'fulfilled') {
-        for (const channel of channels.value) map.set(String(channel.id), channel.name);
+        channels.value.forEach(item => labels.set(String(item.id), item.name));
     }
     if (aiModels.status === 'fulfilled') {
-        for (const model of aiModels.value) map.set(String(model.id), model.name);
+        aiModels.value.forEach(item => labels.set(String(item.id), item.name));
     }
     if (snippets.status === 'fulfilled') {
-        for (const snippet of snippets.value) map.set(String(snippet.id), snippet.label);
+        snippets.value.forEach(item => labels.set(String(item.id), item.label));
     }
     if (watchers.status === 'fulfilled') {
-        for (const watcher of watchers.value) map.set(String(watcher.id), watcher.name);
+        watchers.value.forEach(item => labels.set(String(item.id), item.name));
     }
     if (dataTables.status === 'fulfilled') {
-        for (const table of dataTables.value) map.set(String(table.id), table.name);
+        dataTables.value.forEach(item => labels.set(String(item.id), item.name));
+    }
+    return labels;
+}
+
+class ReferenceLabelWidget extends WidgetType {
+    constructor(readonly label: string) {
+        super();
     }
 
-    return map;
+    eq(other: ReferenceLabelWidget) {
+        return other.label === this.label;
+    }
+
+    toDOM() {
+        const element = document.createElement('span');
+        element.className = 'pf-ref-label';
+        element.textContent = ` ${this.label} `;
+        return element;
+    }
+
+    ignoreEvent() {
+        return true;
+    }
 }
 
-interface RegisterOptions {
-    flowId?: Id | null;
-}
+const setReferenceLabels = StateEffect.define<Map<string, string>>();
 
-export function registerReferenceLabelDecorations(
-    currentEditor: editor.IStandaloneCodeEditor,
-    monaco: Monaco,
-    options: RegisterOptions = {},
-): { dispose: () => void } {
-    if (!monaco || decoratedEditors.has(currentEditor)) return { dispose: () => {} };
-    decoratedEditors.add(currentEditor);
-
-    const flowId = options.flowId ?? null;
-    const collection = currentEditor.createDecorationsCollection();
-    let labels = new Map<string, string>();
-    let disposed = false;
-    let updateTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const applyDecorations = () => {
-        if (disposed) return;
-        const model = currentEditor.getModel();
-        if (!model) {
-            collection.clear();
-            return;
-        }
-
-        const decorations: editor.IModelDeltaDecoration[] = [];
-        const source = model.getValue();
-        for (const [id, label] of labels) {
-            let startOffset = source.indexOf(id);
-            while (startOffset !== -1) {
-                const previous = source[startOffset - 1] ?? '';
-                const next = source[startOffset + id.length] ?? '';
-                if (/[A-Za-z0-9_-]/.test(previous) || /[A-Za-z0-9_-]/.test(next)) {
-                    startOffset = source.indexOf(id, startOffset + id.length);
-                    continue;
-                }
-
-                const start = model.getPositionAt(startOffset);
-                const end = model.getPositionAt(startOffset + id.length);
-                decorations.push({
-                    range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
-                    options: {
-                        inlineClassName: 'pf-ref-id',
-                        after: {
-                            content: `\u00A0${label}\u00A0`,
-                            inlineClassName: 'pf-ref-label',
-                            cursorStops: monaco.editor.InjectedTextCursorStops.None,
-                        },
-                    },
-                });
-                startOffset = source.indexOf(id, startOffset + id.length);
+function buildDecorations(state: EditorState, labels: Map<string, string>): DecorationSet {
+    const source = state.doc.toString();
+    const ranges = [...labels].flatMap(([id, label]) => {
+        const decorations = [];
+        let start = source.indexOf(id);
+        while (start !== -1) {
+            const previous = source[start - 1] ?? '';
+            const next = source[start + id.length] ?? '';
+            if (!/[A-Za-z0-9_-]/.test(previous) && !/[A-Za-z0-9_-]/.test(next)) {
+                decorations.push(
+                    Decoration.mark({ class: 'pf-ref-id' }).range(start, start + id.length),
+                    Decoration.widget({
+                        widget: new ReferenceLabelWidget(label),
+                        side: 1,
+                    }).range(start + id.length),
+                );
             }
+            start = source.indexOf(id, start + id.length);
         }
+        return decorations;
+    });
+    return Decoration.set(ranges, true);
+}
 
-        collection.set(decorations);
-    };
+const referenceLabelField = StateField.define<{
+    labels: Map<string, string>;
+    decorations: DecorationSet;
+}>({
+    create() {
+        return { labels: new Map(), decorations: Decoration.none };
+    },
+    update(current, transaction) {
+        const effect = transaction.effects.find(item => item.is(setReferenceLabels));
+        const labels = effect?.value ?? current.labels;
+        if (!effect && !transaction.docChanged) return current;
+        return { labels, decorations: buildDecorations(transaction.state, labels) };
+    },
+    provide: field => EditorView.decorations.from(field, value => value.decorations),
+});
 
-    const refreshLabels = async (force: boolean) => {
-        const map = await buildLabelMap(flowId, force);
-        if (disposed) return;
-        labels = map;
-        applyDecorations();
-    };
-    labelRefreshers.add(refreshLabels);
+export function useReferenceLabelDecorations(flowId?: Id | null): Extension[] {
+    const viewRefs = useRef(new Set<EditorView>());
+    const labelsRef = useRef(new Map<string, string>());
+    const refreshRef = useRef<((force: boolean) => Promise<void>) | undefined>(undefined);
+    const extension = useMemo<Extension[]>(() => [
+        referenceLabelField,
+        ViewPlugin.define(view => {
+            viewRefs.current.add(view);
+            let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+            queueMicrotask(() => {
+                if (view.dom.isConnected && labelsRef.current.size > 0) {
+                    view.dispatch({ effects: setReferenceLabels.of(labelsRef.current) });
+                }
+            });
+            return {
+                update(update) {
+                    if (!update.docChanged) return;
+                    if (refreshTimer) clearTimeout(refreshTimer);
+                    refreshTimer = setTimeout(() => {
+                        void refreshRef.current?.(false);
+                    }, 250);
+                },
+                destroy() {
+                    if (refreshTimer) clearTimeout(refreshTimer);
+                    viewRefs.current.delete(view);
+                },
+            };
+        }),
+    ], []);
 
-    const scheduleUpdate = () => {
-        if (updateTimer) clearTimeout(updateTimer);
-        // Going through the fetchers keeps labels in sync after quick-creates
-        // or renames (they answer from cache unless it was invalidated).
-        updateTimer = setTimeout(() => void refreshLabels(false), UPDATE_DEBOUNCE_MS);
-    };
+    useEffect(() => {
+        let disposed = false;
+        const refresh = async (force: boolean) => {
+            const labels = await buildLabelMap(flowId ?? null, force);
+            if (disposed) return;
+            labelsRef.current = labels;
+            viewRefs.current.forEach(view => {
+                if (view.dom.isConnected) {
+                    view.dispatch({ effects: setReferenceLabels.of(labels) });
+                }
+            });
+        };
+        refreshRef.current = refresh;
+        labelRefreshers.add(refresh);
+        void refresh(false);
+        return () => {
+            disposed = true;
+            if (refreshRef.current === refresh) refreshRef.current = undefined;
+            labelRefreshers.delete(refresh);
+        };
+    }, [flowId]);
 
-    void refreshLabels(false);
-    const changeDisposable = currentEditor.onDidChangeModelContent(scheduleUpdate);
-    const modelDisposable = currentEditor.onDidChangeModel(scheduleUpdate);
-
-    const dispose = () => {
-        if (disposed) return;
-        disposed = true;
-        decoratedEditors.delete(currentEditor);
-        if (updateTimer) clearTimeout(updateTimer);
-        changeDisposable.dispose();
-        modelDisposable.dispose();
-        labelRefreshers.delete(refreshLabels);
-        collection.clear();
-    };
-
-    currentEditor.onDidDispose(dispose);
-
-    return { dispose };
+    return extension;
 }

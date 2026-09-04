@@ -202,7 +202,6 @@ export default function SnippetsView({ controller }: Props) {
                                 onDuplicateSnippet={() => crud.handleDuplicate(form.active!)}
                                 onCodeChange={form.handleCodeChange}
                                 editorRef={form.editorRef}
-                                isInternalChange={form.isInternalChange}
                             />
                         ) : (
                             <Layout.Panel $mobileHidden={navigation.mobileView !== 'editor'}>

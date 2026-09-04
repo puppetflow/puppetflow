@@ -24,10 +24,9 @@ export const CodeNodeEditor = styled.div`
         box-shadow: none;
     }
 
-    .monaco-editor,
-    .monaco-editor .margin,
-    .monaco-editor-background,
-    .monaco-editor .inputarea.ime-input {
+    .cm-editor,
+    .cm-scroller,
+    .cm-gutters {
         background-color: ${({ theme }) => theme.colors.bg.primary} !important;
     }
 `;

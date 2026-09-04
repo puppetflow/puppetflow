@@ -5,7 +5,8 @@ import {
     type DragEvent,
     type MutableRefObject,
 } from 'react';
-import type { editor } from 'monaco-editor';
+import type { EditorView } from '@codemirror/view';
+import { focusEditorPosition, replaceEditorRange } from '@/Shared/CodeEditor/utils/editorActions';
 import { fetchChannelSuggestions, type ChannelSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
 import { fetchMailboxWatcherSuggestions, type WatcherSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
 import { fetchVariableSuggestions, type VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
@@ -25,8 +26,8 @@ interface UseExpressionInputOrchestrationOptions {
     inputType: ExpressionInputType;
     outputData: unknown;
     value: ScalarNodeParameterValue;
-    inlineEditorRef: MutableRefObject<editor.IStandaloneCodeEditor | null>;
-    fullscreenEditorRef: MutableRefObject<editor.IStandaloneCodeEditor | null>;
+    inlineEditorRef: MutableRefObject<EditorView | null>;
+    fullscreenEditorRef: MutableRefObject<EditorView | null>;
     refreshInlineExpressionCompletions: () => void;
     updateExpression: (value: string) => void;
 }
@@ -167,45 +168,31 @@ export function useExpressionInputOrchestration({
                 const expressionEditor = expanded
                     ? fullscreenEditorRef.current
                     : inlineEditorRef.current;
-                const expressionModel = expressionEditor?.getModel();
-                if (!expressionEditor || !expressionModel) return;
-
-                const position = expressionModel.getPositionAt(offset);
-                expressionEditor.setPosition(position);
-                expressionEditor.focus();
+                if (!expressionEditor) return;
+                focusEditorPosition(expressionEditor, offset);
             });
         };
         const targetEditor = expanded ? fullscreenEditorRef.current : inlineEditorRef.current;
-        if (targetEditor?.getDomNode()?.isConnected) {
-            const dropTarget = event
-                ? targetEditor.getTargetAtClientPoint(event.clientX, event.clientY)
-                : null;
-            const model = targetEditor.getModel();
-            const position = dropTarget?.position
-                ?? targetEditor.getPosition()
-                ?? model?.getFullModelRange().getEndPosition();
-            if (model && position) {
+        if (targetEditor?.dom.isConnected) {
+            const position = event
+                ? targetEditor.posAtCoords({ x: event.clientX, y: event.clientY })
+                : targetEditor.state.selection.main.head;
+            if (position != null) {
                 if (value.mode === 'fixed') {
                     const expression = expressionForPath(path);
-                    const offset = model.getOffsetAt(position);
-                    const nextValue = insertPathExpression(model.getValue(), path, offset);
+                    const offset = position;
+                    const nextValue = insertPathExpression(targetEditor.state.doc.toString(), path, offset);
                     updateExpression(nextValue);
                     focusExpressionAt(offset + expression.length);
                     return;
                 }
 
-                targetEditor.pushUndoStop();
-                targetEditor.executeEdits('drop-path', [{
-                    range: {
-                        startLineNumber: position.lineNumber,
-                        startColumn: position.column,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column,
-                    },
-                    text: expressionForPath(path),
-                }]);
-                targetEditor.pushUndoStop();
-                targetEditor.focus();
+                replaceEditorRange(
+                    targetEditor,
+                    position,
+                    position,
+                    expressionForPath(path),
+                );
                 return;
             }
         }

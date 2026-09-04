@@ -1,12 +1,3 @@
-import type { OnMount } from '@monaco-editor/react';
-import {
-    completionRange,
-    idCompletionItem,
-    matchesCompletionModelUri,
-    type CompletionModel,
-    type CompletionPosition,
-} from './completionCore';
-
 export type DataTableSuggestion = {
     id: Id;
     name: string;
@@ -22,8 +13,6 @@ export type DataTableSuggestion = {
 
 const cachedSuggestions = new Map<Id, DataTableSuggestion[]>();
 const pendingRequests = new Map<Id, Promise<DataTableSuggestion[]>>();
-const TABLE_HELPER = 'dataTable(?:InsertRow|UpdateRows|UpsertRows|RowExists|RowDoesNotExist|GetRows|DeleteRows|Delete|Update)';
-const TABLE_ARGUMENT_PATTERN = new RegExp(`\\$(${TABLE_HELPER})\\(\\s*(["'])([^"']*)$`);
 
 export function invalidateDataTableCache(): void {
     cachedSuggestions.clear();
@@ -52,38 +41,4 @@ export function fetchDataTableSuggestions(flowId: Id, force = false): Promise<Da
 
     pendingRequests.set(flowId, request);
     return request;
-}
-
-export function registerDataTableCompletions(
-    monaco: Parameters<OnMount>[1],
-    flowId: Id,
-    modelUri?: string | null,
-) {
-    if (!monaco) return { dispose: () => {} };
-
-    return monaco.languages.registerCompletionItemProvider('javascript', {
-        triggerCharacters: ['"', "'"],
-        provideCompletionItems: async (model: CompletionModel, position: CompletionPosition) => {
-            if (!matchesCompletionModelUri(model, modelUri)) return { suggestions: [] };
-            const textBefore = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
-            const tableMatch = textBefore.match(TABLE_ARGUMENT_PATTERN);
-            if (!tableMatch) return { suggestions: [] };
-
-            const typed = tableMatch[3] ?? '';
-            const tables = await fetchDataTableSuggestions(flowId);
-
-            return {
-                suggestions: tables.map(table => idCompletionItem(table, {
-                    kind: monaco.languages.CompletionItemKind.Value,
-                    detail: `${table.columns.length} columns - ${table.id}`,
-                    documentation: [
-                        `Data Table: ${table.name}`,
-                        table.description || null,
-                        `Visibility: ${table.visibility ?? 'unknown'}`,
-                    ].filter(Boolean).join('\n\n'),
-                    range: completionRange(position, typed),
-                })),
-            };
-        },
-    });
 }

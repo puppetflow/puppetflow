@@ -24,12 +24,9 @@ export const EditorWrap = styled.div<{ $readOnly?: boolean }>`
     overflow: hidden;
 
     ${({ $readOnly, theme }) => $readOnly && `
-        .monaco-editor,
-        .monaco-editor .margin,
-        .monaco-editor .monaco-scrollable-element,
-        .monaco-editor .overflow-guard,
-        .monaco-editor-background,
-        .monaco-editor .inputarea.ime-input {
+        .cm-editor,
+        .cm-scroller,
+        .cm-gutters {
             background-color: ${theme.mode === 'dark' ? '#15151a' : theme.colors.bg.tertiary} !important;
         }
     `}

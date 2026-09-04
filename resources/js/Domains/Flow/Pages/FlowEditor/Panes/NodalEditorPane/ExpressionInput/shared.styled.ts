@@ -91,27 +91,29 @@ export const ExpressionCodeEditor = styled.div<{ $renderVisible?: boolean; $code
         box-shadow: none;
     }
 
-    .monaco-editor,
-    .monaco-editor .margin,
-    .monaco-editor-background,
-    .monaco-editor .inputarea.ime-input {
+    .cm-editor,
+    .cm-scroller,
+    .cm-gutters {
         background-color: ${({ theme }) => theme.colors.bg.primary} !important;
     }
 
-    .monaco-editor .editorPlaceholder {
+    .cm-placeholder {
         white-space: pre;
     }
 
-    /* The slim 6px scrollbar of small inputs gets fully rounded ends;
-       real code editors keep Monaco's default square slider. */
-    .monaco-scrollable-element > .scrollbar.vertical > .slider {
-        border-radius: ${({ $codeInput }) => ($codeInput ? '0' : '3px')};
+    .cm-scroller {
+        scrollbar-width: ${({ $codeInput }) => ($codeInput ? 'auto' : 'thin')};
     }
 
     .nop-template-token {
         color: ${({ theme }) => theme.colors.accent.success} !important;
         background: ${({ theme }) => theme.colors.accent.successBg};
         border-radius: 3px;
+    }
+
+    .nop-template-token-error {
+        color: ${({ theme }) => theme.colors.accent.error} !important;
+        background: ${({ theme }) => theme.colors.accent.errorBg};
     }
 `;
 

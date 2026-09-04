@@ -6,10 +6,8 @@ import { useCodeSnapshotEditor } from './useCodeSnapshotEditor';
 const editorOptions = {
     readOnly: true,
     domReadOnly: true,
-    minimap: { enabled: false },
     fontSize: 12,
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    glyphMargin: true,
     lineNumbers: 'on' as const,
     scrollBeyondLastLine: false,
     automaticLayout: true,
@@ -25,7 +23,7 @@ const editorOptions = {
 };
 
 export default function CodeSnapshotEditor(props: CodeSnapshotEditorProps) {
-    const { displayCode, handleMount } = useCodeSnapshotEditor(props);
+    const { displayCode, extensions, handleMount } = useCodeSnapshotEditor(props);
 
     return (
         <S.Wrapper $flatBottom={props.flatBottom}>
@@ -37,6 +35,7 @@ export default function CodeSnapshotEditor(props: CodeSnapshotEditorProps) {
                 theme={props.resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
                 value={displayCode}
                 onMount={handleMount}
+                extensions={extensions}
                 options={editorOptions}
             />
         </S.Wrapper>

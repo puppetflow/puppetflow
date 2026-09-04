@@ -43,7 +43,7 @@ export function useModalLifecycle(
         if (!isOpen) return;
 
         const handleEscape = (event: KeyboardEvent) => {
-            if (event.key !== 'Escape') return;
+            if (event.key !== 'Escape' || event.defaultPrevented) return;
 
             const overlays = document.querySelectorAll('[data-modal-overlay]');
             const topOverlay = overlays[overlays.length - 1];

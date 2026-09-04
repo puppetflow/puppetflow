@@ -6,9 +6,9 @@ import { EditorToolbar } from './components/EditorToolbar/EditorToolbar';
 import { EvaluationModal } from './components/EvaluationModal/EvaluationModal';
 import { MissingAwaitBanner } from './components/MissingAwaitBanner/MissingAwaitBanner';
 import {
-    MonacoWorkspace,
-    type MonacoWorkspaceHandle,
-} from './components/MonacoWorkspace/MonacoWorkspace';
+    CodeWorkspace,
+    type CodeWorkspaceHandle,
+} from './components/CodeWorkspace/CodeWorkspace';
 import { SourceBanner } from './components/SourceBanner/SourceBanner';
 import { ToolboxPanel } from './components/ToolboxPanel/ToolboxPanel';
 import type { CodeEditorPaneProps } from './types';
@@ -43,7 +43,7 @@ function CodeEditorPane({
     sidePanelOpen,
     onToggleSidePanel,
 }: CodeEditorPaneProps) {
-    const workspaceRef = useRef<MonacoWorkspaceHandle>(null);
+    const workspaceRef = useRef<CodeWorkspaceHandle>(null);
     const missingAwaitCalls = useMemo(
         () => readOnly ? [] : getMissingAwaitCalls(code),
         [code, readOnly],
@@ -98,7 +98,7 @@ function CodeEditorPane({
                         onFixAll={fixMissingAwaits}
                     />
                 )}
-                <MonacoWorkspace
+                <CodeWorkspace
                     ref={workspaceRef}
                     code={code}
                     defaultInputs={flow.default_inputs}

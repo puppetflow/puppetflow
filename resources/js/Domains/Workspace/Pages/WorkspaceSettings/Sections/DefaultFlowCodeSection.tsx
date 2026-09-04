@@ -1,12 +1,15 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import type { EditorView } from '@codemirror/view';
 import { router } from '@inertiajs/react';
 import type { FormDataConvertible } from '@inertiajs/core';
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
 import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
+import { usePuppetflowCompletions } from '@/Shared/CodeEditor/completion/usePuppetflowCompletions';
 import { useCodeHelpPanel } from '@/Shared/CodeEditor/hooks/useCodeHelpPanel';
-import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue';
+import { usePuppetflowTypeLibraries } from '@/Shared/CodeEditor/typescript/puppetflowTypeLibraries';
+import { useTypeScriptSupport } from '@/Shared/CodeEditor/typescript/useTypeScriptSupport';
+import { replaceEditorRange } from '@/Shared/CodeEditor/utils/editorActions';
+import { useReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import Button from '@/Shared/UI/Button/Button';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import { useToast } from '@/App/Hooks/useToast';
@@ -52,9 +55,20 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
     const usingBuiltInDefault = flowType === 'nodal'
         ? JSON.stringify(graph) === JSON.stringify(builtInGraph)
         : code === DEFAULT_CODE;
-    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+    const editorRef = useRef<EditorView | null>(null);
     const isInternalChange = useRef(false);
-    useSyncMonacoValue(editorRef, code, { isInternalChange });
+    const completionOptions = useMemo(() => ({ mode: 'code-flow' as const }), []);
+    const completionExtensions = usePuppetflowCompletions(completionOptions);
+    const typeLibraries = usePuppetflowTypeLibraries();
+    const typeScriptExtensions = useTypeScriptSupport({
+        code,
+        extraLibs: typeLibraries,
+    });
+    const referenceExtensions = useReferenceLabelDecorations();
+    const editorExtensions = useMemo(
+        () => [...completionExtensions, ...typeScriptExtensions, ...referenceExtensions],
+        [completionExtensions, referenceExtensions, typeScriptExtensions],
+    );
     const insertHelpEntry = useHelpEntryInsertion({ editorRef, readOnly });
     const help = useCodeHelpPanel({
         readOnly: Boolean(readOnly),
@@ -76,10 +90,8 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
     } as Flow), [graph, workspace.keyboard_speed, workspace.viewport_height, workspace.viewport_width]);
 
     const editorOptions = useMemo(() => ({
-        minimap: { enabled: false },
         fontSize: 12,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-        glyphMargin: true,
         lineNumbers: 'on' as const,
         scrollBeyondLastLine: false,
         automaticLayout: true,
@@ -99,7 +111,7 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
         setCode(value ?? '');
     }, []);
 
-    const handleEditorMount: OnMount = useCallback((mountedEditor) => {
+    const handleEditorMount = useCallback((mountedEditor: EditorView) => {
         editorRef.current = mountedEditor;
     }, []);
     const handleCodeGizmoClick = useCallback(async (
@@ -112,43 +124,31 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
         }
 
         const editorInstance = editorRef.current;
-        const model = editorInstance?.getModel();
         if (
             readOnly
             || !editorInstance
-            || !model
             || gizmo.argumentStart == null
             || gizmo.argumentEnd == null
         ) return;
 
-        const versionId = model.getVersionId();
-        const originalValue = model.getValue().slice(gizmo.argumentStart, gizmo.argumentEnd);
+        const version = editorInstance.state.doc;
+        const originalValue = editorInstance.state.sliceDoc(gizmo.argumentStart, gizmo.argumentEnd);
         try {
             const result = await grabSelector(gizmo.targetUrl, { forceOnboarding });
             if (
-                editorInstance.getModel() !== model
-                || model.getVersionId() !== versionId
-                || model.getValue().slice(gizmo.argumentStart, gizmo.argumentEnd) !== originalValue
+                editorInstance.state.doc !== version
+                || editorInstance.state.sliceDoc(gizmo.argumentStart, gizmo.argumentEnd) !== originalValue
             ) {
                 toast('The code changed while Grabber was active. The selector was not inserted.', 'error');
                 return;
             }
 
-            const start = model.getPositionAt(gizmo.argumentStart);
-            const end = model.getPositionAt(gizmo.argumentEnd);
-            editorInstance.pushUndoStop();
-            editorInstance.executeEdits('puppetflow-grabber', [{
-                range: {
-                    startLineNumber: start.lineNumber,
-                    startColumn: start.column,
-                    endLineNumber: end.lineNumber,
-                    endColumn: end.column,
-                },
-                text: JSON.stringify(result.selector),
-                forceMoveMarkers: true,
-            }]);
-            editorInstance.pushUndoStop();
-            editorInstance.focus();
+            replaceEditorRange(
+                editorInstance,
+                gizmo.argumentStart,
+                gizmo.argumentEnd,
+                JSON.stringify(result.selector),
+            );
         } catch {
             // GrabberContext owns cancellation and error feedback.
         }
@@ -270,6 +270,7 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
                                 onChange={handleEditorChange}
                                 options={editorOptions}
                                 onMount={handleEditorMount}
+                                extensions={editorExtensions}
                             />
                         </S.CodeEditor>
                         {help.showHelp && (

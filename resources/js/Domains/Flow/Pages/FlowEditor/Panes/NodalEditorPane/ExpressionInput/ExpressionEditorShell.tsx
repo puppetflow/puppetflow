@@ -1,4 +1,6 @@
-import Editor, { type OnMount } from '@monaco-editor/react';
+import type { Extension } from '@codemirror/state';
+import type { EditorView, ViewUpdate } from '@codemirror/view';
+import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import EditorActions from './EditorActions/EditorActions';
 import ExpressionPreview from './ExpressionPreview/ExpressionPreview';
@@ -19,7 +21,9 @@ interface ExpressionEditorShellProps {
     readOnly?: boolean;
     onExpand: () => void;
     onChange: (value: ScalarNodeParameterValue) => void;
-    onEditorMount: OnMount;
+    extensions: Extension[];
+    onEditorMount: (view: EditorView) => void;
+    onEditorUpdate: (update: ViewUpdate) => void;
     onEditorChange: (value: string) => void;
     onFocus: () => void;
     onBlur: () => void;
@@ -36,7 +40,9 @@ export default function ExpressionEditorShell({
     readOnly,
     onExpand,
     onChange,
+    extensions,
     onEditorMount,
+    onEditorUpdate,
     onEditorChange,
     onFocus,
     onBlur,
@@ -64,12 +70,13 @@ export default function ExpressionEditorShell({
                 $renderVisible={renderVisible}
                 style={{ height: inlineEditorHeight }}
             >
-                <Editor
+                <CodeEditor
                     key="inline-expression"
                     height={`${inlineEditorHeight}px`}
                     language="javascript"
                     theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                    defaultValue={value.value}
+                    value={value.value}
+                    extensions={extensions}
                     options={{
                         ...EXPRESSION_EDITOR_OPTIONS,
                         ...(inlineEditorHeight >= EXPRESSION_MAX_HEIGHT
@@ -79,6 +86,7 @@ export default function ExpressionEditorShell({
                         domReadOnly: readOnly,
                     }}
                     onMount={onEditorMount}
+                    onUpdate={onEditorUpdate}
                     onChange={nextValue => onEditorChange(nextValue ?? '')}
                 />
             </Shared.ExpressionCodeEditor>

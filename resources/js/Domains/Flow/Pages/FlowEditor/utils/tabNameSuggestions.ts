@@ -1,6 +1,4 @@
-import type { OnMount } from '@monaco-editor/react';
 import { parse } from 'acorn';
-import { matchesCompletionModelUri } from './completionCore';
 
 export const DEFAULT_TAB_NAME = 'Default';
 
@@ -316,72 +314,4 @@ export function collectNamedTabsFromCode(source: string): string[] {
     }
 
     return [...names];
-}
-
-const getCompletionContext = (source: string) => {
-    const call = findTabHelperCalls(source).at(-1);
-    if (!call) return null;
-
-    const helper = call.helper;
-    const argsSource = source.slice(call.argsStart);
-    const { args, openQuote } = splitCallArguments(argsSource);
-    const targetIndex = helper === 'gotoUrl' ? 1 : 0;
-    if (args.length - 1 !== targetIndex || !openQuote) return null;
-
-    const activeArg = args[targetIndex] ?? '';
-    const quoteIndex = activeArg.search(/["'`]/);
-    if (quoteIndex < 0) return null;
-
-    return {
-        typed: activeArg.slice(quoteIndex + 1),
-        helper,
-    };
-};
-
-export function registerTabNameCompletions(
-    monaco: Parameters<OnMount>[1],
-    modelUri?: string | null,
-    knownNames: string[] = [],
-) {
-    if (!monaco) return { dispose: () => {} };
-
-    return monaco.languages.registerCompletionItemProvider('javascript', {
-        triggerCharacters: ['"', "'", '`'],
-        provideCompletionItems: (model, position) => {
-            if (!matchesCompletionModelUri(model, modelUri)) return { suggestions: [] };
-
-            const source = model.getValueInRange({
-                startLineNumber: 1,
-                startColumn: 1,
-                endLineNumber: position.lineNumber,
-                endColumn: position.column,
-            });
-            const context = getCompletionContext(source);
-            if (!context) return { suggestions: [] };
-
-            const names = [...new Set([
-                DEFAULT_TAB_NAME,
-                ...knownNames,
-                ...collectNamedTabsFromCode(model.getValue()),
-            ])];
-            const range = {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: position.column - context.typed.length,
-                endColumn: position.column,
-            };
-
-            return {
-                suggestions: names.map(name => ({
-                    label: name,
-                    kind: monaco.languages.CompletionItemKind.Value,
-                    insertText: name,
-                    detail: context.helper === 'gotoUrl' ? 'Named browser tab' : 'Existing browser tab',
-                    documentation: `Browser tab: ${name}`,
-                    range,
-                    sortText: name === DEFAULT_TAB_NAME ? `0-${name}` : `1-${name}`,
-                })),
-            };
-        },
-    });
 }

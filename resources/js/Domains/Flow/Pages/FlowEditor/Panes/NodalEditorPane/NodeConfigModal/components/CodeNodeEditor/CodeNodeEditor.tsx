@@ -1,42 +1,23 @@
-import { useCallback, useEffect, useRef } from 'react';
-import Editor, { type OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
-import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue';
+import { useMemo } from 'react';
+import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
+import { usePuppetflowCompletions } from '@/Shared/CodeEditor/completion/usePuppetflowCompletions';
+import {
+    buildNodalTypeLibrary,
+    usePuppetflowTypeLibraries,
+} from '@/Shared/CodeEditor/typescript/puppetflowTypeLibraries';
+import { useTypeScriptSupport } from '@/Shared/CodeEditor/typescript/useTypeScriptSupport';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
-import { registerAiModelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/aiModelSuggestions';
-import { registerChannelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
-import { registerCookieJarCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
-import { registerDataTableCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
-import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monacoBase';
-import { registerNodalAutocompleteCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
-import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
-import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
-import { registerSniffProfileCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/sniffProfileSuggestions';
-import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/stopwatchNameSuggestions';
-import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
-import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
+import { useReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import * as S from './styled';
 
 const CODE_NODE_EDITOR_OPTIONS = {
-    minimap: { enabled: false },
     fontSize: 12,
     lineHeight: 19,
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
     wordWrap: 'on' as const,
     padding: { top: 10, bottom: 10 },
-    fixedOverflowWidgets: true,
     contextmenu: false,
-    bracketPairColorization: { enabled: true },
-    wordBasedSuggestions: 'off' as const,
-    quickSuggestions: { strings: true, other: true, comments: false },
-    suggestOnTriggerCharacters: true,
-    suggest: {
-        showFiles: false,
-        showWords: false,
-    },
 };
 
 interface CodeNodeEditorProps {
@@ -56,57 +37,43 @@ export default function CodeNodeEditor({
     readOnly,
     onChange,
 }: CodeNodeEditorProps) {
-    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-    const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
-    const completionDisposablesRef = useRef<{ dispose: () => void }[]>([]);
     const { resolved: theme } = useThemeMode();
-    useSyncMonacoValue(editorRef, value);
-
-    useEffect(() => () => {
-        completionDisposablesRef.current.forEach(item => item.dispose());
-        completionDisposablesRef.current = [];
-    }, []);
-
-    const registerEditorCompletions = useCallback((monaco: Parameters<OnMount>[1]) => {
-        const modelUri = editorRef.current?.getModel()?.uri.toString() ?? null;
-        completionDisposablesRef.current.forEach(item => item.dispose());
-        completionDisposablesRef.current = [
-            registerCompletions(monaco),
-            registerVarsCompletions(monaco, modelUri),
-            registerNodalAutocompleteCompletions(monaco, { ...autocompleteContext, outputData }, modelUri),
-            registerAiModelCompletions(monaco, modelUri),
-            registerChannelCompletions(monaco, modelUri),
-            ...(flowId ? [registerDataTableCompletions(monaco, flowId, modelUri)] : []),
-            registerSnippetCompletions(monaco, modelUri),
-            registerTabNameCompletions(monaco, modelUri, autocompleteContext.tabNames),
-            registerStopwatchNameCompletions(monaco, modelUri, autocompleteContext.stopwatchNames),
-            registerSniffProfileCompletions(monaco, modelUri, autocompleteContext.sniffProfileNames),
-            registerCookieJarCompletions(monaco, modelUri, autocompleteContext.cookieJarNames),
-        ];
-    }, [autocompleteContext, flowId, outputData]);
-
-    useEffect(() => {
-        if (!monacoRef.current) return;
-        registerEditorCompletions(monacoRef.current);
-    }, [registerEditorCompletions]);
-
-    const handleMount: OnMount = (editorInstance, monaco) => {
-        editorRef.current = editorInstance;
-        monacoRef.current = monaco;
-        registerEditorCompletions(monaco);
-        registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
-    };
+    const completionOptions = useMemo(() => ({
+        mode: 'nodal-code' as const,
+        flowId,
+        nodalContext: {
+            ...autocompleteContext,
+            outputData: outputData && typeof outputData === 'object' && !Array.isArray(outputData)
+                ? outputData as Record<string, unknown>
+                : null,
+        },
+    }), [autocompleteContext, flowId, outputData]);
+    const completionExtensions = usePuppetflowCompletions(completionOptions);
+    const baseTypeLibraries = usePuppetflowTypeLibraries('nodal');
+    const typeLibraries = useMemo(() => ({
+        ...baseTypeLibraries,
+        '/puppetflow-nodal-context.d.ts': buildNodalTypeLibrary(completionOptions.nodalContext),
+    }), [baseTypeLibraries, completionOptions.nodalContext]);
+    const typeScriptExtensions = useTypeScriptSupport({
+        code: value,
+        extraLibs: typeLibraries,
+    });
+    const referenceExtensions = useReferenceLabelDecorations(flowId);
+    const extensions = useMemo(
+        () => [...completionExtensions, ...typeScriptExtensions, ...referenceExtensions],
+        [completionExtensions, referenceExtensions, typeScriptExtensions],
+    );
 
     return (
         <S.CodeNodeField>
             <S.CodeNodeEditor>
-                <Editor
+                <CodeEditor
                     height="100%"
                     defaultLanguage="javascript"
                     value={value}
                     theme={theme === 'dark' ? 'vs-dark' : 'light'}
                     options={{ ...CODE_NODE_EDITOR_OPTIONS, readOnly }}
-                    onMount={handleMount}
+                    extensions={extensions}
                     onChange={nextValue => onChange(nextValue ?? '')}
                 />
             </S.CodeNodeEditor>

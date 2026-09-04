@@ -1,6 +1,4 @@
 import type { CSSProperties } from 'react';
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
 import type { AnchoredDropdownRect } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useAnchoredDropdownPosition';
 import { expressionForPath } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 
@@ -11,41 +9,20 @@ export const EXPRESSION_MAX_HEIGHT = EXPRESSION_LINE_HEIGHT * 7 + EXPRESSION_VER
 export const DEFAULT_SELECT_SEARCH_THRESHOLD = 0;
 
 export const EXPRESSION_EDITOR_OPTIONS = {
-    minimap: { enabled: false },
     fontSize: 12,
     lineHeight: EXPRESSION_LINE_HEIGHT,
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
     lineNumbers: 'off' as const,
-    glyphMargin: false,
     folding: false,
-    lineDecorationsWidth: 10,
     lineNumbersMinChars: 0,
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
     wordWrap: 'on' as const,
     padding: { top: 8, bottom: 8 },
     renderLineHighlight: 'none' as const,
-    overviewRulerLanes: 0,
-    hideCursorInOverviewRuler: true,
-    overviewRulerBorder: false,
-    stickyScroll: { enabled: false },
     scrollbar: {
         vertical: 'hidden' as const,
         horizontal: 'hidden' as const,
-        handleMouseWheel: false,
-        useShadows: false,
     },
-    fixedOverflowWidgets: true,
     contextmenu: false,
-    guides: { indentation: false },
-    bracketPairColorization: { enabled: true },
-    wordBasedSuggestions: 'off' as const,
-    quickSuggestions: { strings: true, other: true, comments: false },
-    suggestOnTriggerCharacters: true,
-    suggest: {
-        showFiles: false,
-        showWords: false,
-    },
 };
 
 export const EXPRESSION_FULLSCREEN_EDITOR_OPTIONS = {
@@ -55,8 +32,6 @@ export const EXPRESSION_FULLSCREEN_EDITOR_OPTIONS = {
     scrollbar: {
         vertical: 'auto' as const,
         horizontal: 'auto' as const,
-        handleMouseWheel: true,
-        useShadows: false,
     },
 };
 
@@ -66,15 +41,9 @@ export const CODE_INPUT_EDITOR_OPTIONS = {
     lineNumbers: 'on' as const,
     lineNumbersMinChars: 3,
     folding: true,
-    quickSuggestions: true,
-    suggestOnTriggerCharacters: true,
-    parameterHints: { enabled: true },
-    hover: { enabled: true },
     scrollbar: {
         vertical: 'auto' as const,
         horizontal: 'auto' as const,
-        handleMouseWheel: true,
-        useShadows: false,
     },
 };
 
@@ -85,23 +54,10 @@ export const EXPRESSION_OVERFLOW_SCROLLBAR_OPTIONS = {
     scrollbar: {
         vertical: 'auto' as const,
         horizontal: 'hidden' as const,
-        handleMouseWheel: true,
-        alwaysConsumeMouseWheel: false,
-        useShadows: false,
-        verticalScrollbarSize: 6,
-        verticalSliderSize: 6,
     },
 };
 
-export const PLAIN_FIXED_INPUT_EDITOR_OPTIONS = {
-    quickSuggestions: false,
-    suggestOnTriggerCharacters: false,
-    parameterHints: { enabled: false },
-    hover: { enabled: false },
-};
-
-const TEMPLATE_PATTERN = /\{\{[\s\S]*?\}\}/g;
-const templateDecoratedEditors = new WeakSet<editor.IStandaloneCodeEditor>();
+export const PLAIN_FIXED_INPUT_EDITOR_OPTIONS = {};
 
 export function insertPathExpression(current: string, path: string, offset = current.length) {
     const expression = expressionForPath(path);
@@ -133,7 +89,7 @@ export function unresolvedResultLabel(value: unknown) {
 }
 
 export function hasOpenEditorAutocomplete() {
-    return document.querySelector('.suggest-widget.visible, .parameter-hints-widget.visible') !== null;
+    return document.querySelector('.cm-tooltip-autocomplete, .cm-tooltip') !== null;
 }
 
 export function dropdownStyle(rect: AnchoredDropdownRect): CSSProperties {
@@ -146,47 +102,4 @@ export function dropdownStyle(rect: AnchoredDropdownRect): CSSProperties {
         maxHeight: rect.maxHeight,
         transform: rect.placement === 'above' ? 'translateY(-100%)' : undefined,
     };
-}
-
-export function registerTemplateDecorations(
-    currentEditor: editor.IStandaloneCodeEditor,
-    monaco: Parameters<OnMount>[1],
-) {
-    if (templateDecoratedEditors.has(currentEditor)) return;
-    templateDecoratedEditors.add(currentEditor);
-
-    const collection = currentEditor.createDecorationsCollection();
-    const updateDecorations = () => {
-        const model = currentEditor.getModel();
-        if (!model) {
-            collection.clear();
-            return;
-        }
-
-        const decorations = [...model.getValue().matchAll(TEMPLATE_PATTERN)].map(match => {
-            const startOffset = match.index ?? 0;
-            const endOffset = startOffset + match[0].length;
-
-            return {
-                range: new monaco.Range(
-                    model.getPositionAt(startOffset).lineNumber,
-                    model.getPositionAt(startOffset).column,
-                    model.getPositionAt(endOffset).lineNumber,
-                    model.getPositionAt(endOffset).column,
-                ),
-                options: {
-                    inlineClassName: 'nop-template-token',
-                },
-            };
-        });
-
-        collection.set(decorations);
-    };
-
-    updateDecorations();
-    const changeDisposable = currentEditor.onDidChangeModelContent(updateDecorations);
-    currentEditor.onDidDispose(() => {
-        changeDisposable.dispose();
-        collection.clear();
-    });
 }

@@ -1,7 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import Editor, { type OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import Modal from '@/Shared/UI/Modal/Modal';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import { ExpandBtn, FullEditorWrap, TopBar, Wrapper } from './styled';
@@ -19,33 +18,9 @@ interface Props {
 export default function JsonExpandable({ value, onChange, readOnly, title, hideDefaultTrigger, openRef, children }: Props) {
     const [open, setOpen] = useState(false);
     const { resolved: resolvedTheme } = useThemeMode();
-    const fullEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-    const isInternalChange = useRef(false);
-    const isSyncing = useRef(false);
-
     const handleFullChange = useCallback((v: string | undefined) => {
-        if (isSyncing.current) return;
-        isInternalChange.current = true;
         onChange?.(v || '{}');
     }, [onChange]);
-
-    useEffect(() => {
-        if (!open) return;
-        if (isInternalChange.current) {
-            isInternalChange.current = false;
-            return;
-        }
-        const ed = fullEditorRef.current;
-        if (ed && ed.getValue() !== value) {
-            isSyncing.current = true;
-            ed.setValue(value);
-            isSyncing.current = false;
-        }
-    }, [value, open]);
-
-    const handleFullMount: OnMount = (_editor) => {
-        fullEditorRef.current = _editor;
-    };
 
     useEffect(() => {
         if (!openRef) return;
@@ -68,30 +43,19 @@ export default function JsonExpandable({ value, onChange, readOnly, title, hideD
             {open && (
                 <Modal isOpen onClose={() => setOpen(false)} title={title || 'JSON Editor'} fullScreen>
                     <FullEditorWrap>
-                        <Editor
+                        <CodeEditor
                             height="100%"
                             language="json"
                             theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                            defaultValue={value}
+                            value={value}
                             onChange={handleFullChange}
-                            onMount={handleFullMount}
                             options={{
-                                minimap: { enabled: false },
                                 fontSize: 14,
                                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                                 lineNumbers: 'on',
-                                scrollBeyondLastLine: false,
-                                automaticLayout: true,
                                 tabSize: 2,
                                 wordWrap: 'off',
                                 padding: { top: 12 },
-                                fixedOverflowWidgets: true,
-                                quickSuggestions: { strings: true, other: true, comments: false },
-                                wordBasedSuggestions: 'off',
-                                suggest: {
-                                    showFiles: false,
-                                    showWords: false,
-                                },
                                 readOnly,
                             }}
                         />

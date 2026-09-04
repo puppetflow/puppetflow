@@ -9,7 +9,7 @@ const EDITABLE_TARGET_SELECTOR = [
     '[contenteditable="true"]',
     '[contenteditable="plaintext-only"]',
     '[role="textbox"]',
-    '.monaco-editor',
+    '.cm-editor',
     '.cm-editor',
 ].join(', ');
 

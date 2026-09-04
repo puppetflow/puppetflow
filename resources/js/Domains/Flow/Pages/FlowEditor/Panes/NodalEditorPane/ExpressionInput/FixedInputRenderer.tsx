@@ -1,5 +1,7 @@
-import Editor, { type OnMount } from '@monaco-editor/react';
 import type { ReactNode } from 'react';
+import type { Extension } from '@codemirror/state';
+import type { EditorView, ViewUpdate } from '@codemirror/view';
+import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import type { NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import EditorActions from './EditorActions/EditorActions';
@@ -46,7 +48,9 @@ interface FixedInputRendererProps {
     onExpand: () => void;
     onChange: (value: ScalarNodeParameterValue) => void;
     onTextChange: (value: string, cursorOffset: number) => void;
-    onTextareaMount: OnMount;
+    extensions: Extension[];
+    onTextareaMount: (view: EditorView) => void;
+    onTextareaUpdate: (update: ViewUpdate) => void;
     onTextareaChange: (value: string) => void;
     onVariablePickerOpen: () => void;
     onVariableSelect: (key: string) => void;
@@ -72,7 +76,9 @@ export default function FixedInputRenderer({
     onExpand,
     onChange,
     onTextChange,
+    extensions,
     onTextareaMount,
+    onTextareaUpdate,
     onTextareaChange,
     onVariablePickerOpen,
     onVariableSelect,
@@ -108,23 +114,25 @@ export default function FixedInputRenderer({
                 $codeInput={inputType === 'code'}
                 style={{ height: codeEditorHeight }}
             >
-                <Editor
+                <CodeEditor
                     key="inline-fixed-textarea"
                     height={`${codeEditorHeight}px`}
                     language={inputType === 'code' ? 'javascript' : 'json'}
                     theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                    defaultValue={value.value}
+                    placeholder={placeholder}
+                    value={value.value}
+                    extensions={extensions}
                     options={{
                         ...EXPRESSION_EDITOR_OPTIONS,
                         ...(inputType === 'textarea' && codeEditorHeight >= EXPRESSION_MAX_HEIGHT
                             ? EXPRESSION_OVERFLOW_SCROLLBAR_OPTIONS
                             : {}),
-                        placeholder,
                         readOnly,
                         domReadOnly: readOnly,
                         ...(inputType === 'code' ? CODE_INPUT_EDITOR_OPTIONS : PLAIN_FIXED_INPUT_EDITOR_OPTIONS),
                     }}
                     onMount={onTextareaMount}
+                    onUpdate={onTextareaUpdate}
                     onChange={nextValue => onTextareaChange(nextValue ?? '')}
                 />
             </Shared.ExpressionCodeEditor>

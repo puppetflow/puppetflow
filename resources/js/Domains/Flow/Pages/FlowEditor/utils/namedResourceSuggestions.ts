@@ -1,17 +1,4 @@
-import type { OnMount } from '@monaco-editor/react';
 import { parse } from 'acorn';
-import { matchesCompletionModelUri } from './completionCore';
-
-interface NamedResourceCompletionOptions {
-    declarationHelper: string;
-    helperNames: string[];
-    creationHelper: string;
-    defaultName: string;
-    knownNames: string[];
-    createDetail: string;
-    existingDetail: string;
-    documentationLabel: string;
-}
 
 const parseCode = (source: string): Record<string, unknown> | null => {
     const options = {
@@ -122,72 +109,4 @@ export function collectNamedResourcesFromCode(
 
     visit(ast);
     return helperIsShadowed ? [] : [...names];
-}
-
-const escapeStringContent = (value: string, quote: string) => {
-    const escaped = value
-        .replace(/\\/g, '\\\\')
-        .split(quote)
-        .join(`\\${quote}`);
-    return quote === '`' ? escaped.replace(/\$\{/g, '\\${') : escaped;
-};
-
-export function registerNamedResourceCompletions(
-    monaco: Parameters<OnMount>[1],
-    modelUri: string | null | undefined,
-    options: NamedResourceCompletionOptions,
-) {
-    if (!monaco) return { dispose: () => {} };
-
-    const helpersPattern = options.helperNames.join('|');
-    const contextPattern = new RegExp(`\\$(${helpersPattern})\\s*\\(\\s*(["'\`])([^"'\`]*)$`);
-
-    return monaco.languages.registerCompletionItemProvider('javascript', {
-        triggerCharacters: ['"', "'", '`'],
-        provideCompletionItems: (model, position) => {
-            if (!matchesCompletionModelUri(model, modelUri)) return { suggestions: [] };
-
-            const source = model.getValueInRange({
-                startLineNumber: 1,
-                startColumn: 1,
-                endLineNumber: position.lineNumber,
-                endColumn: position.column,
-            });
-            const context = source.match(contextPattern);
-            if (!context) return { suggestions: [] };
-
-            const helper = context[1];
-            const quote = context[2] ?? '"';
-            const typed = context[3] ?? '';
-            const names = [...new Set([
-                ...(helper === options.creationHelper ? [options.defaultName] : []),
-                ...options.knownNames,
-                ...collectNamedResourcesFromCode(
-                    model.getValue(),
-                    options.declarationHelper,
-                    options.defaultName,
-                ),
-            ])];
-            const range = {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: position.column - typed.length,
-                endColumn: position.column,
-            };
-
-            return {
-                suggestions: names.map(name => ({
-                    label: name,
-                    kind: monaco.languages.CompletionItemKind.Value,
-                    insertText: escapeStringContent(name, quote),
-                    detail: helper === options.creationHelper
-                        ? options.createDetail
-                        : options.existingDetail,
-                    documentation: `${options.documentationLabel}: ${name}`,
-                    range,
-                    sortText: name === options.defaultName ? `0-${name}` : `1-${name}`,
-                })),
-            };
-        },
-    });
 }

@@ -16,10 +16,9 @@ export const Wrapper = styled.div<{ $flatBottom?: boolean }>`
         min-height: 0;
     }
 
-    .monaco-editor,
-    .monaco-editor .margin,
-    .monaco-editor-background,
-    .monaco-editor .inputarea.ime-input {
+    .cm-editor,
+    .cm-scroller,
+    .cm-gutters {
         background-color: ${({ theme }) => theme.colors.bg.tertiary} !important;
     }
 

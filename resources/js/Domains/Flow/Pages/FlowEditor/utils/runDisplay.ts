@@ -3,28 +3,16 @@ import type { FlowRun } from '@/Domains/Flow/types';
 
 export const JSON_VIEWER_OPTIONS = {
     readOnly: true,
-    minimap: { enabled: false },
     fontSize: 11,
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
     lineNumbers: 'off' as const,
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
     folding: true,
     wordWrap: 'off' as const,
     padding: { top: 6, bottom: 6 },
     renderLineHighlight: 'none' as const,
-    overviewRulerLanes: 0,
-    hideCursorInOverviewRuler: true,
-    overviewRulerBorder: false,
     scrollbar: { vertical: 'auto' as const, horizontal: 'hidden' as const },
     domReadOnly: true,
     contextmenu: false,
-    guides: { indentation: false },
-    wordBasedSuggestions: 'off' as const,
-    suggest: {
-        showFiles: false,
-        showWords: false,
-    },
 };
 
 export const formatJson = (data: Record<string, unknown> | null): string => {

@@ -84,14 +84,13 @@ export const ExpressionFullscreenEditor = styled.div`
     background: ${({ theme }) => theme.colors.bg.secondary};
     overflow: hidden;
 
-    .monaco-editor,
-    .monaco-editor .margin,
-    .monaco-editor-background,
-    .monaco-editor .inputarea.ime-input {
+    .cm-editor,
+    .cm-scroller,
+    .cm-gutters {
         background-color: ${({ theme }) => theme.colors.bg.primary} !important;
     }
 
-    .monaco-editor .editorPlaceholder {
+    .cm-placeholder {
         white-space: pre;
     }
 
@@ -99,6 +98,11 @@ export const ExpressionFullscreenEditor = styled.div`
         color: ${({ theme }) => theme.colors.accent.success} !important;
         background: ${({ theme }) => theme.colors.accent.successBg};
         border-radius: 3px;
+    }
+
+    .nop-template-token-error {
+        color: ${({ theme }) => theme.colors.accent.error} !important;
+        background: ${({ theme }) => theme.colors.accent.errorBg};
     }
 `;
 

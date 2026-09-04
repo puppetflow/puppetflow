@@ -1,11 +1,15 @@
 import React, { useCallback, useMemo } from 'react';
+import type { EditorView } from '@codemirror/view';
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import type { OnMount } from '@monaco-editor/react';
 import { useToast } from '@/App/Hooks/useToast';
 import { useGrabber } from '@/Domains/Flow/Pages/FlowEditor/Grabber/GrabberContext';
 import type { CodeGizmo } from '@/Domains/Flow/Pages/FlowEditor/utils/codeGizmos';
 import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
-import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue';
+import { usePuppetflowCompletions } from '@/Shared/CodeEditor/completion/usePuppetflowCompletions';
+import { usePuppetflowTypeLibraries } from '@/Shared/CodeEditor/typescript/puppetflowTypeLibraries';
+import { useTypeScriptSupport } from '@/Shared/CodeEditor/typescript/useTypeScriptSupport';
+import { replaceEditorRange } from '@/Shared/CodeEditor/utils/editorActions';
+import { useReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { FloatingHelpButton } from '@/Shared/CodeEditor/shared/editor-layout.styled';
 import { ToolbarBadge } from '@/Shared/CodeEditor/shared/toolbar.styled';
 import PublicationMenu from '@/Domains/Flow/Pages/FlowEditor/components/PublicationMenu/PublicationMenu';
@@ -14,7 +18,6 @@ import * as Layout from '@/Domains/Snippet/Pages/shared.styled';
 import { EvaluationModal } from './components/EvaluationModal/EvaluationModal';
 import { HelpPanel } from './components/HelpPanel/HelpPanel';
 import { SourceBanner } from './components/SourceBanner/SourceBanner';
-import { useMonacoCompletions } from './hooks/useMonacoCompletions';
 import { useSnippetHelp } from './hooks/useSnippetHelp';
 import * as S from './styled';
 
@@ -46,8 +49,7 @@ interface Props {
     onUpdateLibrarySource?: () => void;
     onCheckLibraryUpdate?: () => void;
     onCodeChange: (value: string | undefined) => void;
-    editorRef: React.MutableRefObject<Parameters<OnMount>[0] | null>;
-    isInternalChange: React.MutableRefObject<boolean>;
+    editorRef: React.MutableRefObject<EditorView | null>;
 }
 
 export default function SnippetEditor({
@@ -79,14 +81,26 @@ export default function SnippetEditor({
     onCheckLibraryUpdate,
     onCodeChange,
     editorRef,
-    isInternalChange,
 }: Props) {
     const { toast } = useToast();
     const { grabSelector } = useGrabber();
-    const handleEditorMount = useMonacoCompletions(editorRef);
+    const completionOptions = useMemo(() => ({ mode: 'snippet' as const }), []);
+    const completionExtensions = usePuppetflowCompletions(completionOptions);
+    const typeLibraries = usePuppetflowTypeLibraries('snippet');
+    const typeScriptExtensions = useTypeScriptSupport({
+        code,
+        extraLibs: typeLibraries,
+    });
+    const referenceExtensions = useReferenceLabelDecorations();
+    const extensions = useMemo(
+        () => [...completionExtensions, ...typeScriptExtensions, ...referenceExtensions],
+        [completionExtensions, referenceExtensions, typeScriptExtensions],
+    );
+    const handleEditorMount = useCallback((view: EditorView) => {
+        editorRef.current = view;
+    }, [editorRef]);
     const help = useSnippetHelp(editorRef, readOnly);
     const { focusEntry } = help;
-    useSyncMonacoValue(editorRef, code, { isInternalChange });
     const handleCodeGizmoClick = useCallback(async (
         gizmo: CodeGizmo,
         forceOnboarding = false,
@@ -97,53 +111,39 @@ export default function SnippetEditor({
         }
 
         const editor = editorRef.current;
-        const model = editor?.getModel();
         if (
             readOnly
             || !editor
-            || !model
             || gizmo.argumentStart == null
             || gizmo.argumentEnd == null
         ) return;
 
-        const versionId = model.getVersionId();
-        const originalValue = model.getValue().slice(gizmo.argumentStart, gizmo.argumentEnd);
+        const version = editor.state.doc;
+        const originalValue = editor.state.sliceDoc(gizmo.argumentStart, gizmo.argumentEnd);
         try {
             const result = await grabSelector(gizmo.targetUrl, { forceOnboarding });
             if (
-                editor.getModel() !== model
-                || model.getVersionId() !== versionId
-                || model.getValue().slice(gizmo.argumentStart, gizmo.argumentEnd) !== originalValue
+                editor.state.doc !== version
+                || editor.state.sliceDoc(gizmo.argumentStart, gizmo.argumentEnd) !== originalValue
             ) {
                 toast('The code changed while Grabber was active. The selector was not inserted.', 'error');
                 return;
             }
 
-            const start = model.getPositionAt(gizmo.argumentStart);
-            const end = model.getPositionAt(gizmo.argumentEnd);
-            editor.pushUndoStop();
-            editor.executeEdits('puppetflow-grabber', [{
-                range: {
-                    startLineNumber: start.lineNumber,
-                    startColumn: start.column,
-                    endLineNumber: end.lineNumber,
-                    endColumn: end.column,
-                },
-                text: JSON.stringify(result.selector),
-                forceMoveMarkers: true,
-            }]);
-            editor.pushUndoStop();
-            editor.focus();
+            replaceEditorRange(
+                editor,
+                gizmo.argumentStart,
+                gizmo.argumentEnd,
+                JSON.stringify(result.selector),
+            );
         } catch {
             // GrabberContext owns cancellation and error feedback.
         }
     }, [editorRef, focusEntry, grabSelector, readOnly, toast]);
 
     const editorOptions = useMemo(() => ({
-        minimap: { enabled: false },
         fontSize: 13,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-        glyphMargin: true,
         lineNumbers: 'on' as const,
         scrollBeyondLastLine: false,
         automaticLayout: true,
@@ -259,9 +259,10 @@ export default function SnippetEditor({
                                 onGizmoClick={handleCodeGizmoClick}
                                 language="javascript"
                                 theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                                defaultValue={code}
+                                value={code}
                                 onChange={onCodeChange}
                                 onMount={handleEditorMount}
+                                extensions={extensions}
                                 options={editorOptions}
                             />
                             <FloatingHelpButton

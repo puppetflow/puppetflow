@@ -178,7 +178,7 @@ export function useCanvasViewActions({
             if (isAnotherPaneActive() || !isActivePane()) return;
             if (editingNode || hasOpenModal()) return;
             const target = event.target instanceof Element ? event.target : null;
-            if (target?.closest('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"], [role="textbox"], .monaco-editor, .cm-editor')) return;
+            if (target?.closest('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"], [role="textbox"], .cm-editor')) return;
 
             event.preventDefault();
             event.stopImmediatePropagation();

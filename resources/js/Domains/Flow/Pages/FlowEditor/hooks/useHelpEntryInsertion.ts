@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
-import type { editor } from 'monaco-editor';
+import type { EditorView } from '@codemirror/view';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { buildHelpInsertText } from '@/Domains/Flow/Pages/FlowEditor/utils/helpToolbox';
+import { replaceEditorSelection } from '@/Shared/CodeEditor/utils/editorActions';
 
 interface UseHelpEntryInsertionOptions {
-    editorRef: React.MutableRefObject<editor.IStandaloneCodeEditor | null>;
+    editorRef: React.MutableRefObject<EditorView | null>;
     readOnly?: boolean;
 }
 
@@ -15,26 +16,15 @@ export function useHelpEntryInsertion({ editorRef, readOnly }: UseHelpEntryInser
         if (readOnly) return false;
 
         const editorInstance = editorRef.current;
-        const selection = editorInstance?.getSelection();
-        if (!editorInstance || !selection) return false;
+        if (!editorInstance) return false;
 
         const text = buildHelpInsertText(entry);
         const openParenIndex = text.indexOf('(');
-        editorInstance.executeEdits('help-entry-insert', [{
-            range: selection,
+        replaceEditorSelection(
+            editorInstance,
             text,
-            forceMoveMarkers: true,
-        }]);
-
-        const position = editorInstance.getPosition();
-        if (position && openParenIndex !== -1) {
-            const charsAfterCursor = text.length - openParenIndex - 1;
-            editorInstance.setPosition({
-                lineNumber: position.lineNumber,
-                column: Math.max(1, position.column - charsAfterCursor),
-            });
-        }
-        editorInstance.focus();
+            openParenIndex === -1 ? text.length : openParenIndex + 1,
+        );
         return true;
     }, [editorRef, readOnly]);
 }

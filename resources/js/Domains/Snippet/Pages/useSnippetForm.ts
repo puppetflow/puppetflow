@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { OnMount } from '@monaco-editor/react';
+import type { EditorView } from '@codemirror/view';
 import type { IntegrationScope } from '@/Domains/Integration/types';
 import type { Snippet } from '@/Domains/Snippet/types';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
@@ -26,8 +26,7 @@ export function useSnippetForm() {
     const [teamId, setTeamId] = useState<Id | null>(null);
     const [ownerId, setOwnerId] = useState<Id | null>(null);
     const [targetUserRole, setTargetUserRole] = useState<string | undefined>();
-    const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
-    const isInternalChange = useRef(false);
+    const editorRef = useRef<EditorView | null>(null);
     const dirtyRef = useRef(false);
 
     const dirty = useMemo(() => {
@@ -65,7 +64,6 @@ export function useSnippetForm() {
     currentDraftRef.current = { active, dirty, draftKey };
 
     const syncFormState = useCallback((snippet: Snippet) => {
-        isInternalChange.current = false;
         setActive(snippet);
         setLabel(snippet.label);
         setDescription(snippet.description || '');
@@ -97,7 +95,6 @@ export function useSnippetForm() {
     const getCurrentDraft = useCallback(() => currentDraftRef.current, []);
 
     const handleCodeChange = useCallback((value: string | undefined) => {
-        isInternalChange.current = true;
         setCode(value ?? '');
     }, []);
 
@@ -149,7 +146,6 @@ export function useSnippetForm() {
         targetUserRole,
         setTargetUserRole,
         editorRef,
-        isInternalChange,
         dirty,
         dirtyRef,
         draftKey,

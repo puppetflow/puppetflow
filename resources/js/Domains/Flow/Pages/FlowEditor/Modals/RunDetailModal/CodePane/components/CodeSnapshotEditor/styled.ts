@@ -10,10 +10,9 @@ export const Wrapper = styled.div<{ $flatBottom?: boolean }>`
     flex: 1;
     min-height: ${({ $flatBottom }) => $flatBottom ? '0' : '200px'};
 
-    .monaco-editor,
-    .monaco-editor .margin,
-    .monaco-editor-background,
-    .monaco-editor .inputarea.ime-input {
+    .cm-editor,
+    .cm-scroller,
+    .cm-gutters {
         background-color: ${({ theme }) => theme.colors.bg.tertiary} !important;
     }
 

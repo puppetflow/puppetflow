@@ -8,14 +8,9 @@ export const NodalCodePreview = styled.div<{ $readOnly?: boolean }>`
         ? (theme.mode === 'dark' ? '#15151a' : theme.colors.bg.tertiary)
         : theme.colors.bg.primary};
 
-    .monaco-editor,
-    .monaco-editor .margin,
-    .monaco-editor .monaco-scrollable-element,
-    .monaco-editor .overflow-guard,
-    .monaco-editor .lines-content,
-    .monaco-editor .view-overlays,
-    .monaco-editor-background,
-    .monaco-editor .inputarea.ime-input {
+    .cm-editor,
+    .cm-scroller,
+    .cm-gutters {
         background-color: ${({ $readOnly, theme }) => $readOnly
         ? (theme.mode === 'dark' ? '#15151a' : theme.colors.bg.tertiary)
         : theme.colors.bg.primary} !important;

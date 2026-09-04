@@ -1,13 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
-import type { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
-import { useMonacoDecorations } from '@/Shared/CodeEditor/hooks/useMonacoDecorations';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { EditorView } from '@codemirror/view';
+import { runLineDecorationExtension } from '@/Shared/CodeEditor/extensions/runLineDecorationExtension';
 import { getDisplayCodeSnapshotWithLineMap } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunDetailModal/runProgress';
-import { getExpandedStatementLines, toDecorations } from '../utils';
-
-type MonacoInstance = Parameters<OnMount>[1];
-
-const revealOptions = { timing: 'beforeDecorations' as const };
+import { getExpandedStatementLines } from '../utils';
 
 interface UseCanvasCodePreviewEditorOptions {
     generatedCode: string;
@@ -25,9 +20,6 @@ export const useCanvasCodePreviewEditor = ({
     passedLines = [],
     errorLine = null,
 }: UseCanvasCodePreviewEditorOptions) => {
-    const [editorInstance, setEditorInstance] =
-        useState<editor.IStandaloneCodeEditor | null>(null);
-    const [monacoInstance, setMonacoInstance] = useState<MonacoInstance | null>(null);
     const displaySnapshot = useMemo(() => {
         if (codeSnapshot) return getDisplayCodeSnapshotWithLineMap(codeSnapshot);
 
@@ -53,30 +45,31 @@ export const useCanvasCodePreviewEditor = ({
             .filter((line): line is number => typeof line === 'number' && line !== displayErrorLine)),
         [displayErrorLine, displaySnapshot.code, displaySnapshot.lineMap, passedLineValues],
     );
-    const handleCodeMount: OnMount = useCallback((mountedEditor, monaco) => {
-        setEditorInstance(mountedEditor);
-        setMonacoInstance(monaco);
-    }, []);
-    const decorations = useMemo(() => {
-        if (!monacoInstance) return [];
+    const extensions = useMemo(() => [runLineDecorationExtension(displaySnapshot.code, {
+        passed: displayPassedLines,
+        active: displayActiveLines,
+        error: displayErrorLines,
+    })], [displayActiveLines, displayErrorLines, displayPassedLines, displaySnapshot.code]);
+    const viewRef = useRef<EditorView | null>(null);
+    const revealCurrentLine = useCallback((view: EditorView) => {
+        const line = displayErrorLine ?? displayActiveLine;
+        if (!line || line > view.state.doc.lines) return;
+        view.dispatch({
+            effects: EditorView.scrollIntoView(view.state.doc.line(line).from, { y: 'center' }),
+        });
+    }, [displayActiveLine, displayErrorLine]);
+    const handleCodeMount = useCallback((view: EditorView) => {
+        viewRef.current = view;
+        revealCurrentLine(view);
+    }, [revealCurrentLine]);
 
-        return [
-            ...toDecorations(monacoInstance, displayPassedLines, 'passed'),
-            ...toDecorations(monacoInstance, displayActiveLines, 'active'),
-            ...toDecorations(monacoInstance, displayErrorLines, 'error'),
-        ];
-    }, [displayActiveLines, displayErrorLines, displayPassedLines, monacoInstance]);
-
-    useMonacoDecorations({
-        editor: editorInstance,
-        model: editorInstance?.getModel() ?? null,
-        decorations,
-        line: displayActiveLine ?? displayErrorLine,
-        reveal: revealOptions,
-    });
+    useEffect(() => {
+        if (viewRef.current) revealCurrentLine(viewRef.current);
+    }, [revealCurrentLine]);
 
     return {
         displayCode: displaySnapshot.code,
+        extensions,
         handleCodeMount,
     };
 };
