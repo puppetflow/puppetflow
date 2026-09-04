@@ -40,6 +40,10 @@ return Application::configure(basePath: dirname(__DIR__))
         if ($trustedProxies !== []) {
             $middleware->trustProxies(at: $trustedProxies);
         }
+        $middleware->trimStrings(except: [
+            'code',
+            'default_flow_code',
+        ]);
         $middleware->append(\App\Http\Middleware\AddSecurityHeaders::class);
         $middleware->validateCsrfTokens(except: [
             'sso/saml/acs',

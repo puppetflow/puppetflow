@@ -6,6 +6,7 @@ import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import type { McpOauthClient, McpOauthConnection } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
+import { usePersistedAccordion } from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/InstanceMcpSection/usePersistedAccordion';
 import { formatDate, requestJson } from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/InstanceMcpSection/utils';
 import * as S from './styled';
 
@@ -25,7 +26,7 @@ interface Props {
 
 export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClients, oauthConnections, busy, clientBusy, readOnly, setBusy, setClientBusy, setError }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
-    const [expanded, setExpanded] = useState(true);
+    const [expanded, setExpanded] = usePersistedAccordion('oauth');
     const [currentClients, setCurrentClients] = useState(oauthClients);
     const [currentConnections, setCurrentConnections] = useState(oauthConnections);
     const [activePane, setActivePane] = useState<'registered' | 'connected'>('registered');
@@ -37,6 +38,7 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
         if (readOnly || busy || !clientName.trim() || !redirectUri.trim()) return;
 
         setBusy(true);
+        setClientBusy(true);
         setError(null);
         try {
             const payload = await requestJson('/workspace/mcp/oauth-clients', {
@@ -109,27 +111,27 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
             <SharedS.AccordionCard open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
                 <SharedS.AccordionSummary>
                     <SharedS.AccordionSummaryContent>
-                        <S.ModeLabel>Recommended for Claude and compatible clients</S.ModeLabel>
+                        <S.ModeLabel>Direct connection with automatic sign-in</S.ModeLabel>
                         <SharedS.CardTitle>
                             <Icon icon="lucide:shield-check" width={15} height={15} />
-                            OAuth MCP Endpoint
+                            Direct Workspace OAuth
                             <DocHelpLink
                                 path="/guide/mcp#use-the-oauth-mcp-endpoint"
                                 label="Open OAuth MCP endpoint documentation"
                             />
                         </SharedS.CardTitle>
                         <S.SectionHint>
-                            Add the OAuth MCP endpoint as a remote connector. Compatible clients discover OAuth automatically, register with PKCE, and ask each user to approve access without copying tokens.
+                            Use this workspace-specific endpoint for a private or custom connector. The client handles OAuth and asks the user to approve this exact workspace without copying an access token.
                         </S.SectionHint>
                     </SharedS.AccordionSummaryContent>
-                    <SharedS.AccordionToggle>
+                    <SharedS.AccordionToggle data-accordion-toggle>
                         {expanded ? 'Close' : 'Open'}
                         <Icon data-accordion-chevron icon="lucide:chevron-down" width={15} height={15} />
                     </SharedS.AccordionToggle>
                 </SharedS.AccordionSummary>
                 <SharedS.AccordionBody>
                     <S.EndpointGrid>
-                    <Input label="OAuth MCP endpoint" value={endpoint} readOnly />
+                    <Input label="Workspace OAuth MCP endpoint" value={endpoint} readOnly />
                     <Input label="Authorize URL" value={authorizeUrl} readOnly />
                     <Input label="Token URL" value={tokenUrl} readOnly />
                     </S.EndpointGrid>

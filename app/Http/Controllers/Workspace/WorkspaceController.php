@@ -193,6 +193,10 @@ class WorkspaceController extends Controller
             ownerColumn: 'owner_id',
             scopeColumn: 'visibility',
         );
+        $mcpBrokerEndpoint = config('puppetflow.mcp_broker.endpoint');
+        if (! is_string($mcpBrokerEndpoint)) {
+            $mcpBrokerEndpoint = 'https://mcp.puppetflow.com/mcp';
+        }
 
         return Inertia::render('Workspace/WorkspaceSettings/WorkspaceSettings', [
             'workspace' => $workspace,
@@ -243,6 +247,7 @@ class WorkspaceController extends Controller
             'teams' => $isWorkspaceAdmin
                 ? $workspace->teams()->orderBy('name')->get(['id', 'name'])
                 : [],
+            'mcpBrokerEndpoint' => $mcpBrokerEndpoint,
             'mcpEndpoint' => url('/api/mcp-server/http'),
             'mcpOauthEndpoint' => url("/api/workspaces/{$workspace->id}/mcp-server/http"),
             'mcpOauthAuthorizeUrl' => url('/oauth/authorize'),

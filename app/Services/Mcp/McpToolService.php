@@ -76,8 +76,10 @@ final class McpToolService
     private const DESTRUCTIVE_TOOLS = [
         'write_code_flow',
         'write_nodal_flow',
+        'create_flow_trigger',
         'update_flow_trigger',
         'delete_flow_trigger',
+        'create_flow_action',
         'update_flow_action',
         'delete_flow_action',
         'write_code_snippet',
@@ -89,6 +91,10 @@ final class McpToolService
     ];
 
     private const OPEN_WORLD_TOOLS = [
+        'create_flow_trigger',
+        'update_flow_trigger',
+        'create_flow_action',
+        'update_flow_action',
         'run_flow',
         'continue_human_validation',
     ];

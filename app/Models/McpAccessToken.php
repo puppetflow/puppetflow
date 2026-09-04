@@ -21,6 +21,7 @@ class McpAccessToken extends Model
         'last_used_at',
         'revoked_at',
         'stale',
+        'broker_created',
     ];
 
     protected $hidden = [
@@ -33,6 +34,7 @@ class McpAccessToken extends Model
             'last_used_at' => 'datetime',
             'revoked_at' => 'datetime',
             'stale' => 'boolean',
+            'broker_created' => 'boolean',
         ];
     }
 

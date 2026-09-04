@@ -451,6 +451,7 @@ const evaluateExpressionSource = (source: string, scope: { inputData: unknown; p
 
 const formatExpressionInterpolationPreview = (value: unknown) => {
     if (value === null || value === undefined) return '';
+    if (typeof value === 'function') return '';
     if (typeof value !== 'object') return String(value);
 
     try {

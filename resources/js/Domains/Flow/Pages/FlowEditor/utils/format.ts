@@ -7,3 +7,7 @@ export function formatFileSize(bytes: number): string {
 export function formatRunStorage(bytes: number | null | undefined): string {
     return `${((bytes ?? 0) / (1024 * 1024)).toFixed(2)} MB`;
 }
+
+export function shouldDisplayRunStorage(bytes: number | null | undefined): boolean {
+    return formatRunStorage(bytes) !== '0.00 MB';
+}
