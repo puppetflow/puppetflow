@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { useActiveOptionScroll } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useActiveOptionScroll';
 import { NODE_CATEGORIES } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
@@ -9,6 +10,7 @@ import {
     getNodeCategoryColor,
     getNodeIcon,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
+import { getHelpEntryActionsWidth, getHelpEntryDocumentationPath } from '@/Domains/Flow/Pages/FlowEditor/utils/helpDocumentation';
 import type { PendingConnectionTarget, PendingEdgeInsertion } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import * as S from './styled';
 
@@ -137,6 +139,8 @@ export default function NodePicker({
                             const entryDescription = [entry.nodalDesc, entry.desc]
                                 .find(description => description?.trim())
                                 ?.trim();
+                            const documentationPath = getHelpEntryDocumentationPath(entry);
+                            const actionsWidth = getHelpEntryActionsWidth(entry, documentationPath);
 
                             return (
                                 <S.NodeOptionRow
@@ -150,7 +154,7 @@ export default function NodePicker({
                                         type="button"
                                         $active={activeIndex === index}
                                         $color={entryColor}
-                                        $hasEditAction={Boolean(entry.editUrl)}
+                                        $actionsWidth={actionsWidth}
                                         $hasDescription={Boolean(entryDescription)}
                                         onClick={() => onAddNode(entry)}
                                     >
@@ -165,16 +169,27 @@ export default function NodePicker({
                                             {entryDescription && <span>{entryDescription}</span>}
                                         </S.NodeOptionContent>
                                     </S.NodeOption>
-                                    {entry.editUrl && (
-                                        <S.NodeOptionEditLink
-                                            href={entry.editUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            title={`Open ${formatToolboxNodeLabel(entry)} snippet`}
-                                            aria-label={`Open ${formatToolboxNodeLabel(entry)} snippet editor`}
-                                        >
-                                            <Icon icon="lucide:square-pen" width={13} height={13} />
-                                        </S.NodeOptionEditLink>
+                                    {actionsWidth > 0 && (
+                                        <S.NodeOptionActions>
+                                            {documentationPath && (
+                                                <DocHelpLink
+                                                    className="node-documentation-link"
+                                                    path={documentationPath}
+                                                    label={`Open ${formatToolboxNodeLabel(entry)} documentation`}
+                                                />
+                                            )}
+                                            {entry.editUrl && (
+                                                <S.NodeOptionEditLink
+                                                    href={entry.editUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    title={`Open ${formatToolboxNodeLabel(entry)} snippet`}
+                                                    aria-label={`Open ${formatToolboxNodeLabel(entry)} snippet editor`}
+                                                >
+                                                    <Icon icon="lucide:square-pen" width={13} height={13} />
+                                                </S.NodeOptionEditLink>
+                                            )}
+                                        </S.NodeOptionActions>
                                     )}
                                 </S.NodeOptionRow>
                             );

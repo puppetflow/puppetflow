@@ -1,4 +1,5 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { AboutInfo } from '@/Domains/Admin/Pages/Server/types';
 import * as S from '../shared.styled';
 
@@ -12,6 +13,7 @@ export default function AboutCard({ about }: Props) {
             <S.CardTitle>
                 <Icon icon="lucide:info" width={15} height={15} />
                 About
+                <DocHelpLink path="/self-hosting/admin#version" label="Open version documentation" />
             </S.CardTitle>
             <S.AboutRow>
                 <S.AboutLabel>Name</S.AboutLabel>

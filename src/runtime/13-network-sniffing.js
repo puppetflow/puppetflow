@@ -429,7 +429,7 @@ const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
  * @aliases capture network, monitor requests, inspect traffic
  * @desc Start a named asynchronous network capture. Matching request and response pairs are passed to options.sniffing in request arrival order while the main flow continues immediately.
  * @nodal-desc Capture matching browser requests and responses in a named profile while the main flow continues.
- * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number }
+ * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number, captures:array<object> }
  * @opt timeout: 60000, showUnfilteredInLogs: false
  * @nodal-param profileName [sniff-profile]: Name of the sniffing profile to create. Defaults to Default.
  * @nodal-param filters [object]: Optional filters combined with AND logic.

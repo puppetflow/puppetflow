@@ -10,6 +10,7 @@ export const Link = styled.a`
     border-radius: 50%;
     color: ${({ theme }) => theme.colors.text.tertiary};
     text-decoration: none;
+    cursor: pointer !important;
     transition:
         background ${({ theme }) => theme.transition.fast},
         color ${({ theme }) => theme.transition.fast};

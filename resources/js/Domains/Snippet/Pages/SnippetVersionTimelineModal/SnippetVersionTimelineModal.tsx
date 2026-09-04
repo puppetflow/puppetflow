@@ -311,7 +311,6 @@ export default function SnippetVersionTimelineModal({
                                             documentExtension="snippet.json"
                                             saved
                                             readOnly
-                                            allowShortcutsInModal
                                             onGraphChange={ignoreGraphChange}
                                         />
                                     </NodalSnapshotFrame>

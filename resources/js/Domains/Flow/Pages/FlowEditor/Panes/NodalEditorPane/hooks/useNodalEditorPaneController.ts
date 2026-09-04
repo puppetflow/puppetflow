@@ -13,7 +13,6 @@ export function useNodalEditorPaneController({
     onGraphChange,
     latestRun = null,
     readOnly = false,
-    allowShortcutsInModal = false,
     runProgress = null,
     onRun,
 }: NodalEditorPaneProps) {
@@ -24,9 +23,9 @@ export function useNodalEditorPaneController({
         graphRevision,
         onGraphChange,
         readOnly,
+        finallyEnabled: graphContext !== 'flow' || Boolean(flow.finally_enabled),
     });
     const interactionsController = useNodalInteractionsController({
-        allowShortcutsInModal,
         flow,
         graphContext,
         graphController,
@@ -61,7 +60,7 @@ export function useNodalEditorPaneController({
         editingNodeCurrent: interactionsController.editingNodeCurrent,
         editingNodeIsFinally: interactionsController.editingNodeIsFinally,
         editingStickyNoteId: graphController.editingStickyNoteId,
-        edges: graphController.edges,
+        edges: graphController.visibleEdges,
         generatedCode: graphController.generatedCode,
         handleAuxClick: interactionsController.handleAuxClick,
         handleContextMenu: interactionsController.handleContextMenu,
@@ -74,7 +73,7 @@ export function useNodalEditorPaneController({
         knifeDrag: graphController.knifeDrag,
         latestRun,
         miniMapFading: graphController.miniMapFading,
-        nodes: graphController.nodes,
+        nodes: graphController.visibleNodes,
         onRun,
         openNodeMenuId: graphController.openNodeMenuId,
         pasteNodesFromClipboard: interactionsController.pasteNodesFromClipboard,

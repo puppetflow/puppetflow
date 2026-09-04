@@ -18,3 +18,20 @@ export const Pane = styled.div`
         }
     }
 `;
+
+export const PreviewControls = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+`;
+
+export const SourceSelector = styled.div`
+    min-width: 0;
+    flex: 1;
+`;
+
+export const ExecutionSelector = styled.div`
+    width: 118px;
+    flex: 0 0 118px;
+`;

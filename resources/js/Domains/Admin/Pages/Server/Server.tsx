@@ -11,6 +11,11 @@ import type { ServerProps, ServerTab } from './types';
 import { getInitialTab } from './utils';
 import * as S from './styled';
 
+const documentationPaths: Partial<Record<ServerTab, string>> = {
+    general: '/self-hosting/admin#server-settings',
+    license: '/self-hosting/license-activation',
+};
+
 export default function Server({ serverSettings, license, about, storage, sso, ssoWorkspaces }: ServerProps) {
     const { auth, flash, settings, branding } = usePage<{ props: PageProps }>().props as unknown as PageProps;
     const [activeTab, setActiveTab] = useState<ServerTab>(() =>
@@ -42,7 +47,11 @@ export default function Server({ serverSettings, license, about, storage, sso, s
     };
 
     return (
-        <AppLayout title="Server">
+        <AppLayout
+            title="Server"
+            documentationPath={documentationPaths[activeTab]}
+            documentationLabel="Open server settings documentation"
+        >
             <PageTabs
                 tabs={tabs}
                 activeTab={activeTab}

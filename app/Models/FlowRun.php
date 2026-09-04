@@ -86,6 +86,12 @@ class FlowRun extends Model
         'screenshots_count',
         'downloads_count',
         'has_recording',
+        'recording_size_bytes',
+        'screenshots_size_bytes',
+        'downloads_size_bytes',
+        'flow_data_size_bytes',
+        'console_logs_size_bytes',
+        'storage_size_bytes',
         'legend',
         'meta',
         'internal_meta',
@@ -133,6 +139,12 @@ class FlowRun extends Model
             'console_logs' => 'array',
             'action_logs' => 'array',
             'has_recording' => 'boolean',
+            'recording_size_bytes' => 'integer',
+            'screenshots_size_bytes' => 'integer',
+            'downloads_size_bytes' => 'integer',
+            'flow_data_size_bytes' => 'integer',
+            'console_logs_size_bytes' => 'integer',
+            'storage_size_bytes' => 'integer',
             'queue_index' => 'integer',
             'proxy_snapshot' => SafeEncrypted::class.':true,true',
             'meta' => 'array',
@@ -308,9 +320,15 @@ class FlowRun extends Model
     {
         $secrets = $this->resolvedSecretValues();
 
-        return $secrets === null
-            ? $this->redactionUnavailableValue($value)
-            : $this->redactValue($value, $secrets);
+        if ($secrets === null) {
+            return $this->redactionUnavailableValue($value);
+        }
+
+        if ($secrets === []) {
+            return $value;
+        }
+
+        return $this->redactValue($value, $secrets);
     }
 
     /** @return list<string>|null */

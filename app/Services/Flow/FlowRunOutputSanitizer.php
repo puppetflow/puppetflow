@@ -92,14 +92,21 @@ final class FlowRunOutputSanitizer
      */
     private function stripInternalFields(array $value): array
     {
-        unset($value['__nodal_preview']);
-
-        foreach ($value as $key => $item) {
-            if (is_array($item)) {
-                $value[$key] = $this->stripInternalFields($item);
-            }
-        }
+        $this->stripInternalFieldsInPlace($value);
 
         return $value;
+    }
+
+    /** @param array<array-key, mixed> $value */
+    private function stripInternalFieldsInPlace(array &$value): void
+    {
+        unset($value['__nodal_preview']);
+
+        foreach ($value as &$item) {
+            if (is_array($item)) {
+                $this->stripInternalFieldsInPlace($item);
+            }
+        }
+        unset($item);
     }
 }

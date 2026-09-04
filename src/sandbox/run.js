@@ -36,13 +36,23 @@ for (const key of ['RUNNER_PROXY_SERVER', 'RUNNER_PROXY_USERNAME', 'RUNNER_PROXY
 }
 
 module.exports = async function(appDir, flowId, quiet) {
-  const _origDebug = console.debug;
-  console.debug = (...args) => {
-    const formatted = util.format(...args);
-    for (const line of formatted.split('\n')) {
-      _origDebug('[DEBUG] ' + line);
+  // Worker runs (quiet) get one structured line per message so multi-line output
+  // stays a single console entry; interactive terminal runs keep readable output.
+  const emitConsole = (level, args) => {
+    const message = util.format(...args);
+    if (quiet) {
+      process.stdout.write(`[${level}] __NOP_CONSOLE__${JSON.stringify(message)}\n`);
+      return;
+    }
+    for (const line of message.split('\n')) {
+      process.stdout.write(`[${level}] ${line}\n`);
     }
   };
+  console.log = (...args) => emitConsole('INFO', args);
+  console.info = (...args) => emitConsole('INFO', args);
+  console.debug = (...args) => emitConsole('DEBUG', args);
+  console.warn = (...args) => emitConsole('WARN', args);
+  console.error = (...args) => emitConsole('ERROR', args);
 
   console.debug('========================================');
   console.debug('Starting flow:', flowId);
@@ -832,6 +842,21 @@ module.exports = async function(appDir, flowId, quiet) {
     let _runError = null;
     let _stopReceived = false;
     let _internalOutput = null;
+    // The flow code is evaluated inside the closure below; terminate() is captured there
+    // so the finally block can still call it after run() returned or threw.
+    let _terminate = null;
+    // Called by run() then terminate(); earlier snapshots win so RUN keeps its initial state.
+    const __setNodalPreview = (preview) => {
+      _internalOutput = _internalOutput && typeof _internalOutput === 'object' ? _internalOutput : {};
+      const _current = _internalOutput.nodal_preview;
+      _internalOutput.nodal_preview = _current && typeof _current === 'object'
+        ? {
+          nodes: { ...preview.nodes, ..._current.nodes },
+          executions: { ...preview.executions, ..._current.executions },
+          executionMeta: { ...preview.executionMeta, ..._current.executionMeta },
+        }
+        : preview;
+    };
     const _stripInternalOutputFields = (value) => {
       if (!value || typeof value !== 'object') return value;
       if (Array.isArray(value)) return value.map(_stripInternalOutputFields);
@@ -938,6 +963,8 @@ module.exports = async function(appDir, flowId, quiet) {
 
         ${userCodeSyntaxError ? `_runError = new SyntaxError(${JSON.stringify(userCodeSyntaxError.message)});` : ''}
 
+        // Visual flows keep their FINALLY branch compiled but skip it while the flow setting is off.
+        if (typeof terminate === 'function' && process.env.FLOW_FINALLY_ENABLED !== 'false') _terminate = terminate;
         if (!_runError && typeof run === 'function') {
           console.debug('========================================');
           _result = await run($page, $json);
@@ -958,7 +985,7 @@ module.exports = async function(appDir, flowId, quiet) {
         if (!_runError) _runError = _sniffingError;
       }
 
-      if (typeof terminate === 'function') {
+      if (_terminate) {
         try {
           const _terminateStatus = _runError
             ? 'error'
@@ -967,7 +994,7 @@ module.exports = async function(appDir, flowId, quiet) {
           Object.assign(_result, _outputData);
           if (typeof _result.status === 'undefined') _result.status = _terminateStatus;
           _result = _stripInternalOutputFields(_result);
-          await terminate($page, $json, _result);
+          await _terminate($page, $json, _result);
           _result = _stripInternalOutputFields(_result);
         } catch (_tErr) {
           if (!_runError && (!_tErr || _tErr.name !== 'StopRun')) _runError = _tErr;
@@ -1130,7 +1157,14 @@ module.exports = async function(appDir, flowId, quiet) {
       if (_internalOutput && typeof _internalOutput === 'object' && Object.keys(_internalOutput).length > 0 && __runInternalOutputPath) {
         try {
           require('fs').writeFileSync(__runInternalOutputPath, JSON.stringify(_internalOutput, null, 2));
-        } catch (_) {}
+        } catch (_internalOutputError) {
+          console.error(
+            'Cannot save internal run preview:',
+            _internalOutputError && _internalOutputError.message
+              ? _internalOutputError.message
+              : _internalOutputError,
+          );
+        }
       }
 
       process.removeListener('SIGTERM', _handleTerminationSignal);

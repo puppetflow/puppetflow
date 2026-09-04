@@ -10,6 +10,7 @@ import * as S from './styled';
 
 interface DataTabProps {
     run: FlowRun;
+    flowId: Id;
     userDataOnly: boolean;
     onToggleUserDataOnly: (value: boolean) => void;
     copyToClipboard: (text: string) => void;
@@ -17,6 +18,7 @@ interface DataTabProps {
 
 export default function DataTab({
     run,
+    flowId,
     userDataOnly,
     onToggleUserDataOnly,
     copyToClipboard,
@@ -43,7 +45,7 @@ export default function DataTab({
                 {secretsPending ? (
                     <DataPanelLoader><Icon icon="lucide:loader-2" width={18} height={18} /></DataPanelLoader>
                 ) : run.input ? (
-                    <JsonViewer value={formatJson(run.input)} fill />
+                    <JsonViewer value={formatJson(run.input)} flowId={flowId} fill />
                 ) : (
                     <Layout.RunListEmpty><Layout.EmptyText>No input provided.</Layout.EmptyText></Layout.RunListEmpty>
                 )}
@@ -94,7 +96,7 @@ export default function DataTab({
                             : run.output;
                         return (
                             <>
-                                <JsonViewer value={formatJson(displayed)} fill />
+                                <JsonViewer value={formatJson(displayed)} flowId={flowId} fill />
                                 {hiddenKeys.length > 0 && (
                                     <S.HiddenKeysHint onClick={() => onToggleUserDataOnly(false)}>
                                         <Icon icon="lucide:eye-off" width={11} height={11} />

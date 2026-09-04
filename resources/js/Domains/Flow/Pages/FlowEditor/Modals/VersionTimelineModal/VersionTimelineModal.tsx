@@ -290,7 +290,6 @@ export default function VersionTimelineModal({
                                         graph={normalizeNodalGraph(detail.nodal_graph)}
                                         saved
                                         readOnly
-                                        allowShortcutsInModal
                                         onGraphChange={ignoreGraphChange}
                                     />
                                 </NodalSnapshotFrame>

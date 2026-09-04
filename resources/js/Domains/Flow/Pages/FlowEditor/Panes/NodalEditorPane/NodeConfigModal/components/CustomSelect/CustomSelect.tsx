@@ -18,6 +18,7 @@ export interface CustomSelectOption<T extends Id = string> {
     value: T;
     label: string;
     detail?: string;
+    detailBadge?: string;
     detailIcon?: string;
     icon?: string;
     iconText?: string;
@@ -25,6 +26,7 @@ export interface CustomSelectOption<T extends Id = string> {
     group?: string;
     groupLabel?: string;
     groupIcon?: string;
+    dividerBefore?: boolean;
 }
 
 export interface CustomSelectAction<T extends Id = string> {
@@ -44,6 +46,7 @@ interface CustomSelectProps<T extends Id> {
     showOptionValue?: boolean;
     searchThreshold?: number;
     headerSlot?: ReactNode;
+    footerHint?: ReactNode;
     actionSlot?: CustomSelectAction<T>;
     onRefresh?: () => void | Promise<void>;
     loading?: boolean;
@@ -69,6 +72,7 @@ export default function CustomSelect<T extends Id>({
     showOptionValue = true,
     searchThreshold = 0,
     headerSlot,
+    footerHint,
     actionSlot,
     onRefresh,
     loading,
@@ -362,6 +366,9 @@ export default function CustomSelect<T extends Id>({
                             </S.SelectLoading>
                         ) : filteredOptions.length > 0 ? filteredOptions.map((option, optionIndex) => (
                             <Fragment key={option.value}>
+                                {option.dividerBefore && optionIndex > 0 && (
+                                    <S.SelectOptionDivider aria-hidden />
+                                )}
                                 {option.group && option.group !== filteredOptions[optionIndex - 1]?.group && (
                                     <S.SelectOptionGroup>
                                         {option.groupIcon && <Icon icon={option.groupIcon} width={13} height={13} />}
@@ -382,22 +389,27 @@ export default function CustomSelect<T extends Id>({
                                         selectOption(option);
                                     }}
                                 >
-                                    <S.SelectOptionMain>
-                                        {(option.icon || option.iconText) && (
-                                            <S.SelectIconSlot>
-                                                {option.icon
-                                                    ? <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
-                                                    : <S.SelectTextIcon aria-hidden>{option.iconText}</S.SelectTextIcon>}
-                                            </S.SelectIconSlot>
-                                        )}
-                                        <strong>{option.label}</strong>
-                                    </S.SelectOptionMain>
+                                    {!option.detailBadge && (
+                                        <S.SelectOptionMain>
+                                            {(option.icon || option.iconText) && (
+                                                <S.SelectIconSlot>
+                                                    {option.icon
+                                                        ? <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
+                                                        : <S.SelectTextIcon aria-hidden>{option.iconText}</S.SelectTextIcon>}
+                                                </S.SelectIconSlot>
+                                            )}
+                                            <strong>{option.label}</strong>
+                                        </S.SelectOptionMain>
+                                    )}
                                     {option.detail ? (
-                                        <S.SelectOptionDetail>
+                                        <S.SelectOptionDetail $inline={Boolean(option.detailBadge)}>
+                                            {option.detailBadge && (
+                                                <S.SelectOptionBadge>{option.detailBadge}</S.SelectOptionBadge>
+                                            )}
                                             {option.detailIcon && (
                                                 <Icon icon={option.detailIcon} width={11} height={11} />
                                             )}
-                                            {option.detail}
+                                            <S.SelectOptionDetailText>{option.detail}</S.SelectOptionDetailText>
                                         </S.SelectOptionDetail>
                                     ) : showOptionValue && option.value !== option.label ? (
                                         <S.SelectOptionDetail>{option.value}</S.SelectOptionDetail>
@@ -413,6 +425,9 @@ export default function CustomSelect<T extends Id>({
                             <S.SelectEmpty>No option found.</S.SelectEmpty>
                         )}
                     </S.SelectOptions>
+                    {footerHint && (
+                        <S.SelectFooterHint>{footerHint}</S.SelectFooterHint>
+                    )}
                 </S.SelectDropdown>
             )}
         </S.SelectRoot>

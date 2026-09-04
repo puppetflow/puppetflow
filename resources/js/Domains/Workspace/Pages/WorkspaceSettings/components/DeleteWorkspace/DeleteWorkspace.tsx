@@ -3,6 +3,7 @@ import { router } from '@inertiajs/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
 import Input from '@/Shared/UI/Input/Input';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import * as S from './styled';
 
 interface Props {
@@ -30,6 +31,7 @@ export default function DeleteWorkspace({ workspaceName }: Props) {
                 <S.DangerTitle>
                     <Icon icon="lucide:triangle-alert" width={14} height={14} />
                     Danger Zone
+                    <DocHelpLink path="/guide/workspaces#danger-zone" label="Open workspace deletion documentation" />
                 </S.DangerTitle>
                 <S.DangerDescription>
                     Permanently delete this workspace and all its flows, run history, folders, webhooks and artifacts. This action cannot be undone.

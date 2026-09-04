@@ -301,9 +301,7 @@ export function useFlowEditorController({
         handlePublish,
         handleUnpublish,
         handleHistoricalVersionPublished,
-        latestNodalRun: runController.runs.data.find(run => run.input || run.output)
-            ?? runController.runs.data[0]
-            ?? null,
+        latestNodalRun: flow.latest_nodal_run ?? null,
         visibilityColor: flow.visibility === 'owner'
             ? theme.colors.accent.warning
             : flow.visibility === 'team'

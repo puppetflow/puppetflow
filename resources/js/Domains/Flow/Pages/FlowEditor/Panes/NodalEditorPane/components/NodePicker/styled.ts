@@ -173,7 +173,7 @@ export const NodeOptionRow = styled.div`
 export const NodeOption = styled.button<{
     $active?: boolean;
     $color?: string;
-    $hasEditAction?: boolean;
+    $actionsWidth?: number;
     $hasDescription?: boolean;
 }>`
     width: 100%;
@@ -181,7 +181,7 @@ export const NodeOption = styled.button<{
     grid-template-columns: 30px 1fr;
     align-items: ${({ $hasDescription }) => $hasDescription ? 'flex-start' : 'center'};
     gap: 9px;
-    padding: 9px ${({ $hasEditAction }) => ($hasEditAction ? '42px' : '10px')} 9px 10px;
+    padding: 9px ${({ $actionsWidth = 0 }) => `${10 + $actionsWidth}px`} 9px 10px;
     border-radius: ${({ theme }) => theme.radius.md};
     border: 1px solid ${({ theme, $active, $color }) => ($active ? ($color || theme.colors.border.focus) : 'transparent')};
     background: ${({ theme, $active }) => (
@@ -206,7 +206,12 @@ export const NodeOption = styled.button<{
     }
 
     ${({ $active, $color, theme }) => $active && `
-        box-shadow: inset 3px 0 0 ${$color || theme.colors.border.focus};
+        box-shadow:
+            inset 1px 0 0 ${$color || theme.colors.border.focus},
+            inset -1px 0 0 ${$color || theme.colors.border.focus},
+            inset 0px 1px 0 ${$color || theme.colors.border.focus},
+            inset 0px -1px 0 ${$color || theme.colors.border.focus}
+        ;
     `}
 
     &:not(:hover):not(:focus-visible) {
@@ -239,11 +244,40 @@ export const NodeOption = styled.button<{
     }
 `;
 
-export const NodeOptionEditLink = styled.a`
+export const NodeOptionActions = styled.div`
     position: absolute;
     top: 7px;
     right: 7px;
     z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+
+    > a {
+        border-radius: ${({ theme }) => theme.radius.sm};
+    }
+
+    > .node-documentation-link {
+        width: 18px;
+        height: 18px;
+        flex-basis: 18px;
+        margin-top: 1px;
+        border-radius: 0;
+        background: transparent;
+
+        &:hover,
+        &:focus-visible {
+            background: transparent;
+        }
+
+        svg {
+            width: 12px;
+            height: 12px;
+        }
+    }
+`;
+
+export const NodeOptionEditLink = styled.a`
     width: 26px;
     height: 26px;
     display: grid;

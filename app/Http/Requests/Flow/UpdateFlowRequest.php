@@ -68,6 +68,7 @@ class UpdateFlowRequest extends FormRequest
             'viewport_height' => ['sometimes', 'nullable', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:10000'],
             'disable_web_security' => ['sometimes', 'boolean'],
+            'finally_enabled' => ['sometimes', 'boolean'],
             'default_inputs' => ['sometimes', 'nullable', 'array'],
             'icon_type' => ['sometimes', 'in:emoji,color,upload'],
             'icon_value' => ['nullable', 'string', 'max:100'],

@@ -22,6 +22,8 @@ export const NodeConfigBackdrop = styled.div`
     button:not(:disabled),
     button:not(:disabled) *,
     select:not(:disabled),
+    a[href],
+    a[href] *,
     [role='button'],
     [role='button'] * {
         cursor: pointer;

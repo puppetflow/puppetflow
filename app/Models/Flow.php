@@ -44,6 +44,7 @@ use Illuminate\Validation\ValidationException;
  * @property int|null $workspace_proxy_id
  * @property array<array-key, mixed>|null $proxy_filter_rules
  * @property bool $export_artifacts_recording
+ * @property bool $finally_enabled
  * @property int $manual_run_score
  * @property bool $manual_run_production_mode
  * @property array<string, mixed>|null $manual_run_score_state
@@ -115,6 +116,7 @@ class Flow extends Model
         'viewport_height',
         'keyboard_speed',
         'disable_web_security',
+        'finally_enabled',
         'last_run_result',
         'last_run_at',
         'manual_run_score',
@@ -179,6 +181,7 @@ class Flow extends Model
             'viewport_height' => 'integer',
             'keyboard_speed' => 'integer',
             'disable_web_security' => 'boolean',
+            'finally_enabled' => 'boolean',
             'library_imported_at' => 'datetime',
             'content_updated_at' => 'datetime',
         ];

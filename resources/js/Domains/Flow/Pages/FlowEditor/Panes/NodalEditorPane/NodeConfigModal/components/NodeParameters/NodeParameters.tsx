@@ -6,11 +6,6 @@ import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/P
 import {
     CODE_NODE_NAME,
     CODE_NODE_VALUE_KEY,
-    isConditionalBranchNodeName,
-    LOOP_NODE_NAME,
-    NO_OP_NODE_NAME,
-    SET_NODE_NAME,
-    SET_OUTPUT_NODE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import { EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
@@ -19,26 +14,12 @@ import { useNodeValidationResources } from '@/Domains/Flow/Pages/FlowEditor/Pane
 import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 import CodeNodeEditor from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CodeNodeEditor/CodeNodeEditor';
 import NodeParameterField from './NodeParameterField/NodeParameterField';
-import RunOutputField from './RunOutputField/RunOutputField';
 import * as S from './styled';
-
-const canNameNodeOutput = (entryName: string) => {
-    return !isConditionalBranchNodeName(entryName) && ![
-        CODE_NODE_NAME,
-        LOOP_NODE_NAME,
-        NO_OP_NODE_NAME,
-        SET_NODE_NAME,
-        SET_OUTPUT_NODE_NAME,
-        'FUNCTION',
-    ].includes(entryName);
-};
 
 interface NodeParametersProps {
     node: CanvasNode;
     entry: HelpEntryDef;
     args: string[];
-    defaultNodeLabel: string;
-    outputVariableValue: string;
     expressionOutputData: unknown;
     autocompleteContext: NodalAutocompleteContext;
     connectedOutputPorts?: ReadonlySet<string>;
@@ -52,8 +33,6 @@ export default function NodeParameters({
     node,
     entry,
     args,
-    defaultNodeLabel,
-    outputVariableValue,
     expressionOutputData,
     autocompleteContext,
     connectedOutputPorts = EMPTY_OUTPUT_PORT_SET,
@@ -65,7 +44,6 @@ export default function NodeParameters({
     const formRef = useRef<HTMLDivElement | null>(null);
     const validationResources = useNodeValidationResources();
     const quickRequirementCreation = useQuickRequirementCreation();
-    const canNameOutput = canNameNodeOutput(entry.name);
     const missingRequiredIssues = useMemo(
         () => getMissingRequiredParameters(entry, node.values, connectedOutputPorts, validationResources),
         [connectedOutputPorts, entry, node.values, validationResources],
@@ -227,15 +205,6 @@ export default function NodeParameters({
                 />
             ) : args.length > 0 ? (
                 <S.Fields>
-                    {canNameOutput && (
-                        <RunOutputField
-                            node={node}
-                            defaultNodeLabel={defaultNodeLabel}
-                            outputVariableValue={outputVariableValue}
-                            readOnly={readOnly}
-                            onUpdateValue={onUpdateValue}
-                        />
-                    )}
                     {args.map(arg => {
                         const cleanArg = arg.replace(/\?$/, '').replace(/^\.\.\./, '');
                         const integrationMissing = (
@@ -271,16 +240,6 @@ export default function NodeParameters({
                             />
                         );
                     })}
-                </S.Fields>
-            ) : canNameOutput ? (
-                <S.Fields>
-                    <RunOutputField
-                        node={node}
-                        defaultNodeLabel={defaultNodeLabel}
-                        outputVariableValue={outputVariableValue}
-                        readOnly={readOnly}
-                        onUpdateValue={onUpdateValue}
-                    />
                 </S.Fields>
             ) : (
                 <S.Empty>No configurable parameters.</S.Empty>

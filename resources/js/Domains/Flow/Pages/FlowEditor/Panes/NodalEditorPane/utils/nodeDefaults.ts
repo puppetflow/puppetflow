@@ -27,12 +27,18 @@ export const snippetSuggestionToEntry = (snippet: SnippetSuggestion): HelpEntryD
     editUrl: snippet.edit_url,
 });
 
+/** Default value of a snippet / local function call argument: forwards the flow input key of the same name. */
+export const defaultCallArgumentValue = (argument: string): NodeParameterValue => ({
+    mode: 'expression',
+    value: `{{ $run.$input.${argument} }}`,
+});
+
 export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodeParameterValue> => {
     if (entry.name === CODE_NODE_NAME) {
         return {
             [CODE_NODE_VALUE_KEY]: {
                 mode: 'fixed' as const,
-                value: '// Write JavaScript for this step here.\n// Available: $page, $input, $nodes, $(nodeName), $run, $output, $context and $vars(...).\n// Store variables for following nodes with $run, for example:\n// $run.my_var = 32\n',
+                value: '// Write JavaScript for this step here.\n// Available: $page, $run ($run.$input, $run.$output, $run.$context, previous variables), $nodes, $(nodeName) and $vars(...).\n// Store variables for following nodes with $run, for example:\n// $run.my_var = 32\n',
             },
         };
     }
@@ -56,7 +62,7 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
     if (entry.name === LOOP_NODE_NAME) {
         return {
             mode: { mode: 'fixed' as const, value: 'items' },
-            items: { mode: 'expression' as const, value: '{{ $input.items || [] }}' },
+            items: { mode: 'expression' as const, value: '{{ $run.$input.items || [] }}' },
             iterations: { mode: 'fixed' as const, value: '3' },
             condition: { mode: 'expression' as const, value: '{{ false }}' },
             maxIterations: { mode: 'fixed' as const, value: '100' },
@@ -170,14 +176,14 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
 
     if (entry.name === FILTER_NODE_NAME) {
         return {
-            array: { mode: 'expression' as const, value: '{{ $input.items || [] }}' },
+            array: { mode: 'expression' as const, value: '{{ $run.$input.items || [] }}' },
             predicate: { mode: 'expression' as const, value: '{{ true }}' },
         };
     }
 
     if (entry.name === LIMIT_NODE_NAME) {
         return {
-            array: { mode: 'expression' as const, value: '{{ $input.items || [] }}' },
+            array: { mode: 'expression' as const, value: '{{ $run.$input.items || [] }}' },
             count: { mode: 'fixed' as const, value: '10' },
             offset: { mode: 'fixed' as const, value: '0' },
         };
@@ -234,10 +240,7 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
     }
 
     if (entry.category === 'Snippets' || entry.localFunctionId) {
-        return Object.fromEntries(getSignatureArgs(entry.signature).map(arg => [
-            arg,
-            { mode: 'expression' as const, value: `{{ $input.${arg} }}` },
-        ]));
+        return Object.fromEntries(getSignatureArgs(entry.signature).map(arg => [arg, defaultCallArgumentValue(arg)]));
     }
 
     return Object.fromEntries(

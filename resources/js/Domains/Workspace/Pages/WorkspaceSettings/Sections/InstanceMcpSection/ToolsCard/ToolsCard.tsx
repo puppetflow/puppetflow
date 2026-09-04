@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
 import Switch from '@/Shared/UI/Switch/Switch';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import * as TabsS from '@/Shared/UI/SettingsTabs/styled';
 import type { McpTool, WorkspaceMcpSettings } from '@/Domains/Workspace/types';
@@ -78,6 +79,10 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                 <SharedS.CardTitle>
                     <Icon icon="lucide:wrench" width={15} height={15} />
                     MCP Tools
+                    <DocHelpLink
+                        path="/reference/api#tools"
+                        label="Open MCP tools reference"
+                    />
                 </SharedS.CardTitle>
                 <S.SectionHint>
                     Choose which workspace tools are exposed to connected MCP clients. Framework reference tools are always available.

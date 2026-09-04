@@ -4,7 +4,7 @@ import { canDeactivateNode } from '../utils/node';
 
 export function createNodalKeyDownHandler(options: NodalKeyboardShortcutsOptions) {
     const {
-        allowShortcutsInModal, canvasMode, contextMenu, copySelectedNodes, deleteNodes,
+        canvasMode, contextMenu, copySelectedNodes, deleteNodes,
         duplicateSelectedNodes, editingNodeCurrent, edges, isActivePane, isAnotherPaneActive, lastPointerWorldRef,
         nodes, openNodeMenuId, pasteNodesFromClipboard, pendingConnectionTarget, pendingEdgeInsertion,
         pendingNodePlacementRef, pickerOpen, readOnly, redoGraph, selectedNodeIds, setContextMenu, setEditingNode,
@@ -47,7 +47,7 @@ export function createNodalKeyDownHandler(options: NodalKeyboardShortcutsOptions
         }
 
         if (isEditableShortcutTarget(event)) return;
-        if (editingNodeCurrent || (hasOpenModal() && !allowShortcutsInModal)) return;
+        if (editingNodeCurrent || hasOpenModal()) return;
 
         if (isCopyShortcut && isActivePane() && selectedNodeIds.size > 0) {
             event.preventDefault();

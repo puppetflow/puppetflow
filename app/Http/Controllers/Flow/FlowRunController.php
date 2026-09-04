@@ -132,18 +132,27 @@ class FlowRunController extends Controller
         return response()->json($paginated);
     }
 
-    public function show(Flow $flow, FlowRun $run): JsonResponse
+    public function show(Request $request, Flow $flow, FlowRun $run): JsonResponse
     {
         $this->authorizeFlowAccess($flow, Ability::VIEW);
         $this->authorizeRunAccess($flow, $run);
 
+        $includeNodalPreview = $request->boolean('include_nodal_preview');
+        if (! $includeNodalPreview) {
+            $run->setAttribute('internal_meta', null);
+        }
         $run->load(['triggeredBy:id,name', 'trigger:id,type,label']);
         $run->setAttribute(
             'has_recording',
             $this->features->enabled('recording_enabled') && $run->recordingExists(),
         );
         $run->redactSecretsForClient()
-            ->makeVisible(['console_logs', 'action_logs', 'code_snapshot']);
+            ->makeVisible([
+                'console_logs',
+                'action_logs',
+                'code_snapshot',
+                ...($includeNodalPreview ? ['internal_meta'] : []),
+            ]);
 
         return response()->json($run);
     }

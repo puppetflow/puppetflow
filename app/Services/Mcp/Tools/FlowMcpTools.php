@@ -63,16 +63,22 @@ final class FlowMcpTools implements McpToolHandler
             ]]],
             [
                 'name' => 'get_flow_details',
-                'description' => 'Get safe details for an MCP-enabled flow, including its default_inputs (called Flow Inputs in the editor). Flow Inputs are a shared JSON object configured on the flow and merged into every run, including manual, webhook, cron, API, and MCP runs. Values supplied by a specific run override default_inputs with the same top-level key. Flow code reads them through $input.key, while nodal expressions use {{ $input.key }}. Treat default_inputs as the flow\'s reusable input defaults and expected input shape, not as per-user or per-run state.',
+                'description' => 'Get safe details for an MCP-enabled flow, including its default_inputs (called Flow Inputs in the editor). Flow Inputs are a shared JSON object configured on the flow and merged into every run, including manual, webhook, cron, API, and MCP runs. Values supplied by a specific run override default_inputs with the same top-level key. Flow code reads them through $input.key, while nodal expressions use {{ $run.$input.key }}. Treat default_inputs as the flow\'s reusable input defaults and expected input shape, not as per-user or per-run state.',
                 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => ['flow_id' => $identifier]],
             ],
             ['name' => 'get_flow_source', 'description' => 'Get the source code and complete nodal graph for an MCP-enabled flow.', 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => ['flow_id' => $identifier]]],
             ['name' => 'list_folders', 'description' => 'List folders visible to the connected user in this workspace.', 'inputSchema' => ['type' => 'object', 'properties' => ['search' => ['type' => 'string']]]],
             ['name' => 'get_flow_creation_options', 'description' => 'List allowed visibility scopes, teams, and folders for creating a flow.', 'inputSchema' => ['type' => 'object', 'properties' => new \stdClass]],
-            ['name' => 'get_nodal_catalog', 'description' => 'Always-available Puppetflow framework reference. Lists runtime helpers or every visual and system node with signatures, aliases, descriptions, inputs, placeholders, defaults, options, nested fields, one-of constraints, return shapes, URL contexts, and typed ports. Use mode code before writing JavaScript, or mode nodal before writing a visual graph.', 'inputSchema' => ['type' => 'object', 'properties' => [
-                'mode' => ['type' => 'string', 'enum' => ['code', 'nodal'], 'default' => 'nodal'],
-                'query' => ['type' => 'string'],
-            ]]],
+            ['name' => 'get_nodal_catalog', 'description' => 'Always-available Puppetflow framework reference. Returns a compact, paginated node list by default. Provide query to retrieve complete matching definitions before authoring a flow. Use mode code for JavaScript helpers or mode nodal for visual nodes.', 'inputSchema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'properties' => [
+                    'mode' => ['type' => 'string', 'enum' => ['code', 'nodal'], 'default' => 'nodal'],
+                    'query' => ['type' => 'string', 'description' => 'Optional node name, alias, category, or capability. Matching entries include their complete definitions.'],
+                    'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20, 'description' => 'Page size. Defaults to 20 for the compact index and 5 for complete query results.'],
+                    'cursor' => ['type' => 'string', 'description' => 'Opaque next_cursor value from a previous response.'],
+                ],
+            ]],
             ['name' => 'list_flow_resources', 'description' => 'List workspace resources the connected user may reference while authoring a flow or snippet. Resource values, credentials, tokens, destinations, and snippet source are never returned. Provide flow_id to include flow-specific mailbox watchers.', 'inputSchema' => ['type' => 'object', 'properties' => [
                 'flow_id' => ['type' => 'string', 'description' => 'Optional flow context. Required to list mailbox watchers.'],
                 'kinds' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => AuthoringResourceProjection::KINDS], 'uniqueItems' => true],
@@ -212,6 +218,7 @@ final class FlowMcpTools implements McpToolHandler
                 'export_artifacts_screenshots' => (bool) $flow->export_artifacts_screenshots,
                 'export_artifacts_downloads' => (bool) $flow->export_artifacts_downloads,
                 'export_artifacts_recording' => (bool) $flow->export_artifacts_recording,
+                'finally_enabled' => (bool) $flow->finally_enabled,
             ],
             'created_at' => $flow->created_at?->toIso8601String(), 'updated_at' => $flow->updated_at?->toIso8601String(),
         ]];
@@ -289,13 +296,35 @@ final class FlowMcpTools implements McpToolHandler
     {
         $mode = McpToolArguments::string($arguments, 'mode') === 'code' ? 'code' : 'flow';
         $entries = collect($this->nodalCatalog->entries($mode));
-        if (($query = strtolower(trim(McpToolArguments::string($arguments, 'query')))) !== '') {
+        $query = strtolower(trim(McpToolArguments::string($arguments, 'query')));
+        if ($query !== '') {
             $entries = $entries->filter(
                 fn (array $entry): bool => str_contains(strtolower((string) json_encode($entry)), $query),
             );
         }
+        $entries = $entries->values();
+        $total = $entries->count();
+        $limit = max(1, min(McpToolArguments::integer($arguments, 'limit', $query === '' ? 20 : 5), 20));
+        $cursor = trim(McpToolArguments::string($arguments, 'cursor'));
+        $offset = ctype_digit($cursor) ? (int) $cursor : 0;
+        $page = $entries->slice($offset, $limit)->values();
+        if ($query === '') {
+            $page = $page->map(fn (array $entry): array => array_filter([
+                'name' => $entry['name'] ?? null,
+                'signature' => $entry['signature'] ?? null,
+                'description' => $entry['description'] ?? null,
+                'category' => $entry['category'] ?? null,
+                'aliases' => $entry['aliases'] ?? null,
+            ], fn (mixed $value): bool => $value !== null && $value !== [] && $value !== ''));
+        }
+        $nextOffset = $offset + $page->count();
 
-        return ['nodes' => $entries->values()];
+        return [
+            'mode' => $mode === 'code' ? 'code' : 'nodal',
+            'nodes' => $page,
+            'total' => $total,
+            'next_cursor' => $nextOffset < $total ? (string) $nextOffset : null,
+        ];
     }
 
     /** @param Arguments $arguments
@@ -377,6 +406,7 @@ final class FlowMcpTools implements McpToolHandler
             'published_version' => $flow->published_version_number,
             'available_in_mcp' => (bool) $flow->available_in_mcp,
             'queue_index' => $flow->queue_index,
+            'finally_enabled' => (bool) $flow->finally_enabled,
             'content_updated_at' => $flow->content_updated_at?->toJSON(),
             'url' => route('flows.show', $flow).'#code',
         ]];
@@ -475,7 +505,7 @@ final class FlowMcpTools implements McpToolHandler
             'description' => <<<'TEXT'
 Create or update a Puppetflow JavaScript flow. Use this tool only when the user explicitly asks for code, JavaScript, or code mode. For every general request to create a flow, prefer write_nodal_flow. Omit flow_id to create and provide name. To update, first call get_flow_source, then provide flow_id and its exact content_updated_at.
 
-The source must define `async function run($page, $input)`. `$page` is a Puppeteer Page and `$input` contains the flow's shared default_inputs merged with values supplied for the current run; current-run values override defaults with the same top-level key. In the Flow Editor, default_inputs are shown as Flow Inputs. Use `$input.key` for configurable values instead of hardcoding values that callers may need to change. When updating a flow, call get_flow_details to inspect its existing default_inputs. Use Puppetflow runtime helpers directly (for example `$gotoUrl`, `$loginRemember`, `$selectElement`, `$clickElement`, `$fillInput`, `$screenshot`, and `$generateResponseSuccess`). Call get_nodal_catalog with mode "code" to discover exact helper names, signatures, parameter descriptions, and return values. Call list_flow_resources when the flow needs workspace resources such as variables, AI models, channels, Data Tables, mailbox watchers, or snippets. Await browser actions and every helper that returns a Promise. Return a Puppetflow response, normally `$generateResponseSuccess("message", data)`; let errors throw unless the flow has a deliberate recovery path. Never import packages, create a browser, close `$page`, embed credentials, or invent resource IDs.
+The source must define `async function run($page, $input)`. `$page` is a Puppeteer Page and `$input` contains the flow's shared default_inputs merged with values supplied for the current run; current-run values override defaults with the same top-level key. In the Flow Editor, default_inputs are shown as Flow Inputs. Use `$input.key` for configurable values instead of hardcoding values that callers may need to change. When updating a flow, call get_flow_details to inspect its existing default_inputs. Use Puppetflow runtime helpers directly (for example `$gotoUrl`, `$loginRemember`, `$selectElement`, `$clickElement`, `$fillInput`, `$screenshot`, and `$generateResponseSuccess`). Query get_nodal_catalog with mode "code" for each needed capability to retrieve exact helper names, signatures, parameter descriptions, and return values; browse its paginated compact index only when discovery is needed. Call list_flow_resources when the flow needs workspace resources such as variables, AI models, channels, Data Tables, mailbox watchers, or snippets. Await browser actions and every helper that returns a Promise. Return a Puppetflow response, normally `$generateResponseSuccess("message", data)`; let errors throw unless the flow has a deliberate recovery path. Never import packages, create a browser, close `$page`, embed credentials, or invent resource IDs.
 
 Minimal source:
 async function run($page, $input) {
@@ -512,10 +542,10 @@ TEXT,
             'description' => <<<'TEXT'
 Create or update a Puppetflow visual flow from a nodal JSON graph. This is the default and preferred tool whenever the user asks to create a flow. Use write_code_flow only when the user explicitly requests code, JavaScript, or code mode. Omit flow_id to create and provide name. To update, first call get_flow_source, then provide flow_id and its exact content_updated_at. Puppetflow validates the graph and compiles the JavaScript server-side; do not provide generated code.
 
-Always call get_nodal_catalog with mode "nodal" before constructing the graph. Flow Inputs are stored as default_inputs: a shared JSON object merged into every run, with current-run values overriding defaults that use the same top-level key. In nodal values, reference configurable inputs with expressions such as `{{ $input.url }}` instead of hardcoding values callers may need to change. When updating a flow, call get_flow_details to inspect its existing default_inputs. Use exact catalog node names, required parameter keys, value types, defaults, options, and output port IDs. Call list_flow_resources when the graph needs workspace resources such as variables, AI models, channels, Data Tables, mailbox watchers, or snippets, and use only returned IDs. Every flow has canonical RUN and TERMINATE system nodes. Connect the main sequence from RUN; connect independent cleanup steps from TERMINATE. Ordinary edges default to sourcePort "output" and targetPort "input". If / Else branches use "true" and "false". Loop uses "loop" and "done". Callback ports use the exact `flow-*` ID from the catalog. Keep branches structured and converge them through Merge where needed. Node and edge IDs must be unique, edges cannot cross private-function scopes, and coordinates must be numeric.
+Query get_nodal_catalog with mode "nodal" for each needed capability before constructing the graph; browse its paginated compact index only when discovery is needed. Flow Inputs are stored as default_inputs: a shared JSON object merged into every run, with current-run values overriding defaults that use the same top-level key. In nodal values, reference configurable inputs with expressions such as `{{ $run.$input.url }}` instead of hardcoding values callers may need to change. Each node produces cumulative state: object results are merged into `$run`, while scalar and array results are available as `$run.$result`. Use `$nodes.last` for the latest state and `$('Node label')` for a specific node's state. When updating a flow, call get_flow_details to inspect its existing default_inputs. Use exact catalog node names, required parameter keys, value types, defaults, options, and output port IDs. Call list_flow_resources when the graph needs workspace resources such as variables, AI models, channels, Data Tables, mailbox watchers, or snippets, and use only returned IDs. Every flow has canonical RUN and TERMINATE system nodes. Connect the main sequence from RUN; connect independent cleanup steps from TERMINATE (they only run when the flow setting finally_enabled is on, which is off by default). Ordinary edges default to sourcePort "output" and targetPort "input". If / Else branches use "true" and "false". Loop uses "loop" and "done". Callback ports use the exact `flow-*` ID from the catalog. Keep branches structured and converge them through Merge where needed. Node and edge IDs must be unique, edges cannot cross private-function scopes, and coordinates must be numeric.
 
 Minimal graph:
-{"nodes":[{"id":"__system_run","name":"RUN","system":"run","x":0,"y":0,"values":{}},{"id":"step_1","name":"$gotoUrl","x":320,"y":0,"values":{"url":{"mode":"expression","value":"{{ $input.url }}"}}},{"id":"__system_terminate","name":"TERMINATE","system":"terminate","x":0,"y":400,"values":{}}],"edges":[{"id":"run_to_step","sourceNodeId":"__system_run","targetNodeId":"step_1","sourcePort":"output","targetPort":"input"}]}
+{"nodes":[{"id":"__system_run","name":"RUN","system":"run","x":0,"y":0,"values":{}},{"id":"step_1","name":"$gotoUrl","x":320,"y":0,"values":{"url":{"mode":"expression","value":"{{ $run.$input.url }}"}}},{"id":"__system_terminate","name":"TERMINATE","system":"terminate","x":0,"y":400,"values":{}}],"edges":[{"id":"run_to_step","sourceNodeId":"__system_run","targetNodeId":"step_1","sourcePort":"output","targetPort":"input"}]}
 
 For private functions, the FUNCTION declaration node uses system "function", name "FUNCTION", and an id equal to scopeId; all nodes in that function use the same scopeId. Calls use localFunctionId and callArguments. Snippet nodes use the exact $$ name and arguments returned by get_nodal_catalog or list_flow_resources. New flows are automatically available to MCP clients. On update, available_in_mcp can change that state. is_published follows the same preserve/true/false behavior as write_code_flow.
 TEXT,
@@ -529,6 +559,10 @@ TEXT,
                 ],
                 'properties' => [
                     ...$this->sharedWriterProperties(),
+                    'finally_enabled' => [
+                        'type' => 'boolean',
+                        'description' => 'Enable the TERMINATE branch after every run. Creation default: false. Omit during update to preserve the current value.',
+                    ],
                     'nodal_graph' => McpNodalGraphSchema::make('flow'),
                 ],
             ],

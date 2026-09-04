@@ -5,13 +5,13 @@ export const HelpEntryRow = styled.div`
     margin-bottom: 6px;
 `;
 
-export const HelpEntry = styled.button<{ $active?: boolean; $color?: string; $hasEditAction?: boolean }>`
+export const HelpEntry = styled.button<{ $active?: boolean; $color?: string; $actionsWidth?: number }>`
     width: 100%;
     display: grid;
     grid-template-columns: 30px 1fr;
     align-items: flex-start;
     gap: 9px;
-    padding: 9px ${({ $hasEditAction }) => ($hasEditAction ? '42px' : '10px')} 9px 10px;
+    padding: 9px ${({ $actionsWidth = 0 }) => `${10 + $actionsWidth}px`} 9px 10px;
     border-radius: ${({ theme }) => theme.radius.md};
     border: 1px solid ${({ theme, $active, $color }) => ($active ? ($color || theme.colors.border.focus) : 'transparent')};
     background: ${({ theme, $active }) => (
@@ -36,7 +36,12 @@ export const HelpEntry = styled.button<{ $active?: boolean; $color?: string; $ha
     }
 
     ${({ $active, $color, theme }) => $active && `
-        box-shadow: inset 3px 0 0 ${$color || theme.colors.border.focus};
+        box-shadow:
+            inset 1px 0 0 ${$color || theme.colors.border.focus},
+            inset -1px 0 0 ${$color || theme.colors.border.focus},
+            inset 0px 1px 0 ${$color || theme.colors.border.focus},
+            inset 0px -1px 0 ${$color || theme.colors.border.focus}
+        ;
     `}
 
     &:not(:hover):not(:focus-visible) {
@@ -44,11 +49,40 @@ export const HelpEntry = styled.button<{ $active?: boolean; $color?: string; $ha
     }
 `;
 
-export const HelpEntryEditLink = styled.a`
+export const HelpEntryActions = styled.div`
     position: absolute;
     top: 7px;
     right: 7px;
     z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+
+    > a {
+        border-radius: ${({ theme }) => theme.radius.sm};
+    }
+
+    > .entry-documentation-link {
+        width: 18px;
+        height: 18px;
+        flex-basis: 18px;
+        margin-top: 1px;
+        border-radius: 0;
+        background: transparent;
+
+        &:hover,
+        &:focus-visible {
+            background: transparent;
+        }
+
+        svg {
+            width: 12px;
+            height: 12px;
+        }
+    }
+`;
+
+export const HelpEntryEditLink = styled.a`
     width: 26px;
     height: 26px;
     display: grid;

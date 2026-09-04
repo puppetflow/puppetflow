@@ -7,7 +7,6 @@ import { getNodeFlowPortDefinitions } from './flowParameters';
 export const CODE_NODE_NAME = 'Code';
 export const STICKY_NOTE_NODE_NAME = '__sticky_note';
 export const CODE_NODE_VALUE_KEY = 'code';
-export const NODE_RUN_OUTPUT_KEY = '__runOutputKey';
 export const IF_ELSE_NODE_NAME = 'If / Else';
 export const DATA_TABLE_ROW_EXISTS_NODE_NAME = '$dataTableRowExists';
 export const DATA_TABLE_ROW_DOES_NOT_EXIST_NODE_NAME = '$dataTableRowDoesNotExist';
@@ -88,7 +87,7 @@ export const FUNCTION_DECLARATION_ENTRY: HelpEntryDef = {
         },
         arguments: {
             label: 'Arguments',
-            description: 'Define argument names as object keys. They are available through $input inside the function.',
+            description: 'Define argument names as object keys. They are available through $run.$input inside the function.',
             placeholder: '{\n  "customer": null,\n  "options": null\n}',
             input: 'custom-object',
             valueType: 'custom-object',
@@ -113,7 +112,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
             condition: {
                 label: 'Condition',
                 description: 'Expression that must return true or false. Use {{ ... }} to read input or previous node results.',
-                placeholder: '{{ $input.status === "active" }}',
+                placeholder: '{{ $run.$input.status === "active" }}',
                 required: true,
                 validationRequired: true,
             },
@@ -140,7 +139,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
             items: {
                 label: 'Items',
                 description: 'Array to iterate when mode is Items. Inside the loop branch, use $run.$loop.item for the current item and $run.$loop.index for its position.',
-                placeholder: '{{ $input.items || [] }}',
+                placeholder: '{{ $run.$input.items || [] }}',
                 valueType: 'array',
                 required: false,
             },
@@ -207,8 +206,8 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         nodalParams: {
             array: {
                 label: 'Array',
-                description: 'Array to filter. Example: {{ $input.items || [] }} or {{ $nodes.last }}.',
-                placeholder: '{{ $input.items || [] }}',
+                description: 'Array to filter. Example: {{ $run.$input.items || [] }} or {{ $nodes.last.$result || [] }}.',
+                placeholder: '{{ $run.$input.items || [] }}',
                 valueType: 'array',
                 required: true,
             },
@@ -231,8 +230,8 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         nodalParams: {
             array: {
                 label: 'Array',
-                description: 'Array to slice. Example: {{ $input.items || [] }} or {{ $nodes.last }}.',
-                placeholder: '{{ $input.items || [] }}',
+                description: 'Array to slice. Example: {{ $run.$input.items || [] }} or {{ $nodes.last.$result || [] }}.',
+                placeholder: '{{ $run.$input.items || [] }}',
                 valueType: 'array',
                 required: true,
             },
@@ -263,7 +262,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
             variables: {
                 label: 'Variables',
                 description: 'Run variables to create for following nodes under $run. Use Form for named variables, or JSON for an object.',
-                placeholder: '{\n  "customerName": "{{ $nodes.last }}"\n}',
+                placeholder: '{\n  "customerName": "{{ $nodes.last.$result }}"\n}',
                 input: 'custom-object',
                 valueType: 'custom-object',
                 required: true,
@@ -281,7 +280,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
             variables: {
                 label: 'Output variables',
                 description: 'Output variables to add to the final response. Use Form for named variables, or JSON for an object.',
-                placeholder: '{\n  "customerName": "{{ $nodes.last }}"\n}',
+                placeholder: '{\n  "customerName": "{{ $nodes.last.$result }}"\n}',
                 input: 'custom-object',
                 valueType: 'custom-object',
                 required: true,
@@ -299,7 +298,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
             metadata: {
                 label: 'Metadata',
                 description: 'Metadata keys to store on the run. Use Form for named metadata, or JSON for an object.',
-                placeholder: '{\n  "customer": "{{ $input.customer }}"\n}',
+                placeholder: '{\n  "customer": "{{ $run.$input.customer }}"\n}',
                 input: 'custom-object',
                 valueType: 'custom-object',
                 required: true,
@@ -318,7 +317,7 @@ export const SYSTEM_NODE_ENTRIES: Record<'run' | 'terminate' | 'function', HelpE
     terminate: {
         name: 'TERMINATE',
         signature: 'async function terminate($page, $input, $output)',
-        desc: 'Always executed after run, even when the run fails.',
+        desc: 'Runs after the flow, including after failures, when the FINALLY node setting is on.',
         category: 'System',
     },
     function: {

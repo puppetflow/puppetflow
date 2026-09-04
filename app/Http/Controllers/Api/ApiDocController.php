@@ -187,6 +187,7 @@ class ApiDocController extends Controller
                             'viewport_height' => ['type' => 'integer', 'nullable' => true],
                             'keyboard_speed' => ['type' => 'integer', 'nullable' => true],
                             'disable_web_security' => ['type' => 'boolean'],
+                            'finally_enabled' => ['type' => 'boolean'],
                             'library_locked' => ['type' => 'boolean'],
                             'library_namespace' => ['type' => 'string', 'nullable' => true],
                             'library_reference' => ['type' => 'string', 'nullable' => true],

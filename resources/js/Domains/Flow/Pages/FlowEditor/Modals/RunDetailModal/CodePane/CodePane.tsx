@@ -51,7 +51,6 @@ export default function CodePane({ run, flow, visualGraph, resolvedTheme, consol
                         latestRun={run}
                         onGraphChange={handlePreviewGraphChange}
                         readOnly
-                        allowShortcutsInModal
                         leftView="code"
                         runProgress={{
                             activeNodeId: isActiveRun ? visualProgress.activeNodeId : null,

@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * @phpstan-type McpArguments array<string, mixed>
- * @phpstan-type McpToolDefinition array{name: string, title: string, description: string, inputSchema: array<string, mixed>, annotations: array{title: string, readOnlyHint: bool, destructiveHint: bool}}
+ * @phpstan-type McpToolDefinition array{name: string, title: string, description: string, inputSchema: array<string, mixed>, outputSchema: array<string, mixed>, annotations: array{title: string, readOnlyHint: bool, destructiveHint: bool, openWorldHint: bool}}
  */
 final class McpToolService
 {
@@ -73,6 +73,76 @@ final class McpToolService
         'set_member_teams' => ['title' => 'Set Member Teams', 'readOnly' => false],
     ];
 
+    private const DESTRUCTIVE_TOOLS = [
+        'write_code_flow',
+        'write_nodal_flow',
+        'update_flow_trigger',
+        'delete_flow_trigger',
+        'update_flow_action',
+        'delete_flow_action',
+        'write_code_snippet',
+        'write_nodal_snippet',
+        'run_flow',
+        'continue_human_validation',
+        'replace_team_members',
+        'set_member_teams',
+    ];
+
+    private const OPEN_WORLD_TOOLS = [
+        'run_flow',
+        'continue_human_validation',
+    ];
+
+    private const OUTPUT_FIELDS = [
+        'search_flows' => ['flows' => 'array'],
+        'get_flow_details' => ['flow' => 'object'],
+        'get_flow_source' => ['flow' => 'object'],
+        'list_folders' => ['folders' => 'array'],
+        'get_flow_creation_options' => ['visibility_scopes' => 'array', 'teams' => 'array', 'folders' => 'array', 'defaults' => 'object'],
+        'get_nodal_catalog' => ['mode' => 'string', 'nodes' => 'array', 'total' => 'integer', 'next_cursor' => 'nullable-string'],
+        'list_flow_resources' => ['resources' => 'object'],
+        'write_code_flow' => ['flow' => 'object'],
+        'write_nodal_flow' => ['flow' => 'object'],
+        'publish_flow' => ['flow' => 'object'],
+        'unpublish_flow' => ['flow' => 'object'],
+        'list_flow_triggers' => ['triggers' => 'array'],
+        'create_flow_trigger' => ['trigger' => 'object'],
+        'update_flow_trigger' => ['trigger' => 'object'],
+        'delete_flow_trigger' => ['deleted' => 'boolean', 'trigger_id' => 'string'],
+        'list_flow_actions' => ['actions' => 'array'],
+        'create_flow_action' => ['action' => 'object'],
+        'update_flow_action' => ['action' => 'object'],
+        'delete_flow_action' => ['deleted' => 'boolean', 'action_id' => 'string'],
+        'search_snippets' => ['snippets' => 'array'],
+        'get_snippet_source' => ['snippet' => 'object'],
+        'get_snippet_creation_options' => ['visibility_scopes' => 'array', 'teams' => 'array', 'defaults' => 'object'],
+        'write_code_snippet' => ['snippet' => 'object'],
+        'write_nodal_snippet' => ['snippet' => 'object'],
+        'publish_snippet' => ['snippet' => 'object'],
+        'unpublish_snippet' => ['snippet' => 'object'],
+        'search_runs' => ['runs' => 'array'],
+        'list_flow_runs' => ['runs' => 'array'],
+        'run_flow' => ['run_id' => 'integer', 'flow_id' => 'string', 'status' => 'string'],
+        'get_run' => ['run' => 'object'],
+        'get_run_result' => ['run_id' => 'integer', 'status' => 'string', 'output' => 'mixed', 'error_message' => 'nullable-string', 'duration_ms' => 'nullable-integer'],
+        'continue_human_validation' => ['run_id' => 'integer', 'status' => 'string', 'continue_requested' => 'boolean'],
+        'list_artifacts' => ['artifacts' => 'array'],
+        'get_latest_screenshot' => ['run_id' => 'integer', 'screenshot' => 'mixed'],
+        'download_artifact' => ['artifact' => 'object', 'authorization' => 'string'],
+        'get_recording' => ['run_id' => 'integer', 'url' => 'string', 'authorization' => 'string'],
+        'get_recording_lastshot' => ['run_id' => 'integer', 'url' => 'string', 'authorization' => 'string'],
+        'get_current_workspace' => ['workspace' => 'object'],
+        'update_current_workspace' => ['workspace' => 'object'],
+        'list_workspace_members' => ['members' => 'array'],
+        'list_teams' => ['teams' => 'array'],
+        'get_team' => ['team' => 'object'],
+        'create_team' => ['team' => 'object'],
+        'update_team' => ['team' => 'object'],
+        'add_team_members' => ['team' => 'object'],
+        'replace_team_members' => ['team' => 'object'],
+        'set_member_teams' => ['user_id' => 'string', 'workspace_id' => 'string', 'team_ids' => 'array'],
+    ];
+
     private const ALWAYS_AVAILABLE_TOOLS = [
         'get_nodal_catalog',
     ];
@@ -114,6 +184,8 @@ final class McpToolService
     ];
 
     private const HUMAN_DESCRIPTIONS = [
+        'get_flow_details' => 'Read the details and Flow Inputs of a flow exposed to MCP.',
+        'run_flow' => 'Run a flow exposed to MCP, optionally overriding its Flow Inputs.',
         'get_nodal_catalog' => 'Browse the nodes and capabilities available when building visual flows.',
         'list_flow_resources' => 'List the workspace resources that can be referenced by a flow or snippet.',
         'write_code_flow' => 'Create or update a flow written in JavaScript.',
@@ -192,10 +264,12 @@ final class McpToolService
             return [
                 ...$definition,
                 'title' => $metadata['title'],
+                'outputSchema' => $this->outputSchema($name),
                 'annotations' => [
                     'title' => $metadata['title'],
                     'readOnlyHint' => $metadata['readOnly'],
-                    'destructiveHint' => ! $metadata['readOnly'],
+                    'destructiveHint' => in_array($name, self::DESTRUCTIVE_TOOLS, true),
+                    'openWorldHint' => in_array($name, self::OPEN_WORLD_TOOLS, true),
                 ],
             ];
         }, $definitions);
@@ -206,6 +280,36 @@ final class McpToolService
         }
 
         return $this->tools;
+    }
+
+    /** @return array<string, mixed> */
+    private function outputSchema(string $name): array
+    {
+        $fields = self::OUTPUT_FIELDS[$name] ?? null;
+        if ($fields === null) {
+            throw new \LogicException("MCP tool {$name} is missing an output schema.");
+        }
+
+        $properties = [];
+        foreach ($fields as $field => $type) {
+            $properties[$field] = match ($type) {
+                'array' => ['type' => 'array', 'items' => new \stdClass],
+                'object' => ['type' => 'object'],
+                'boolean' => ['type' => 'boolean'],
+                'integer' => ['type' => 'integer'],
+                'nullable-integer' => ['type' => ['integer', 'null']],
+                'nullable-string' => ['type' => ['string', 'null']],
+                'string' => ['type' => 'string'],
+                default => new \stdClass,
+            };
+        }
+
+        return [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'required' => array_keys($fields),
+            'properties' => $properties,
+        ];
     }
 
     /**

@@ -7,6 +7,9 @@ export const SettingsHint = styled.div`
 
 export const SettingsSectionLabel = styled.div`
     ${settingsSectionLabelStyles}
+    display: flex;
+    align-items: center;
+    gap: 4px;
 `;
 
 export const SettingsSeparator = styled.hr`

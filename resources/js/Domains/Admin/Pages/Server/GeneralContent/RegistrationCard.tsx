@@ -1,6 +1,7 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { ToggleGroup, ToggleRow, ToggleInfo, ToggleLabel } from './RegistrationCard.styled';
 import Switch from '@/Shared/UI/Switch/Switch';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import * as SharedStyles from '../shared.styled';
 
 const S = {
@@ -31,6 +32,7 @@ export default function RegistrationCard({
             <S.CardTitle>
                 <Icon icon="lucide:user-plus" width={15} height={15} />
                 Authentication
+                <DocHelpLink path="/self-hosting/admin#authentication" label="Open authentication settings documentation" />
             </S.CardTitle>
             <S.ToggleGroup>
                 <S.ToggleRow>

@@ -6,6 +6,7 @@ import { formatDateTime } from '@/Shared/Utils/formatDate';
 import { ucfirst } from '@/Shared/Utils/string';
 import { STATUS_VARIANT } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { getRunMeta } from '@/Domains/Flow/Pages/FlowEditor/utils/runDisplay';
+import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import MetadataPopover from '@/Domains/Flow/Pages/FlowEditor/Panes/InfoPane/components/MetadataPopover/MetadataPopover';
 import * as S from './styled';
 
@@ -64,6 +65,10 @@ export default function LatestRunCard({ flowId, run, onViewDetails, onKill }: La
                                     {(run.duration_ms / 1000).toFixed(1)}s
                                 </S.RunItemArtifact>
                             )}
+                            <S.RunItemArtifact title="Total storage">
+                                <Icon icon="lucide:server" width={10} height={10} />
+                                {formatRunStorage(run.storage_size_bytes)}
+                            </S.RunItemArtifact>
                             {run.screenshots_count > 0 && (
                                 <S.RunItemArtifact title="Screenshots">
                                     <Icon icon="lucide:camera" width={10} height={10} />

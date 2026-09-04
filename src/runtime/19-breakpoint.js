@@ -3,6 +3,12 @@
 // ================================
 
 const $enableBreakpoint = $json.$context.enable_breakpoint || process.env.ENABLE_BREAKPOINT === 'true';
+/* @help Advanced
+ * @sig $breakpoint(label?, context?)
+ * @aliases debug breakpoint, pause execution
+ * @desc Pause an enabled run in the terminal debugger with optional values available for inspection.
+ * @availability code
+ */
 const $breakpoint = async function(label, context = {}) {
   __emitAction('breakpoint', label || '');
   if (!$enableBreakpoint) {

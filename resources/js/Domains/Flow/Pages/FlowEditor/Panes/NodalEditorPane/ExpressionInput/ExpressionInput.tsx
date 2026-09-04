@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import type { OnMount } from '@monaco-editor/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import type { NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
@@ -67,6 +68,7 @@ export default function ExpressionInput({
     const fieldRef = useRef<HTMLDivElement | null>(null);
     const variableCursorOffsetRef = useRef<number | null>(null);
     const pendingVariableCursorOffsetRef = useRef<number | null>(null);
+    const pendingExpressionFocusRef = useRef(false);
     const isExpressionMode = value.mode === 'expression';
     const autocompleteOutputData = useMemo(() => asRecord(outputData), [outputData]);
     const {
@@ -78,7 +80,6 @@ export default function ExpressionInput({
         inlineEditorRef,
         refreshInlineExpressionCompletions,
         updateExpression,
-        updateFixedValue,
         updateFullscreenValue,
     } = useExpressionEditors({
         autocompleteContext,
@@ -118,15 +119,15 @@ export default function ExpressionInput({
     });
     const handleModeChange = (nextValue: ScalarNodeParameterValue) => {
         const modeChanged = nextValue.mode !== value.mode;
+        if (modeChanged && nextValue.mode === 'expression') {
+            pendingExpressionFocusRef.current = true;
+        }
         onChange(nextValue);
         if (!modeChanged) return;
 
-        requestAnimationFrame(() => {
-            if (nextValue.mode === 'expression') {
-                inlineEditorRef.current?.focus();
-                return;
-            }
+        if (nextValue.mode === 'expression') return;
 
+        requestAnimationFrame(() => {
             // Skip inputs belonging to a nested ExpressionInput (e.g. an
             // object field name editor hosted in this field's header).
             const input = Array.from(fieldRef.current?.querySelectorAll<HTMLElement>(
@@ -139,6 +140,26 @@ export default function ExpressionInput({
 
             inlineEditorRef.current?.focus();
         });
+    };
+
+    const handleFixedTextChange = (nextValue: string, cursorOffset: number) => {
+        if (nextValue.slice(Math.max(0, cursorOffset - 3), cursorOffset) === '{{ ') {
+            pendingExpressionFocusRef.current = true;
+            onChange({ mode: 'expression', value: nextValue });
+            return;
+        }
+
+        handleModeChange({ mode: 'fixed', value: nextValue });
+    };
+
+    const handleExpressionEditorMount: OnMount = (currentEditor, monaco) => {
+        handleInlineEditorMount(currentEditor, monaco);
+        if (!pendingExpressionFocusRef.current) return;
+
+        const model = currentEditor.getModel();
+        if (model) currentEditor.setPosition(model.getPositionAt(model.getValueLength()));
+        currentEditor.focus();
+        pendingExpressionFocusRef.current = false;
     };
 
     const captureVariableCursor = () => {
@@ -245,7 +266,7 @@ export default function ExpressionInput({
                     readOnly={readOnly}
                     onExpand={onExpand}
                     onChange={handleModeChange}
-                    onEditorMount={handleInlineEditorMount}
+                    onEditorMount={handleExpressionEditorMount}
                     onEditorChange={nextValue => updateExpression(
                         nextValue,
                         inlineEditorRef.current,
@@ -274,11 +295,17 @@ export default function ExpressionInput({
                     fixedInput={fixedInput}
                     onExpand={onExpand}
                     onChange={handleModeChange}
+                    onTextChange={handleFixedTextChange}
                     onTextareaMount={handleFixedTextareaEditorMount}
-                    onTextareaChange={nextValue => updateFixedValue(
-                        nextValue,
-                        inlineEditorRef.current,
-                    )}
+                    onTextareaChange={nextValue => {
+                        const currentEditor = inlineEditorRef.current;
+                        const model = currentEditor?.getModel();
+                        const position = currentEditor?.getPosition();
+                        const cursorOffset = model && position
+                            ? model.getOffsetAt(position)
+                            : nextValue.length;
+                        handleFixedTextChange(nextValue, cursorOffset);
+                    }}
                     onVariablePickerOpen={captureVariableCursor}
                     onVariableSelect={insertVariable}
                     onRefreshSuggestions={refreshSuggestions}
@@ -290,7 +317,6 @@ export default function ExpressionInput({
                     inputType={inputType}
                     value={value}
                     placeholder={placeholder}
-                    outputData={outputData}
                     autocompleteContext={autocompleteContext}
                     theme={theme}
                     readOnly={readOnly}

@@ -40,7 +40,7 @@ export const CollapseSpacer = styled.span`
     width: 14px;
 `;
 
-export const TypeBadge = styled.span`
+export const TypeBadge = styled.span<{ $draggable: boolean }>`
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -57,25 +57,23 @@ export const TypeBadge = styled.span`
     color: ${({ theme }) => theme.colors.text.tertiary};
     background: ${({ theme }) => theme.colors.bg.primary};
     flex-shrink: 0;
-    cursor: pointer;
-    user-select: none;
+    cursor: ${({ $draggable }) => $draggable ? 'grab' : 'default'};
+    user-select: ${({ $draggable }) => $draggable ? 'none' : 'text'};
 
     &&& {
-        cursor: pointer;
-        user-select: none;
+        cursor: ${({ $draggable }) => $draggable ? 'grab' : 'default'};
+        user-select: ${({ $draggable }) => $draggable ? 'none' : 'text'};
     }
 
     &&& * {
-        cursor: pointer;
-        user-select: none;
+        cursor: ${({ $draggable }) => $draggable ? 'grab' : 'default'};
+        user-select: ${({ $draggable }) => $draggable ? 'none' : 'text'};
     }
 
     &:hover {
-        background: color-mix(
-            in srgb,
-            ${({ theme }) => theme.colors.bg.hover} 40%,
-            ${({ theme }) => theme.colors.bg.primary}
-        );
+        background: ${({ theme, $draggable }) => $draggable
+            ? `color-mix(in srgb, ${theme.colors.bg.hover} 40%, ${theme.colors.bg.primary})`
+            : theme.colors.bg.primary};
     }
 `;
 

@@ -168,7 +168,7 @@ class McpServerController extends Controller
                 'name' => app(BrandingProvider::class)->current()['name'],
                 'version' => config('app.version', '1.0.0'),
             ],
-            'instructions' => 'When creating a flow or snippet, prefer write_nodal_flow or write_nodal_snippet. Use a code writer only when the user explicitly requests code, JavaScript, or code mode. get_nodal_catalog is the always-available reference for Puppetflow helpers and visual nodes.',
+            'instructions' => 'When creating a flow or snippet, prefer write_nodal_flow or write_nodal_snippet. Use a code writer only when the user explicitly requests code, JavaScript, or code mode. Query get_nodal_catalog for complete definitions of each needed capability; without a query it returns a paginated compact index.',
         ];
     }
 
@@ -198,25 +198,61 @@ class McpServerController extends Controller
         }
         /** @var string $artifactRouteName */
         $artifactRouteName = $request->attributes->get('mcpArtifactRouteName', 'mcp.artifacts.download');
-        $payload = $this->tools->call(
-            $name,
-            $arguments,
-            $user,
-            $workspace,
-            $setting,
-            $artifactRouteName,
-        );
+        try {
+            $payload = $this->tools->call(
+                $name,
+                $arguments,
+                $user,
+                $workspace,
+                $setting,
+                $artifactRouteName,
+            );
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
 
-        $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            return $this->toolError(is_string($message) ? $message : 'Invalid tool arguments.');
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return $this->toolError('Puppetflow could not complete this tool call.');
+        }
 
         return [
             'content' => [
                 [
                     'type' => 'text',
-                    'text' => $json,
+                    'text' => $this->toolText($name, $payload),
                 ],
             ],
             'structuredContent' => $payload,
+        ];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function toolText(string $name, array $payload): string
+    {
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (is_string($json) && strlen($json) <= 12000) {
+            return $json;
+        }
+
+        $keys = array_keys($payload);
+
+        return $name.' completed successfully.'
+            .($keys === [] ? '' : ' Structured result fields: '.implode(', ', $keys).'.');
+    }
+
+    /** @return array{content: list<array{type: string, text: string}>, isError: true} */
+    private function toolError(string $message): array
+    {
+        return [
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => $message,
+                ],
+            ],
+            'isError' => true,
         ];
     }
 

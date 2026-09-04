@@ -74,6 +74,7 @@ final class FlowCreationService
             'workspace_folder_id' => ['nullable', 'string'],
             'is_published' => ['sometimes', 'boolean'],
             'available_in_mcp' => ['sometimes', 'boolean'],
+            'finally_enabled' => ['sometimes', 'boolean'],
             'queue_index' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:'.config()->integer('puppetflow.queues_counter', 1)],
             'proxy_mode' => ['sometimes', Rule::in(['none', 'auto', 'specific'])],
             'workspace_proxy_id' => [

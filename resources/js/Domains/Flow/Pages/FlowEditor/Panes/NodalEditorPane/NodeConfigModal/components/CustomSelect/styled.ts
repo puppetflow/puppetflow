@@ -246,6 +246,15 @@ export const SelectOptions = styled.div`
     gap: 2px;
 `;
 
+export const SelectFooterHint = styled.div`
+    flex: 0 0 auto;
+    padding: 5px 8px 1px;
+    border-top: 1px solid ${({ theme }) => theme.colors.border.default};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 9px;
+    line-height: 1.4;
+`;
+
 export const SelectOptionGroup = styled.div`
     display: flex;
     align-items: center;
@@ -262,6 +271,13 @@ export const SelectOptionGroup = styled.div`
         padding-top: 9px;
         border-top: 1px solid ${({ theme }) => theme.colors.border.default};
     }
+`;
+
+export const SelectOptionDivider = styled.div`
+    height: 1px;
+    flex: 0 0 1px;
+    margin: 4px 8px;
+    background: ${({ theme }) => theme.colors.border.default};
 `;
 
 export const SelectOption = styled.button<{ $active?: boolean; $selected?: boolean }>`
@@ -330,15 +346,36 @@ export const SelectOptionMain = styled.div`
     }
 `;
 
-export const SelectOptionDetail = styled.span`
-    margin-left: auto;
+export const SelectOptionDetail = styled.span<{ $inline?: boolean }>`
+    min-width: 0;
+    margin-left: ${({ $inline }) => ($inline ? '0' : 'auto')};
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    overflow: hidden;
 
     svg {
         flex-shrink: 0;
     }
+`;
+
+export const SelectOptionBadge = styled.span`
+    padding: 1px 4px;
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: 3px;
+    background: ${({ theme }) => `color-mix(in srgb, ${theme.colors.bg.hover} 65%, transparent)`};
+    color: ${({ theme }) => theme.colors.text.secondary} !important;
+    font-size: 9px !important;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: 0.025em;
+`;
+
+export const SelectOptionDetailText = styled.span`
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 `;
 
 export const SelectEmpty = styled.div`

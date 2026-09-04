@@ -58,7 +58,11 @@ export default function Domains({ integration, domains }: Props) {
     };
 
     return (
-        <AppLayout title={`${integration.name} - Domains`}>
+        <AppLayout
+            title={`${integration.name} - Domains`}
+            documentationPath="/guide/integrations#mailbox-integration"
+            documentationLabel="Open mailbox integration documentation"
+        >
             <S.Page>
                 <S.Header>
                     <S.HeaderLeft>

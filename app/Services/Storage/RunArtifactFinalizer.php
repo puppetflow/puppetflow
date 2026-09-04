@@ -10,6 +10,7 @@ namespace App\Services\Storage;
 
 use App\Models\FlowRun;
 use App\Models\FlowRunArtifact;
+use App\Services\Flow\FlowRunStorageAccounting;
 use Illuminate\Support\Facades\DB;
 
 class RunArtifactFinalizer
@@ -20,6 +21,7 @@ class RunArtifactFinalizer
         private readonly RunArtifactRecordingService $recordings,
         private readonly RunArtifactDeletionService $deletions,
         private readonly InstanceStorageQuotaService $quota,
+        private readonly FlowRunStorageAccounting $storageAccounting,
     ) {}
 
     /**
@@ -112,7 +114,10 @@ class RunArtifactFinalizer
         $this->filesystem->workspace()->delete($this->paths->recordingCompletionMarkerPath($run));
         $this->filesystem->workspace()->deleteDirectory($this->paths->runDirectory($run));
 
-        return $this->readyArtifactSummary($run);
+        $summary = $this->readyArtifactSummary($run);
+        $this->storageAccounting->refresh($run);
+
+        return $summary;
     }
 
     /**

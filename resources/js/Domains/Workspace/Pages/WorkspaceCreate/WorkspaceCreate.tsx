@@ -14,7 +14,11 @@ export default function WorkspaceCreate() {
     };
 
     return (
-        <AppLayout title="Create Workspace">
+        <AppLayout
+            title="Create Workspace"
+            documentationPath="/guide/workspaces#creating-a-workspace"
+            documentationLabel="Open workspace creation documentation"
+        >
             <S.Container>
                 <S.Form onSubmit={handleSubmit}>
                     <Input

@@ -56,6 +56,7 @@ export interface Flow {
     viewport_height: number | null;
     keyboard_speed: number | null;
     disable_web_security: boolean | null;
+    finally_enabled: boolean;
     source_type: 'code' | 'repository' | 'library';
     flow_type: 'code' | 'nodal';
     nodal_graph: NodalGraph | null;
@@ -81,6 +82,8 @@ export interface Flow {
     folder?: Pick<Folder, 'id' | 'name'>;
     workspace_folder?: Pick<Folder, 'id' | 'name'>;
     latest_run?: FlowRun | null;
+    /** Latest manual run with nodal preview data, used as the nodal editor preview source. */
+    latest_nodal_run?: FlowRun | null;
     repository_link?: FlowRepositoryLink | null;
     owner_workspace_role?: 'admin' | 'manager' | 'member';
 }
@@ -185,13 +188,24 @@ export interface FlowRun {
     screenshots_count: number;
     downloads_count: number;
     has_recording: boolean;
+    recording_size_bytes: number;
+    screenshots_size_bytes: number;
+    downloads_size_bytes: number;
+    flow_data_size_bytes: number;
+    console_logs_size_bytes: number;
+    storage_size_bytes: number;
     secrets_redacted?: boolean;
     legend: string | null;
     meta: Record<string, unknown> | null;
     internal_meta?: {
         nodal_preview?: {
-            input?: unknown;
-            output?: unknown;
+            nodes?: Record<string, unknown>;
+            executions?: Record<string, unknown[]>;
+            executionMeta?: Record<string, {
+                total: number;
+                dropped: number;
+                reason?: 'count' | 'size' | 'history';
+            }>;
         };
     } | null;
     webhook_info: Record<string, unknown> | null;
@@ -200,7 +214,7 @@ export interface FlowRun {
     created_at: string;
     triggered_by_user?: Pick<User, 'id' | 'name'>;
     trigger?: FlowTrigger | null;
-    flow?: Pick<Flow, 'id' | 'name' | 'icon_type' | 'icon_value' | 'icon_color' | 'icon_url' | 'timeout_seconds' | 'flow_type' | 'nodal_graph' | 'keyboard_speed' | 'viewport_width' | 'viewport_height'>;
+    flow?: Pick<Flow, 'id' | 'name' | 'icon_type' | 'icon_value' | 'icon_color' | 'icon_url' | 'timeout_seconds' | 'flow_type' | 'nodal_graph' | 'finally_enabled' | 'keyboard_speed' | 'viewport_width' | 'viewport_height'>;
 }
 export interface ArtifactFile {
     name: string;

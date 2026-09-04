@@ -1,4 +1,5 @@
 import Switch from '@/Shared/UI/Switch/Switch';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
 import * as S from './styled';
 
@@ -10,7 +11,10 @@ export default function AISection({ form }: AISectionProps) {
     return (
         <>
             <S.SettingsSeparator />
-            <S.SettingsSectionLabel>AI</S.SettingsSectionLabel>
+            <S.SettingsSectionLabel>
+                AI
+                <DocHelpLink path="/guide/mcp#_1-configure-the-workspace" label="Open MCP flow exposure documentation" />
+            </S.SettingsSectionLabel>
             <Switch
                 id="available_in_mcp"
                 checked={form.data.available_in_mcp}

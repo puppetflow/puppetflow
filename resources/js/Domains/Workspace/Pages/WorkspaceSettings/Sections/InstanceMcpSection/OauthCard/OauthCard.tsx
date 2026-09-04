@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
 import Input from '@/Shared/UI/Input/Input';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import type { McpOauthClient, McpOauthConnection } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
@@ -112,6 +113,10 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
                         <SharedS.CardTitle>
                             <Icon icon="lucide:shield-check" width={15} height={15} />
                             OAuth MCP Endpoint
+                            <DocHelpLink
+                                path="/guide/mcp#use-the-oauth-mcp-endpoint"
+                                label="Open OAuth MCP endpoint documentation"
+                            />
                         </SharedS.CardTitle>
                         <S.SectionHint>
                             Add the OAuth MCP endpoint as a remote connector. Compatible clients discover OAuth automatically, register with PKCE, and ask each user to approve access without copying tokens.

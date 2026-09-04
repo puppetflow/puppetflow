@@ -71,6 +71,8 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
         keyboard_speed: workspace.keyboard_speed,
         flow_type: 'nodal',
         nodal_graph: graph,
+        // The template has no flow setting: keep its FINALLY branch editable.
+        finally_enabled: true,
     } as Flow), [graph, workspace.keyboard_speed, workspace.viewport_height, workspace.viewport_width]);
 
     const editorOptions = useMemo(() => ({

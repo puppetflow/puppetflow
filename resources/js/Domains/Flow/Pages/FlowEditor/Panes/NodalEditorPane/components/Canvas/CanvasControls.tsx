@@ -55,7 +55,7 @@ export default function CanvasControls({
                     <S.CanvasControlButton
                         type="button"
                         onClick={onReorder}
-                        title={selectedCount > 0 ? 'Reorganize selection (B)' : 'Reorganize graph (B)'}
+                        title={selectedCount > 0 ? 'Reorganize selection (R)' : 'Reorganize graph (R)'}
                     >
                         <Icon icon="lucide:wand-sparkles" width={14} height={14} />
                     </S.CanvasControlButton>

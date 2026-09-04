@@ -16,6 +16,13 @@ export interface ContainerEntry {
 
 export const MAX_ARRAY_ITEMS = 50;
 export const MAX_OBJECT_ENTRIES = 100;
+export const MAX_DISPLAY_STRING_CHARS = 500;
+
+export const truncateDisplayString = (value: string) => (
+    value.length > MAX_DISPLAY_STRING_CHARS
+        ? `${value.slice(0, MAX_DISPLAY_STRING_CHARS)}... (truncated)`
+        : value
+);
 
 export const valueType = (value: unknown): string => {
     if (value === null) return 'null';
@@ -109,3 +116,12 @@ export const buildTreeRows = (value: unknown, rootPath: string): InspectorTreeRo
     visit(value, rootPath, rootPath, 0, new Set());
     return rows;
 };
+
+export const defaultCollapsedContainerPaths = (
+    rows: InspectorTreeRow[],
+    maxExpandedDepth = 2,
+) => new Set(
+    rows
+        .filter(row => row.depth >= maxExpandedDepth && isContainer(row.value))
+        .map(row => row.path),
+);

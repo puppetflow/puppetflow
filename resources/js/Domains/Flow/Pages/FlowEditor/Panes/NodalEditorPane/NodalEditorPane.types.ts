@@ -31,7 +31,6 @@ export interface NodalEditorPaneProps {
     saveButtonStyle?: 'toolbar' | 'standard';
     readOnly?: boolean;
     hideToolbar?: boolean;
-    allowShortcutsInModal?: boolean;
     runProgress?: {
         activeNodeId: string | null;
         passedNodeIds: Set<string>;

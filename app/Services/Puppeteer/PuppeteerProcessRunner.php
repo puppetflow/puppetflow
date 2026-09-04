@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Process;
 
 final class PuppeteerProcessRunner
 {
+    private const CONSOLE_MESSAGE_PREFIX = '__NOP_CONSOLE__';
+
     public function __construct(
         private readonly RunArtifactStorage $artifactStorage,
         private readonly RuntimeSecretManager $secrets,
@@ -156,27 +158,41 @@ final class PuppeteerProcessRunner
         if ($line === '') {
             return;
         }
-        $this->secrets->merge($run, $secretsPath);
-        $line = $this->secrets->redact($run, $line) ?? $line;
         if ($type === 'stderr') {
             $level = 'warn';
-            Log::warning("{$tag} {$line}");
         } elseif (str_starts_with($line, '[DEBUG] ')) {
             $level = 'debug';
             $line = substr($line, 8);
-            Log::debug("{$tag} {$line}");
+        } elseif (str_starts_with($line, '[INFO] ')) {
+            $level = 'info';
+            $line = substr($line, 7);
         } elseif (str_starts_with($line, '[WARN] ')) {
             $level = 'warn';
             $line = substr($line, 7);
-            Log::warning("{$tag} {$line}");
         } elseif (str_starts_with($line, '[ERROR] ')) {
             $level = 'error';
             $line = substr($line, 8);
-            Log::error("{$tag} {$line}");
         } else {
             $level = 'info';
-            Log::info("{$tag} {$line}");
         }
+
+        if (str_starts_with($line, self::CONSOLE_MESSAGE_PREFIX)) {
+            $decoded = json_decode(substr($line, strlen(self::CONSOLE_MESSAGE_PREFIX)), true);
+            if (is_string($decoded)) {
+                $line = $decoded;
+            }
+        }
+
+        $this->secrets->merge($run, $secretsPath);
+        $line = $this->secrets->redact($run, $line) ?? $line;
+
+        match ($level) {
+            'debug' => Log::debug("{$tag} {$line}"),
+            'warn' => Log::warning("{$tag} {$line}"),
+            'error' => Log::error("{$tag} {$line}"),
+            default => Log::info("{$tag} {$line}"),
+        };
+
         $consoleLogs[] = ['level' => $level, 'message' => $line, 'ts' => now()->toISOString() ?? ''];
     }
 

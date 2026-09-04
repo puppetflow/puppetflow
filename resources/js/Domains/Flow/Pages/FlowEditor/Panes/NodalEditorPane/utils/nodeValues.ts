@@ -1,6 +1,5 @@
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { NodeParameterValue, RawNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import { NODE_RUN_OUTPUT_KEY } from './constants';
 import { getSignatureArgs } from './catalog';
 import { normalizeNodeValues } from './expression';
 
@@ -13,13 +12,12 @@ export const sanitizeNodeValuesForEntry = (
     const normalizedValues = normalizeNodeValues(values);
 
     if (entry.category === 'Custom') {
-        return normalizedValues;
+        // Snippet nodes keep their call arguments as values; drop the removed legacy "run output key" field.
+        const { __runOutputKey: _legacyRunOutputKey, ...callArgumentValues } = normalizedValues;
+        return callArgumentValues;
     }
 
-    const allowedKeys = new Set([
-        NODE_RUN_OUTPUT_KEY,
-        ...getSignatureArgs(entry.signature).map(cleanSignatureArg),
-    ]);
+    const allowedKeys = new Set(getSignatureArgs(entry.signature).map(cleanSignatureArg));
 
     return Object.fromEntries(
         Object.entries(normalizedValues).filter(([key]) => allowedKeys.has(key)),

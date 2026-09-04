@@ -1,5 +1,6 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Switch from '@/Shared/UI/Switch/Switch';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { WorkspaceMcpSettings } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
 import * as S from './styled';
@@ -17,6 +18,10 @@ export default function GeneralMcpCard({ settings, busy, readOnly, onUpdate }: P
             <SharedS.CardTitle>
                 <Icon icon="lucide:plug-zap" width={15} height={15} />
                 Instance MCP
+                <DocHelpLink
+                    path="/guide/mcp#_1-configure-the-workspace"
+                    label="Open instance MCP documentation"
+                />
             </SharedS.CardTitle>
             <S.SectionHint>
                 Expose selected Puppetflow flows through one MCP endpoint for AI clients. Clients authenticate as the token owner in this workspace.

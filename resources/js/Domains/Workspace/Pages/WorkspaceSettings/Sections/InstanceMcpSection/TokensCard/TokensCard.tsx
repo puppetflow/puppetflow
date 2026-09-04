@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
 import Input from '@/Shared/UI/Input/Input';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { useToast } from '@/App/Hooks/useToast';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import type { McpAccessToken } from '@/Domains/Workspace/types';
@@ -97,6 +98,10 @@ export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly
                         <SharedS.CardTitle>
                             <Icon icon="lucide:key-round" width={15} height={15} />
                             Access Token Endpoint
+                            <DocHelpLink
+                                path="/guide/mcp#create-an-access-token"
+                                label="Open access token documentation"
+                            />
                         </SharedS.CardTitle>
                         <S.SectionHint>
                             Use this mode for CLI tools, self-hosted agents or clients where copying a bearer token is acceptable. The token is tied to one user and this workspace.

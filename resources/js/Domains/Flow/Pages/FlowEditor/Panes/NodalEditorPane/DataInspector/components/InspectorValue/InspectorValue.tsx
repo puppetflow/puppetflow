@@ -1,4 +1,9 @@
-import { formatPrimitive, isUnavailableResult, unresolvedResultLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/utils';
+import {
+    formatPrimitive,
+    isUnavailableResult,
+    truncateDisplayString,
+    unresolvedResultLabel,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/utils';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import * as S from './styled';
 
@@ -40,7 +45,10 @@ export default function InspectorValue({
         );
     }
 
-    const formattedValue = typeof value === 'string' && !quoteStrings ? value : formatPrimitive(value);
+    const displayValue = typeof value === 'string' ? truncateDisplayString(value) : value;
+    const formattedValue = typeof displayValue === 'string' && !quoteStrings
+        ? displayValue
+        : formatPrimitive(displayValue);
     const valueKind = referenceId && referenceLabel
         ? 'reference'
         : value === null

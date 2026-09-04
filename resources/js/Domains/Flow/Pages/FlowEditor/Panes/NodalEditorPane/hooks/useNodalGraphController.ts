@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import { useToast } from '@/App/Hooks/useToast';
 import { useUrlSyncedModal } from '@/Shared/Hooks/useUrlSyncedModal';
@@ -16,7 +16,7 @@ import type {
     SelectionBox,
 } from '../types';
 import type { EdgeDropTarget } from '../utils/edges';
-import { graphToCanvasNodes } from '../utils/graph';
+import { graphToCanvasNodes, visibleCanvasGraph } from '../utils/graph';
 import { useActiveNodalEditorPane } from './useActiveNodalEditorPane';
 import { useCanvasViewport } from './useCanvasViewport';
 import { useGraphHistory } from './useGraphHistory';
@@ -27,7 +27,9 @@ import { useNodeCatalog } from './useNodeCatalog';
 type NodalGraphControllerProps = Pick<
     NodalEditorPaneProps,
     'graph' | 'graphContext' | 'functionArguments' | 'graphRevision' | 'onGraphChange' | 'readOnly'
->;
+> & {
+    finallyEnabled: boolean;
+};
 
 const FUNCTION_VIEWPORT_FIT = {
     maxZoom: 0.9,
@@ -43,6 +45,7 @@ export function useNodalGraphController({
     graphRevision,
     onGraphChange,
     readOnly = false,
+    finallyEnabled,
 }: NodalGraphControllerProps) {
     const { resolved: resolvedTheme } = useThemeMode();
     const { toast } = useToast();
@@ -81,13 +84,17 @@ export function useNodalGraphController({
     const [canvasMode, setCanvasMode] = useState<'canvas' | 'code'>('canvas');
     const { activatePane, isActivePane, isAnotherPaneActive } = useActiveNodalEditorPane();
     const { miniMapFading, revealMiniMap, showMiniMap } = useMiniMapVisibility();
+    const { nodes: visibleNodes, edges: visibleEdges } = useMemo(
+        () => visibleCanvasGraph(nodes, edges, finallyEnabled),
+        [edges, finallyEnabled, nodes],
+    );
     const {
         centerViewportOnNodes,
         getWorldPointFromClient,
         setViewport,
         updateZoom,
         viewport,
-    } = useCanvasViewport(canvasRef, nodes, graphContext === 'function' ? FUNCTION_VIEWPORT_FIT : undefined);
+    } = useCanvasViewport(canvasRef, visibleNodes, graphContext === 'function' ? FUNCTION_VIEWPORT_FIT : undefined);
     const {
         activeCategoryKey,
         pickerOpen,
@@ -142,6 +149,7 @@ export function useNodalGraphController({
         editingNode,
         editingStickyNoteId,
         edges,
+        finallyEnabled,
         generatedCode,
         getWorldPointFromClient,
         isActivePane,
@@ -189,7 +197,9 @@ export function useNodalGraphController({
         undoGraph,
         updateZoom,
         viewport,
+        visibleEdges,
         visibleEntries,
+        visibleNodes,
     };
 }
 

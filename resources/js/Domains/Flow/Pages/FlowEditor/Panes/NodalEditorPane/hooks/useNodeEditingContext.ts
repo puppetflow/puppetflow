@@ -88,6 +88,7 @@ interface UseNodeEditingContextOptions {
     nodes: CanvasNode[];
     edges: CanvasEdge[];
     currentGraph: NodalGraph;
+    finallyEnabled: boolean;
     flow: Flow;
     graphContext: NodalGraphContext;
 }
@@ -98,6 +99,7 @@ export function useNodeEditingContext({
     nodes,
     edges,
     currentGraph,
+    finallyEnabled,
     flow,
     graphContext,
 }: UseNodeEditingContextOptions) {
@@ -117,9 +119,10 @@ export function useNodeEditingContext({
                     viewportWidth: currentWorkspace?.viewport_width ?? 1280,
                     viewportHeight: currentWorkspace?.viewport_height ?? 720,
                 }),
+                finallyEnabled,
             )
             : null;
-    }, [currentGraph, currentWorkspace, editingNodeCurrent, flow, graphContext]);
+    }, [currentGraph, currentWorkspace, editingNodeCurrent, finallyEnabled, flow, graphContext]);
 
     const editingConnectedNodes = useMemo(() => {
         if (!editingNodeCurrent) return { inputs: [] as CanvasNode[], outputs: [] as CanvasNode[] };
@@ -151,7 +154,6 @@ export function useNodeEditingContext({
                 .filter(edge => edge.sourceNodeId === terminateNodeId)
                 .map(edge => edge.targetNodeId)
             : [];
-
         while (queue.length > 0) {
             const nodeId = queue.shift();
             if (!nodeId || finallyNodeIds.has(nodeId)) continue;
@@ -162,9 +164,10 @@ export function useNodeEditingContext({
                 .forEach(edge => queue.push(edge.targetNodeId));
         }
 
+        // Unconnected nodes only count as FINALLY by position while the lane is drawn.
         return finallyNodeIds.has(editingNodeCurrent.id)
-            || editingNodeCurrent.y >= terminateY;
-    }, [edges, editingNodeCurrent, nodes]);
+            || (Boolean(terminateNode) && finallyEnabled && editingNodeCurrent.y >= terminateY);
+    }, [edges, editingNodeCurrent, finallyEnabled, nodes]);
 
     const editingCurrentSiteUrl = useMemo(() => {
         if (!editingNodeCurrent) return null;

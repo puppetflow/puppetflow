@@ -73,6 +73,7 @@ export default function SettingsPane({
         viewport_height: flow.viewport_height ?? '',
         keyboard_speed: flow.keyboard_speed ?? '',
         disable_web_security: flow.disable_web_security ?? false,
+        finally_enabled: flow.finally_enabled ?? false,
     });
 
     useEffect(() => {
@@ -143,7 +144,7 @@ export default function SettingsPane({
                 <S.SettingsForm onSubmit={handleSaveSettings}>
                     <GeneralSection form={settingsForm} />
                     <AISection form={settingsForm} />
-                    <RunSection form={settingsForm} limits={limits} />
+                    <RunSection form={settingsForm} limits={limits} isNodalFlow={isNodalFlow} />
                     <ProxySection
                         form={settingsForm}
                         workspaceProxies={workspaceProxies}

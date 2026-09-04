@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
 import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { ProxyFilterRule } from '@/Domains/Flow/types';
@@ -230,7 +231,10 @@ export default function ProxySection({
     return (
         <>
             <S.SettingsSeparator />
-            <S.SettingsSectionLabel>Proxy routing</S.SettingsSectionLabel>
+            <S.SettingsSectionLabel>
+                Proxy routing
+                <DocHelpLink path="/guide/flows#proxy-routing" label="Open proxy routing documentation" />
+            </S.SettingsSectionLabel>
 
             <S.ProxyField>
                 <S.ProxyLabel>Mode</S.ProxyLabel>

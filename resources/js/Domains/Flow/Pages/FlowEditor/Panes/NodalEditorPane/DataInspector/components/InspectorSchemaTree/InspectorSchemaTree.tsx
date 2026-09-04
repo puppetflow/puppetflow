@@ -1,16 +1,25 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import InspectorValue from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/components/InspectorValue/InspectorValue';
 import {
     resolveReferenceDisplay,
     type ReferenceDisplay,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/referenceDisplays';
-import { isContainer, type InspectorTreeRow } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/utils';
+import { useCollapsedPaths } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/useCollapsedPaths';
+import {
+    defaultCollapsedContainerPaths,
+    isContainer,
+    type InspectorTreeRow,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/utils';
 import * as S from './styled';
 
 interface InspectorSchemaTreeProps {
     rows: InspectorTreeRow[];
     references: ReadonlyMap<string, ReferenceDisplay>;
+    draggable?: boolean;
+    showRoots?: boolean;
+    initialOpenRootPath?: string;
+    rootDisplays?: ReadonlyMap<string, { icon?: string; iconColor?: string }>;
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -27,9 +36,25 @@ const TYPE_ICONS: Record<string, string> = {
     undefined: 'lucide:circle-help',
 };
 
-export default function InspectorSchemaTree({ rows, references }: InspectorSchemaTreeProps) {
-    const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => new Set());
-    const schemaRows = rows.filter(item => item.depth > 0 || item.path !== '$');
+export default function InspectorSchemaTree({
+    rows,
+    references,
+    draggable = true,
+    showRoots = false,
+    initialOpenRootPath,
+    rootDisplays,
+}: InspectorSchemaTreeProps) {
+    const defaultCollapsedPaths = useMemo(() => {
+        const paths = defaultCollapsedContainerPaths(rows);
+        if (showRoots) {
+            rows
+                .filter(item => item.depth === 0 && item.path !== initialOpenRootPath)
+                .forEach(item => paths.add(item.path));
+        }
+        return paths;
+    }, [initialOpenRootPath, rows, showRoots]);
+    const { collapsedPaths, toggleCollapsedPath: toggleCollapsed } = useCollapsedPaths(defaultCollapsedPaths);
+    const schemaRows = rows.filter(item => showRoots || item.depth > 0);
     const visibleRows: Array<{ item: InspectorTreeRow; hasChildren: boolean }> = [];
     let collapsedDepth: number | null = null;
 
@@ -42,19 +67,11 @@ export default function InspectorSchemaTree({ rows, references }: InspectorSchem
         if (hasChildren && collapsedPaths.has(item.path)) collapsedDepth = item.depth;
     });
 
-    const toggleCollapsed = (path: string) => {
-        setCollapsedPaths(current => {
-            const next = new Set(current);
-            if (next.has(path)) next.delete(path);
-            else next.add(path);
-            return next;
-        });
-    };
-
     return (
         <S.Tree>
             {visibleRows.map(({ item, hasChildren }) => {
                 const referenceDisplay = resolveReferenceDisplay(item.value, references);
+                const rootDisplay = item.depth === 0 ? rootDisplays?.get(item.path) : undefined;
                 const itemCount = isContainer(item.value)
                     ? Array.isArray(item.value) ? item.value.length : Object.keys(item.value).length
                     : null;
@@ -64,7 +81,7 @@ export default function InspectorSchemaTree({ rows, references }: InspectorSchem
                 return (
                     <S.Row
                         key={item.path}
-                        $depth={Math.max(0, item.depth - 1)}
+                        $depth={showRoots ? item.depth : Math.max(0, item.depth - 1)}
                     >
                         {hasChildren ? (
                             <S.CollapseButton
@@ -78,19 +95,24 @@ export default function InspectorSchemaTree({ rows, references }: InspectorSchem
                             </S.CollapseButton>
                         ) : <S.CollapseSpacer />}
                         <S.TypeBadge
-                            draggable
-                            title="Drag into an expression field"
-                            onDragStart={event => {
+                            draggable={draggable}
+                            $draggable={draggable}
+                            title={draggable ? 'Drag into an expression field' : undefined}
+                            onDragStart={draggable ? event => {
                                 event.dataTransfer.setData('text/plain', item.path);
                                 event.dataTransfer.effectAllowed = 'copy';
-                            }}
+                            } : undefined}
                         >
                             <S.TypeIcon>
                                 <Icon
-                                    icon={referenceDisplay?.icon ?? TYPE_ICONS[item.type] ?? 'lucide:variable'}
+                                    icon={rootDisplay?.icon ?? referenceDisplay?.icon ?? TYPE_ICONS[item.type] ?? 'lucide:variable'}
                                     width={13}
                                     height={13}
-                                    style={referenceDisplay?.iconColor ? { color: referenceDisplay.iconColor } : undefined}
+                                    style={
+                                        rootDisplay?.iconColor || referenceDisplay?.iconColor
+                                            ? { color: rootDisplay?.iconColor ?? referenceDisplay?.iconColor }
+                                            : undefined
+                                    }
                                 />
                             </S.TypeIcon>
                             <S.Name>{item.key}</S.Name>

@@ -51,7 +51,6 @@ export default function MobileCodeSnapshot({
                         latestRun={run}
                         onGraphChange={handleGraphChange}
                         readOnly
-                        allowShortcutsInModal
                         leftView="code"
                         runProgress={{
                             activeNodeId: preview.isActiveRun ? preview.visualProgress.activeNodeId : null,

@@ -5,6 +5,7 @@ import { formatDateTime } from '@/Shared/Utils/formatDate';
 import { ucfirst } from '@/Shared/Utils/string';
 import { getRunMeta } from '@/Domains/Flow/Pages/FlowEditor/utils/runDisplay';
 import { STATUS_VARIANT } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import * as RunStyles from '@/Domains/Flow/Pages/FlowEditor/shared/runStatus.styled';
 import * as S from './RunHistoryItem.styled';
 import { getRunHistoryStatusIcon } from './utils';
@@ -77,6 +78,10 @@ export default function RunHistoryItem({
                                 {(run.duration_ms / 1000).toFixed(1)}s
                             </S.RunItemDuration>
                         )}
+                        <S.RunItemArtifact title="Total storage">
+                            <Icon icon="lucide:server" width={10} height={10} />
+                            {formatRunStorage(run.storage_size_bytes)}
+                        </S.RunItemArtifact>
                         {run.screenshots_count > 0 && (
                             <S.RunItemArtifact title="Screenshots">
                                 <Icon icon="lucide:camera" width={10} height={10} />

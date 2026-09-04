@@ -3,6 +3,7 @@ import { EvalButton } from '@/Shared/CodeEditor/shared/evaluation-modal.styled';
 import {
     HelpDesc,
     HelpEntry,
+    HelpEntryActions,
     HelpEntryContent,
     HelpEntryEditLink,
     HelpEntryIcon,
@@ -17,6 +18,7 @@ import {
     HelpPanelContent,
 } from '@/Shared/CodeEditor/shared/help-toolbox.styled';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { getHelpEntryActionsWidth } from '@/Domains/Flow/Pages/FlowEditor/utils/helpDocumentation';
 import { formatHelpEntryLabel, getHelpCategoryColor, getHelpIcon } from '@/Domains/Flow/Pages/FlowEditor/utils/helpToolbox';
 
 interface HelpEntriesProps {
@@ -61,7 +63,7 @@ export function HelpEntries({
                             type="button"
                             $active={activeIndex === index}
                             $color={entryColor}
-                            $hasEditAction={Boolean(entry.editUrl)}
+                            $actionsWidth={getHelpEntryActionsWidth(entry, null)}
                             onClick={() => onInsert(entry)}
                         >
                             <HelpEntryIcon $color={entryColor}>
@@ -91,15 +93,17 @@ export function HelpEntries({
                             </HelpEntryContent>
                         </HelpEntry>
                         {entry.editUrl && (
-                            <HelpEntryEditLink
-                                href={entry.editUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Open ${formatHelpEntryLabel(entry)} snippet`}
-                                aria-label={`Open ${formatHelpEntryLabel(entry)} snippet editor`}
-                            >
-                                <Icon icon="lucide:square-pen" width={13} height={13} />
-                            </HelpEntryEditLink>
+                            <HelpEntryActions>
+                                <HelpEntryEditLink
+                                    href={entry.editUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`Open ${formatHelpEntryLabel(entry)} snippet`}
+                                    aria-label={`Open ${formatHelpEntryLabel(entry)} snippet editor`}
+                                >
+                                    <Icon icon="lucide:square-pen" width={13} height={13} />
+                                </HelpEntryEditLink>
+                            </HelpEntryActions>
                         )}
                     </HelpEntryRow>
                 );

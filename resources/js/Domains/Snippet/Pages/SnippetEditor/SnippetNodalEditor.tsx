@@ -102,7 +102,6 @@ export default function SnippetNodalEditor({
                 onDownloadFlow={onDownloadSnippet}
                 onDuplicateFlow={onDuplicateSnippet}
                 readOnly={readOnly}
-                allowShortcutsInModal
             />
         </Layout.Panel>
     );

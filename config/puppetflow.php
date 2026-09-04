@@ -32,6 +32,21 @@ return [
         (int) env('RUNNER_HTTP_SNIFFING_MAX_BODY_BYTES', 5242880),
     ),
 
+    'runner_nodal_preview_max_history_bytes' => max(
+        1024,
+        (int) env('RUNNER_NODAL_PREVIEW_MAX_HISTORY_BYTES', 1048576),
+    ),
+
+    'runner_nodal_preview_max_executions_per_node' => max(
+        1,
+        (int) env('RUNNER_NODAL_PREVIEW_MAX_EXECUTIONS_PER_NODE', 20),
+    ),
+
+    'runner_nodal_preview_max_string_chars' => max(
+        1,
+        (int) env('RUNNER_NODAL_PREVIEW_MAX_STRING_CHARS', 100),
+    ),
+
     'integration_http_allow_private' => filter_var(
         env('INTEGRATION_HTTP_ALLOW_PRIVATE', true),
         FILTER_VALIDATE_BOOL,

@@ -1,6 +1,7 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { FlowRun } from '@/Domains/Flow/types';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
+import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import * as S from './styled';
 
 interface RunTimingProps {
@@ -25,6 +26,10 @@ export default function RunTiming({ run, elapsed, timeLeft }: RunTimingProps) {
                     {(run.duration_ms / 1000).toFixed(1)}s
                 </S.TimingItem>
             )}
+            <S.TimingItem>
+                <Icon icon="lucide:server" width={12} height={12} />
+                {formatRunStorage(run.storage_size_bytes)}
+            </S.TimingItem>
             {elapsed != null && (
                 <S.TimingItem>
                     <Icon icon="lucide:timer" width={12} height={12} />

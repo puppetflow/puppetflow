@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import type { McpFlow } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
@@ -83,6 +84,10 @@ export default function FlowsCard({ flows, busy, error, readOnly, setBusy, setEr
                 <SharedS.CardTitle>
                     <Icon icon="lucide:workflow" width={15} height={15} />
                     Exposed Flows
+                    <DocHelpLink
+                        path="/guide/mcp#_1-configure-the-workspace"
+                        label="Open exposed flows documentation"
+                    />
                 </SharedS.CardTitle>
                 <S.SectionHint>
                     {exposedCount} of {currentFlows.length} flows are available for full MCP details, runs, artifacts and human in the loop continuation.

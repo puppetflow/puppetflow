@@ -12,6 +12,7 @@ import DataTab from './DataTab/DataTab';
 import DetailTabs, { type DetailTab } from './DetailTabs/DetailTabs';
 import MobileCodeSnapshot from './MobileCodeSnapshot';
 import ResizableRunLayout from './ResizableRunLayout/ResizableRunLayout';
+import StorageTab from './StorageTab/StorageTab';
 import TriggerTab from './TriggerTab/TriggerTab';
 import { useRunArtifacts } from './hooks/useRunArtifacts';
 import { useConsoleResize } from './hooks/useRunDetailResize';
@@ -145,6 +146,7 @@ export default function RunDetailContent({
                 {detailTab === 'data' && (
                     <DataTab
                         run={run}
+                        flowId={flowId}
                         userDataOnly={userDataOnly}
                         onToggleUserDataOnly={setUserDataOnly}
                         copyToClipboard={copyToClipboard}
@@ -168,6 +170,7 @@ export default function RunDetailContent({
                         downloadsLoading={artifacts.downloadsLoading}
                     />
                 )}
+                {detailTab === 'storage' && <StorageTab run={run} />}
             </ModalTabContent>
         </ResizableRunLayout>
     );

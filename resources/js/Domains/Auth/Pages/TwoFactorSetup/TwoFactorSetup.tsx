@@ -37,7 +37,11 @@ export default function TwoFactorSetup({ qrSvg, secret, forced, recoveryCodes }:
 
     if (forced) {
         return (
-            <AppLayout title="Set Up Two-Factor Authentication">
+            <AppLayout
+                title="Set Up Two-Factor Authentication"
+                documentationPath="/guide/users-teams-access#user-authentication"
+                documentationLabel="Open two-factor authentication documentation"
+            >
                 {content}
             </AppLayout>
         );

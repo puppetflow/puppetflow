@@ -1,6 +1,8 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { getNodeCategoryColor, getNodeIcon } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
+import { getHelpEntryDocumentationPath } from '@/Domains/Flow/Pages/FlowEditor/utils/helpDocumentation';
 import * as S from './styled';
 
 interface NodeConfigHeaderProps {
@@ -22,6 +24,8 @@ export default function NodeConfigHeader({
     onCommitLabel,
     onClose,
 }: NodeConfigHeaderProps) {
+    const documentationPath = getHelpEntryDocumentationPath(entry);
+
     return (
         <>
             <S.Header>
@@ -44,7 +48,16 @@ export default function NodeConfigHeader({
                                 }
                             }}
                         />
-                        <span>{entry.category}</span>
+                        <S.CategoryRow>
+                            <span>{entry.category}</span>
+                            {documentationPath && (
+                                <DocHelpLink
+                                    className="node-config-documentation-link"
+                                    path={documentationPath}
+                                    label={`Open ${label} documentation`}
+                                />
+                            )}
+                        </S.CategoryRow>
                     </div>
                 </S.Title>
                 <S.CloseButton type="button" onClick={onClose} title="Close">

@@ -4,7 +4,7 @@ import { useSnippetSuggestions } from '@/Shared/CodeEditor/hooks/useSnippetSugge
 import { HIDDEN_TOOLBOX_ENTRY_NAMES, isHelpCategoryPick } from '@/Domains/Flow/Pages/FlowEditor/categories';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { CanvasNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import { FALLBACK_CATEGORY, NODE_CATEGORIES, NODE_RUN_OUTPUT_KEY } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import { FALLBACK_CATEGORY, NODE_CATEGORIES } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
     formatLocalFunctionCallLabel,
     formatToolboxNodeLabel,
@@ -18,6 +18,7 @@ import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/P
 import { getFunctionArgumentNames } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/functionArguments';
 import {
     NATIVE_HELPER_REFERENCES,
+    defaultCallArgumentValue,
     getInitialNodeValues,
     snippetSuggestionToEntry,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/nodeDefaults';
@@ -99,10 +100,8 @@ export function useNodeCatalog({ nodes, setNodes }: UseNodeCatalogOptions) {
             const defaults = getInitialNodeValues(snippetEntry);
             const values = Object.fromEntries(callArguments.map(argument => [
                 argument,
-                node.values[argument] ?? defaults[argument] ?? { mode: 'expression', value: `{{ $input.${argument} }}` },
+                node.values[argument] ?? defaults[argument] ?? defaultCallArgumentValue(argument),
             ]));
-            if (node.values[NODE_RUN_OUTPUT_KEY]) values[NODE_RUN_OUTPUT_KEY] = node.values[NODE_RUN_OUTPUT_KEY];
-
             return { ...node, entry: snippetEntry, callArguments, values };
         }));
     }, [setNodes, snippetEntries]);
@@ -133,9 +132,8 @@ export function useNodeCatalog({ nodes, setNodes }: UseNodeCatalogOptions) {
                 const callLabel = formatLocalFunctionCallLabel(functionEntry.name);
                 const values = Object.fromEntries(callArguments.map(argument => [
                     argument,
-                    node.values[argument] ?? { mode: 'expression', value: `{{ $input.${argument} }}` },
+                    node.values[argument] ?? defaultCallArgumentValue(argument),
                 ]));
-                if (node.values[NODE_RUN_OUTPUT_KEY]) values[NODE_RUN_OUTPUT_KEY] = node.values[NODE_RUN_OUTPUT_KEY];
                 if (
                     node.entry.signature === functionEntry.signature
                     && node.entry.name === functionEntry.name

@@ -111,7 +111,7 @@ export default function CodeNodeEditor({
                 />
             </S.CodeNodeEditor>
             <S.ExpressionHint>
-                This code is inserted directly in the generated run function. You can use $page, $input, $nodes, $run, $output, $context and $vars(…) (autocompleted).
+                This code is inserted directly in the generated run function. Use $run for the current input snapshot, $('RUN') for initial run data, $nodes for named snapshots, and $vars(…) for workspace variables.
             </S.ExpressionHint>
         </S.CodeNodeField>
     );

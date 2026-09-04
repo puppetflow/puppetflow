@@ -185,6 +185,7 @@ class FlowSearchApiController extends Controller
             'viewport_height' => $flow->viewport_height,
             'keyboard_speed' => $flow->keyboard_speed,
             'disable_web_security' => $flow->disable_web_security,
+            'finally_enabled' => $flow->finally_enabled,
             'library_locked' => $flow->library_locked,
             'library_namespace' => $flow->library_namespace,
             'library_reference' => $flow->library_reference,

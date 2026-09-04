@@ -1,4 +1,5 @@
 import Input, { Select } from '@/Shared/UI/Input/Input';
+import Switch from '@/Shared/UI/Switch/Switch';
 import { capDefault } from '@/Shared/Utils/limits';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
 import type { SettingsLimits } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/useSettingsLimits';
@@ -8,11 +9,13 @@ import * as S from './styled';
 interface RunSectionProps {
     form: SettingsForm;
     limits: SettingsLimits;
+    isNodalFlow: boolean;
 }
 
 export default function RunSection({
     form,
     limits,
+    isNodalFlow,
 }: RunSectionProps) {
     const {
         effectiveMaxTimeout,
@@ -111,6 +114,21 @@ export default function RunSection({
                 {wsMax > 0 ? ' 0 is disabled because a maximum cap is defined.' : ' 0 = use workspace default.'}
                 {wsMax > 0 && ` Workspace cap: ${wsMax}.`}
             </S.SettingsHint>
+
+            {isNodalFlow && (
+                <>
+                    <Switch
+                        id="finally_enabled"
+                        checked={form.data.finally_enabled}
+                        onChange={value => form.setData('finally_enabled', value)}
+                        label="FINALLY node"
+                    />
+                    <S.SettingsHint>
+                        Show the FINALLY branch in the visual builder to add cleanup steps that run after the flow,
+                        even when it fails. When off, the branch is hidden and skipped at run time but kept for later.
+                    </S.SettingsHint>
+                </>
+            )}
         </>
     );
 }

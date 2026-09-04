@@ -2,7 +2,7 @@ import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { FlowRun } from '@/Domains/Flow/types';
 import * as S from './styled';
 
-export type DetailTab = 'code' | 'data' | 'console' | 'trigger' | 'artifacts' | 'browser';
+export type DetailTab = 'code' | 'data' | 'console' | 'trigger' | 'artifacts' | 'browser' | 'storage';
 
 interface DetailTabsProps {
     activeTab: DetailTab;
@@ -55,6 +55,10 @@ export default function DetailTabs({ activeTab, run, isActive, onChange }: Detai
                 {(run.screenshots_count > 0 || run.downloads_count > 0) && (
                     <> ({run.screenshots_count + run.downloads_count})</>
                 )}
+            </S.Tab>
+            <S.Tab $active={activeTab === 'storage'} onClick={() => onChange('storage')}>
+                <Icon icon="lucide:info" width={12} height={12} />
+                About
             </S.Tab>
         </S.Tabs>
     );

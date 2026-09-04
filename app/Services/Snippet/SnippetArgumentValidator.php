@@ -12,9 +12,11 @@ final class SnippetArgumentValidator
         'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let',
         'new', 'null', 'return', 'static', 'super', 'switch', 'this', 'throw',
         'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
-        '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
-        '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
-        '$viewportWidth', '$viewportHeight', '$',
+        '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context', '$json',
+        '$loop', '$capture', '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
+        '$now', '$today', '$if', '$ifEmpty', '$max', '$min', '$sortDates', '$parseDates',
+        '$currentDate', '$currentDateMinusOneMonth', '$currentDatePlusOneMonth', '$matchSequence',
+        '$viewportWidth', '$viewportHeight',
     ];
 
     /** @return list<string> */

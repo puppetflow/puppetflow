@@ -24,6 +24,7 @@ export interface SettingsFormData {
     viewport_height: number | '';
     keyboard_speed: number | '';
     disable_web_security: boolean;
+    finally_enabled: boolean;
 }
 
 export type SettingsForm = InertiaFormProps<SettingsFormData>;

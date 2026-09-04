@@ -1,12 +1,12 @@
 import {
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
-    NODE_RUN_OUTPUT_KEY,
     STICKY_NOTE_ENTRY,
     STICKY_NOTE_NODE_NAME,
     SYSTEM_NODE_ENTRIES,
 } from './constants';
 import { formatEntryLabel, formatNodeLabel, getEntryByName } from './catalog';
+import { collectSystemFlowNodeIds } from './edges';
 import { cloneNodeValues } from './expression';
 import { snapCanvasPosition } from './grid';
 import { sanitizeNodeValuesForEntry } from './nodeValues';
@@ -48,7 +48,7 @@ type ClipboardEdge = {
 const dynamicCallEntry = (node: NodalGraph['nodes'][number]): HelpEntryDef | null => {
     const args = node.callArguments?.length
         ? node.callArguments
-        : Object.keys(node.values ?? {}).filter(key => key !== NODE_RUN_OUTPUT_KEY);
+        : Object.keys(node.values ?? {});
     const signature = `${node.name}(${args.join(', ')})`;
 
     if (node.localFunctionId) {
@@ -113,6 +113,19 @@ export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
 
         return [...acc, nextNode];
     }, []);
+};
+
+// The FINALLY branch stays in the graph while the flow setting is off (the compiler and validators
+// expect the node, and the steps come back when the setting is turned on), but it is neither drawn nor run.
+export const visibleCanvasGraph = (nodes: CanvasNode[], edges: CanvasEdge[], finallyEnabled: boolean) => {
+    if (finallyEnabled) return { nodes, edges };
+
+    const finallyNodeIds = collectSystemFlowNodeIds(nodes, edges, 'terminate');
+
+    return {
+        nodes: nodes.filter(node => !finallyNodeIds.has(node.id)),
+        edges: edges.filter(edge => !finallyNodeIds.has(edge.sourceNodeId) && !finallyNodeIds.has(edge.targetNodeId)),
+    };
 };
 
 export const canvasToNodalGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): NodalGraph => ({

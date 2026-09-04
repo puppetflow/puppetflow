@@ -655,12 +655,13 @@ type PuppetflowNetworkSniffingPayload = {
     error: string | null;
     durationMs: number;
 };`,
-        'declare const $input: any;',
-        'declare const $output: any;',
+        // $input / $output are typed from the run()/terminate() parameters in code flows and are
+        // not available in nodal expressions, so they are intentionally not declared as globals.
         'declare const $nodes: any;',
         'declare function $(nodeName: string): any;',
         'declare const $run: any;',
-        'declare const $context: any;',
+        'declare const $loop: any;',
+        'declare const $capture: any;',
     ];
     for (const entry of entries) {
         const { name, signature, desc, options, category } = entry;
@@ -681,7 +682,7 @@ type PuppetflowNetworkSniffingPayload = {
             ' */',
         ].join('\n'));
         if (category === 'Globals') {
-            if (name === '$input' || name === '$json' || name === '$output' || name === '$run' || name === '$context') continue;
+            if (name === '$input' || name === '$output' || name === '$run' || name === '$context') continue;
             if (name === '$page') {
                 lines.push('declare const $page: Page;');
                 continue;

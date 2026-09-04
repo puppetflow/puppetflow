@@ -12,6 +12,20 @@ import {
 import { PAGE_AUTOCOMPLETE_ENTRIES, type PageAutocompleteEntry } from './pageAutocomplete';
 
 const ROOT_COMPLETION_PATTERN = /(?:^|[^\w$.])(\$[a-zA-Z_]*)$/;
+const NODAL_EXPRESSION_FUNCTIONS = new Set([
+    '$',
+    '$vars',
+    '$if',
+    '$ifEmpty',
+    '$max',
+    '$min',
+    '$sortDates',
+    '$parseDates',
+    '$currentDate',
+    '$currentDateMinusOneMonth',
+    '$currentDatePlusOneMonth',
+    '$matchSequence',
+]);
 
 const escapeStringContent = (value: string, quote: string) => value
     .replaceAll('\\', '\\\\')
@@ -119,17 +133,22 @@ export function registerNodalAutocompleteCompletions(
     if (!monaco) return { dispose: () => {} };
 
     return monaco.languages.registerCompletionItemProvider('javascript', {
-        triggerCharacters: ['$', '.', '[', '(', "'", '"'],
+        triggerCharacters: ['$', '.', '[', '(', ')', "'", '"'],
         provideCompletionItems: (model: CompletionModel, position: CompletionPosition) => {
             if (!matchesCompletionModelUri(model, modelUri)) return { suggestions: [] };
 
             const lineContent = model.getLineContent(position.lineNumber);
             const textBefore = lineContent.substring(0, position.column - 1);
-            const outputData = isCompletionRecord(context.outputData) ? context.outputData : null;
             const nodeData = isCompletionRecord(context.nodeData) ? context.nodeData : null;
             const nodeNames = Object.keys(nodeData ?? {}).filter(key => key !== 'last');
-            const runData = isCompletionRecord(context.runData) ? context.runData : null;
-            const contextData = isCompletionRecord(context.contextData) ? context.contextData : null;
+            const rootRunData = isCompletionRecord(context.runData) ? context.runData : null;
+            const runData = isCompletionRecord(nodeData?.last) ? nodeData.last : rootRunData;
+            const loopData = isCompletionRecord(runData?.$loop)
+                ? runData.$loop
+                : isCompletionRecord(rootRunData?.$loop) ? rootRunData.$loop : null;
+            const captureData = isCompletionRecord(runData?.$capture)
+                ? runData.$capture
+                : isCompletionRecord(rootRunData?.$capture) ? rootRunData.$capture : null;
 
             const rootMatch = textBefore.match(ROOT_COMPLETION_PATTERN);
             if (rootMatch) {
@@ -137,13 +156,32 @@ export function registerNodalAutocompleteCompletions(
                 const range = completionRange(position, typed);
                 const roots = [
                     { key: '$', detail: 'node result lookup', documentation: 'Get an executed node result by step name. Equivalent to $nodes[nodeName].' },
-                    { key: '$input', detail: 'flow input', documentation: 'Current flow input data.' },
                     { key: '$page', detail: 'browser page', documentation: 'Current browser page data.' },
-                    { key: '$output', detail: 'user output', documentation: 'User output values set by Set Output nodes.' },
                     { key: '$nodes', detail: 'node results', documentation: 'Internal result values from executed nodal nodes.' },
-                    { key: '$run', detail: 'run variables', documentation: 'Run-local variables set by nodal nodes.' },
-                    { key: '$context', detail: 'flow context', documentation: 'Flow context data, including meta values.' },
+                    { key: '$run', detail: 'current input snapshot', documentation: 'Output of the node executed immediately before this node. Use $("RUN") for the initial RUN data.' },
+                    ...(loopData ? [{
+                        key: '$loop',
+                        detail: 'current loop context',
+                        documentation: 'Item and index for the closest active loop.',
+                    }] : []),
+                    ...(captureData ? [{
+                        key: '$capture',
+                        detail: 'current network capture',
+                        documentation: 'Request and response payload for the current Sniffing branch execution.',
+                    }] : []),
                     { key: '$vars', detail: 'site variables', documentation: 'Global site variables.' },
+                    { key: '$now', detail: 'current date and time', documentation: 'Current run DateTime.' },
+                    { key: '$today', detail: 'start of today', documentation: 'Current day at midnight.' },
+                    { key: '$if', detail: 'conditional value', documentation: 'Return one of two values depending on a condition.' },
+                    { key: '$ifEmpty', detail: 'fallback value', documentation: 'Return a fallback for an empty value.' },
+                    { key: '$max', detail: 'maximum number', documentation: 'Return the highest supplied number.' },
+                    { key: '$min', detail: 'minimum number', documentation: 'Return the lowest supplied number.' },
+                    { key: '$sortDates', detail: 'sort dates', documentation: 'Sort date strings using a format.' },
+                    { key: '$parseDates', detail: 'parse dates', documentation: 'Parse date strings using a format.' },
+                    { key: '$currentDate', detail: 'current date parts', documentation: 'Return day, month, and year.' },
+                    { key: '$currentDateMinusOneMonth', detail: 'previous month date', documentation: 'Return date parts one month earlier.' },
+                    { key: '$currentDatePlusOneMonth', detail: 'next month date', documentation: 'Return date parts one month later.' },
+                    { key: '$matchSequence', detail: 'match sequence', documentation: 'Find a consecutive sequence matching patterns.' },
                     { key: '$viewportWidth', detail: 'viewport width', documentation: 'Effective browser viewport width in pixels.' },
                     { key: '$viewportHeight', detail: 'viewport height', documentation: 'Effective browser viewport height in pixels.' },
                     ...context.locals.map(local => ({
@@ -156,10 +194,10 @@ export function registerNodalAutocompleteCompletions(
                 return {
                     suggestions: roots.map(root => ({
                         label: root.key,
-                        kind: root.key === '$'
+                        kind: NODAL_EXPRESSION_FUNCTIONS.has(root.key)
                             ? monaco.languages.CompletionItemKind.Function
                             : monaco.languages.CompletionItemKind.Variable,
-                        insertText: root.key === '$' ? '$()' : root.key,
+                        insertText: NODAL_EXPRESSION_FUNCTIONS.has(root.key) ? `${root.key}()` : root.key,
                         detail: root.detail,
                         documentation: root.documentation,
                         range,
@@ -203,20 +241,18 @@ export function registerNodalAutocompleteCompletions(
                 };
             }
 
-            const bracketMatch = textBefore.match(/\$(input|page|output|nodes|run|context)\s*\[\s*(['"])([^'"]*)$/);
+            const bracketMatch = textBefore.match(/\$(page|nodes|run|loop|capture)\s*\[\s*(['"])([^'"]*)$/);
             if (bracketMatch) {
                 const root = `$${bracketMatch[1]}`;
-                const source = bracketMatch[1] === 'input'
-                    ? context.inputData
-                    : bracketMatch[1] === 'page'
+                const source = bracketMatch[1] === 'page'
                         ? context.pageData
                         : bracketMatch[1] === 'nodes'
                             ? nodeData
                         : bracketMatch[1] === 'run'
                             ? runData
-                        : bracketMatch[1] === 'context'
-                            ? contextData
-                            : outputData;
+                            : bracketMatch[1] === 'loop'
+                                    ? loopData
+                                    : captureData;
                 const typed = bracketMatch[3];
                 const range = completionRange(position, typed);
 
@@ -246,24 +282,54 @@ export function registerNodalAutocompleteCompletions(
                 };
             }
 
-            const dotMatch = textBefore.match(/(\$(?:input|page|output|nodes|run|context))((?:\.[a-zA-Z_$][\w$]*)*)\.([a-zA-Z_$][\w$]*)?$/);
+            // Matches `$("Node")`, `$("Node").` and `$("Node").a.b`; the trailing segment is optional
+            // so completions triggered by `)` can insert the leading dot themselves.
+            const nodeDotMatch = textBefore.match(
+                /\$\(\s*(['"])([^'"]+)\1\s*\)((?:\.[a-zA-Z_$][\w$]*)*?)(\.([a-zA-Z_$][\w$]*)?)?$/,
+            );
+            if (nodeDotMatch) {
+                const nodeName = nodeDotMatch[2];
+                const parentPath = nodeDotMatch[3].replace(/^\./, '');
+                const typed = nodeDotMatch[5] ?? '';
+                const source = isCompletionRecord(nodeData?.[nodeName]) ? nodeData[nodeName] : null;
+                const target = getNestedRecord(source, parentPath);
+                if (!target) return { suggestions: [] };
+
+                const rootPath = `$(${JSON.stringify(nodeName)})${parentPath ? `.${parentPath}` : ''}`;
+                const suggestions = topLevelPathSuggestions(
+                    monaco,
+                    target,
+                    rootPath,
+                    completionRange(position, typed),
+                );
+                const needsDot = nodeDotMatch[4] === undefined;
+
+                return {
+                    suggestions: needsDot
+                        ? suggestions.map(suggestion => ({
+                            ...suggestion,
+                            insertText: `.${suggestion.insertText}`,
+                        }))
+                        : suggestions,
+                };
+            }
+
+            const dotMatch = textBefore.match(/(\$(?:page|nodes|run|loop|capture))((?:\.[a-zA-Z_$][\w$]*)*)\.([a-zA-Z_$][\w$]*)?$/);
             if (!dotMatch) return { suggestions: [] };
 
             const root = dotMatch[1];
             const parentPath = dotMatch[2].replace(/^\./, '');
             const typed = dotMatch[3] ?? '';
 
-            const source = root === '$input'
-                ? context.inputData
-                : root === '$page'
+            const source = root === '$page'
                     ? context.pageData
                     : root === '$nodes'
                         ? nodeData
                     : root === '$run'
                         ? runData
-                    : root === '$context'
-                        ? contextData
-                        : outputData;
+                        : root === '$loop'
+                                ? loopData
+                                : captureData;
 
             if (root === '$page') {
                 return {

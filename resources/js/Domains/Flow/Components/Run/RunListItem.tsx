@@ -9,6 +9,7 @@ import { formatDateTime } from '@/Shared/Utils/formatDate';
 import { handleLinkClick } from '@/Shared/Utils/navigation';
 import { ucfirst } from '@/Shared/Utils/string';
 import type { FlowRun } from '@/Domains/Flow/types';
+import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import * as S from './styled';
 import { formatRunDuration, getRunStatusIcon } from './utils';
 
@@ -121,10 +122,16 @@ export default function RunListItem({
             </S.RunMain>
             <S.RunMeta>
                 {showDuration && (
-                    <S.RunMetaItem>
-                        <Icon icon="lucide:timer" width={10} height={10} />
-                        {formatRunDuration(run.duration_ms)}
-                    </S.RunMetaItem>
+                    <>
+                        <S.RunMetaItem>
+                            <Icon icon="lucide:timer" width={10} height={10} />
+                            {formatRunDuration(run.duration_ms)}
+                        </S.RunMetaItem>
+                        <S.RunMetaItem title="Total storage">
+                            <Icon icon="lucide:server" width={10} height={10} />
+                            {formatRunStorage(run.storage_size_bytes)}
+                        </S.RunMetaItem>
+                    </>
                 )}
                 {showArtifacts && (
                     <S.ArtifactGroup>

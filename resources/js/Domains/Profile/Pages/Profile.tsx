@@ -16,6 +16,11 @@ const profileTabs: PageTabItem<ProfileTab>[] = [
     { value: 'api', label: 'API', icon: 'lucide:key-round' },
 ];
 
+const documentationPaths: Partial<Record<ProfileTab, string>> = {
+    security: '/guide/users-teams-access#user-authentication',
+    api: '/reference/api#authentication',
+};
+
 interface Props {
     apiKeys: ApiKey[];
     newApiKey: string | null;
@@ -30,7 +35,11 @@ export default function Profile({ apiKeys, newApiKey, twoFactorEnabled, sso }: P
     if (!user) return null;
 
     return (
-        <AppLayout title="Profile">
+        <AppLayout
+            title="Profile"
+            documentationPath={documentationPaths[activeTab]}
+            documentationLabel="Open profile documentation"
+        >
             <PageTabs
                 tabs={profileTabs}
                 activeTab={activeTab}

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { FlowRun } from '@/Domains/Flow/types';
 import type { CanvasNode, NodeParameterValue } from '../types';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
@@ -9,10 +10,14 @@ import PreviewSection from './components/PreviewSection/PreviewSection';
 import useNodeConfigModal from './hooks/useNodeConfigModal';
 import * as S from './styled';
 
+// Last run loaded with its nodal preview, so reopening the modal on the same run does not refetch it.
+let cachedPreviewRun: FlowRun | null = null;
+
 interface NodeConfigModalProps {
     node: CanvasNode;
     inputNodes?: CanvasNode[];
     outputNodes?: CanvasNode[];
+    previewNodes?: Array<{ node: CanvasNode; distance: number }>;
     connectedOutputPorts?: ReadonlySet<string>;
     currentSiteUrl?: string | null;
     flowId?: Id;
@@ -26,10 +31,59 @@ interface NodeConfigModalProps {
     onNavigateNode?: (node: CanvasNode) => void;
 }
 
+function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
+    const [loadedRun, setLoadedRun] = useState<FlowRun | null>(() => {
+        if (!latestRun) return null;
+        if (latestRun.internal_meta) return latestRun;
+        return cachedPreviewRun?.id === latestRun.id ? cachedPreviewRun : null;
+    });
+
+    useEffect(() => {
+        if (!flowId || !latestRun) {
+            setLoadedRun(null);
+            return;
+        }
+        if (latestRun.internal_meta) {
+            cachedPreviewRun = latestRun;
+            setLoadedRun(latestRun);
+            return;
+        }
+        if (cachedPreviewRun?.id === latestRun.id) {
+            setLoadedRun(cachedPreviewRun);
+            return;
+        }
+
+        setLoadedRun(null);
+        const controller = new AbortController();
+        void fetch(
+            `/flows/${encodeURIComponent(String(flowId))}/runs/${latestRun.id}?include_nodal_preview=1`,
+            { signal: controller.signal },
+        )
+            .then(response => {
+                if (!response.ok) throw new Error('Nodal preview could not be loaded.');
+                return response.json() as Promise<FlowRun>;
+            })
+            .then(run => {
+                cachedPreviewRun = run;
+                setLoadedRun(run);
+            })
+            .catch(error => {
+                if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                    setLoadedRun(null);
+                }
+            });
+
+        return () => controller.abort();
+    }, [flowId, latestRun]);
+
+    return loadedRun?.id === latestRun?.id ? loadedRun : latestRun;
+}
+
 export default function NodeConfigModal({
     node,
     inputNodes = [],
     outputNodes = [],
+    previewNodes = [],
     connectedOutputPorts = EMPTY_OUTPUT_PORT_SET,
     currentSiteUrl = null,
     flowId,
@@ -42,22 +96,31 @@ export default function NodeConfigModal({
     onRenameNode,
     onNavigateNode,
 }: NodeConfigModalProps) {
+    const previewRun = useNodalPreviewRun(flowId, latestRun);
     const {
         entry,
         visibleArgs,
-        defaultNodeLabel,
-        outputVariableValue,
         expressionOutputData,
         effectiveAutocompleteContext,
-        visibleInputData,
+        previewSources,
+        selectedPreviewSourceId,
+        setSelectedPreviewSourceId,
+        selectedPreviewSource,
+        selectBeforeExecution,
         currentNodeAfterData,
+        currentNodePreviewSource,
+        currentNodeExecutions,
+        currentNodeExecutionStatus,
+        selectedAfterExecutionIndex,
+        selectAfterExecution,
         labelDraft,
         setLabelDraft,
         commitLabel,
         handleClose,
     } = useNodeConfigModal({
         node,
-        latestRun,
+        previewNodes,
+        latestRun: previewRun,
         autocompleteContext,
         isFinallyNode,
         readOnly,
@@ -102,17 +165,23 @@ export default function NodeConfigModal({
                         <S.NodeConfigLayout>
                             <PreviewSection
                                 title="Before"
-                                value={visibleInputData}
-                                copyValue={visibleInputData}
-                                emptyText="No input data configured yet."
+                                value={selectedPreviewSource?.value}
+                                copyValue={selectedPreviewSource?.value}
+                                rootPath={selectedPreviewSource?.rootPath ?? '$run'}
+                                sources={previewSources}
+                                selectedSourceId={selectedPreviewSourceId}
+                                onSelectSource={setSelectedPreviewSourceId}
+                                executions={selectedPreviewSource?.executions}
+                                executionStatus={selectedPreviewSource?.executionStatus}
+                                selectedExecutionIndex={selectedPreviewSource?.executionIndex}
+                                onSelectExecution={selectBeforeExecution}
+                                emptyText="No static output is available. Run the flow to capture runtime data."
                                 flowId={flowId}
                             />
                             <NodeParameters
                                 node={node}
                                 entry={entry}
                                 args={visibleArgs}
-                                defaultNodeLabel={defaultNodeLabel}
-                                outputVariableValue={outputVariableValue}
                                 expressionOutputData={expressionOutputData}
                                 autocompleteContext={effectiveAutocompleteContext}
                                 connectedOutputPorts={connectedOutputPorts}
@@ -125,14 +194,22 @@ export default function NodeConfigModal({
                                 title="After"
                                 value={currentNodeAfterData}
                                 copyValue={currentNodeAfterData}
-                                emptyText="Run the flow once to populate output data."
+                                rootPath={currentNodePreviewSource.rootPath}
+                                draggable={false}
+                                executions={currentNodeExecutions}
+                                executionStatus={currentNodeExecutionStatus}
+                                selectedExecutionIndex={selectedAfterExecutionIndex}
+                                onSelectExecution={selectAfterExecution}
+                                emptyText="No static output is available. Run the flow to capture runtime data."
                                 flowId={flowId}
                             />
                         </S.NodeConfigLayout>
                     </S.NodeConfigBody>
                     <S.NodeConfigFooter>
                         <S.NodeConfigMeta>
-                            {latestRun ? `Using run #${latestRun.id} as preview data.` : 'Run the flow once to populate input data.'}
+                            {latestRun
+                                ? `Using run #${latestRun.id} as preview data.`
+                                : 'Showing a static preview. Run the flow to capture runtime values.'}
                         </S.NodeConfigMeta>
                         <S.NodeConfigDone type="button" onClick={handleClose}>Done</S.NodeConfigDone>
                     </S.NodeConfigFooter>

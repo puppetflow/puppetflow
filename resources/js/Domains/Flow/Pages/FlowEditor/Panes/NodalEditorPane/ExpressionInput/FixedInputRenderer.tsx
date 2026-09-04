@@ -45,6 +45,7 @@ interface FixedInputRendererProps {
     fixedInput?: ReactNode;
     onExpand: () => void;
     onChange: (value: ScalarNodeParameterValue) => void;
+    onTextChange: (value: string, cursorOffset: number) => void;
     onTextareaMount: OnMount;
     onTextareaChange: (value: string) => void;
     onVariablePickerOpen: () => void;
@@ -70,6 +71,7 @@ export default function FixedInputRenderer({
     fixedInput,
     onExpand,
     onChange,
+    onTextChange,
     onTextareaMount,
     onTextareaChange,
     onVariablePickerOpen,
@@ -163,10 +165,10 @@ export default function FixedInputRenderer({
                 value={value.value}
                 placeholder={placeholder ?? 'Not configured'}
                 disabled={readOnly}
-                onChange={event => onChange({
-                    mode: 'fixed',
-                    value: event.target.value,
-                })}
+                onChange={event => onTextChange(
+                    event.target.value,
+                    event.target.selectionStart ?? event.target.value.length,
+                )}
             />
         );
     }

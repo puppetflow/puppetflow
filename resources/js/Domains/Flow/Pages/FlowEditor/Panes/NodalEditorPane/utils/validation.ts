@@ -90,8 +90,10 @@ const RESERVED_IDENTIFIERS = new Set([
     'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
 ]);
 const RUNTIME_IDENTIFIERS = new Set([
-    '$', '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
-    '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
+    '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context', '$loop', '$capture',
+    '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed', '$now', '$today',
+    '$if', '$ifEmpty', '$max', '$min', '$sortDates', '$parseDates',
+    '$currentDate', '$currentDateMinusOneMonth', '$currentDatePlusOneMonth', '$matchSequence',
     '$viewportWidth', '$viewportHeight',
 ]);
 const DATA_TABLE_MUTATION_NODE_NAMES = new Set([

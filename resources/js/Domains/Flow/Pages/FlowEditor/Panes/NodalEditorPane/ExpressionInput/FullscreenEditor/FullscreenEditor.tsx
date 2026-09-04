@@ -1,4 +1,4 @@
-import type { DragEvent } from 'react';
+import { useMemo, type DragEvent } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import DataInspector from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/DataInspector';
@@ -13,7 +13,6 @@ interface FullscreenEditorProps {
     inputType: string;
     value: ScalarNodeParameterValue;
     placeholder?: string;
-    outputData: unknown;
     autocompleteContext: NodalAutocompleteContext;
     theme: string;
     readOnly?: boolean;
@@ -29,7 +28,6 @@ export default function FullscreenEditor({
     inputType,
     value,
     placeholder,
-    outputData,
     autocompleteContext,
     theme,
     readOnly,
@@ -39,12 +37,28 @@ export default function FullscreenEditor({
     onChange,
     onDropPath,
 }: FullscreenEditorProps) {
-    const contextData = autocompleteContext.contextData && typeof autocompleteContext.contextData === 'object'
-        ? autocompleteContext.contextData as Record<string, unknown>
-        : {};
-    const inputData = autocompleteContext.inputData && typeof autocompleteContext.inputData === 'object'
-        ? autocompleteContext.inputData as Record<string, unknown>
-        : {};
+    // Memoized so the scope inspector keeps its expand/collapse state while typing.
+    const scopeValue = useMemo(() => {
+        const inputData = autocompleteContext.inputData && typeof autocompleteContext.inputData === 'object'
+            ? autocompleteContext.inputData as Record<string, unknown>
+            : {};
+        const nodeData = autocompleteContext.nodeData ?? {};
+
+        return {
+            $run: typeof nodeData === 'object' && nodeData && 'last' in nodeData
+                ? nodeData.last
+                : autocompleteContext.runData ?? {},
+            ...(autocompleteContext.runData?.$loop
+                ? { $loop: autocompleteContext.runData.$loop }
+                : {}),
+            ...(autocompleteContext.runData?.$capture
+                ? { $capture: autocompleteContext.runData.$capture }
+                : {}),
+            $nodes: nodeData,
+            $viewportWidth: inputData.$viewportWidth ?? 1280,
+            $viewportHeight: inputData.$viewportHeight ?? 720,
+        };
+    }, [autocompleteContext]);
 
     return (
         <S.ExpressionFullscreenBackdrop
@@ -71,15 +85,7 @@ export default function FullscreenEditor({
                 <S.ExpressionFullscreenBody $codeInput={inputType === 'code'}>
                     <DataInspector
                         title="Scope"
-                        value={{
-                            $input: inputData,
-                            $nodes: autocompleteContext.nodeData ?? {},
-                            $run: autocompleteContext.runData ?? {},
-                            $output: outputData ?? {},
-                            $context: contextData,
-                            $viewportWidth: inputData.$viewportWidth ?? 1280,
-                            $viewportHeight: inputData.$viewportHeight ?? 720,
-                        }}
+                        value={scopeValue}
                         rootPath="$"
                         emptyText="No scope data yet."
                     />

@@ -103,11 +103,10 @@ export const PLAIN_FIXED_INPUT_EDITOR_OPTIONS = {
 const TEMPLATE_PATTERN = /\{\{[\s\S]*?\}\}/g;
 const templateDecoratedEditors = new WeakSet<editor.IStandaloneCodeEditor>();
 
-export function insertPathExpression(current: string, path: string) {
+export function insertPathExpression(current: string, path: string, offset = current.length) {
     const expression = expressionForPath(path);
-    return current.trim()
-        ? `${current.trim()} ${expression}`
-        : expression;
+    const insertionOffset = Math.max(0, Math.min(offset, current.length));
+    return current.slice(0, insertionOffset) + expression + current.slice(insertionOffset);
 }
 
 export function capitalizeLabel(value: string) {

@@ -8,14 +8,13 @@ import { useNodeEditingContext } from './useNodeEditingContext';
 
 type NodalInteractionsControllerProps = Pick<
     NodalEditorPaneProps,
-    'allowShortcutsInModal' | 'flow' | 'graphContext'
+    'flow' | 'graphContext'
 > & {
     graphController: NodalGraphController;
 };
 
 // Combines canvas, node, keyboard, and clipboard interactions for the nodal editor.
 export function useNodalInteractionsController({
-    allowShortcutsInModal = false,
     flow,
     graphContext = 'flow',
     graphController,
@@ -28,6 +27,7 @@ export function useNodalInteractionsController({
         contextMenu,
         currentGraph,
         edges,
+        finallyEnabled,
         getWorldPointFromClient,
         isActivePane,
         isAnotherPaneActive,
@@ -65,7 +65,10 @@ export function useNodalInteractionsController({
         toast,
         undoGraph,
         viewport,
+        visibleNodes,
     } = graphController;
+    // Pointer, drag, marquee and keyboard interactions only see drawn nodes (a disabled FINALLY
+    // branch stays in state but must not be selectable). State updates go through setNodes updaters.
     const {
         setTransformMode,
         startMoveTransform,
@@ -73,7 +76,7 @@ export function useNodalInteractionsController({
         transformMode,
     } = useCanvasTransformMode({
         canvasMode,
-        nodes,
+        nodes: visibleNodes,
         readOnly,
         selectedNodeIds,
         lastPointerWorldRef,
@@ -116,7 +119,7 @@ export function useNodalInteractionsController({
         knifeDragRef,
         lastPointerWorldRef,
         nodeDragRef,
-        nodes,
+        nodes: visibleNodes,
         onViewportPan: revealMiniMap,
         readOnly,
         recordHistory,
@@ -142,12 +145,12 @@ export function useNodalInteractionsController({
         nodes,
         edges,
         currentGraph,
+        finallyEnabled,
         flow,
         graphContext,
     });
 
     useNodalEditorEffects({
-        allowShortcutsInModal,
         canvasMode,
         contextMenu,
         editingNodeCurrent: editingContext.editingNodeCurrent,
@@ -156,7 +159,7 @@ export function useNodalInteractionsController({
         isActivePane,
         isAnotherPaneActive,
         lastPointerWorldRef,
-        nodes,
+        nodes: visibleNodes,
         openNodeMenuId,
         pasteNodesFromClipboard: nodeActions.pasteNodesFromClipboard,
         pendingConnectionTarget,

@@ -162,8 +162,19 @@ export function useExpressionInputOrchestration({
     const insertDraggedPath = (path: string, event?: DragEvent<HTMLElement>) => {
         if (!path) return;
 
-        // Insert at the drop point (or caret) when a Monaco editor hosts the
-        // value, preserving the existing content and mode.
+        const focusExpressionAt = (offset: number) => {
+            requestAnimationFrame(() => {
+                const expressionEditor = expanded
+                    ? fullscreenEditorRef.current
+                    : inlineEditorRef.current;
+                const expressionModel = expressionEditor?.getModel();
+                if (!expressionEditor || !expressionModel) return;
+
+                const position = expressionModel.getPositionAt(offset);
+                expressionEditor.setPosition(position);
+                expressionEditor.focus();
+            });
+        };
         const targetEditor = expanded ? fullscreenEditorRef.current : inlineEditorRef.current;
         if (targetEditor?.getDomNode()?.isConnected) {
             const dropTarget = event
@@ -174,6 +185,16 @@ export function useExpressionInputOrchestration({
                 ?? targetEditor.getPosition()
                 ?? model?.getFullModelRange().getEndPosition();
             if (model && position) {
+                if (value.mode === 'fixed') {
+                    const expression = expressionForPath(path);
+                    const offset = model.getOffsetAt(position);
+                    const nextValue = insertPathExpression(model.getValue(), path, offset);
+                    updateExpression(nextValue);
+                    focusExpressionAt(offset + expression.length);
+                    return;
+                }
+
+                targetEditor.pushUndoStop();
                 targetEditor.executeEdits('drop-path', [{
                     range: {
                         startLineNumber: position.lineNumber,
@@ -183,12 +204,21 @@ export function useExpressionInputOrchestration({
                     },
                     text: expressionForPath(path),
                 }]);
+                targetEditor.pushUndoStop();
                 targetEditor.focus();
                 return;
             }
         }
 
-        updateExpression(insertPathExpression(value.mode === 'expression' ? value.value : '', path));
+        const nativeInput = event?.nativeEvent.composedPath().find(
+            target => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement,
+        );
+        const offset = nativeInput instanceof HTMLInputElement || nativeInput instanceof HTMLTextAreaElement
+            ? nativeInput.selectionStart ?? value.value.length
+            : value.value.length;
+        const expression = expressionForPath(path);
+        updateExpression(insertPathExpression(value.value, path, offset));
+        focusExpressionAt(offset + expression.length);
     };
 
     return {

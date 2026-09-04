@@ -31,7 +31,6 @@ import {
     LOOP_NODE_NAME,
     META_NODE_NAME,
     NO_OP_NODE_NAME,
-    NODE_RUN_OUTPUT_KEY,
     SET_NODE_NAME,
     SET_OUTPUT_NODE_NAME,
 } from './constants';
@@ -566,13 +565,6 @@ export function collectDeclaredCookieJarNamesFromGraph(graph: NodalGraph): strin
     return [...jarNames];
 }
 
-const isInternalNodeOutputKey = (key: string, nodeId: string) => {
-    if (!key) return false;
-    if (key === nodeId) return true;
-
-    return /^\$?[A-Za-z_$][\w$]*-\d{10,}-\d+$/.test(key);
-};
-
 const materializePaths = (paths: Set<string>) => {
     const root: Record<string, unknown> = {};
 
@@ -693,6 +685,7 @@ export function analyzeNodalAutocompleteContext(
     graph: NodalGraph,
     targetNodeId: string,
     defaultInputs: Record<string, unknown> | null,
+    finallyEnabled = true,
 ): NodalAutocompleteContext {
     const nodesById = new Map(graph.nodes.map(node => [node.id, node]));
     const structuredGraph = analyzeStructuredGraph(graph.nodes, graph.edges);
@@ -712,13 +705,13 @@ export function analyzeNodalAutocompleteContext(
     const terminateNode = graph.nodes.find(node => node.system === 'terminate');
     const terminateNodeId = terminateNode?.id ?? '__system_terminate';
     const terminateY = terminateNode?.y ?? SYSTEM_TERMINATE_POSITION.y;
-    const finallyNodeIds = new Set(terminateNode
+    const finallyQueue = (outgoing.get(terminateNodeId) ?? []).map(edge => edge.targetNodeId);
+    const finallyNodeIds = new Set(terminateNode && finallyEnabled
         ? graph.nodes
             .filter(node => !node.system && node.y >= terminateY)
             .map(node => node.id)
         : [],
     );
-    const finallyQueue = (outgoing.get(terminateNodeId) ?? []).map(edge => edge.targetNodeId);
 
     while (finallyQueue.length > 0) {
         const nodeId = finallyQueue.shift();
@@ -758,18 +751,37 @@ export function analyzeNodalAutocompleteContext(
     }
     const outputData: Record<string, unknown> = {};
     const nodeData: Record<string, unknown> = {};
-    const setNodeResult = (node: NodalGraph['nodes'][number], value: unknown) => {
-        Object.defineProperty(nodeData, node.id, {
-            value,
-            writable: true,
-            configurable: true,
-        });
-        nodeData[node.label?.trim() || formatEntryLabel(getEntryByName(node.name))] = value;
-        nodeData.last = value;
-    };
     const runData: Record<string, unknown> = {};
     const contextData: Record<string, unknown> = {
         ...defaults.contextData,
+    };
+    const runObject = runData;
+    runObject.$input = inputData;
+    runObject.$output = outputData;
+    runObject.$context = contextData;
+    Object.defineProperty(nodeData, runNodeId, {
+        value: runObject,
+        writable: true,
+        configurable: true,
+    });
+    nodeData.RUN = runObject;
+    nodeData.last = runObject;
+    const setNodeResult = (node: NodalGraph['nodes'][number], value: unknown) => {
+        const previous = isRecord(nodeData.last) ? nodeData.last : runObject;
+        const { $result: _previousResult, ...base } = previous;
+        const state: Record<string, unknown> = isRecord(value)
+            ? { ...base, ...value }
+            : value === undefined ? base : { ...base, $result: value };
+        state.$input = inputData;
+        state.$output = outputData;
+        state.$context = contextData;
+        Object.defineProperty(nodeData, node.id, {
+            value: state,
+            writable: true,
+            configurable: true,
+        });
+        nodeData[node.label?.trim() || formatEntryLabel(getEntryByName(node.name))] = state;
+        nodeData.last = state;
     };
     const tabNames = new Set(collectDeclaredNamedTabsFromGraph(graph));
     const stopwatchNames = new Set(collectDeclaredStopwatchNamesFromGraph(graph));
@@ -831,26 +843,18 @@ export function analyzeNodalAutocompleteContext(
                 nodeData,
             }) : undefined;
             setNodeResult(node, value);
-            collectSetVariableContext(node.values?.variables, new Set<string>(), runData, inputData, outputData, runData, contextData);
             return;
         }
 
         if (node.name === SET_OUTPUT_NODE_NAME) {
-            const variableValue = node.values?.variables;
-            const value = variableValue && typeof variableValue !== 'string' ? previewNodeValue(variableValue, {
-                inputData,
-                outputData,
-                runData,
-                contextData,
-                nodeData,
-            }) : undefined;
-            setNodeResult(node, value);
             collectSetVariableContext(node.values?.variables, outputPaths, outputData, inputData, outputData, runData, contextData);
+            setNodeResult(node, {});
             return;
         }
 
         if (node.name === META_NODE_NAME) {
             collectMetaContext(node.values, contextData, inputData, outputData, runData, contextData);
+            setNodeResult(node, isRecord(contextData.meta) ? contextData.meta : {});
             return;
         }
 
@@ -864,9 +868,6 @@ export function analyzeNodalAutocompleteContext(
         if (node.name === NO_OP_NODE_NAME) return;
 
         setNodeResult(node, unresolvedNodeResultPreview(node));
-        const rawOutputPath = readFixedScalar(node.values?.[NODE_RUN_OUTPUT_KEY]);
-        const outputPath = isInternalNodeOutputKey(rawOutputPath, node.id) ? '' : rawOutputPath;
-        setPreviewPathValue(runData, outputPath, unresolvedNodeResultPreview(node));
     });
 
     const locals = new Map<string, VariableSuggestion>();
@@ -879,15 +880,27 @@ export function analyzeNodalAutocompleteContext(
         if (!reachableFrom(bodyStart, outgoing, doneStart).has(targetNodeId)) return;
 
         const mode = readFixedScalar(node.values?.mode) || 'items';
-        setPreviewPathValue(runData, '$loop.index', 0);
-
-        if (mode === 'items') {
-            setPreviewPathValue(runData, '$loop.item', undefined);
-        }
+        const loopContext: Record<string, unknown> = { index: 0 };
+        if (mode === 'items') loopContext.item = undefined;
+        runData.$loop = loopContext;
+        const existingLoopState = nodeData[node.id];
+        const loopState = {
+            ...(isRecord(existingLoopState) ? existingLoopState : runObject),
+            $loop: loopContext,
+        };
+        Object.defineProperty(nodeData, node.id, {
+            value: loopState,
+            writable: true,
+            configurable: true,
+        });
+        nodeData[node.label?.trim() || formatEntryLabel(getEntryByName(node.name))] = loopState;
 
         locals.set('$item', { id: '$item', key: '$item', type: 'loop_item' });
         locals.set('$index', { id: '$index', key: '$index', type: 'loop_index' });
     });
+    if (isRecord(runData.$loop) && isRecord(nodeData.last)) {
+        nodeData.last = { ...nodeData.last, $loop: runData.$loop };
+    }
 
     graph.nodes.forEach(node => {
         if (node.deactivated || node.name !== '$sniffNetwork' || !upstream.has(node.id)) return;
@@ -900,7 +913,7 @@ export function analyzeNodalAutocompleteContext(
         ) ?? null;
         if (!reachableFrom(branchStart, outgoing, convergenceNodeId).has(targetNodeId)) return;
 
-        runData.$sniffing = {
+        const capturePayload = {
             profile: '',
             index: 0,
             tabName: '',
@@ -929,6 +942,18 @@ export function analyzeNodalAutocompleteContext(
             error: null,
             durationMs: 0,
         };
+        runData.$capture = capturePayload;
+        const captureState = {
+            ...(isRecord(nodeData.last) ? nodeData.last : {}),
+            $capture: capturePayload,
+        };
+        Object.defineProperty(nodeData, node.id, {
+            value: captureState,
+            writable: true,
+            configurable: true,
+        });
+        nodeData[node.label?.trim() || formatEntryLabel(getEntryByName(node.name))] = captureState;
+        nodeData.last = captureState;
     });
 
     return {

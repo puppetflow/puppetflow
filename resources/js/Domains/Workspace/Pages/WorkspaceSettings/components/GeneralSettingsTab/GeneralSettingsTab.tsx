@@ -1,4 +1,5 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { Workspace } from '@/Domains/Workspace/types';
 import GeneralSection from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/GeneralSection';
 import OwnershipSection from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/OwnershipSection';
@@ -20,6 +21,7 @@ export default function GeneralSettingsTab({ workspace, isWorkspaceAdmin, isOwne
                     <S.CardTitle>
                         <Icon icon="lucide:settings" width={15} height={15} />
                         General
+                        <DocHelpLink path="/guide/workspaces#general" label="Open general workspace settings documentation" />
                     </S.CardTitle>
                     <GeneralSection workspace={workspace} readOnly={!isWorkspaceAdmin} />
                 </S.Card>
@@ -28,6 +30,7 @@ export default function GeneralSettingsTab({ workspace, isWorkspaceAdmin, isOwne
                     <S.CardTitle>
                         <Icon icon="lucide:crown" width={15} height={15} />
                         Ownership
+                        <DocHelpLink path="/guide/workspaces#ownership" label="Open workspace ownership documentation" />
                     </S.CardTitle>
                     <OwnershipSection workspace={workspace} isOwner={isOwner} />
                 </S.Card>
@@ -38,6 +41,7 @@ export default function GeneralSettingsTab({ workspace, isWorkspaceAdmin, isOwne
                     <S.CardTitle>
                         <Icon icon="lucide:shield" width={15} height={15} />
                         Security
+                        <DocHelpLink path="/guide/workspaces#security" label="Open workspace security documentation" />
                     </S.CardTitle>
                     <SecuritySection workspace={workspace} readOnly={!isWorkspaceAdmin} />
                 </S.Card>

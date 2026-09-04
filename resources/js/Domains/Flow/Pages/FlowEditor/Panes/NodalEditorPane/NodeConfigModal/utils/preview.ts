@@ -30,6 +30,11 @@ export interface PreviewScope {
     contextData: unknown;
 }
 
+/** Key under which a node's state is exposed in `$nodes`; must match the compiler and static analysis. */
+export const nodeStateLabel = (node: CanvasNode) => (
+    node.label?.trim() || formatEntryLabel(node.system ? node.entry : getEntryByName(node.entry.name))
+);
+
 const previewTypedFieldValue = (value: unknown, valueType: string | undefined) => {
     switch (valueType) {
         case 'number':
@@ -155,7 +160,7 @@ export const mergeOutputContextPreview = (
     ...(withoutRuntimeInputs(latestOutputContext) ?? {}),
 });
 
-export const mergeOutputInputPreview = (
+const mergeOutputInputPreview = (
     latestInput: Record<string, unknown> | null,
     autocompleteInput: Record<string, unknown> | null,
     latestOutputInput: Record<string, unknown> | null,
@@ -190,6 +195,39 @@ export const createExpressionOutputData = (
     };
 };
 
+/**
+ * When the edited node sits inside a `$sniffNetwork` sniffing callback (static analysis exposes a
+ * `$capture` placeholder in that case), the sniff node is shown with the most relevant captured
+ * payload as `$capture`: the one recorded on the edited node, else the last runtime capture, else the placeholder.
+ */
+export const resolveSniffCallbackValue = ({
+    sourceNode,
+    staticValue,
+    runtimeValue,
+    fallbackBase,
+    captureContextPreview,
+    currentNodeCapture,
+}: {
+    sourceNode: CanvasNode;
+    staticValue: unknown;
+    runtimeValue: unknown;
+    fallbackBase: Record<string, unknown>;
+    captureContextPreview: Record<string, unknown> | null;
+    currentNodeCapture: Record<string, unknown> | null;
+}): Record<string, unknown> | undefined => {
+    if (sourceNode.entry.name !== '$sniffNetwork' || !captureContextPreview) return undefined;
+
+    const runtimeCaptures = asRecord(runtimeValue)?.captures;
+    const latestRuntimeCapture = Array.isArray(runtimeCaptures)
+        ? [...runtimeCaptures].reverse().find(item => asRecord(item))
+        : undefined;
+
+    return {
+        ...(asRecord(staticValue) ?? fallbackBase),
+        $capture: currentNodeCapture ?? asRecord(latestRuntimeCapture) ?? captureContextPreview,
+    };
+};
+
 export const createEffectiveAutocompleteContext = ({
     autocompleteContext,
     latestInput,
@@ -197,6 +235,9 @@ export const createEffectiveAutocompleteContext = ({
     nodalPreviewInput,
     runPreview,
     outputContextPreview,
+    nodePreviewData,
+    currentNodeCapture,
+    previewNodes,
     entryName,
     loopMode,
 }: {
@@ -206,60 +247,96 @@ export const createEffectiveAutocompleteContext = ({
     nodalPreviewInput: Record<string, unknown> | null;
     runPreview: Record<string, unknown>;
     outputContextPreview: Record<string, unknown>;
+    nodePreviewData: Record<string, unknown> | null;
+    currentNodeCapture: Record<string, unknown> | null;
+    previewNodes: Array<{ node: CanvasNode; distance: number }>;
     entryName: string;
     loopMode: string | null;
-}): NodalAutocompleteContext => ({
-    ...autocompleteContext,
-    inputData: {
-        ...(withoutContext(latestInput) ?? {}),
-        ...(withoutContext(autocompleteContext.inputData) ?? {}),
-        ...(latestOutputInput ?? {}),
-        ...(nodalPreviewInput ?? {}),
-    },
-    runData: {
-        ...runPreview,
-        ...(entryName === LOOP_NODE_NAME && loopMode === 'condition'
-            ? { $loop: { index: 0 } }
-            : {}),
-    },
-    nodeData: autocompleteContext.nodeData,
-    contextData: outputContextPreview,
-});
+}): NodalAutocompleteContext => {
+    const nodeData = { ...(autocompleteContext.nodeData ?? {}) };
+    const captureContextPreview = asRecord(autocompleteContext.runData?.$capture);
+    previewNodes.forEach(({ node }) => {
+        const label = nodeStateLabel(node);
+        const staticValue = autocompleteContext.nodeData?.[label];
+        const runtimeValue = nodePreviewData?.[node.id];
+        const captureValue = resolveSniffCallbackValue({
+            sourceNode: node,
+            staticValue,
+            runtimeValue,
+            fallbackBase: runPreview,
+            captureContextPreview,
+            currentNodeCapture,
+        });
+        const value = node.system === 'run'
+            ? runPreview
+            : captureValue ?? runtimeValue ?? staticValue;
+        if (value === undefined) return;
+        nodeData[label] = value;
+    });
+    const immediateNode = previewNodes[0]?.node;
+    if (immediateNode) {
+        const immediateValue = immediateNode.system === 'run'
+            ? runPreview
+            : nodeData[nodeStateLabel(immediateNode)];
+        if (immediateValue !== undefined) nodeData.last = immediateValue;
+    }
 
-export const createNodeAfterData = ({
+    return {
+        ...autocompleteContext,
+        inputData: mergeOutputInputPreview(
+            latestInput,
+            autocompleteContext.inputData,
+            latestOutputInput,
+            nodalPreviewInput,
+        ),
+        runData: {
+            ...runPreview,
+            ...(entryName === LOOP_NODE_NAME && loopMode === 'condition'
+                ? { $loop: { index: 0 } }
+                : {}),
+        },
+        nodeData,
+        contextData: outputContextPreview,
+    };
+};
+
+export const createStaticNodeAfterData = ({
     node,
     entry,
-    outputVariableValue,
     inputPreview,
     outputPreview,
-    runPreview,
     contextPreview,
     nodeData,
 }: {
     node: CanvasNode;
     entry: HelpEntryDef;
-    outputVariableValue: string;
     inputPreview: Record<string, unknown>;
     outputPreview: unknown;
-    runPreview: Record<string, unknown>;
     contextPreview: Record<string, unknown>;
     nodeData: unknown;
 }) => {
     const nextInput = { ...inputPreview };
     const nextOutput = { ...(asRecord(outputPreview) ?? {}) };
-    const nextRun = { ...runPreview };
     const nextContext = { ...contextPreview };
+    const nodes = asRecord(nodeData);
+    const previous = asRecord(nodes?.last) ?? {
+        $input: inputPreview,
+        $output: outputPreview,
+        $context: contextPreview,
+    };
+    const { $result: _previousResult, ...base } = previous;
     const scope: PreviewScope = {
         inputData: inputPreview,
         outputData: outputPreview,
         nodeData,
-        runData: runPreview,
+        runData: {
+            $input: inputPreview,
+            $output: outputPreview,
+            $context: contextPreview,
+        },
         contextData: contextPreview,
     };
-
-    if (outputVariableValue.trim()) {
-        setPreviewPathValue(nextRun, outputVariableValue, unresolvedNodeResultPreview(node));
-    }
+    let result: unknown = unresolvedNodeResultPreview(node);
 
     if (entry.name === '$keyboardSpeed') {
         const speed = Number(previewParameterValue(node.values.keyboardSpeedValue, scope));
@@ -271,25 +348,36 @@ export const createNodeAfterData = ({
         if (Number.isFinite(height) && height > 0) nextInput.$viewportHeight = height;
     } else if (entry.name === SET_NODE_NAME || entry.name === SET_OUTPUT_NODE_NAME) {
         const variables = asRecord(previewParameterValue(node.values.variables, scope));
-        const target = entry.name === SET_NODE_NAME ? nextRun : nextOutput;
         if (variables) {
-            Object.entries(variables).forEach(([key, value]) => setPreviewPathValue(target, key, value));
+            if (entry.name === SET_OUTPUT_NODE_NAME) {
+                Object.entries(variables).forEach(([key, value]) => setPreviewPathValue(nextOutput, key, value));
+                result = {};
+            } else {
+                result = variables;
+            }
         }
     } else if (entry.name === META_NODE_NAME) {
         const metadata = asRecord(previewParameterValue(node.values.metadata, scope));
         if (metadata) {
             nextContext.meta = { ...(asRecord(nextContext.meta) ?? {}), ...metadata };
+            result = metadata;
         }
     } else if (entry.name === CODE_NODE_NAME) {
+        const codeRunData: Record<string, unknown> = {};
         collectCodeRunAssignments(
             normalizeScalarParameterValue(node.values[CODE_NODE_VALUE_KEY]).value,
-            nextRun,
+            codeRunData,
         );
+        result = {
+            ...(asRecord(result) ?? {}),
+            ...codeRunData,
+        };
     }
 
     return {
+        ...base,
+        ...(asRecord(result) ?? (result === undefined ? {} : { $result: result })),
         $input: nextInput,
-        $run: nextRun,
         $output: nextOutput,
         $context: nextContext,
     };

@@ -3,6 +3,7 @@
  * @aliases save browser session, persist login, store cookies
  * @desc Save browser cookies and localStorage by origin. Default jar name: "Default".
  * @nodal-desc Save cookies and localStorage for reuse in later runs.
+ * @nodal-output void
  * @opt persistLocalStorage: true
  * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "Default".
  * @nodal-param options: Browser storage options.

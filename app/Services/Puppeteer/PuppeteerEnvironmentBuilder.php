@@ -84,6 +84,18 @@ final class PuppeteerEnvironmentBuilder
                 'puppetflow.runner_http_sniffing_max_body_bytes',
                 '5242880',
             ),
+            'RUNNER_NODAL_PREVIEW_MAX_HISTORY_BYTES' => $this->scalarConfig(
+                'puppetflow.runner_nodal_preview_max_history_bytes',
+                '1048576',
+            ),
+            'RUNNER_NODAL_PREVIEW_MAX_EXECUTIONS_PER_NODE' => $this->scalarConfig(
+                'puppetflow.runner_nodal_preview_max_executions_per_node',
+                '20',
+            ),
+            'RUNNER_NODAL_PREVIEW_MAX_STRING_CHARS' => $this->scalarConfig(
+                'puppetflow.runner_nodal_preview_max_string_chars',
+                '500',
+            ),
             'APP_URL' => $this->stringConfig('app.url'),
             ...$this->pinokioConfig->toEnv(),
         ];
@@ -109,6 +121,10 @@ final class PuppeteerEnvironmentBuilder
         $env['VIEWPORT_HEIGHT'] = (string) $viewport['height'];
         if ($flow->disable_web_security !== null) {
             $env['BROWSER_DISABLE_WEB_SECURITY'] = $flow->disable_web_security ? 'true' : 'false';
+        }
+        if ($flow->flow_type === 'nodal' && ! $flow->finally_enabled) {
+            // The FINALLY branch is kept in the graph but must not run while the setting is off.
+            $env['FLOW_FINALLY_ENABLED'] = 'false';
         }
 
         if ($run && $this->features->enabled('live_view_enabled')) {

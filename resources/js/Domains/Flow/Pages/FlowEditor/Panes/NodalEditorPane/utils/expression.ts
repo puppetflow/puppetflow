@@ -311,43 +311,153 @@ const createPreviewDateTime = (value: Date | string | number = new Date()) => {
     };
 };
 
+const expressionUtilityScope = {
+    $if: (condition: unknown, valueIfTrue: unknown, valueIfFalse: unknown) => (
+        condition ? valueIfTrue : valueIfFalse
+    ),
+    $ifEmpty: (value: unknown, valueIfEmpty: unknown) => {
+        if (value === undefined || value === null || value === '') return valueIfEmpty;
+        if (Array.isArray(value) && value.length === 0) return valueIfEmpty;
+        if (isRecord(value) && Object.keys(value).length === 0) return valueIfEmpty;
+        return value;
+    },
+    $max: (...numbers: number[]) => Math.max(...numbers),
+    $min: (...numbers: number[]) => Math.min(...numbers),
+    $sortDates: (dateFormat: string, dateValues: string[], sortOrder = 'asc') => {
+        const formatParts = dateFormat.toLowerCase().split(/[^a-z]+/);
+        const separator = dateFormat.match(/[^a-zA-Z]+/)?.[0] ?? '/';
+        const toTimestamp = (dateValue: string) => {
+            const parts = dateValue.split(separator);
+            const values: Record<string, number> = {};
+            formatParts.forEach((key, index) => {
+                values[key] = Number.parseInt(parts[index], 10);
+            });
+            return new Date(values.yyyy, (values.mm || 1) - 1, values.dd || 1).getTime();
+        };
+        return [...dateValues].sort((left, right) => {
+            const difference = toTimestamp(left) - toTimestamp(right);
+            return sortOrder === 'desc' ? -difference : difference;
+        });
+    },
+    $parseDates: (dateFormat: string, ...dateStrings: string[]) => {
+        const tokens = dateFormat.match(/(dd|mm|yyyy|yy)/gi);
+        if (!tokens) throw new Error(`Invalid date format: ${dateFormat}`);
+        return dateStrings.map(dateString => {
+            const parts = dateString.split(/[^a-zA-Z0-9]/).filter(Boolean);
+            if (parts.length !== tokens.length) {
+                throw new Error(`Invalid date for format ${dateFormat}: ${dateString}`);
+            }
+            let day = 1;
+            let month = 1;
+            let year = 1970;
+            tokens.forEach((rawToken, index) => {
+                const token = rawToken.toLowerCase();
+                const value = Number(parts[index]);
+                if (Number.isNaN(value)) throw new Error(`Invalid value in date: ${dateString}`);
+                if (token === 'dd') day = value;
+                else if (token === 'mm') month = value;
+                else if (token === 'yyyy') year = value;
+                else if (token === 'yy') year = 2000 + value;
+            });
+            const date = new Date(year, month - 1, day);
+            if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+                throw new Error(`Invalid date: ${dateString}`);
+            }
+            return date;
+        });
+    },
+    $matchSequence: (sourceItems: unknown[], sequencePatterns: Array<string | RegExp>) => {
+        if (!sourceItems || !sequencePatterns || sequencePatterns.length === 0) return null;
+        const expressions = sequencePatterns.map(pattern => (
+            pattern instanceof RegExp ? pattern : new RegExp(pattern)
+        ));
+        for (let index = 0; index <= sourceItems.length - expressions.length; index += 1) {
+            const matches = expressions.every((expression, offset) => (
+                expression.test(String(sourceItems[index + offset]))
+            ));
+            if (matches) {
+                return expressions.length === 1
+                    ? sourceItems[index]
+                    : sourceItems.slice(index, index + expressions.length);
+            }
+        }
+        return null;
+    },
+};
+
+const previewCurrentDate = (timestamp?: unknown, monthOffset = 0) => {
+    const source = timestamp === undefined || timestamp === null || timestamp === ''
+        ? new Date()
+        : timestamp && typeof timestamp === 'object' && 'toJSDate' in timestamp
+            ? (timestamp as { toJSDate: () => Date }).toJSDate()
+            : new Date(timestamp as string | number | Date);
+    const date = new Date(source.getTime());
+    date.setMonth(date.getMonth() + monthOffset);
+    return {
+        day: String(date.getDate()).padStart(2, '0'),
+        month: String(date.getMonth() + 1).padStart(2, '0'),
+        year: date.getFullYear(),
+    };
+};
+
 const evaluateExpressionSource = (source: string, scope: { inputData: unknown; pageData?: unknown; outputData: unknown; nodeData?: unknown; runData?: unknown; contextData?: unknown; variableData?: Record<string, unknown> }) => {
     if (source.includes('$page')) return `[Needs run: ${source}]`;
 
-    const $input = scope.inputData;
     const $page = scope.pageData ?? {};
-    const $output = scope.outputData;
     const $nodes = scope.nodeData ?? {};
     const $ = (nodeName: string) => isRecord($nodes) ? $nodes[nodeName] : undefined;
-    const $run = scope.runData ?? {};
-    const $context = scope.contextData ?? {};
-    const $viewportWidth = isRecord($input) && typeof $input.$viewportWidth === 'number'
-        ? $input.$viewportWidth
+    const rawRunData = isRecord(scope.runData) ? scope.runData : {};
+    const rootRun = '$input' in rawRunData
+        ? rawRunData
+        : {
+            ...rawRunData,
+            $input: scope.inputData,
+            $output: scope.outputData,
+            $context: scope.contextData,
+        };
+    const $run = isRecord($nodes) && isRecord($nodes.last) ? $nodes.last : rootRun;
+    const runInput = isRecord(rootRun.$input) ? rootRun.$input : {};
+    const $viewportWidth = typeof runInput.$viewportWidth === 'number'
+        ? runInput.$viewportWidth
         : 1280;
-    const $viewportHeight = isRecord($input) && typeof $input.$viewportHeight === 'number'
-        ? $input.$viewportHeight
+    const $viewportHeight = typeof runInput.$viewportHeight === 'number'
+        ? runInput.$viewportHeight
         : 720;
     const $now = createPreviewDateTime();
     const $today = createPreviewDateTime(new Date(new Date().setHours(0, 0, 0, 0)));
     const $vars = (name: string) => Object.prototype.hasOwnProperty.call(scope.variableData ?? {}, name)
         ? scope.variableData?.[name]
         : `[Needs run: $vars(${JSON.stringify(name)})]`;
+    // Mirrors the runtime scope: run data is only reachable through $run or $('Node').
     const $scope = {
-        ...(isRecord($output) ? $output : {}),
-        ...(isRecord($input) ? $input : {}),
-        ...(isRecord($run) ? $run : {}),
         $nodes,
         $run,
-        $context,
+        $loop: $run.$loop ?? rootRun.$loop,
+        $capture: $run.$capture ?? rootRun.$capture,
         $viewportWidth,
         $viewportHeight,
         $now,
         $today,
+        ...expressionUtilityScope,
+        $currentDate: (timestamp?: unknown) => previewCurrentDate(timestamp),
+        $currentDateMinusOneMonth: (timestamp?: unknown) => previewCurrentDate(timestamp, -1),
+        $currentDatePlusOneMonth: (timestamp?: unknown) => previewCurrentDate(timestamp, 1),
         $,
     };
-    const render = new Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$now', '$today', '$scope', `with ($scope) { return (${source}); }`);
+    const render = new Function('$page', '$nodes', '$run', '$vars', '$viewportWidth', '$viewportHeight', '$now', '$today', '$scope', `with ($scope) { return (${source}); }`);
 
-    return render($input, $page, $output, $nodes, $run, $context, $vars, $viewportWidth, $viewportHeight, $now, $today, $scope);
+    return render($page, $nodes, $run, $vars, $viewportWidth, $viewportHeight, $now, $today, $scope);
+};
+
+const formatExpressionInterpolationPreview = (value: unknown) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value !== 'object') return String(value);
+
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch {
+        return String(value);
+    }
 };
 
 const renderExpressionTemplate = (value: string, scope: { inputData: unknown; pageData?: unknown; outputData: unknown; nodeData?: unknown; runData?: unknown; contextData?: unknown; variableData?: Record<string, unknown> }) => {
@@ -366,7 +476,7 @@ const renderExpressionTemplate = (value: string, scope: { inputData: unknown; pa
 
     return value.replace(/\{\{([\s\S]*?)\}\}/g, (_, source: string) => {
         const rendered = evaluateExpressionSource(source.trim() || 'undefined', scope);
-        return rendered === null || rendered === undefined ? '' : String(rendered);
+        return formatExpressionInterpolationPreview(rendered);
     });
 };
 

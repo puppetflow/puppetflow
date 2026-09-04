@@ -11,6 +11,7 @@ import type {
 import {
     arrangeGraph,
     arrangeGraphSelection,
+    getNodesCenter,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/layout';
 import { hasOpenModal } from './nodalKeyboardShortcuts.utils';
 
@@ -26,6 +27,7 @@ interface UseCanvasViewActionsOptions {
     canvasRef: React.RefObject<HTMLDivElement | null>;
     canvasMode: 'canvas' | 'code';
     nodes: CanvasNode[];
+    visibleNodes: CanvasNode[];
     edges: CanvasEdge[];
     selectedNodeIds: Set<string>;
     editingNode: CanvasNode | null;
@@ -61,6 +63,7 @@ export function useCanvasViewActions({
     canvasRef,
     canvasMode,
     nodes,
+    visibleNodes,
     edges,
     selectedNodeIds,
     editingNode,
@@ -152,22 +155,26 @@ export function useCanvasViewActions({
         const arranged = arrangeGraph(nodes, edges);
 
         recordHistory();
-        setNodes(arranged.nodes);
+        setNodes(arranged);
 
-        if (!rect || arranged.nodes.length === 0) return;
+        // Center on what is drawn: hidden nodes (FINALLY) and sticky notes must not pull the viewport.
+        const visibleNodeIds = new Set(visibleNodes.map(node => node.id));
+        const centeredNodes = arranged.filter(node => visibleNodeIds.has(node.id) && node.kind !== 'stickyNote');
+        if (!rect || centeredNodes.length === 0) return;
 
+        const center = getNodesCenter(centeredNodes);
         setViewport(current => ({
             ...current,
-            x: rect.width / 2 - arranged.graphCenter.x * current.zoom,
-            y: rect.height / 2 - arranged.graphCenter.y * current.zoom,
+            x: rect.width / 2 - center.x * current.zoom,
+            y: rect.height / 2 - center.y * current.zoom,
         }));
-    }, [canvasRef, edges, nodes, readOnly, recordHistory, selectedNodeIds, setNodes, setViewport]);
+    }, [canvasRef, edges, nodes, readOnly, recordHistory, selectedNodeIds, setNodes, setViewport, visibleNodes]);
 
     useEffect(() => {
         if (readOnly || canvasMode !== 'canvas') return;
 
         const handleTidyShortcut = (event: KeyboardEvent) => {
-            if (event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 'b') return;
+            if (event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 'r') return;
             if (isAnotherPaneActive() || !isActivePane()) return;
             if (editingNode || hasOpenModal()) return;
             const target = event.target instanceof Element ? event.target : null;
@@ -248,7 +255,7 @@ export function useCanvasViewActions({
             setEdges(current => current.filter(item => item.id !== edgeId));
         },
         reorderGraph,
-        selectAllNodes: () => setSelectedNodeIds(new Set(nodes.map(node => node.id))),
+        selectAllNodes: () => setSelectedNodeIds(new Set(visibleNodes.map(node => node.id))),
         selectNodeCategory: (categoryKey: string) => {
             setActiveCategoryKey(categoryKey);
             setSearch('');

@@ -13,7 +13,6 @@ import {
     META_NODE_NAME,
     MERGE_NODE_NAME,
     NO_OP_NODE_NAME,
-    NODE_RUN_OUTPUT_KEY,
     SET_NODE_NAME,
     SET_OUTPUT_NODE_NAME,
     STICKY_NOTE_NODE_NAME,
@@ -298,26 +297,19 @@ const ifConditionTemplate = (values: Record<string, RawNodeParameterValue> | und
     return JSON.stringify(`{{ ${source} }}`);
 };
 
-const isInternalNodeOutputKey = (key: string, nodeId: string) => {
-    if (!key) return false;
-    if (key === nodeId) return true;
-
-    return /^\$?[A-Za-z_$][\w$]*-\d{10,}-\d+$/.test(key);
-};
-
-const runOutputKey = (
-    values: Record<string, RawNodeParameterValue> | undefined,
-    nodeId: string,
-) => {
-    const key = rawValue(values, NODE_RUN_OUTPUT_KEY, '').trim();
-    return isInternalNodeOutputKey(key, nodeId) ? '' : key;
-};
-
-const assignNodeResult = (indent: string, safeNodeId: string, nodeLabel: string, resultName: string, runKey?: string) => [
-    `${indent}Object.defineProperty($nodes, ${safeNodeId}, { value: ${resultName}, writable: true, configurable: true });`,
-    `${indent}$nodes[${JSON.stringify(nodeLabel)}] = ${resultName};`,
-    `${indent}$nodes.last = ${resultName};`,
-    ...(runKey ? [`${indent}$run[${JSON.stringify(runKey)}] = ${resultName};`] : []),
+const assignNodeResult = (
+    indent: string,
+    safeNodeId: string,
+    nodeLabel: string,
+    resultName: string,
+    recordExecution = true,
+) => [
+    `${indent}const ${resultName}State = $mergeNodeState($run, ${resultName});`,
+    `${indent}__recordNodePreview(${safeNodeId}, ${resultName}State, ${recordExecution});`,
+    `${indent}$nodes[${safeNodeId}] = ${resultName}State;`,
+    `${indent}$nodes[${JSON.stringify(nodeLabel)}] = ${resultName}State;`,
+    `${indent}$nodes.last = ${resultName}State;`,
+    `${indent}$run = ${resultName}State;`,
 ];
 
 const nodeResultLabel = (node: NodalGraph['nodes'][number]) => (
@@ -325,6 +317,299 @@ const nodeResultLabel = (node: NodalGraph['nodes'][number]) => (
 );
 
 const makeIndent = (level: number) => '    '.repeat(level);
+
+// Shared runtime state and helpers used by every compiled scope (run, terminate, functions).
+// Expects __pfInput, __pfOutput and __pfContext to be declared by the caller.
+const nodalRuntimePrelude = (indent: string) => `const $runRoot = { $input: __pfInput, $output: __pfOutput, $context: __pfContext };
+const $input = $runRoot.$input;
+const $output = $runRoot.$output;
+const $context = $runRoot.$context;
+const $nodes = {};
+const $nodeOutputs = {};
+const $nodeOutputQueue = [];
+const $nodeOutputBytes = {};
+let $nodeOutputsTotalBytes = 0;
+const $nodeExecutions = {};
+const $nodeExecutionTotals = {};
+const $nodeExecutionDropReasons = {};
+const $nodeExecutionQueue = [];
+let $nodeExecutionBytes = 0;
+$nodes[${JSON.stringify(SYSTEM_RUN_NODE_ID)}] = $runRoot;
+$nodes.RUN = $runRoot;
+$nodes.last = $runRoot;
+const $ = nodeName => $nodes[nodeName];
+let $run = $runRoot;
+const $mergeNodeState = (previous, result) => {
+    const previousState = previous && typeof previous === 'object' && !Array.isArray(previous)
+        ? previous
+        : $runRoot;
+    const { $result: _previousResult, ...base } = previousState;
+    const merged = result && typeof result === 'object' && !Array.isArray(result)
+        ? { ...base, ...result }
+        : result === undefined ? base : { ...base, $result: result };
+    merged.$input = __nopSerializePreview($runRoot.$input) ?? $runRoot.$input;
+    merged.$output = __nopSerializePreview($runRoot.$output) ?? $runRoot.$output;
+    merged.$context = __nopSerializePreview($runRoot.$context) ?? $runRoot.$context;
+    if ($runRoot.$loop === undefined) delete merged.$loop;
+    else merged.$loop = __nopSerializePreview($runRoot.$loop) ?? $runRoot.$loop;
+    return merged;
+};
+const $userOutput = {};
+const __pfRenderExpression = async (template, $locals = {}) => {
+    const $scopeRun = $locals && typeof $locals === 'object' && $locals.$run ? $locals.$run : $run;
+    // Run data is only reachable through $run ($run.$input, $run.myVar) or $('Node').
+    const $scope = {
+        $nodes,
+        $run: $scopeRun,
+        $loop: $runRoot.$loop,
+        $capture: $scopeRun.$capture,
+        $viewportWidth,
+        $viewportHeight,
+        $now,
+        $today,
+        $vars,
+        $if,
+        $ifEmpty,
+        $max,
+        $min,
+        $sortDates,
+        $parseDates,
+        $currentDate,
+        $currentDateMinusOneMonth,
+        $currentDatePlusOneMonth,
+        $matchSequence,
+        ...($locals && typeof $locals === 'object' ? $locals : {}),
+        $,
+    };
+    const renderSource = (source) => Function('$page', '$nodes', '$run', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($page, $nodes, $scope.$run, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
+    const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
+    const pureExpression = templateParts.length === 1 && template.trim() === templateParts[0][0] ? templateParts[0] : null;
+
+    if (pureExpression) return await renderSource((pureExpression[1] || '').trim() || 'undefined');
+    if (templateParts.length === 0) return template.trim() ? template : undefined;
+    let renderedTemplate = '';
+    let lastIndex = 0;
+    for (const part of templateParts) {
+        renderedTemplate += template.slice(lastIndex, part.index);
+        const rendered = await renderSource((part[1] || '').trim() || 'undefined');
+        renderedTemplate += rendered == null ? '' : String(rendered);
+        lastIndex = (part.index ?? 0) + part[0].length;
+    }
+    return renderedTemplate + template.slice(lastIndex);
+};
+const $renderExpression = __pfRenderExpression;
+const __nopSerializePreview = (value) => {
+    try { return JSON.parse(JSON.stringify(value)); } catch (_) { return undefined; }
+};
+const __nodalPreviewLimit = (name, fallback) => {
+    const parsed = Number(process.env[name]);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+const __nodalPreviewMaxHistoryBytes = __nodalPreviewLimit(
+    'RUNNER_NODAL_PREVIEW_MAX_HISTORY_BYTES',
+    1048576,
+);
+const __nodalPreviewMaxExecutionsPerNode = __nodalPreviewLimit(
+    'RUNNER_NODAL_PREVIEW_MAX_EXECUTIONS_PER_NODE',
+    20,
+);
+const __nodalPreviewMaxStringChars = __nodalPreviewLimit(
+    'RUNNER_NODAL_PREVIEW_MAX_STRING_CHARS',
+    500,
+);
+const __truncateNodalPreviewStrings = (value) => {
+    if (typeof value === 'string') {
+        return value.length > __nodalPreviewMaxStringChars
+            ? value.slice(0, __nodalPreviewMaxStringChars) + '... (truncated)'
+            : value;
+    }
+    if (Array.isArray(value)) return value.map(__truncateNodalPreviewStrings);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [key, __truncateNodalPreviewStrings(item)]),
+    );
+};
+const __serializeNodalPreview = (value) => {
+    const serialized = __nopSerializePreview(value);
+    if (serialized === undefined) return undefined;
+    return __truncateNodalPreviewStrings(serialized);
+};
+const __nodalPreviewMaxExecutionBytes = Math.max(
+    8192,
+    Math.min(
+        262144,
+        Math.floor(__nodalPreviewMaxHistoryBytes / Math.max(2, __nodalPreviewMaxExecutionsPerNode)),
+    ),
+);
+const __nodalPreviewValueBytes = (value) => {
+    try { return Buffer.byteLength(JSON.stringify(value), 'utf8'); } catch (_) { return 0; }
+};
+const __compactNodalExecutionValue = (value, state, depth = 0) => {
+    if (state.remaining <= 0) return undefined;
+    if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+        const bytes = __nodalPreviewValueBytes(value);
+        if (bytes > state.remaining) return undefined;
+        state.remaining -= bytes;
+        return value;
+    }
+    if (typeof value === 'string') {
+        let compacted = value;
+        const suffix = '... (truncated)';
+        while (
+            compacted.length > 0
+            && __nodalPreviewValueBytes(compacted === value ? compacted : compacted + suffix) > state.remaining
+        ) {
+            compacted = compacted.slice(0, Math.max(0, Math.floor(compacted.length * 0.75)));
+        }
+        if (compacted !== value) compacted += suffix;
+        const bytes = __nodalPreviewValueBytes(compacted);
+        if (bytes > state.remaining) return undefined;
+        state.remaining -= bytes;
+        return compacted;
+    }
+    if (!value || typeof value !== 'object') return undefined;
+    if (depth >= 12) {
+        const marker = '[Max preview depth]';
+        const bytes = __nodalPreviewValueBytes(marker);
+        if (bytes > state.remaining) return undefined;
+        state.remaining -= bytes;
+        return marker;
+    }
+    if (Array.isArray(value)) {
+        const compacted = [];
+        state.remaining -= 2;
+        for (const item of value) {
+            const next = __compactNodalExecutionValue(item, state, depth + 1);
+            if (next === undefined) break;
+            compacted.push(next);
+        }
+        return compacted;
+    }
+    const compacted = {};
+    state.remaining -= 2;
+    const priority = (key) => {
+        if (key === '$loop') return 0;
+        if (key === '$result') return 1;
+        if (!key.startsWith('$') && key !== 'captures') return 2;
+        if (['$input', '$output', '$context'].includes(key)) return 3;
+        if (key === '$capture') return 4;
+        return 5;
+    };
+    const entries = Object.entries(value)
+        .filter(([key]) => key !== 'captures')
+        .sort(([left], [right]) => priority(left) - priority(right));
+    for (const [key, item] of entries) {
+        const keyBytes = __nodalPreviewValueBytes(key) + 2;
+        if (keyBytes >= state.remaining) break;
+        state.remaining -= keyBytes;
+        const next = __compactNodalExecutionValue(item, state, depth + 1);
+        if (next === undefined) break;
+        compacted[key] = next;
+    }
+    return compacted;
+};
+const __compactSerializedNodalExecution = (serialized) => {
+    if (__nodalPreviewValueBytes(serialized) <= __nodalPreviewMaxExecutionBytes) {
+        if (serialized && typeof serialized === 'object' && !Array.isArray(serialized)) {
+            const { captures: _captures, ...withoutCaptures } = serialized;
+            return withoutCaptures;
+        }
+        return serialized;
+    }
+    return __compactNodalExecutionValue(
+        serialized,
+        { remaining: __nodalPreviewMaxExecutionBytes },
+    );
+};
+const __recordSerializedNodePreview = (nodeId, serialized) => {
+    if (serialized === undefined) return;
+    const previousIndex = $nodeOutputQueue.indexOf(nodeId);
+    if (previousIndex >= 0) $nodeOutputQueue.splice(previousIndex, 1);
+    $nodeOutputsTotalBytes -= $nodeOutputBytes[nodeId] || 0;
+    let bytes = 0;
+    try { bytes = Buffer.byteLength(JSON.stringify(serialized), 'utf8'); } catch (_) {}
+    $nodeOutputs[nodeId] = serialized;
+    $nodeOutputBytes[nodeId] = bytes;
+    $nodeOutputQueue.push(nodeId);
+    $nodeOutputsTotalBytes += bytes;
+    while ($nodeOutputsTotalBytes > __nodalPreviewMaxHistoryBytes && $nodeOutputQueue.length > 1) {
+        const removedNodeId = $nodeOutputQueue.shift();
+        $nodeOutputsTotalBytes -= $nodeOutputBytes[removedNodeId] || 0;
+        delete $nodeOutputBytes[removedNodeId];
+        delete $nodeOutputs[removedNodeId];
+    }
+};
+const __recordSerializedNodeExecution = (nodeId, serialized) => {
+    if (serialized === undefined) return;
+    serialized = __compactSerializedNodalExecution(serialized);
+    if (serialized === undefined) return;
+    const executions = $nodeExecutions[nodeId] || ($nodeExecutions[nodeId] = []);
+    $nodeExecutionTotals[nodeId] = ($nodeExecutionTotals[nodeId] || 0) + 1;
+    executions.push(serialized);
+    let bytes = 0;
+    try { bytes = Buffer.byteLength(JSON.stringify(serialized), 'utf8'); } catch (_) {}
+    $nodeExecutionQueue.push({ nodeId, serialized, bytes });
+    $nodeExecutionBytes += bytes;
+    if (executions.length > __nodalPreviewMaxExecutionsPerNode) {
+        const removed = executions.shift();
+        if (!$nodeExecutionDropReasons[nodeId]) $nodeExecutionDropReasons[nodeId] = 'count';
+        const queueIndex = $nodeExecutionQueue.findIndex(item => item.serialized === removed);
+        if (queueIndex >= 0) {
+            $nodeExecutionBytes -= $nodeExecutionQueue[queueIndex].bytes;
+            $nodeExecutionQueue.splice(queueIndex, 1);
+        }
+    }
+    while ($nodeExecutionBytes > __nodalPreviewMaxHistoryBytes && $nodeExecutionQueue.length > 1) {
+        const removableIndex = $nodeExecutionQueue.findIndex(item => (
+            ($nodeExecutions[item.nodeId]?.length || 0) > 2
+        ));
+        if (removableIndex < 0) break;
+        const [removed] = $nodeExecutionQueue.splice(removableIndex, 1);
+        $nodeExecutionBytes -= removed.bytes;
+        const retained = $nodeExecutions[removed.nodeId];
+        const retainedIndex = retained?.findIndex(item => item === removed.serialized) ?? -1;
+        if (retainedIndex >= 0) retained.splice(retainedIndex, 1);
+        $nodeExecutionDropReasons[removed.nodeId] = 'size';
+    }
+};
+const __recordNodeExecution = (nodeId, value) => {
+    __recordSerializedNodeExecution(nodeId, __serializeNodalPreview(value));
+};
+const __recordNodePreview = (nodeId, value, recordExecution = true) => {
+    const serialized = __serializeNodalPreview(value);
+    if (serialized === undefined) return;
+    __recordSerializedNodePreview(nodeId, serialized);
+    if (recordExecution) __recordSerializedNodeExecution(nodeId, serialized);
+};
+$nodeOutputs.RUN = __serializeNodalPreview($runRoot);`
+    .split('\n')
+    .map(line => (line ? `${indent}${line}` : line))
+    .join('\n');
+
+// Hands the recorded node snapshots to the sandbox; run.js merges successive submissions
+// so the TERMINATE branch adds its nodes without replacing the main flow ones.
+const nodalPreviewSubmit = (indent: string) => `__setNodalPreview({
+    nodes: Object.fromEntries(Object.entries($nodeOutputs).filter(([, value]) => value !== undefined)),
+    executions: Object.fromEntries(
+        Object.entries($nodeExecutions).filter(([, values]) => values.length > 1),
+    ),
+    executionMeta: Object.fromEntries(
+        Object.entries($nodeExecutionTotals)
+            .filter(([, total]) => total > 1)
+            .map(([nodeId, total]) => [
+                nodeId,
+                {
+                    total,
+                    dropped: Math.max(0, total - ($nodeExecutions[nodeId]?.length || 0)),
+                    reason: $nodeExecutionDropReasons[nodeId] || 'history',
+                },
+            ]),
+    ),
+});`
+    .split('\n')
+    .map(line => (line ? `${indent}${line}` : line))
+    .join('\n');
+
 const RESERVED_IDENTIFIERS = new Set([
     'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
     'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false',
@@ -333,8 +618,10 @@ const RESERVED_IDENTIFIERS = new Set([
     'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
 ]);
 const RUNTIME_IDENTIFIERS = new Set([
-    '$', '$page', '$input', '$nodes', '$run', '$output', '$context', '$json',
-    '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
+    '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context',
+    '$loop', '$capture', '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed', '$now', '$today',
+    '$if', '$ifEmpty', '$max', '$min', '$sortDates', '$parseDates',
+    '$currentDate', '$currentDateMinusOneMonth', '$currentDatePlusOneMonth', '$matchSequence',
     '$viewportWidth', '$viewportHeight',
 ]);
 const isValidFunctionArgument = (argument: string) => (
@@ -693,19 +980,26 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
 
         if (node.name === CODE_NODE_NAME) {
             const code = normalizeScalarParameterValue(node.values?.[CODE_NODE_VALUE_KEY]).value;
+            const resultName = nextResultName();
             return [
                 `${indent}// Code node: ${node.id}`,
                 ...markNodeStart(indent, safeNodeId),
-                indentCodeNodeSource(code).split('\n').map(line => `${indent}${line.trimStart()}`).join('\n'),
+                `${indent}const ${resultName} = await (async () => {`,
+                indentCodeNodeSource(code).split('\n').map(line => `${indent}    ${line.trimStart()}`).join('\n'),
+                `${indent}})();`,
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
         }
 
         if (node.name === NO_OP_NODE_NAME) {
+            const resultName = nextResultName();
             return [
                 `${indent}// No-op node: ${node.id}`,
                 ...markNodeStart(indent, safeNodeId),
+                `${indent}const ${resultName} = $run;`,
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -713,8 +1007,11 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
 
         if (node.name === IF_ELSE_NODE_NAME) {
             const mergeNodeId = structuredGraph.joinsByIfNodeId.get(node.id) ?? null;
+            const resultName = nextResultName();
             const lines = [
-                `${indent}if (await $renderExpression(${ifConditionTemplate(node.values)})) {`,
+                `${indent}const ${resultName} = Boolean(await $renderExpression(${ifConditionTemplate(node.values)}));`,
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
+                `${indent}if (${resultName}) {`,
                 ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
                 `${indent}} else {`,
                 ...compileNext(node.id, 'false', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
@@ -745,7 +1042,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = await ${node.name}(${callArgs});`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 `${indent}if (${resultName}) {`,
                 ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
                 `${indent}} else {`,
@@ -762,46 +1059,69 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             const maxIterations = numericExpression(node.values, 'maxIterations', '100');
             const loopIndex = ++compiledCounters.loop;
             const previousLoopName = `previousLoop${loopIndex}`;
-            const loopLines: string[] = [];
+            const loopContextName = `loopContext${loopIndex}`;
+            const loopSnapshotName = `loopSnapshot${loopIndex}`;
+            const resultName = nextResultName();
+            const loopLines: string[] = [`${indent}let ${loopContextName};`];
+            const captureLoopSnapshot = [
+                `${indent}    ${loopContextName} = $runRoot.$loop;`,
+                `${indent}    const ${loopSnapshotName} = $mergeNodeState($run, {});`,
+                `${indent}    __recordNodePreview(${safeNodeId}, ${loopSnapshotName});`,
+                `${indent}    $nodes[${safeNodeId}] = ${loopSnapshotName};`,
+                `${indent}    $nodes[${JSON.stringify(nodeResultLabel(node))}] = ${loopSnapshotName};`,
+                `${indent}    $nodes.last = ${loopSnapshotName};`,
+                `${indent}    $run = ${loopSnapshotName};`,
+            ];
 
             if (mode === 'iterations') {
                 loopLines.push(
-                    `${indent}const ${previousLoopName} = $run.$loop;`,
+                    `${indent}const ${previousLoopName} = $runRoot.$loop;`,
                     `${indent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${numericExpression(node.values, 'iterations', '1')}) || 0; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
                     `${indent}    const $item = loopIndex${loopIndex};`,
                     `${indent}    const $index = loopIndex${loopIndex};`,
-                    `${indent}    $run.$loop = { index: $index };`,
+                    `${indent}    $runRoot.$loop = { index: $index };`,
+                    ...captureLoopSnapshot,
                     ...compileNext(node.id, 'loop', indentLevel + 1, nextVisited, doneStart, allowedNodeIds),
                     `${indent}}`,
-                    `${indent}if (${previousLoopName} === undefined) delete $run.$loop; else $run.$loop = ${previousLoopName};`,
+                    `${indent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                 );
             } else if (mode === 'condition') {
                 loopLines.push(
-                    `${indent}const ${previousLoopName} = $run.$loop;`,
+                    `${indent}const ${previousLoopName} = $runRoot.$loop;`,
                     `${indent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${maxIterations}) || 100; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
                     `${indent}    const $item = loopIndex${loopIndex};`,
                     `${indent}    const $index = loopIndex${loopIndex};`,
-                    `${indent}    $run.$loop = { index: $index };`,
+                    `${indent}    $runRoot.$loop = { index: $index };`,
+                    ...captureLoopSnapshot,
                     `${indent}    if (await $renderExpression(${expressionTemplate(node.values, 'condition', '{{ false }}')})) break;`,
                     ...compileNext(node.id, 'loop', indentLevel + 1, nextVisited, doneStart, allowedNodeIds),
                     `${indent}}`,
-                    `${indent}if (${previousLoopName} === undefined) delete $run.$loop; else $run.$loop = ${previousLoopName};`,
+                    `${indent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                 );
             } else {
                 loopLines.push(
                     `${indent}const loopItems${loopIndex} = await $renderExpression(${expressionTemplate(node.values, 'items', '{{ [] }}')});`,
-                    `${indent}const ${previousLoopName} = $run.$loop;`,
+                    `${indent}const ${previousLoopName} = $runRoot.$loop;`,
                     `${indent}for (const [$index, $item] of (Array.isArray(loopItems${loopIndex}) ? loopItems${loopIndex} : []).entries()) {`,
-                    `${indent}    $run.$loop = { index: $index, item: $item };`,
+                    `${indent}    $runRoot.$loop = { index: $index, item: $item };`,
+                    ...captureLoopSnapshot,
                     ...compileNext(node.id, 'loop', indentLevel + 1, nextVisited, doneStart, allowedNodeIds),
                     `${indent}}`,
-                    `${indent}if (${previousLoopName} === undefined) delete $run.$loop; else $run.$loop = ${previousLoopName};`,
+                    `${indent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                 );
             }
 
             return [
                 ...markNodeStart(indent, safeNodeId),
                 ...loopLines,
+                `${indent}const ${resultName} = $run;`,
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, false),
+                `${indent}if (${loopContextName} !== undefined) {`,
+                `${indent}    const ${resultName}LoopState = { ...${resultName}State, $loop: __nopSerializePreview(${loopContextName}) ?? ${loopContextName} };`,
+                `${indent}    __recordNodePreview(${safeNodeId}, ${resultName}LoopState, false);`,
+                `${indent}    $nodes[${safeNodeId}] = ${resultName}LoopState;`,
+                `${indent}    $nodes[${JSON.stringify(nodeResultLabel(node))}] = ${resultName}LoopState;`,
+                `${indent}}`,
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, 'done', indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -816,7 +1136,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}for (const [$index, $item] of (Array.isArray(${resultName}Source) ? ${resultName}Source : []).entries()) {`,
                 `${indent}    if (await $renderExpression(${expressionTemplate(node.values, 'predicate', '{{ true }}')}, { $item, $index })) ${resultName}.push($item);`,
                 `${indent}}`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -830,7 +1150,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName}Offset = Number(${numericExpression(node.values, 'offset', '0')}) || 0;`,
                 `${indent}const ${resultName}Count = Number(${numericExpression(node.values, 'count', '10')}) || 10;`,
                 `${indent}const ${resultName} = (Array.isArray(${resultName}Source) ? ${resultName}Source : []).slice(${resultName}Offset, ${resultName}Offset + ${resultName}Count);`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -845,7 +1165,6 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = ${variablesSource};`,
-                `${indent}Object.entries(${resultName} && typeof ${resultName} === 'object' && !Array.isArray(${resultName}) ? ${resultName} : {}).forEach(([key, value]) => { $run[key] = value; });`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
@@ -863,11 +1182,12 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = ${variablesSource};`,
                 `${indent}if (${resultName} && typeof ${resultName} === 'object' && !Array.isArray(${resultName})) {`,
-                `${indent}    Object.entries(${resultName}).forEach(([key, value]) => { $output[key] = value; });`,
+                `${indent}    Object.entries(${resultName}).forEach(([key, value]) => { $runRoot.$output[key] = value; });`,
                 `${indent}    Object.entries(${resultName}).forEach(([key, value]) => { $userOutput[key] = value; });`,
                 `${indent}    $setOutput(${resultName});`,
                 `${indent}}`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
+                `${indent}const ${resultName}Snapshot = $run;`,
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), `${resultName}Snapshot`),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -886,7 +1206,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}if (${resultName} && typeof ${resultName} === 'object' && !Array.isArray(${resultName})) {`,
                 `${indent}    $meta(${resultName});`,
                 `${indent}}`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -905,15 +1225,14 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = ${mergedSource};`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
         }
 
         if (node.localFunctionId) {
-            const args = node.callArguments ?? Object.keys(node.values ?? {})
-                .filter(key => key !== NODE_RUN_OUTPUT_KEY);
+            const args = node.callArguments ?? Object.keys(node.values ?? {});
             const callArgs = args
                 .map(arg => formatParameterForCompiler(node.values?.[arg], { awaitExpressions: true }))
                 .join(', ');
@@ -921,7 +1240,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             return [
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = await ${localFunctionSymbol(node.localFunctionId)}($page${callArgs ? `, ${callArgs}` : ''});`,
-                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+                ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
                 ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
             ];
@@ -938,9 +1257,16 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
         const args = node.name.startsWith('$$') && !entry
             ? node.callArguments?.length
                 ? node.callArguments
-                : Object.keys(node.values ?? {}).filter(key => key !== NODE_RUN_OUTPUT_KEY)
+                : Object.keys(node.values ?? {})
             : getSignatureArgs(entry?.signature ?? `${node.name}()`);
         const callbackPorts = getNodeFlowPortDefinitions(entry).filter(isCallbackFlowPort);
+        const resultName = nextResultName();
+        const callbackPayloadsName = `${resultName}Payloads`;
+        const collectsNetworkPayloads = node.name === '$sniffNetwork'
+            && callbackPorts.some(callbackPort => (
+                callbackPort.parameter.path.join('.') === 'options.sniffing'
+                && Boolean(nextEdge(node.id, callbackPort.id))
+            ));
         const callArgs = args
             .map(arg => arg.replace(/\?$/, '').replace(/^\.\.\./, ''))
             .map(arg => {
@@ -969,16 +1295,19 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                     const callbackBody = callbackLines.length
                         ? callbackLines.join('\n')
                         : `${makeIndent(indentLevel + 1)}// Empty ${callbackPort.label} flow.`;
+                    // Sniffing callbacks run concurrently with the main flow: keep their state local
+                    // (shadowed $run / $renderExpression) instead of mutating and restoring the shared state.
                     const callbackSource = isNetworkSniffingCallback
                         ? [
                             'async (__pfSniffingPayload) => {',
-                            `${makeIndent(indentLevel + 1)}const __pfPreviousSniffing = $run.$sniffing;`,
-                            `${makeIndent(indentLevel + 1)}$run.$sniffing = __pfSniffingPayload;`,
+                            `${makeIndent(indentLevel + 1)}${callbackPayloadsName}.push(__pfSniffingPayload);`,
+                            `${makeIndent(indentLevel + 1)}let $run = $mergeNodeState($nodes[${safeNodeId}] ?? ${resultName}Base, { $capture: __pfSniffingPayload });`,
+                            `${makeIndent(indentLevel + 1)}const $renderExpression = (template, $locals = {}) => __pfRenderExpression(template, { $run, $capture: __pfSniffingPayload, ...$locals });`,
                             `${makeIndent(indentLevel + 1)}try {`,
                             callbackBody.split('\n').map(line => `    ${line}`).join('\n'),
                             `${makeIndent(indentLevel + 1)}} finally {`,
-                            `${makeIndent(indentLevel + 2)}if (__pfPreviousSniffing === undefined) delete $run.$sniffing;`,
-                            `${makeIndent(indentLevel + 2)}else $run.$sniffing = __pfPreviousSniffing;`,
+                            `${makeIndent(indentLevel + 2)}if ($nodes[${safeNodeId}]) __recordNodeExecution(${safeNodeId}, { ...$nodes[${safeNodeId}], $capture: __pfSniffingPayload, captures: [__pfSniffingPayload] });`,
+                            `${makeIndent(indentLevel + 2)}if ($nodes[${safeNodeId}]) __recordSerializedNodePreview(${safeNodeId}, __serializeNodalPreview($nodes[${safeNodeId}]));`,
                             `${makeIndent(indentLevel + 1)}}`,
                             `${indent}}`,
                         ].join('\n')
@@ -993,12 +1322,28 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 return source;
             })
             .join(', ');
-        const resultName = nextResultName();
 
         return [
             ...markNodeStart(indent, safeNodeId),
-            `${indent}const ${resultName} = await ${node.name}(${callArgs});`,
-            ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, runOutputKey(node.values, node.id)),
+            ...(collectsNetworkPayloads
+                ? [
+                    `${indent}const ${callbackPayloadsName} = [];`,
+                    `${indent}const ${resultName}Base = $run;`,
+                ]
+                : []),
+            ...(collectsNetworkPayloads
+                ? [
+                    `${indent}const ${resultName}Start = await ${node.name}(${callArgs});`,
+                    `${indent}const ${resultName} = { ...${resultName}Start, captures: ${callbackPayloadsName} };`,
+                ]
+                : [`${indent}const ${resultName} = await ${node.name}(${callArgs});`]),
+            ...assignNodeResult(
+                indent,
+                safeNodeId,
+                nodeResultLabel(node),
+                resultName,
+                !collectsNetworkPayloads,
+            ),
             ...markNodeEnd(indent, safeNodeId),
             ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
         ];
@@ -1073,44 +1418,12 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
 // Nodal graph snapshot:
 ${graphJson}
 
-${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}const $input = ${inputObject};
-const $context = $input && typeof $input.$context === 'object' ? $input.$context : {};
-const $output = {};
-const $nodes = {};
-const $ = nodeName => $nodes[nodeName];
-const $run = {};
-const $userOutput = {};
-const $renderExpression = async (template, $locals = {}) => {
-    const $scope = {
-        ...($output && typeof $output === 'object' ? $output : {}),
-        ...($run && typeof $run === 'object' ? $run : {}),
-        $input,
-        $nodes,
-        $run,
-        $context,
-        $viewportWidth,
-        $viewportHeight,
-        ...($locals && typeof $locals === 'object' ? $locals : {}),
-        $,
-    };
-    const renderSource = (source) => Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($input, $page, $output, $nodes, $run, $context, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
-    const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
-    const pureExpression = templateParts.length === 1 && template.trim() === templateParts[0][0] ? templateParts[0] : null;
-
-    if (pureExpression) return await renderSource((pureExpression[1] || '').trim() || 'undefined');
-    if (templateParts.length === 0) return template.trim() ? template : undefined;
-    let renderedTemplate = '';
-    let lastIndex = 0;
-    for (const part of templateParts) {
-        renderedTemplate += template.slice(lastIndex, part.index);
-        const rendered = await renderSource((part[1] || '').trim() || 'undefined');
-        renderedTemplate += rendered == null ? '' : String(rendered);
-        lastIndex = (part.index ?? 0) + part[0].length;
-    }
-    return renderedTemplate + template.slice(lastIndex);
-};
+${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}const __pfInput = ${inputObject};
+const __pfContext = __pfInput && typeof __pfInput.$context === 'object' ? __pfInput.$context : {};
+const __pfOutput = {};
+${nodalRuntimePrelude('')}
 ${lines.length ? lines.join('\n') : '    // Add and connect nodes from FUNCTION to generate executable steps.'}
-    return $output;
+    return $runRoot.$output;
 `;
     }
 
@@ -1118,103 +1431,30 @@ ${lines.length ? lines.join('\n') : '    // Add and connect nodes from FUNCTION 
 // Nodal graph snapshot:
 ${graphJson}
 
-${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}async function run($page, $input) {
-    if (!$input || typeof $input !== 'object') $input = {};
-    const $context = $input && typeof $input.$context === 'object' ? $input.$context : {};
-    const $output = {};
-    const $nodes = {};
-    const $ = nodeName => $nodes[nodeName];
-    const $run = {};
-    const $userOutput = {};
-    const $renderExpression = async (template, $locals = {}) => {
-        const $scope = {
-            ...($output && typeof $output === 'object' ? $output : {}),
-            ...($input && typeof $input === 'object' ? $input : {}),
-            ...($run && typeof $run === 'object' ? $run : {}),
-            $nodes,
-            $run,
-            $context,
-            $viewportWidth,
-            $viewportHeight,
-            ...($locals && typeof $locals === 'object' ? $locals : {}),
-            $,
-        };
-        const renderSource = (source) => Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($input, $page, $output, $nodes, $run, $context, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
-        const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
-        const pureExpression = templateParts.length === 1 && template.trim() === templateParts[0][0] ? templateParts[0] : null;
-
-        if (pureExpression) return await renderSource((pureExpression[1] || '').trim() || 'undefined');
-        if (templateParts.length === 0) return template.trim() ? template : undefined;
-        let renderedTemplate = '';
-        let lastIndex = 0;
-        for (const part of templateParts) {
-            renderedTemplate += template.slice(lastIndex, part.index);
-            const rendered = await renderSource((part[1] || '').trim() || 'undefined');
-            renderedTemplate += rendered == null ? '' : String(rendered);
-            lastIndex = (part.index ?? 0) + part[0].length;
-        }
-        return renderedTemplate + template.slice(lastIndex);
-    };
+${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}async function run($page, __pfInput) {
+    if (!__pfInput || typeof __pfInput !== 'object') __pfInput = {};
+    const __pfContext = __pfInput && typeof __pfInput.$context === 'object' ? __pfInput.$context : {};
+    const __pfOutput = {};
+${nodalRuntimePrelude('    ')}
+    try {
 ${lines.length ? lines.join('\n') : '    // Add and connect nodes from RUN to generate executable steps.'}
-    const __nopSerializePreview = (value) => {
-        try { return JSON.parse(JSON.stringify(value)); } catch (_) { return undefined; }
-    };
-    const __nopInputPreview = (() => {
-        const input = __nopSerializePreview($input);
-        if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
-        const { $context: _context, ...rest } = input;
-        return rest;
-    })();
-    const __nopResponse = $generateResponseSuccess('Flow completed');
-    if (__nopResponse && typeof __nopResponse === 'object') {
-        __nopResponse.__nodal_preview = {
-            input: __nopInputPreview,
-            output: __nopSerializePreview($userOutput),
-            nodes: __nopSerializePreview($nodes),
-            run: __nopSerializePreview($run),
-        };
+    } finally {
+${nodalPreviewSubmit('        ')}
     }
+    const __nopResponse = $generateResponseSuccess('Flow completed');
     return __nopResponse;
 }
 
-async function terminate($page, $input, $output) {
-    if (!$input || typeof $input !== 'object') $input = {};
-    if (!$output || typeof $output !== 'object') $output = {};
-    const $context = $input && typeof $input.$context === 'object' ? $input.$context : {};
-    const $nodes = {};
-    const $ = nodeName => $nodes[nodeName];
-    const $run = {};
-    const $userOutput = {};
-    const $renderExpression = async (template, $locals = {}) => {
-        const $scope = {
-            ...($output && typeof $output === 'object' ? $output : {}),
-            ...($input && typeof $input === 'object' ? $input : {}),
-            ...($run && typeof $run === 'object' ? $run : {}),
-            $nodes,
-            $run,
-            $context,
-            $viewportWidth,
-            $viewportHeight,
-            ...($locals && typeof $locals === 'object' ? $locals : {}),
-            $,
-        };
-        const renderSource = (source) => Function('$input', '$page', '$output', '$nodes', '$run', '$context', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($input, $page, $output, $nodes, $run, $context, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
-        const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
-        const pureExpression = templateParts.length === 1 && template.trim() === templateParts[0][0] ? templateParts[0] : null;
-
-        if (pureExpression) return await renderSource((pureExpression[1] || '').trim() || 'undefined');
-        if (templateParts.length === 0) return template.trim() ? template : undefined;
-        let renderedTemplate = '';
-        let lastIndex = 0;
-        for (const part of templateParts) {
-            renderedTemplate += template.slice(lastIndex, part.index);
-            const rendered = await renderSource((part[1] || '').trim() || 'undefined');
-            renderedTemplate += rendered == null ? '' : String(rendered);
-            lastIndex = (part.index ?? 0) + part[0].length;
-        }
-        return renderedTemplate + template.slice(lastIndex);
-    };
+async function terminate($page, __pfInput, __pfOutput) {
+    if (!__pfInput || typeof __pfInput !== 'object') __pfInput = {};
+    if (!__pfOutput || typeof __pfOutput !== 'object') __pfOutput = {};
+    const __pfContext = __pfInput && typeof __pfInput.$context === 'object' ? __pfInput.$context : {};
+${nodalRuntimePrelude('    ')}
+    try {
 ${finallyLines.length ? finallyLines.join('\n') : '    // Add nodes to the FINALLY line to generate cleanup steps.'}
+    } finally {
+${nodalPreviewSubmit('        ')}
+    }
 }
 `;
 

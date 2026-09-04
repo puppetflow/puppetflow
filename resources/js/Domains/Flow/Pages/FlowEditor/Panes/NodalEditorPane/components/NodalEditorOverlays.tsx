@@ -72,6 +72,37 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
             ? getConnectedOutputPortsByNode(edges).get(editingNodeCurrent.id) ?? EMPTY_OUTPUT_PORT_SET
             : EMPTY_OUTPUT_PORT_SET
     ), [edges, editingNodeCurrent]);
+    const editingPreviewNodes = useMemo(() => {
+        if (!editingNodeCurrent) return [];
+
+        const nodeById = new Map(nodes.map(node => [node.id, node]));
+        const incomingByNodeId = new Map<string, string[]>();
+        edges.forEach(edge => {
+            incomingByNodeId.set(edge.targetNodeId, [
+                ...(incomingByNodeId.get(edge.targetNodeId) ?? []),
+                edge.sourceNodeId,
+            ]);
+        });
+        const distances = new Map<string, number>();
+        const queue = [{ nodeId: editingNodeCurrent.id, distance: 0 }];
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (!current) continue;
+            for (const sourceNodeId of incomingByNodeId.get(current.nodeId) ?? []) {
+                const distance = current.distance + 1;
+                const previousDistance = distances.get(sourceNodeId);
+                if (previousDistance !== undefined && previousDistance <= distance) continue;
+                distances.set(sourceNodeId, distance);
+                queue.push({ nodeId: sourceNodeId, distance });
+            }
+        }
+
+        return [...distances.entries()]
+            .map(([nodeId, distance]) => ({ node: nodeById.get(nodeId), distance }))
+            .filter((item): item is { node: NonNullable<typeof item.node>; distance: number } => Boolean(item.node))
+            .sort((left, right) => left.distance - right.distance || left.node.y - right.node.y);
+    }, [edges, editingNodeCurrent, nodes]);
     const selectedDeactivatableNodes = useMemo(
         () => nodes.filter(node => selectedNodeIds.has(node.id) && canDeactivateNode(node)),
         [nodes, selectedNodeIds],
@@ -169,6 +200,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                     node={editingNodeCurrent}
                     inputNodes={editingConnectedNodes.inputs}
                     outputNodes={editingConnectedNodes.outputs}
+                    previewNodes={editingPreviewNodes}
                     connectedOutputPorts={editingConnectedOutputPorts}
                     currentSiteUrl={editingCurrentSiteUrl}
                     flowId={flow.id}

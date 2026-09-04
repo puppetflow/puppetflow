@@ -28,6 +28,7 @@ final class FlowRunTerminalizer
         private readonly MailboxRunQueueService $mailboxRunQueue,
         private readonly RunnerSignalService $runnerSignals,
         private readonly RunArtifactFinalizer $artifactFinalizer,
+        private readonly FlowRunStorageAccounting $storageAccounting,
         private readonly FeatureFlagService $featureFlags,
         private readonly FlowRunOutputSanitizer $outputSanitizer,
         private readonly ActionDispatcherService $actionDispatcher,
@@ -199,6 +200,26 @@ final class FlowRunTerminalizer
         return $status === 'error';
     }
 
+    public function failInterruptedRun(FlowRun $run, string $message): bool
+    {
+        $run->refresh();
+        if ($run->status !== 'running') {
+            return false;
+        }
+
+        $status = $this->persistRunning($run, [
+            'status' => 'error',
+            'error_message' => $this->safeErrorMessage($run, $message),
+            'duration_ms' => $this->durationMs($run),
+        ], []);
+
+        if ($status === 'error') {
+            $this->updateFailureSummary($run, $message);
+        }
+
+        return $status === 'error';
+    }
+
     public function recordTerminalFailure(FlowRun $run, mixed $error): void
     {
         $this->productionRuns->handleTerminalRun($run);
@@ -308,6 +329,9 @@ final class FlowRunTerminalizer
         array $mailboxClaims,
     ): void {
         $persistedRun->forceFill($attributes);
+        $storageSizes = $this->storageAccounting->calculate($persistedRun);
+        $attributes = [...$attributes, ...$storageSizes];
+        $persistedRun->forceFill($storageSizes);
         $updates = array_intersect_key($persistedRun->getAttributes(), $attributes);
         $persistedRun->newModelQuery()->whereKey($persistedRun->getKey())->update($updates);
         $run->forceFill($updates);

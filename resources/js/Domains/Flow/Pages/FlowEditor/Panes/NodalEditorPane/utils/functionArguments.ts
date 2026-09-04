@@ -58,6 +58,8 @@ export const diffFunctionArgumentRenames = (previous: string[], next: string[]):
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Arguments are only reachable as `$run.$input.name` (or `$input.name` in Code nodes);
+// the `$input.` suffix is shared by both forms so a single pattern covers them.
 const renameInputPropertyReferences = (source: string, from: string, to: string): string => {
     const escaped = escapeRegExp(from);
 
@@ -67,34 +69,10 @@ const renameInputPropertyReferences = (source: string, from: string, to: string)
         .replace(new RegExp(`\\$input\\[(['"])${escaped}\\1\\]`, 'g'), (_, quote: string) => `$input[${quote}${to}${quote}]`);
 };
 
-const renameIdentifierReferences = (source: string, from: string, to: string): string => {
-    const withInputReferences = renameInputPropertyReferences(source, from, to);
-
-    // Arguments are also exposed as bare identifiers in the expression scope.
-    // Skip property accesses (preceded by a dot) and longer identifiers.
-    return withInputReferences.replace(
-        new RegExp(`(^|[^.\\w$])${escapeRegExp(from)}(?![\\w$])`, 'g'),
-        (_, prefix: string) => `${prefix}${to}`,
-    );
-};
-
-const renameReferencesInTemplate = (template: string, renames: FunctionArgumentRename[]): string => {
-    // Bare identifier renames only apply inside {{ }} expression segments;
-    // outside of them the text is plain content, where only explicit
-    // $input.name references are unambiguous enough to rewrite.
-    const withExpressionSegments = template.replace(
-        /\{\{([\s\S]*?)\}\}/g,
-        (_, expression: string) => `{{${renames.reduce(
-            (result, { from, to }) => renameIdentifierReferences(result, from, to),
-            expression,
-        )}}}`,
-    );
-
-    return renames.reduce(
-        (result, { from, to }) => renameInputPropertyReferences(result, from, to),
-        withExpressionSegments,
-    );
-};
+const renameReferencesInTemplate = (template: string, renames: FunctionArgumentRename[]): string => renames.reduce(
+    (result, { from, to }) => renameInputPropertyReferences(result, from, to),
+    template,
+);
 
 const renameReferencesInParameterValue = (
     value: RawNodeParameterValue,

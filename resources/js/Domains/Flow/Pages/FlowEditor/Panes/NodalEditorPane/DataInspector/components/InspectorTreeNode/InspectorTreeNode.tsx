@@ -19,6 +19,7 @@ interface InspectorTreeNodeProps {
     collapsedPaths: Set<string>;
     references: ReadonlyMap<string, ReferenceDisplay>;
     onToggleCollapse: (path: string) => void;
+    draggable?: boolean;
     depth?: number;
     label?: string;
     ancestors?: Set<object>;
@@ -30,6 +31,7 @@ export default function InspectorTreeNode({
     collapsedPaths,
     references,
     onToggleCollapse,
+    draggable = true,
     depth = 0,
     label,
     ancestors = new Set(),
@@ -41,7 +43,7 @@ export default function InspectorTreeNode({
         return (
             <S.JsonLine $depth={depth}>
                 <S.TogglePlaceholder />
-                {label && <DraggableKey label={label} path={path} />}
+                {label && <DraggableKey label={label} path={path} draggable={draggable} />}
                 {label && <span>:{'\u00A0'}</span>}
                 {circular
                     ? <S.Summary>[Circular]</S.Summary>
@@ -71,7 +73,7 @@ export default function InspectorTreeNode({
                 <S.Toggle type="button" title={collapsed ? 'Expand' : 'Collapse'} onClick={() => onToggleCollapse(path)}>
                     <Icon icon={collapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'} width={11} height={11} />
                 </S.Toggle>
-                {label && <DraggableKey label={label} path={path} />}
+                {label && <DraggableKey label={label} path={path} draggable={draggable} />}
                 {label && <span>:{'\u00A0'}</span>}
                 <S.Punctuation>{open}</S.Punctuation>
                 {collapsed && (
@@ -88,6 +90,7 @@ export default function InspectorTreeNode({
                             key={entry.path}
                             value={entry.value}
                             path={entry.path}
+                            draggable={draggable}
                             references={references}
                             collapsedPaths={collapsedPaths}
                             onToggleCollapse={onToggleCollapse}

@@ -166,7 +166,7 @@ class FlowRunsPageController extends Controller
 
         return $query
             ->with([
-                'flow:id,name,icon_type,icon_value,icon_color,icon_upload_path,timeout_seconds,flow_type,nodal_graph,keyboard_speed,viewport_width,viewport_height,owner_id,workspace_id',
+                'flow:id,name,icon_type,icon_value,icon_color,icon_upload_path,timeout_seconds,flow_type,nodal_graph,finally_enabled,keyboard_speed,viewport_width,viewport_height,owner_id,workspace_id',
                 'triggeredBy:id,name',
                 'trigger:id,type,label',
             ])

@@ -276,7 +276,7 @@ export function normalizeStructuredEdges(nodes: TopologyNode[], edges: CanvasEdg
     ), []);
 }
 
-const collectSystemFlowNodeIds = (
+export const collectSystemFlowNodeIds = (
     nodes: CanvasNode[],
     edges: CanvasEdge[],
     system: NonNullable<CanvasNode['system']>,

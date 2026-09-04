@@ -27,7 +27,10 @@ export const FILE_HELPER_NAMES = [
 
 const EXTRACT_DATA_HELPER_NAMES = ['$extractAttribute', '$extractAttributes', '$selectElement', '$selectManyElements', '$selectShadow', '$selectAtIndex'];
 const ADVANCED_EVAL_HELPER_NAMES = ['$bridgeEvaluate', '$injectScriptLibrary'];
-const BROWSER_HELPER_NAMES = ['$gotoUrl', '$gotoTab', '$screenshot', '$page', '$client', '$setViewport'];
+const BROWSER_HELPER_NAMES = [
+    '$gotoUrl', '$gotoTab', '$loginRemember', '$screenshot', '$page', '$client',
+    '$setViewport', '$viewportWidth', '$viewportHeight',
+];
 export const HIDDEN_TOOLBOX_ENTRY_NAMES = new Set(['$input', '$vars']);
 
 export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [

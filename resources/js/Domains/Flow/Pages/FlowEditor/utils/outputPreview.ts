@@ -106,9 +106,15 @@ const materializePreview = (schema: NodalOutputSchema, label: string): unknown =
     return unresolvedOutputPlaceholder(label);
 };
 
-export const createNodalOutputPreview = (entry: Pick<HelpEntryDef, 'nodalOutput'> | null | undefined, label: string): unknown => {
+export const createNodalOutputPreview = (
+    entry: Pick<HelpEntryDef, 'name' | 'nodalOutput'> | null | undefined,
+    label: string,
+): unknown => {
+    if (entry?.name === '$sniffNetwork') return undefined;
+    if (!entry?.nodalOutput) return undefined;
+
     const schema = parseNodalOutputSchema(entry?.nodalOutput);
-    return schema ? materializePreview(schema, label) : unresolvedOutputPlaceholder(label);
+    return schema ? materializePreview(schema, label) : undefined;
 };
 
 export const nodalOutputToTypeScript = (rawSpec: string | undefined): string => {

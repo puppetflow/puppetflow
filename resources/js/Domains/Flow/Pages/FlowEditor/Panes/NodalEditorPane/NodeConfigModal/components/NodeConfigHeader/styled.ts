@@ -25,6 +25,36 @@ export const Title = styled.div`
     }
 `;
 
+export const CategoryRow = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    margin-top: 2px;
+
+    span {
+        margin-top: 0;
+    }
+
+    > .node-config-documentation-link {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        border-radius: 0;
+        background: transparent;
+
+        &:hover,
+        &:focus-visible {
+            background: transparent;
+        }
+
+        svg {
+            width: 12px;
+            height: 12px;
+        }
+    }
+`;
+
 export const TitleInput = styled.input`
     display: block;
     width: min(360px, 50vw);
@@ -45,8 +75,10 @@ export const TitleInput = styled.input`
         background: ${({ theme }) => theme.colors.bg.primary};
     }
 
-    &:disabled {
+    &&:disabled {
         opacity: 1;
+        border-color: transparent;
+        background: transparent;
     }
 `;
 

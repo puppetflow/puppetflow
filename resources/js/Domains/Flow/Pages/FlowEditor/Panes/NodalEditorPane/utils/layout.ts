@@ -16,12 +16,7 @@ const PORT_ORDER_OFFSET = CANVAS_GRID_SIZE;
 export const SYSTEM_RUN_POSITION = { x: SYSTEM_X, y: RUN_Y };
 export const SYSTEM_TERMINATE_POSITION = { x: SYSTEM_X, y: TERMINATE_Y };
 
-export type ArrangeGraphResult = {
-    nodes: CanvasNode[];
-    graphCenter: Point;
-};
-
-const getNodesCenter = (nodes: CanvasNode[]): Point => ({
+export const getNodesCenter = (nodes: CanvasNode[]): Point => ({
     x: (Math.min(...nodes.map(node => node.x)) + Math.max(...nodes.map(node => node.x))) / 2,
     y: (Math.min(...nodes.map(node => node.y)) + Math.max(...nodes.map(node => node.y))) / 2,
 });
@@ -38,7 +33,7 @@ const groupNodesByDepth = (nodes: CanvasNode[], depthById: Map<string, number>) 
     return columns;
 };
 
-export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): ArrangeGraphResult => {
+export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNode[] => {
     const editableNodes = nodes.filter(node => !node.system && !node.scopeId && node.kind !== 'stickyNote');
     const nodeById = new Map(nodes.map(node => [node.id, node]));
     const outgoing = new Map<string, string[]>();
@@ -311,9 +306,7 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): ArrangeG
                 });
         });
 
-    const mainMaxDepth = Math.max(0, ...columns.keys());
-    const maxDepth = Math.max(1, mainMaxDepth, ...finallyColumns.keys());
-    const arranged = nodes.map(node => {
+    return nodes.map(node => {
         if (node.system === 'run' || (node.system === 'function' && !node.scopeId)) {
             return { ...node, x: SYSTEM_RUN_POSITION.x, y: runY };
         }
@@ -324,23 +317,6 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): ArrangeG
 
         return localArrangedById.get(node.id) ?? arrangedEditableById.get(node.id) ?? node;
     });
-
-    const allArrangedNodes = [
-        ...arrangedEditableById.values(),
-        ...localArrangedById.values(),
-    ];
-    const editableYs = allArrangedNodes.map(node => node.y);
-    const editableXs = allArrangedNodes.map(node => node.x);
-    const graphCenter = {
-        x: editableXs.length > 0
-            ? (Math.min(SYSTEM_X, ...editableXs) + Math.max(SYSTEM_X, FIRST_COLUMN_X + (maxDepth - 1) * HORIZONTAL_GAP, ...editableXs)) / 2
-            : SYSTEM_X,
-        y: editableYs.length > 0
-            ? (Math.min(runY, terminateY, ...editableYs) + Math.max(runY, terminateY, ...editableYs)) / 2
-            : (runY + terminateY) / 2,
-    };
-
-    return { nodes: arranged, graphCenter };
 };
 
 export const arrangeGraphSelection = (
@@ -364,7 +340,7 @@ export const arrangeGraphSelection = (
         system: undefined,
         scopeId: undefined,
     }));
-    const arrangedSelection = arrangeGraph(layoutNodes, selectedEdges).nodes;
+    const arrangedSelection = arrangeGraph(layoutNodes, selectedEdges);
     const previousCenter = getNodesCenter(selectedNodes);
     const arrangedCenter = getNodesCenter(arrangedSelection);
     const offset = {

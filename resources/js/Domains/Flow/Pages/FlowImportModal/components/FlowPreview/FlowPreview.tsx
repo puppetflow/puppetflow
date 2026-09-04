@@ -46,6 +46,8 @@ export default function FlowPreview({ parsedFile, source }: Props) {
         flow_type: 'nodal',
         nodal_graph: graph,
         is_published: false,
+        // Previews have no flow setting: show the whole imported graph, FINALLY included.
+        finally_enabled: true,
     } as Flow), [graph]);
     const ignoreGraphChange = useCallback(() => {}, []);
 
@@ -60,7 +62,6 @@ export default function FlowPreview({ parsedFile, source }: Props) {
                             saved
                             readOnly
                             hideToolbar
-                            allowShortcutsInModal
                             graphContext={preview.graphContext}
                             documentExtension={preview.documentExtension}
                             onGraphChange={ignoreGraphChange}

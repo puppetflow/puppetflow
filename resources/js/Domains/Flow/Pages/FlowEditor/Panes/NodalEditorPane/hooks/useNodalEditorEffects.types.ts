@@ -10,7 +10,6 @@ import type {
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 
 export interface UseNodalEditorEffectsOptions {
-    allowShortcutsInModal?: boolean;
     canvasMode: 'canvas' | 'code';
     contextMenu: ContextMenuState | null;
     editingNodeCurrent: CanvasNode | null;

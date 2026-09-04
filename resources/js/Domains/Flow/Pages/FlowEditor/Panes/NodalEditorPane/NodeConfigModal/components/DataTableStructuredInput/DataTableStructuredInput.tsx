@@ -180,7 +180,7 @@ export default function DataTableStructuredInput({
                     label="JSON"
                     inputType="textarea"
                     placeholder={kind === 'data-table-filters'
-                        ? '[{ "keyName": "status", "condition": "eq", "keyValue": "{{ $input.status }}" }]'
+                        ? '[{ "keyName": "status", "condition": "eq", "keyValue": "{{ $run.$input.status }}" }]'
                         : '[{ "name": "status", "type": "string" }]'}
                     value={scalarValue}
                     outputData={outputData}

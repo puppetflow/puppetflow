@@ -84,6 +84,7 @@ final class FlowWriteService
                 'folder_id' => ['sometimes', 'nullable', 'string'],
                 'workspace_folder_id' => ['sometimes', 'nullable', 'string'],
                 'available_in_mcp' => ['sometimes', 'boolean'],
+                'finally_enabled' => ['sometimes', 'boolean'],
                 'queue_index' => [
                     'sometimes',
                     'nullable',
@@ -127,6 +128,7 @@ final class FlowWriteService
                 'name',
                 'description',
                 'available_in_mcp',
+                'finally_enabled',
                 'queue_index',
             ]));
             $flow->update([

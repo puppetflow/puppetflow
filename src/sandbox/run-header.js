@@ -508,6 +508,7 @@ $setViewport();
  * @aliases save browser session, persist login, store cookies
  * @desc Save browser cookies and localStorage by origin. Default jar name: "Default".
  * @nodal-desc Save cookies and localStorage for reuse in later runs.
+ * @nodal-output void
  * @opt persistLocalStorage: true
  * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "Default".
  * @nodal-param options: Browser storage options.
@@ -2432,7 +2433,7 @@ const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
  * @aliases capture network, monitor requests, inspect traffic
  * @desc Start a named asynchronous network capture. Matching request and response pairs are passed to options.sniffing in request arrival order while the main flow continues immediately.
  * @nodal-desc Capture matching browser requests and responses in a named profile while the main flow continues.
- * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number }
+ * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number, captures:array<object> }
  * @opt timeout: 60000, showUnfilteredInLogs: false
  * @nodal-param profileName [sniff-profile]: Name of the sniffing profile to create. Defaults to Default.
  * @nodal-param filters [object]: Optional filters combined with AND logic.
@@ -4730,6 +4731,12 @@ const $pdfGetText = async function(pdfFilePath) {
 // ================================
 
 const $enableBreakpoint = $json.$context.enable_breakpoint || process.env.ENABLE_BREAKPOINT === 'true';
+/* @help Advanced
+ * @sig $breakpoint(label?, context?)
+ * @aliases debug breakpoint, pause execution
+ * @desc Pause an enabled run in the terminal debugger with optional values available for inspection.
+ * @availability code
+ */
 const $breakpoint = async function(label, context = {}) {
   __emitAction('breakpoint', label || '');
   if (!$enableBreakpoint) {
