@@ -52,6 +52,38 @@ final class DataTableRowRepository
     }
 
     /**
+     * @param  list<array{keyName: string, condition: string, keyValue?: mixed}>  $filters
+     * @return LengthAwarePaginator<int|string, array<string, mixed>>
+     */
+    public function paginateNamed(
+        DataTable $table,
+        int $perPage,
+        array $filters = [],
+        string $matchType = 'allConditions',
+        ?string $orderBy = 'id',
+        string $direction = 'asc',
+    ): LengthAwarePaginator {
+        $query = $this->runtimeQuery($table, $filters, $matchType);
+        if ($orderBy !== null && $orderBy !== '') {
+            $column = $this->runtimeColumn($table, $orderBy);
+            $query->orderBy($column['name'], strtolower($direction) === 'desc' ? 'desc' : 'asc');
+            if ($column['name'] !== 'id') {
+                $query->orderBy('id');
+            }
+        }
+
+        $paginator = $query->paginate($perPage);
+        $paginator->through(function (mixed $row) use ($table): array {
+            /** @var array<string, mixed> $values */
+            $values = (array) $row;
+
+            return $this->serializeNamed($table, $values);
+        });
+
+        return $paginator;
+    }
+
+    /**
      * Counts the rows of every table in a single UNION ALL query, instead of
      * one COUNT(*) per physical table.
      *
@@ -157,17 +189,20 @@ final class DataTableRowRepository
         array $values,
         bool $dryRun = false,
         bool $allowAll = false,
+        bool $namedValues = false,
     ): array {
         if (! $allowAll) {
             $this->assertRuntimeFiltersPresent($filters);
         }
 
-        return DB::transaction(function () use ($table, $filters, $matchType, $values, $dryRun): array {
+        return DB::transaction(function () use ($table, $filters, $matchType, $values, $dryRun, $namedValues): array {
             $rows = $this->runtimeQuery($table, $filters, $matchType)->lockForUpdate()->get();
             if ($rows->isEmpty()) {
                 return [];
             }
-            $updates = $this->validator->validate($table, $values, partial: true);
+            $updates = $namedValues
+                ? $this->validator->validateNamed($table, $values, partial: true)
+                : $this->validator->validate($table, $values, partial: true);
             if ($updates === []) {
                 throw ValidationException::withMessages(['values' => 'At least one value is required.']);
             }
@@ -209,15 +244,25 @@ final class DataTableRowRepository
         string $matchType,
         array $values,
         bool $dryRun = false,
+        bool $namedValues = false,
     ): array {
         $this->assertRuntimeFiltersPresent($filters);
 
-        return DB::transaction(function () use ($table, $filters, $matchType, $values, $dryRun): array {
+        return DB::transaction(function () use ($table, $filters, $matchType, $values, $dryRun, $namedValues): array {
             DataTable::query()->whereKey($table->id)->lockForUpdate()->firstOrFail();
             if ($this->runtimeQuery($table, $filters, $matchType)->exists()) {
-                return $this->runtimeUpdate($table, $filters, $matchType, $values, $dryRun);
+                return $this->runtimeUpdate(
+                    $table,
+                    $filters,
+                    $matchType,
+                    $values,
+                    $dryRun,
+                    namedValues: $namedValues,
+                );
             }
-            $normalized = $this->validator->validate($table, $values);
+            $normalized = $namedValues
+                ? $this->validator->validateNamed($table, $values)
+                : $this->validator->validate($table, $values);
             if ($dryRun) {
                 $empty = ['id' => null, ...array_fill_keys(
                     $table->columns()->pluck('name')->all(),
@@ -674,11 +719,23 @@ final class DataTableRowRepository
      * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
-    public function runtimeInsert(DataTable $table, array $values): array
+    public function runtimeInsert(DataTable $table, array $values, bool $namedValues = false): array
     {
-        $normalized = $this->validator->validate($table, $values);
+        $normalized = $namedValues
+            ? $this->validator->validateNamed($table, $values)
+            : $this->validator->validate($table, $values);
 
         return $this->serializeNamed($table, $this->insertNormalized($table, $normalized));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public function createManyNamed(DataTable $table, array $rows): int
+    {
+        $normalizedRows = $this->validator->validateManyNamed($table, $rows);
+
+        return $this->insertManyNormalized($table, $normalizedRows);
     }
 
     /**
@@ -698,6 +755,15 @@ final class DataTableRowRepository
     public function createMany(DataTable $table, array $rows): int
     {
         $normalizedRows = $this->validator->validateMany($table, $rows);
+
+        return $this->insertManyNormalized($table, $normalizedRows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $normalizedRows
+     */
+    private function insertManyNormalized(DataTable $table, array $normalizedRows): int
+    {
         $columnCount = max(1, count($normalizedRows[0] ?? []) + 2);
         $chunkSize = max(1, min(500, intdiv(900, $columnCount)));
 
@@ -724,19 +790,30 @@ final class DataTableRowRepository
      * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
-    public function update(DataTable $table, int $rowId, array $values): array
-    {
-        return DB::transaction(function () use ($table, $rowId, $values): array {
+    public function update(
+        DataTable $table,
+        int $rowId,
+        array $values,
+        bool $namedValues = false,
+    ): array {
+        return DB::transaction(function () use ($table, $rowId, $values, $namedValues): array {
             $exists = DB::table($table->physical_name)->where('id', $rowId)->lockForUpdate()->exists();
             if (! $exists) {
                 throw new NotFoundHttpException;
             }
 
-            $updates = $this->validator->validate($table, $values, partial: true);
+            $updates = $namedValues
+                ? $this->validator->validateNamed($table, $values, partial: true)
+                : $this->validator->validate($table, $values, partial: true);
+            if ($namedValues && $updates === []) {
+                throw ValidationException::withMessages(['values' => 'At least one value is required.']);
+            }
             $updates['updated_at'] = now();
             DB::table($table->physical_name)->where('id', $rowId)->update($updates);
 
-            return $this->find($table, $rowId);
+            return $namedValues
+                ? $this->findNamed($table, $rowId)
+                : $this->find($table, $rowId);
         }, 3);
     }
 
@@ -754,14 +831,26 @@ final class DataTableRowRepository
     }
 
     /** @return array<string, mixed> */
+    public function findNamed(DataTable $table, int $rowId): array
+    {
+        return $this->serializeNamed($table, $this->findRaw($table, $rowId));
+    }
+
+    /** @return array<string, mixed> */
     private function find(DataTable $table, int $rowId): array
+    {
+        return $this->serialize($table, $this->findRaw($table, $rowId));
+    }
+
+    /** @return array<string, mixed> */
+    private function findRaw(DataTable $table, int $rowId): array
     {
         $row = DB::table($table->physical_name)->where('id', $rowId)->first();
         if ($row === null) {
             throw new NotFoundHttpException;
         }
 
-        return $this->serialize($table, (array) $row);
+        return (array) $row;
     }
 
     /**
@@ -801,12 +890,32 @@ final class DataTableRowRepository
             'id' => $row['id'] ?? null,
         ];
         foreach ($table->columns as $column) {
-            $serialized[$column->name] = $this->castColumnValue($column, $row[$column->name] ?? null);
+            $value = $this->castColumnValue($column, $row[$column->name] ?? null);
+            $serialized[$column->name] = $column->type === DataTableColumnType::DATETIME
+                ? $this->isoDateTime($value)
+                : $value;
         }
-        $serialized['created_at'] = $row['created_at'] ?? null;
-        $serialized['updated_at'] = $row['updated_at'] ?? null;
+        $serialized['created_at'] = $this->isoDateTime($row['created_at'] ?? null);
+        $serialized['updated_at'] = $this->isoDateTime($row['updated_at'] ?? null);
 
         return $serialized;
+    }
+
+    private function isoDateTime(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (
+            ! is_string($value)
+            && ! is_int($value)
+            && ! is_float($value)
+            && ! $value instanceof \DateTimeInterface
+        ) {
+            throw new \UnexpectedValueException('The data table datetime value is invalid.');
+        }
+
+        return Carbon::parse($value)->utc()->toIso8601String();
     }
 
     /**

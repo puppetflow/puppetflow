@@ -7,6 +7,7 @@ export interface AiModelCapabilities {
     vision?: boolean;
     structured_output?: boolean;
     tools?: boolean;
+    custom_model_id?: boolean;
 }
 
 export interface AiModel {

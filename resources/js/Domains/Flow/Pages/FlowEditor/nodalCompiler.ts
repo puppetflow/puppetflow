@@ -392,7 +392,9 @@ const __pfRenderExpression = async (template, $locals = {}) => {
     for (const part of templateParts) {
         renderedTemplate += template.slice(lastIndex, part.index);
         const rendered = await renderSource((part[1] || '').trim() || 'undefined');
-        renderedTemplate += rendered == null ? '' : String(rendered);
+        renderedTemplate += rendered == null || typeof rendered === 'function'
+            ? ''
+            : String(rendered);
         lastIndex = (part.index ?? 0) + part[0].length;
     }
     return renderedTemplate + template.slice(lastIndex);

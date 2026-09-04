@@ -1,16 +1,21 @@
 <?php
 
+use App\Http\Controllers\Api\DataTableApiController;
+use App\Http\Controllers\Api\DataTableColumnApiController;
+use App\Http\Controllers\Api\DataTableRowApiController;
 use App\Http\Controllers\Api\FlowApiController;
 use App\Http\Controllers\Api\FlowSearchApiController;
 use App\Http\Controllers\Api\RunApiController;
 use App\Http\Controllers\Api\TeamApiController;
 use App\Http\Controllers\Api\UserApiController;
 use App\Http\Controllers\Api\WorkspaceApiController;
+use App\Http\Controllers\Api\WorkspaceMemberApiController;
 use App\Http\Controllers\Integration\Repository\RepositoryWebhookController;
 use App\Http\Controllers\Internal\MailboxRunMessageController;
 use App\Http\Controllers\Internal\RunnerSignalController;
 use App\Http\Controllers\Internal\RuntimeAiController;
 use App\Http\Controllers\Internal\RuntimeDataTableController;
+use App\Http\Controllers\Mcp\McpBrokerController;
 use App\Http\Controllers\Mcp\McpServerController;
 use App\Http\Controllers\Trigger\TriggerIncomingController;
 use App\Http\Middleware\AuthenticateRunnerCapability;
@@ -27,6 +32,10 @@ $repositoryWebhookRateLimit = is_numeric($repositoryWebhookRateValue)
 Route::post('trigger/{token}', TriggerIncomingController::class)
     ->middleware("throttle:{$triggerRateLimit},1")
     ->name('trigger.incoming');
+
+Route::post('mcp/broker/token', [McpBrokerController::class, 'token'])
+    ->middleware('throttle:20,1')
+    ->name('mcp.broker.token');
 
 Route::prefix('internal/runner')
     ->name('internal.runner.')
@@ -70,6 +79,10 @@ Route::prefix('webhooks')
         Route::post('bitbucket/{webhookId}', [RepositoryWebhookController::class, 'bitbucket'])->name('bitbucket');
     });
 
+Route::post('mcp-server/broker/revoke', [McpBrokerController::class, 'revoke'])
+    ->middleware('throttle:30,1')
+    ->name('mcp.broker.revoke');
+
 Route::middleware(\App\Http\Middleware\AuthenticateMcpToken::class)
     ->prefix('mcp-server')
     ->name('mcp.')
@@ -110,11 +123,45 @@ Route::middleware(\App\Http\Middleware\AuthenticateApiKey::class)
         Route::match(['put', 'patch'], 'workspaces/{workspace}', [WorkspaceApiController::class, 'update'])->name('workspaces.update');
         Route::get('workspaces/{workspace}/teams', [TeamApiController::class, 'index'])->name('workspaces.teams.index');
         Route::post('workspaces/{workspace}/teams', [TeamApiController::class, 'store'])->name('workspaces.teams.store');
-        Route::get('workspaces/{workspace}/teams/{team}', [TeamApiController::class, 'show'])->name('workspaces.teams.show');
-        Route::match(['put', 'patch'], 'workspaces/{workspace}/teams/{team}', [TeamApiController::class, 'update'])->name('workspaces.teams.update');
-        Route::post('workspaces/{workspace}/teams/{team}/users', [TeamApiController::class, 'addUsers'])->name('workspaces.teams.users.add');
-        Route::put('workspaces/{workspace}/teams/{team}/users', [TeamApiController::class, 'replaceUsers'])->name('workspaces.teams.users.replace');
-        Route::put('workspaces/{workspace}/users/{user}/teams', [TeamApiController::class, 'setUserTeams'])->name('workspaces.users.teams.replace');
+        Route::get('workspaces/{workspace}/members', [WorkspaceMemberApiController::class, 'index'])->name('workspaces.members.index');
+        Route::post('workspaces/{workspace}/members', [WorkspaceMemberApiController::class, 'store'])->name('workspaces.members.store');
+        Route::get('workspaces/{workspace}/members/{member}', [WorkspaceMemberApiController::class, 'show'])->name('workspaces.members.show');
+        Route::match(['put', 'patch'], 'workspaces/{workspace}/members/{member}', [WorkspaceMemberApiController::class, 'update'])->name('workspaces.members.update');
+        Route::delete('workspaces/{workspace}/members/{member}', [WorkspaceMemberApiController::class, 'destroy'])->name('workspaces.members.destroy');
+        Route::get('teams/{team}', [TeamApiController::class, 'show'])->name('teams.show');
+        Route::match(['put', 'patch'], 'teams/{team}', [TeamApiController::class, 'update'])->name('teams.update');
+        Route::post('teams/{team}/members', [TeamApiController::class, 'addMembers'])->name('teams.members.add');
+        Route::put('teams/{team}/members', [TeamApiController::class, 'replaceMembers'])->name('teams.members.replace');
+        Route::put('workspaces/{workspace}/members/{member}/teams', [TeamApiController::class, 'setMemberTeams'])->name('workspaces.members.teams.replace');
+
+        Route::get('workspaces/{workspace}/data-tables', [DataTableApiController::class, 'index'])->name('workspaces.data-tables.index');
+        Route::post('workspaces/{workspace}/data-tables', [DataTableApiController::class, 'store'])->name('workspaces.data-tables.store');
+
+        Route::prefix('data-tables')
+            ->name('data-tables.')
+            ->group(function () {
+                Route::get('{dataTable}', [DataTableApiController::class, 'show'])->name('show');
+                Route::match(['put', 'patch'], '{dataTable}', [DataTableApiController::class, 'update'])->name('update');
+                Route::delete('{dataTable}', [DataTableApiController::class, 'destroy'])->name('destroy');
+
+                Route::get('{dataTable}/columns', [DataTableColumnApiController::class, 'index'])->name('columns.index');
+                Route::post('{dataTable}/columns', [DataTableColumnApiController::class, 'store'])->name('columns.store');
+                Route::put('{dataTable}/columns/reorder', [DataTableColumnApiController::class, 'reorder'])->name('columns.reorder');
+                Route::get('{dataTable}/columns/{column}', [DataTableColumnApiController::class, 'show'])->name('columns.show');
+                Route::match(['put', 'patch'], '{dataTable}/columns/{column}', [DataTableColumnApiController::class, 'update'])->name('columns.update');
+                Route::delete('{dataTable}/columns/{column}', [DataTableColumnApiController::class, 'destroy'])->name('columns.destroy');
+
+                Route::get('{dataTable}/rows', [DataTableRowApiController::class, 'index'])->name('rows.index');
+                Route::post('{dataTable}/rows', [DataTableRowApiController::class, 'store'])->name('rows.store');
+                Route::patch('{dataTable}/rows', [DataTableRowApiController::class, 'updateFiltered'])->name('rows.update-filtered');
+                Route::delete('{dataTable}/rows', [DataTableRowApiController::class, 'destroyFiltered'])->name('rows.destroy-filtered');
+                Route::post('{dataTable}/rows/bulk', [DataTableRowApiController::class, 'storeBulk'])->name('rows.store-bulk');
+                Route::post('{dataTable}/rows/upsert', [DataTableRowApiController::class, 'upsert'])->name('rows.upsert');
+                Route::get('{dataTable}/rows/{row}', [DataTableRowApiController::class, 'show'])->name('rows.show');
+                Route::match(['put', 'patch'], '{dataTable}/rows/{row}', [DataTableRowApiController::class, 'update'])->name('rows.update');
+                Route::delete('{dataTable}/rows/{row}', [DataTableRowApiController::class, 'destroy'])->name('rows.destroy');
+            });
+
         Route::get('flows', [FlowSearchApiController::class, 'flows'])->name('flows.index');
         Route::get('folders', [FlowSearchApiController::class, 'folders'])->name('folders.index');
         Route::get('runs/search', [FlowSearchApiController::class, 'searchRuns'])->name('runs.search');

@@ -82,6 +82,11 @@ return [
 
     'documentation_url' => env('DOCUMENTATION_URL', 'https://docs.puppetflow.com'),
 
+    'mcp_broker' => [
+        'endpoint' => env('MCP_BROKER_ENDPOINT', 'https://mcp.puppetflow.com/mcp'),
+        'callback_url' => env('MCP_BROKER_CALLBACK_URL', 'https://mcp.puppetflow.com/oauth/tenant/callback'),
+    ],
+
     'feature_flags' => [
         'snippets_enabled' => filter_var(env('FF_SNIPPETS_ENABLED', true), FILTER_VALIDATE_BOOL),
         'variables_enabled' => filter_var(env('FF_VARIABLES_ENABLED', true), FILTER_VALIDATE_BOOL),

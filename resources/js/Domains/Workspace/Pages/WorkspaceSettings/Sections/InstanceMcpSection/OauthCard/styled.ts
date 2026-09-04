@@ -109,7 +109,6 @@ export const TableViewport = styled.div`
     border: 1px solid ${({ theme }) => theme.colors.border.default};
     border-radius: ${({ theme }) => theme.radius.md};
     background: ${({ theme }) => theme.colors.bg.primary};
-    scrollbar-gutter: stable;
 `;
 
 export const ClientTable = styled.table`
