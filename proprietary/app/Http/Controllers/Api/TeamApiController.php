@@ -74,28 +74,28 @@ class TeamApiController extends Controller
         return response()->json($this->serializeTeam($team, $workspace), 201);
     }
 
-    public function show(Request $request, Workspace $workspace, WorkspaceTeam $team): JsonResponse
+    public function show(Request $request, WorkspaceTeam $team): JsonResponse
     {
-        if ($team->workspace_id !== $workspace->id
-            || Gate::forUser($request->user())->denies(Ability::VIEW->value, $team)) {
+        if (Gate::forUser($request->user())->denies(Ability::VIEW->value, $team)) {
             return response()->json(['error' => 'Team not found.'], 404);
         }
 
         $this->features->abortIfDisabled('teams_enabled');
+        $workspace = $this->workspaceForTeam($team);
 
-        $team->load(['users:id,name,email,role,can_create_workspace'])->loadCount('users');
+        $team->load(['users:id,name,email'])->loadCount('users');
 
-        return response()->json($this->serializeTeam($team, $workspace, includeUsers: true));
+        return response()->json($this->serializeTeam($team, $workspace, includeMembers: true));
     }
 
-    public function update(Request $request, Workspace $workspace, WorkspaceTeam $team): JsonResponse
+    public function update(Request $request, WorkspaceTeam $team): JsonResponse
     {
-        if ($team->workspace_id !== $workspace->id
-            || Gate::forUser($request->user())->denies(Ability::UPDATE->value, $team)) {
+        if (Gate::forUser($request->user())->denies(Ability::UPDATE->value, $team)) {
             return response()->json(['error' => 'Forbidden.'], 403);
         }
 
         $this->features->abortIfDisabled('teams_enabled');
+        $workspace = $this->workspaceForTeam($team);
 
         $data = $request->validate($this->rules($workspace, $team));
 
@@ -110,91 +110,91 @@ class TeamApiController extends Controller
         return response()->json($this->serializeTeam($team, $workspace));
     }
 
-    public function addUsers(Request $request, Workspace $workspace, WorkspaceTeam $team): JsonResponse
+    public function addMembers(Request $request, WorkspaceTeam $team): JsonResponse
     {
         $this->features->abortIfDisabled('teams_enabled');
 
-        if ($team->workspace_id !== $workspace->id
-            || Gate::forUser($request->user())->denies(Ability::MANAGE_MEMBERS->value, $team)) {
+        if (Gate::forUser($request->user())->denies(Ability::MANAGE_MEMBERS->value, $team)) {
             return response()->json(['error' => 'Forbidden.'], 403);
         }
+        $workspace = $this->workspaceForTeam($team);
 
         $data = $request->validate([
-            'user_id' => [
+            'member_id' => [
                 'sometimes',
                 'string',
-                Rule::exists('users', 'id'),
+                Rule::exists('user_workspace', 'user_id')
+                    ->where('workspace_id', $workspace->id),
             ],
-            'user_ids' => ['sometimes', 'array'],
-            'user_ids.*' => [
+            'member_ids' => ['sometimes', 'array'],
+            'member_ids.*' => [
                 'string',
                 'distinct',
-                Rule::exists('users', 'id'),
+                Rule::exists('user_workspace', 'user_id')
+                    ->where('workspace_id', $workspace->id),
             ],
-            'workspace_role' => ['sometimes', Rule::in($this->allowedWorkspaceRoles())],
         ]);
 
-        /** @var list<string> $validatedUserIds */
-        $validatedUserIds = $data['user_ids'] ?? [];
-        $userIds = collect($validatedUserIds)
-            ->push($data['user_id'] ?? null)
+        /** @var list<string> $validatedMemberIds */
+        $validatedMemberIds = $data['member_ids'] ?? [];
+        $memberIds = collect($validatedMemberIds)
+            ->push($data['member_id'] ?? null)
             ->filter()
             ->unique()
             ->values();
-        $userIds = array_values($userIds->all());
+        $memberIds = array_values($memberIds->all());
 
-        if ($userIds === []) {
-            return response()->json(['error' => 'At least one user_id is required.'], 422);
+        if ($memberIds === []) {
+            return response()->json(['error' => 'At least one member_id is required.'], 422);
         }
 
         $this->workspaceTeams->addMembers(
             $team,
-            $userIds,
-            $data['workspace_role'] ?? null,
+            $memberIds,
+            null,
             $request->user(),
         );
 
-        $team->load(['users:id,name,email,role,can_create_workspace'])->loadCount('users');
+        $team->load(['users:id,name,email'])->loadCount('users');
 
-        return response()->json($this->serializeTeam($team, $workspace, includeUsers: true));
+        return response()->json($this->serializeTeam($team, $workspace, includeMembers: true));
     }
 
-    public function replaceUsers(Request $request, Workspace $workspace, WorkspaceTeam $team): JsonResponse
+    public function replaceMembers(Request $request, WorkspaceTeam $team): JsonResponse
     {
         $this->features->abortIfDisabled('teams_enabled');
 
-        if ($team->workspace_id !== $workspace->id
-            || Gate::forUser($request->user())->denies(Ability::MANAGE_MEMBERS->value, $team)) {
+        if (Gate::forUser($request->user())->denies(Ability::MANAGE_MEMBERS->value, $team)) {
             return response()->json(['error' => 'Forbidden.'], 403);
         }
+        $workspace = $this->workspaceForTeam($team);
 
         $data = $request->validate([
-            'user_ids' => ['required', 'array'],
-            'user_ids.*' => [
+            'member_ids' => ['required', 'array'],
+            'member_ids.*' => [
                 'string',
                 'distinct',
-                Rule::exists('users', 'id'),
+                Rule::exists('user_workspace', 'user_id')
+                    ->where('workspace_id', $workspace->id),
             ],
-            'workspace_role' => ['sometimes', Rule::in($this->allowedWorkspaceRoles())],
         ]);
 
-        /** @var list<string> $validatedUserIds */
-        $validatedUserIds = $data['user_ids'];
-        $userIds = $validatedUserIds;
+        /** @var list<string> $memberIds */
+        $memberIds = $data['member_ids'];
 
         $this->workspaceTeams->replaceMembers(
             $team,
-            $userIds,
-            $data['workspace_role'] ?? null,
+            $memberIds,
+            null,
             $request->user(),
         );
 
-        $team->load(['users:id,name,email,role,can_create_workspace'])->loadCount('users');
+        $team->load(['users:id,name,email'])->loadCount('users');
 
-        return response()->json($this->serializeTeam($team, $workspace, includeUsers: true));
+        return response()->json($this->serializeTeam($team, $workspace, includeMembers: true));
     }
 
-    public function setUserTeams(Request $request, Workspace $workspace, User $user): JsonResponse
+    public function setMemberTeams(Request $request, Workspace $workspace, User $member): JsonResponse
     {
         if (Gate::forUser($request->user())->denies(Ability::MANAGE_MEMBERS->value, $workspace)) {
             return response()->json(['error' => 'Forbidden.'], 403);
@@ -202,7 +202,7 @@ class TeamApiController extends Controller
 
         $this->features->abortIfDisabled('teams_enabled');
         abort_unless(
-            $workspace->users()->where('users.id', $user->id)->exists(),
+            $workspace->users()->where('users.id', $member->id)->exists(),
             404,
         );
 
@@ -213,29 +213,24 @@ class TeamApiController extends Controller
                 'distinct',
                 Rule::exists('workspace_teams', 'id')->where('workspace_id', $workspace->id),
             ],
-            'workspace_role' => ['sometimes', Rule::in($this->allowedWorkspaceRoles())],
         ]);
 
         $teamIds = array_values($data['team_ids']);
 
         $this->workspaceTeams->replaceUserTeamsForWorkspace(
             $workspace,
-            $user,
+            $member,
             $teamIds,
-            $data['workspace_role'] ?? null,
+            null,
             $request->user(),
         );
 
-        $user->load(['workspaces:id,name', 'teams:id,workspace_id,name']);
+        $member->load(['workspaces:id,name', 'teams:id,workspace_id,name']);
 
         return response()->json([
-            'user_id' => $user->id,
+            'member_id' => $member->id,
             'workspace_id' => $workspace->id,
-            'workspace_role' => DB::table('user_workspace')
-                ->where('workspace_id', $workspace->id)
-                ->where('user_id', $user->id)
-                ->value('role'),
-            'team_ids' => $user->teams->where('workspace_id', $workspace->id)->pluck('id')->values(),
+            'team_ids' => $member->teams->where('workspace_id', $workspace->id)->pluck('id')->values(),
         ]);
     }
 
@@ -256,45 +251,38 @@ class TeamApiController extends Controller
         ];
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function allowedWorkspaceRoles(): array
+    private function workspaceForTeam(WorkspaceTeam $team): Workspace
     {
-        return $this->features->sharingRolesEnabled()
-            ? ['admin', 'manager', 'member']
-            : ['member'];
+        return Workspace::findOrFail($team->workspace_id);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function serializeTeam(WorkspaceTeam $team, Workspace $workspace, bool $includeUsers = false): array
+    private function serializeTeam(WorkspaceTeam $team, Workspace $workspace, bool $includeMembers = false): array
     {
         $data = [
             'id' => $team->id,
             'workspace_id' => $workspace->id,
             'name' => $team->name,
-            'users_count' => $team->users_count ?? null,
+            'members_count' => $team->users_count ?? null,
             'created_at' => $team->created_at?->toIso8601String(),
             'updated_at' => $team->updated_at?->toIso8601String(),
         ];
 
-        if ($includeUsers) {
+        if ($includeMembers) {
             $workspaceRoles = DB::table('user_workspace')
                 ->where('workspace_id', $team->workspace_id)
                 ->whereIn('user_id', $team->users->pluck('id'))
                 ->pluck('role', 'user_id');
-            $data['users'] = [];
+            $data['members'] = [];
             foreach ($team->users as $user) {
                 $workspaceRole = $workspaceRoles->get($user->id);
-                $data['users'][] = [
+                $data['members'][] = [
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'role' => $user->role,
-                    'workspace_role' => is_string($workspaceRole) ? $workspaceRole : 'member',
-                    'can_create_workspace' => (bool) $user->can_create_workspace,
+                    'role' => is_string($workspaceRole) ? $workspaceRole : 'member',
                 ];
             }
         }

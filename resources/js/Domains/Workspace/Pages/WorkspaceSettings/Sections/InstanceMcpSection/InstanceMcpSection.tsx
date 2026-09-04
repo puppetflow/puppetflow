@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { McpAccessToken, McpFlow, McpOauthClient, McpOauthConnection, McpTool, WorkspaceMcpSettings } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
+import BrokerCard from './BrokerCard/BrokerCard';
 import FlowsCard from './FlowsCard/FlowsCard';
 import GeneralMcpCard from './GeneralMcpCard/GeneralMcpCard';
 import OauthCard from './OauthCard/OauthCard';
@@ -10,6 +11,7 @@ import ToolsCard from './ToolsCard/ToolsCard';
 import { requestJson } from './utils';
 
 interface Props {
+    brokerEndpoint: string;
     endpoint: string;
     oauthEndpoint: string;
     oauthAuthorizeUrl: string;
@@ -24,6 +26,7 @@ interface Props {
 }
 
 export default function InstanceMcpSection({
+    brokerEndpoint,
     endpoint,
     oauthEndpoint,
     oauthAuthorizeUrl,
@@ -73,6 +76,7 @@ export default function InstanceMcpSection({
             </S.TopGrid>
 
             <S.ConnectionModeGrid>
+                <BrokerCard endpoint={brokerEndpoint} />
                 <OauthCard
                     endpoint={oauthEndpoint}
                     authorizeUrl={oauthAuthorizeUrl}
@@ -94,7 +98,6 @@ export default function InstanceMcpSection({
                     readOnly={readOnly}
                     setBusy={setBusy}
                     setTokenBusy={setTokenBusy}
-                    setOauthClientBusy={setOauthClientBusy}
                     setError={setError}
                 />
             </S.ConnectionModeGrid>

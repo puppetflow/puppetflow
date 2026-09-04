@@ -4,6 +4,7 @@ import type { CanvasNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEdit
 
 const MIN_CANVAS_ZOOM = 0.05;
 const MAX_CANVAS_ZOOM = 3;
+const MAX_VIEWPORT_FIT_ZOOM = 0.9;
 const NODE_VIEWPORT_HALF_WIDTH = 96;
 const NODE_VIEWPORT_HALF_HEIGHT = 86;
 const VIEWPORT_FIT_PADDING = 48;
@@ -81,7 +82,7 @@ export function useCanvasViewport(
             const fitZoom = Math.min(
                 rect.width / graphWidth,
                 rect.height / graphHeight,
-                fitOptions.maxZoom ?? MAX_CANVAS_ZOOM,
+                fitOptions.maxZoom ?? MAX_VIEWPORT_FIT_ZOOM,
             );
             const nextZoom = clampCanvasZoom(fitZoom);
             const anchorX = Math.min(1, Math.max(0, fitOptions.anchorX ?? 0.5));

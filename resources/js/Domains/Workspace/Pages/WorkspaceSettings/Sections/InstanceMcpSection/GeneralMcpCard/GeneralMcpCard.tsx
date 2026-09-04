@@ -17,14 +17,14 @@ export default function GeneralMcpCard({ settings, busy, readOnly, onUpdate }: P
         <SharedS.Card>
             <SharedS.CardTitle>
                 <Icon icon="lucide:plug-zap" width={15} height={15} />
-                Instance MCP
+                Workspace MCP Access
                 <DocHelpLink
                     path="/guide/mcp#_1-configure-the-workspace"
                     label="Open instance MCP documentation"
                 />
             </SharedS.CardTitle>
             <S.SectionHint>
-                Expose selected Puppetflow flows through one MCP endpoint for AI clients. Clients authenticate as the token owner in this workspace.
+                Control which Puppetflow tools and flows are available when this workspace is selected through the universal broker or connected directly.
             </S.SectionHint>
             <S.CardBody>
                 <S.SwitchGroup>
@@ -32,11 +32,11 @@ export default function GeneralMcpCard({ settings, busy, readOnly, onUpdate }: P
                         id="mcp_enabled"
                         checked={settings.enabled}
                         onChange={value => void onUpdate({ enabled: value })}
-                        label="Enable instance-level MCP for this workspace"
+                        label="Enable MCP access for this workspace"
                         disabled={readOnly || busy}
                     />
                     <S.SwitchHint>
-                        Allows authenticated MCP clients to connect to this workspace endpoint.
+                        Makes this workspace available through the universal connection and its direct endpoints.
                     </S.SwitchHint>
                 </S.SwitchGroup>
                 <S.Divider />

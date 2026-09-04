@@ -28,7 +28,7 @@ HELP_ENTRIES.forEach(entry => {
 });
 
 const getHelperCallsByLine = (code: string) => {
-    const calls = new Map<number, string>();
+    const calls: Array<{ lineNumber: number; name: string }> = [];
     let quote: "'" | '"' | '`' | null = null;
     let inBlockComment = false;
     let escaped = false;
@@ -77,8 +77,7 @@ const getHelperCallsByLine = (code: string) => {
             while (/\s/.test(line[cursor] ?? '')) cursor += 1;
             if (line[cursor] !== '(') continue;
 
-            calls.set(lineIndex + 1, name);
-            break;
+            calls.push({ lineNumber: lineIndex + 1, name });
         }
     });
 
@@ -328,7 +327,7 @@ const getSelectorGizmos = (code: string): CodeGizmo[] => {
 export const getCodeGizmos = (code: string): CodeGizmo[] => {
     const gotoSites = new Map(getGotoCodeSites(code).map(site => [site.lineNumber, site]));
 
-    const helperGizmos: CodeGizmo[] = Array.from(getHelperCallsByLine(code), ([lineNumber, name]) => {
+    const helperGizmos: CodeGizmo[] = getHelperCallsByLine(code).map(({ lineNumber, name }) => {
         const entry = HELP_ENTRY_BY_NAME.get(name) ?? {
             name,
             signature: `${name}(...)`,

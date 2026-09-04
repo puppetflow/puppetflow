@@ -37,18 +37,9 @@ export const Text = styled.div`
 `;
 
 export const Title = styled.span`
-    color: ${({ theme }) => theme.colors.text.primary};
+    color: ${({ theme }) => theme.colors.accent.warning};
     font-size: 12px;
     font-weight: 650;
-    white-space: nowrap;
-`;
-
-export const Helpers = styled.span`
-    overflow: hidden;
-    color: ${({ theme }) => theme.colors.text.tertiary};
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 11px;
-    text-overflow: ellipsis;
     white-space: nowrap;
 `;
 

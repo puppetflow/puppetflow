@@ -1,0 +1,456 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Puppetflow",
+    "subtitle": "Build and run browser flows",
+    "description": "Puppetflow helps users create, run, schedule, and monitor browser automations, manage reusable flow snippets, inspect execution results, and retrieve generated artifacts from ChatGPT.",
+    "category": "PRODUCTIVITY"
+  },
+  "tools": {
+    "search_flows": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Searches flow metadata visible to the connected user without changing any flow.",
+        "open_world_justification": "Only reads data from the user's private Puppetflow workspace.",
+        "destructive_justification": "Does not delete, overwrite, publish, or execute flows."
+      }
+    },
+    "get_flow_details": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves one flow's configuration and Flow Inputs without modifying it.",
+        "open_world_justification": "Only reads data from the user's private Puppetflow workspace.",
+        "destructive_justification": "Does not alter the flow or start an execution."
+      }
+    },
+    "get_flow_source": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves the editable code or visual graph of a flow without changing it.",
+        "open_world_justification": "Only reads private flow source from Puppetflow.",
+        "destructive_justification": "Does not overwrite or execute the returned source."
+      }
+    },
+    "list_folders": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists accessible Puppetflow folders without changing their contents.",
+        "open_world_justification": "Only reads private workspace organization data.",
+        "destructive_justification": "Does not create, move, or delete folders."
+      }
+    },
+    "get_flow_creation_options": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves allowed scopes, teams, folders, and defaults for flow creation.",
+        "open_world_justification": "Only reads configuration from the user's Puppetflow workspace.",
+        "destructive_justification": "Does not create a flow or change workspace configuration."
+      }
+    },
+    "get_nodal_catalog": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Reads the generated catalog of available Puppetflow nodes and runtime helpers.",
+        "open_world_justification": "Uses only Puppetflow's local framework catalog.",
+        "destructive_justification": "Does not create or modify flows."
+      }
+    },
+    "list_flow_resources": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists workspace resources that an accessible flow or snippet may reference.",
+        "open_world_justification": "Only reads private resource metadata from Puppetflow.",
+        "destructive_justification": "Does not change or expose the underlying resource values."
+      }
+    },
+    "write_code_flow": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Creates a JavaScript flow or updates an existing flow draft.",
+        "open_world_justification": "Stores source inside Puppetflow and does not execute it or write to third-party systems.",
+        "destructive_justification": "An update overwrites the selected flow's current draft after a concurrency check."
+      }
+    },
+    "write_nodal_flow": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Creates a visual flow or updates an existing flow graph.",
+        "open_world_justification": "Stores the graph inside Puppetflow and does not execute it or affect third-party systems.",
+        "destructive_justification": "An update overwrites the selected flow's current draft after a concurrency check."
+      }
+    },
+    "publish_flow": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Publishes the current flow draft as a version in Puppetflow.",
+        "open_world_justification": "Publication is limited to Puppetflow access controls and does not post to the public internet.",
+        "destructive_justification": "Version history is retained and publication does not delete the draft."
+      }
+    },
+    "unpublish_flow": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Changes a flow's publication state.",
+        "open_world_justification": "Only changes availability within Puppetflow.",
+        "destructive_justification": "Keeps the draft and version history so the flow can be published again."
+      }
+    },
+    "list_flow_triggers": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists cron and webhook trigger metadata without returning webhook tokens.",
+        "open_world_justification": "Only reads trigger configuration from Puppetflow.",
+        "destructive_justification": "Does not enable, update, or delete triggers."
+      }
+    },
+    "create_flow_trigger": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Creates an active or inactive cron or webhook trigger for a flow.",
+        "open_world_justification": "An active cron trigger can run browser automation that affects external websites.",
+        "destructive_justification": "A scheduled execution may cause external side effects that cannot be retracted after it runs."
+      }
+    },
+    "update_flow_trigger": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Updates the schedule, inputs, scope, or active state of a flow trigger.",
+        "open_world_justification": "Enabling or changing a cron trigger can cause browser automation to run against external websites.",
+        "destructive_justification": "It overwrites trigger configuration and scheduled executions may have irreversible external effects."
+      }
+    },
+    "delete_flow_trigger": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Deletes a selected flow trigger from Puppetflow.",
+        "open_world_justification": "The deletion only changes Puppetflow's private trigger configuration.",
+        "destructive_justification": "Permanently removes the trigger and stops its future executions."
+      }
+    },
+    "list_flow_actions": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists post-run action metadata while redacting webhook secrets and values.",
+        "open_world_justification": "Only reads action configuration from Puppetflow.",
+        "destructive_justification": "Does not invoke, update, or delete an action."
+      }
+    },
+    "create_flow_action": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Creates a post-run webhook action for a flow.",
+        "open_world_justification": "An active action sends future flow results to the configured external webhook.",
+        "destructive_justification": "A webhook delivery caused by a later run cannot be retracted after it is sent."
+      }
+    },
+    "update_flow_action": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Updates a post-run webhook action and its delivery settings.",
+        "open_world_justification": "An enabled action sends future flow results to an external webhook.",
+        "destructive_justification": "It overwrites action configuration and completed webhook deliveries cannot be retracted."
+      }
+    },
+    "delete_flow_action": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Deletes a selected post-run action from Puppetflow.",
+        "open_world_justification": "The deletion only changes private Puppetflow configuration and sends no webhook.",
+        "destructive_justification": "Permanently removes the action configuration."
+      }
+    },
+    "search_snippets": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Searches reusable snippets visible to the connected user.",
+        "open_world_justification": "Only reads private Puppetflow snippet metadata.",
+        "destructive_justification": "Does not modify or publish snippets."
+      }
+    },
+    "get_snippet_source": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves a snippet's editable code or visual graph.",
+        "open_world_justification": "Only reads private source from Puppetflow.",
+        "destructive_justification": "Does not overwrite or execute the snippet."
+      }
+    },
+    "get_snippet_creation_options": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves allowed scopes, teams, and defaults for snippet creation.",
+        "open_world_justification": "Only reads private workspace configuration.",
+        "destructive_justification": "Does not create or update a snippet."
+      }
+    },
+    "write_code_snippet": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Creates a JavaScript snippet or updates an existing snippet draft.",
+        "open_world_justification": "Stores source inside Puppetflow and does not execute it or affect third-party systems.",
+        "destructive_justification": "An update overwrites the selected snippet's current draft after a concurrency check."
+      }
+    },
+    "write_nodal_snippet": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Creates a visual snippet or updates an existing snippet graph.",
+        "open_world_justification": "Stores the graph inside Puppetflow and does not execute it or affect third-party systems.",
+        "destructive_justification": "An update overwrites the selected snippet's current draft after a concurrency check."
+      }
+    },
+    "publish_snippet": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Publishes the current snippet draft as a Puppetflow version.",
+        "open_world_justification": "Publication remains within Puppetflow access controls.",
+        "destructive_justification": "Version history is retained and no snippet data is deleted."
+      }
+    },
+    "unpublish_snippet": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Changes a snippet's publication state.",
+        "open_world_justification": "Only changes availability within Puppetflow.",
+        "destructive_justification": "Keeps the draft and version history so the snippet can be published again."
+      }
+    },
+    "search_runs": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Searches existing flow runs and optionally returns their stored logs or code.",
+        "open_world_justification": "Only reads execution records from Puppetflow.",
+        "destructive_justification": "Does not start, continue, or delete a run."
+      }
+    },
+    "list_flow_runs": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists recent execution records for one accessible flow.",
+        "open_world_justification": "Only reads private Puppetflow run history.",
+        "destructive_justification": "Does not start or modify any execution."
+      }
+    },
+    "run_flow": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Queues and starts a browser automation with optional per-run inputs.",
+        "open_world_justification": "The flow may interact with external websites, submit forms, or send messages.",
+        "destructive_justification": "External actions performed by the browser automation may be irreversible."
+      }
+    },
+    "get_run": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves an existing run and optionally includes its stored logs or code.",
+        "open_world_justification": "Only reads execution data from Puppetflow.",
+        "destructive_justification": "Does not continue, rerun, or delete the execution."
+      }
+    },
+    "get_run_result": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves the status, output, error, and duration of an existing run.",
+        "open_world_justification": "Only reads stored execution results from Puppetflow.",
+        "destructive_justification": "Does not change the run or its output."
+      }
+    },
+    "continue_human_validation": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Signals a waiting browser automation to resume execution.",
+        "open_world_justification": "The resumed flow may continue interacting with external websites or services.",
+        "destructive_justification": "Actions performed after continuation may be irreversible."
+      }
+    },
+    "list_artifacts": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists stored screenshots or downloads for an existing run.",
+        "open_world_justification": "Only reads artifact metadata from Puppetflow.",
+        "destructive_justification": "Does not create, alter, or delete artifact files."
+      }
+    },
+    "get_latest_screenshot": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Returns metadata and a secure URL for the latest stored screenshot.",
+        "open_world_justification": "Only reads an artifact already stored in Puppetflow.",
+        "destructive_justification": "Does not change the screenshot or run."
+      }
+    },
+    "download_artifact": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Returns a secure URL for a selected stored run artifact.",
+        "open_world_justification": "Only exposes an authenticated Puppetflow download route to the connected user.",
+        "destructive_justification": "Does not alter or remove the artifact."
+      }
+    },
+    "get_recording": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Returns a secure URL for an existing browser-session recording.",
+        "open_world_justification": "Only reads recording availability from Puppetflow.",
+        "destructive_justification": "Does not alter or delete the recording."
+      }
+    },
+    "get_recording_lastshot": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Returns a secure URL for the last frame of an existing recording.",
+        "open_world_justification": "Only reads an artifact already stored in Puppetflow.",
+        "destructive_justification": "Does not alter or delete the recording frame."
+      }
+    },
+    "get_current_workspace": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves metadata and preferences for the connected workspace.",
+        "open_world_justification": "Only reads private Puppetflow workspace settings.",
+        "destructive_justification": "Does not modify workspace configuration."
+      }
+    },
+    "update_current_workspace": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Updates selected settings for the connected Puppetflow workspace.",
+        "open_world_justification": "Changes remain within the private Puppetflow installation.",
+        "destructive_justification": "Updates reversible configuration values without deleting workspace data."
+      }
+    },
+    "list_workspace_members": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists workspace members visible to the connected user.",
+        "open_world_justification": "Only reads private Puppetflow membership data.",
+        "destructive_justification": "Does not add, remove, or update any member."
+      }
+    },
+    "list_teams": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Lists teams in the connected Puppetflow workspace.",
+        "open_world_justification": "Only reads private workspace team metadata.",
+        "destructive_justification": "Does not create, rename, or change team membership."
+      }
+    },
+    "get_team": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Retrieves one team and its accessible membership details.",
+        "open_world_justification": "Only reads private workspace team data.",
+        "destructive_justification": "Does not alter the team or its members."
+      }
+    },
+    "create_team": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Creates a team inside the connected Puppetflow workspace.",
+        "open_world_justification": "The team remains private to the Puppetflow workspace.",
+        "destructive_justification": "Creates a new team without deleting or replacing existing data."
+      }
+    },
+    "update_team": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Renames a team and its corresponding root folder.",
+        "open_world_justification": "Only changes private Puppetflow workspace data.",
+        "destructive_justification": "The rename is reversible and does not remove the team or its members."
+      }
+    },
+    "add_team_members": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Adds selected workspace users to a Puppetflow team.",
+        "open_world_justification": "Only changes access within the private Puppetflow workspace.",
+        "destructive_justification": "Preserves existing memberships and does not remove users."
+      }
+    },
+    "replace_team_members": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Replaces the complete member list of a Puppetflow team.",
+        "open_world_justification": "Only changes access within the private Puppetflow workspace.",
+        "destructive_justification": "Can remove existing members and revoke their team access."
+      }
+    },
+    "set_member_teams": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Replaces all team assignments for one workspace member.",
+        "open_world_justification": "Only changes access within the private Puppetflow workspace.",
+        "destructive_justification": "Can remove existing assignments and revoke the member's team access."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Create a visual browser automation from a natural-language request.",
+      "user_prompt": "Create a visual flow named Status Check that opens the configured URL, captures a screenshot, and returns a successful result. Use a Flow Input for the URL.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_nodal_catalog, get_flow_creation_options, write_nodal_flow",
+      "expected_output": "Creates a valid visual flow with a configurable URL input and reports its identifier and editor URL.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Find an existing flow, inspect its inputs, run it, and retrieve the result.",
+      "user_prompt": "Find my Status Check flow, show me its expected Flow Inputs, run it with the configured default values, and return the final result.",
+      "file_attachment_urls": null,
+      "tools_triggered": "search_flows, get_flow_details, run_flow, get_run_result",
+      "expected_output": "Identifies the flow, explains its inputs, starts one run, and returns the run status and result.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Schedule an existing flow with a cron trigger.",
+      "user_prompt": "Schedule my Status Check flow to run every weekday at 9 AM in my configured timezone.",
+      "file_attachment_urls": null,
+      "tools_triggered": "search_flows, create_flow_trigger",
+      "expected_output": "Creates an active cron trigger for the selected flow and summarizes the schedule and scope.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Investigate a failed run and list its generated artifacts.",
+      "user_prompt": "Find the latest failed run of Status Check, summarize its error and logs, and list any screenshots it produced.",
+      "file_attachment_urls": null,
+      "tools_triggered": "search_runs, get_run, list_artifacts",
+      "expected_output": "Returns the latest matching failure, a concise diagnostic summary, and available screenshot metadata.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Create and publish a reusable visual snippet.",
+      "user_prompt": "Create a visual snippet named Capture Current Page that takes a screenshot and returns its result, then publish it.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_nodal_catalog, get_snippet_creation_options, write_nodal_snippet, publish_snippet",
+      "expected_output": "Creates a valid reusable visual snippet, publishes its current draft, and reports the resulting version.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not invoke Puppetflow for a general knowledge question.",
+      "user_prompt": "Explain how photosynthesis works.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "Answers without invoking Puppetflow because no browser automation or workspace operation is requested.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not invoke Puppetflow for an unrelated calendar request.",
+      "user_prompt": "What meetings are on my calendar tomorrow?",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "Does not invoke Puppetflow because the app has no calendar-reading capability.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not treat Puppetflow as a generic local code execution environment.",
+      "user_prompt": "Run this Python script on my laptop and send me the terminal output.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "Does not invoke Puppetflow because it cannot execute arbitrary local Python programs on the user's device.",
+      "expected_output_url": null
+    }
+  ]
+}

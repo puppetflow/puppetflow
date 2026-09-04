@@ -8,10 +8,6 @@ interface MissingAwaitBannerProps {
 }
 
 export function MissingAwaitBanner({ calls, onFixAll }: MissingAwaitBannerProps) {
-    const uniqueNames = [...new Set(calls.map(call => call.name))];
-    const helperSummary = uniqueNames.length <= 3
-        ? uniqueNames.join(', ')
-        : `${uniqueNames.slice(0, 3).join(', ')} and ${uniqueNames.length - 3} more`;
     const label = calls.length === 1
         ? '1 async helper call is missing await.'
         : `${calls.length} async helper calls are missing await.`;
@@ -24,7 +20,6 @@ export function MissingAwaitBanner({ calls, onFixAll }: MissingAwaitBannerProps)
                 </S.IconWrap>
                 <S.Text>
                     <S.Title>{label}</S.Title>
-                    <S.Helpers>{helperSummary}</S.Helpers>
                 </S.Text>
             </S.Content>
             <S.FixButton type="button" onClick={onFixAll}>

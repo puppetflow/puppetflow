@@ -72,7 +72,7 @@ export const AccordionSummaryContent = styled.div`
     min-width: 0;
 `;
 
-export const AccordionToggle = styled.span.attrs({ 'data-accordion-toggle': true })`
+export const AccordionToggle = styled.span`
     display: inline-flex;
     align-items: center;
     justify-content: center;

@@ -30,7 +30,7 @@ class ApiDocController extends Controller
             'openapi' => '3.0.3',
             'info' => [
                 'title' => app(BrandingProvider::class)->current()['name'].' API',
-                'description' => 'Trigger flows, list runs, fetch results, and download artifacts. Authenticate with a Bearer API key generated from your profile.',
+                'description' => 'Manage Data Tables and users, trigger flows, list runs, fetch results, and download artifacts. Authenticate with a Bearer API key generated from your profile.',
                 'version' => '1.0.0',
             ],
             'servers' => [
@@ -398,8 +398,8 @@ class ApiDocController extends Controller
                             'id' => ['type' => 'string', 'example' => 'team_k8Zt3xQ9mA2f'],
                             'workspace_id' => ['type' => 'string'],
                             'name' => ['type' => 'string'],
-                            'users_count' => ['type' => 'integer', 'nullable' => true],
-                            'users' => [
+                            'members_count' => ['type' => 'integer', 'nullable' => true],
+                            'members' => [
                                 'type' => 'array',
                                 'items' => [
                                     'type' => 'object',
@@ -407,9 +407,7 @@ class ApiDocController extends Controller
                                         'id' => ['type' => 'string'],
                                         'name' => ['type' => 'string'],
                                         'email' => ['type' => 'string', 'format' => 'email'],
-                                        'role' => ['type' => 'string'],
-                                        'workspace_role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']],
-                                        'can_create_workspace' => ['type' => 'boolean'],
+                                        'role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']],
                                     ],
                                 ],
                             ],
@@ -439,6 +437,8 @@ class ApiDocController extends Controller
                             ],
                         ],
                     ],
+                    ...$this->workspaceMemberSchemas(),
+                    ...$this->dataTableSchemas(),
                 ],
                 'parameters' => [
                     'id' => [
@@ -459,7 +459,7 @@ class ApiDocController extends Controller
                         'name' => 'workspace',
                         'in' => 'path',
                         'required' => true,
-                        'description' => 'Workspace ID. Workspace detail and update endpoints also accept a lookup key.',
+                        'description' => 'Workspace ID or lookup key where supported, including workspace detail and Data Table endpoints.',
                         'schema' => ['type' => 'string'],
                     ],
                     'user' => [
@@ -469,6 +469,13 @@ class ApiDocController extends Controller
                         'description' => 'User ID.',
                         'schema' => ['type' => 'string'],
                     ],
+                    'member' => [
+                        'name' => 'member',
+                        'in' => 'path',
+                        'required' => true,
+                        'description' => 'Workspace member user ID.',
+                        'schema' => ['type' => 'string'],
+                    ],
                     'team' => [
                         'name' => 'team',
                         'in' => 'path',
@@ -476,6 +483,7 @@ class ApiDocController extends Controller
                         'description' => 'Team ID.',
                         'schema' => ['type' => 'string'],
                     ],
+                    ...$this->dataTableParameters(),
                 ],
             ],
             'security' => [
@@ -805,14 +813,13 @@ class ApiDocController extends Controller
                         ],
                     ],
                 ],
-                '/workspaces/{workspace}/teams/{team}' => [
+                '/teams/{team}' => [
                     'get' => [
                         'tags' => ['Teams'],
                         'summary' => 'Get a team',
-                        'description' => 'Returns a team and its users.',
+                        'description' => 'Returns a team and its members.',
                         'operationId' => 'getTeam',
                         'parameters' => [
-                            ['$ref' => '#/components/parameters/workspace'],
                             ['$ref' => '#/components/parameters/team'],
                         ],
                         'responses' => [
@@ -827,7 +834,6 @@ class ApiDocController extends Controller
                         'description' => 'Updates a team name. Requires an instance admin or workspace admin/manager API key.',
                         'operationId' => 'updateTeam',
                         'parameters' => [
-                            ['$ref' => '#/components/parameters/workspace'],
                             ['$ref' => '#/components/parameters/team'],
                         ],
                         'requestBody' => [
@@ -847,7 +853,6 @@ class ApiDocController extends Controller
                         'description' => 'Same behavior as PATCH. Omitted fields are left unchanged.',
                         'operationId' => 'replaceTeam',
                         'parameters' => [
-                            ['$ref' => '#/components/parameters/workspace'],
                             ['$ref' => '#/components/parameters/team'],
                         ],
                         'requestBody' => [
@@ -862,59 +867,58 @@ class ApiDocController extends Controller
                         ],
                     ],
                 ],
-                '/workspaces/{workspace}/teams/{team}/users' => [
+                '/teams/{team}/members' => [
                     'post' => [
                         'tags' => ['Teams'],
-                        'summary' => 'Add users to a team',
-                        'description' => 'Adds one or more users to a team. Users are added to the workspace as members if they are not already workspace members.',
-                        'operationId' => 'addTeamUsers',
+                        'summary' => 'Add members to a team',
+                        'description' => 'Adds one or more workspace members to a team.',
+                        'operationId' => 'addTeamMembers',
                         'parameters' => [
-                            ['$ref' => '#/components/parameters/workspace'],
                             ['$ref' => '#/components/parameters/team'],
                         ],
                         'requestBody' => [
                             'required' => true,
-                            'content' => ['application/json' => ['schema' => ['type' => 'object', 'properties' => ['user_id' => ['type' => 'string'], 'user_ids' => ['type' => 'array', 'items' => ['type' => 'string']], 'workspace_role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']]]]]],
+                            'content' => ['application/json' => ['schema' => ['type' => 'object', 'properties' => ['member_id' => ['type' => 'string'], 'member_ids' => ['type' => 'array', 'items' => ['type' => 'string']]]]]],
                         ],
                         'responses' => [
-                            '200' => ['description' => 'Team users updated.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Team']]]],
+                            '200' => ['description' => 'Team members updated.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Team']]]],
                             '403' => ['description' => 'Forbidden.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                             '422' => ['description' => 'Validation error.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                         ],
                     ],
                     'put' => [
                         'tags' => ['Teams'],
-                        'summary' => 'Replace team users',
-                        'description' => 'Replaces the full user list of a team.',
-                        'operationId' => 'replaceTeamUsers',
+                        'summary' => 'Replace team members',
+                        'description' => 'Replaces the full member list of a team.',
+                        'operationId' => 'replaceTeamMembers',
                         'parameters' => [
-                            ['$ref' => '#/components/parameters/workspace'],
                             ['$ref' => '#/components/parameters/team'],
                         ],
                         'requestBody' => [
                             'required' => true,
-                            'content' => ['application/json' => ['schema' => ['type' => 'object', 'required' => ['user_ids'], 'properties' => ['user_ids' => ['type' => 'array', 'items' => ['type' => 'string']], 'workspace_role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']]]]]],
+                            'content' => ['application/json' => ['schema' => ['type' => 'object', 'required' => ['member_ids'], 'properties' => ['member_ids' => ['type' => 'array', 'items' => ['type' => 'string']]]]]],
                         ],
                         'responses' => [
-                            '200' => ['description' => 'Team users replaced.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Team']]]],
+                            '200' => ['description' => 'Team members replaced.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Team']]]],
                             '403' => ['description' => 'Forbidden.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                             '422' => ['description' => 'Validation error.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                         ],
                     ],
                 ],
-                '/workspaces/{workspace}/users/{user}/teams' => [
+                ...$this->workspaceMemberPaths(),
+                '/workspaces/{workspace}/members/{member}/teams' => [
                     'put' => [
                         'tags' => ['Teams'],
-                        'summary' => 'Set a user teams',
-                        'description' => 'Replaces the teams assigned to one user within a workspace.',
-                        'operationId' => 'setUserTeams',
+                        'summary' => 'Set a member teams',
+                        'description' => 'Replaces the teams assigned to one workspace member.',
+                        'operationId' => 'setMemberTeams',
                         'parameters' => [
                             ['$ref' => '#/components/parameters/workspace'],
-                            ['$ref' => '#/components/parameters/user'],
+                            ['$ref' => '#/components/parameters/member'],
                         ],
                         'requestBody' => [
                             'required' => true,
-                            'content' => ['application/json' => ['schema' => ['type' => 'object', 'required' => ['team_ids'], 'properties' => ['team_ids' => ['type' => 'array', 'items' => ['type' => 'string']], 'workspace_role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']]]]]],
+                            'content' => ['application/json' => ['schema' => ['type' => 'object', 'required' => ['team_ids'], 'properties' => ['team_ids' => ['type' => 'array', 'items' => ['type' => 'string']]]]]],
                         ],
                         'responses' => [
                             '200' => [
@@ -922,9 +926,8 @@ class ApiDocController extends Controller
                                 'content' => ['application/json' => ['schema' => [
                                     'type' => 'object',
                                     'properties' => [
-                                        'user_id' => ['type' => 'string'],
+                                        'member_id' => ['type' => 'string'],
                                         'workspace_id' => ['type' => 'string'],
-                                        'workspace_role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']],
                                         'team_ids' => ['type' => 'array', 'items' => ['type' => 'string']],
                                     ],
                                 ]]],
@@ -934,6 +937,7 @@ class ApiDocController extends Controller
                         ],
                     ],
                 ],
+                ...$this->dataTablePaths(),
                 '/flows' => [
                     'get' => [
                         'tags' => ['Flows'],
@@ -1366,5 +1370,705 @@ class ApiDocController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function workspaceMemberSchemas(): array
+    {
+        return [
+            'WorkspaceMember' => [
+                'type' => 'object',
+                'required' => ['id', 'workspace_id', 'name', 'email', 'role'],
+                'properties' => [
+                    'id' => ['type' => 'string'],
+                    'workspace_id' => ['type' => 'string'],
+                    'name' => ['type' => 'string'],
+                    'email' => ['type' => 'string', 'format' => 'email'],
+                    'role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']],
+                    'teams' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'id' => ['type' => 'string'],
+                                'name' => ['type' => 'string'],
+                            ],
+                        ],
+                    ],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                ],
+            ],
+            'WorkspaceInvitation' => [
+                'type' => 'object',
+                'required' => ['id', 'workspace_id', 'email', 'role', 'status', 'expires_at'],
+                'properties' => [
+                    'id' => ['type' => 'integer'],
+                    'workspace_id' => ['type' => 'string'],
+                    'email' => ['type' => 'string', 'format' => 'email'],
+                    'role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']],
+                    'status' => ['type' => 'string', 'enum' => ['pending']],
+                    'expires_at' => ['type' => 'string', 'format' => 'date-time'],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function workspaceMemberPaths(): array
+    {
+        $workspace = ['$ref' => '#/components/parameters/workspace'];
+        $member = ['$ref' => '#/components/parameters/member'];
+        $errors = [
+            '401' => $this->dataTableJsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
+            '403' => $this->dataTableJsonResponse('Forbidden.', '#/components/schemas/Error'),
+            '404' => $this->dataTableJsonResponse('Workspace or member not found.', '#/components/schemas/Error'),
+            '422' => $this->dataTableJsonResponse('Validation failed.', '#/components/schemas/Error'),
+        ];
+        $membershipPayload = [
+            'type' => 'object',
+            'required' => ['role'],
+            'properties' => [
+                'role' => ['type' => 'string', 'enum' => ['admin', 'manager', 'member']],
+            ],
+        ];
+        $update = [
+            'tags' => ['Members'],
+            'summary' => 'Update a workspace member',
+            'description' => 'Updates the member role within this workspace.',
+            'requestBody' => $this->dataTableRequestBodySchema($membershipPayload),
+            'responses' => [
+                '200' => $this->dataTableJsonResponse('Updated workspace member.', '#/components/schemas/WorkspaceMember'),
+                ...$errors,
+            ],
+        ];
+
+        return [
+            '/workspaces/{workspace}/members' => [
+                'get' => [
+                    'tags' => ['Members'],
+                    'summary' => 'List workspace members',
+                    'operationId' => 'listWorkspaceMembers',
+                    'parameters' => [
+                        $workspace,
+                        ['name' => 'search', 'in' => 'query', 'schema' => ['type' => 'string']],
+                        ['name' => 'limit', 'in' => 'query', 'schema' => ['type' => 'integer', 'default' => 50, 'maximum' => 100]],
+                    ],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Workspace members.', null, [
+                            'type' => 'array',
+                            'items' => ['$ref' => '#/components/schemas/WorkspaceMember'],
+                        ]),
+                        ...$errors,
+                    ],
+                ],
+                'post' => [
+                    'tags' => ['Members'],
+                    'summary' => 'Add or invite a workspace member',
+                    'description' => 'Attaches an existing account or emails an invitation when the account does not exist.',
+                    'operationId' => 'addWorkspaceMember',
+                    'parameters' => [$workspace],
+                    'requestBody' => $this->dataTableRequestBodySchema([
+                        'type' => 'object',
+                        'required' => ['email', 'role'],
+                        'properties' => [
+                            'email' => ['type' => 'string', 'format' => 'email'],
+                            ...$membershipPayload['properties'],
+                        ],
+                    ]),
+                    'responses' => [
+                        '201' => $this->dataTableJsonResponse('Existing account attached.', '#/components/schemas/WorkspaceMember'),
+                        '202' => $this->dataTableJsonResponse('Invitation sent.', '#/components/schemas/WorkspaceInvitation'),
+                        ...$errors,
+                    ],
+                ],
+            ],
+            '/workspaces/{workspace}/members/{member}' => [
+                'get' => [
+                    'tags' => ['Members'],
+                    'summary' => 'Get a workspace member',
+                    'operationId' => 'getWorkspaceMember',
+                    'parameters' => [$workspace, $member],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Workspace member.', '#/components/schemas/WorkspaceMember'),
+                        ...$errors,
+                    ],
+                ],
+                'patch' => ['operationId' => 'updateWorkspaceMember', 'parameters' => [$workspace, $member], ...$update],
+                'put' => ['operationId' => 'replaceWorkspaceMember', 'parameters' => [$workspace, $member], ...$update],
+                'delete' => [
+                    'tags' => ['Members'],
+                    'summary' => 'Remove a workspace member',
+                    'operationId' => 'removeWorkspaceMember',
+                    'parameters' => [$workspace, $member],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Workspace member removed.'),
+                        ...$errors,
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function dataTableSchemas(): array
+    {
+        $nullableValue = [
+            'nullable' => true,
+            'oneOf' => [
+                ['type' => 'string'],
+                ['type' => 'number'],
+                ['type' => 'boolean'],
+            ],
+        ];
+
+        return [
+            'DataTableColumn' => [
+                'type' => 'object',
+                'required' => ['id', 'data_table_id', 'name', 'type', 'position'],
+                'properties' => [
+                    'id' => ['type' => 'string', 'example' => 'dcol_k8Zt3xQ9mA2f'],
+                    'data_table_id' => ['type' => 'string'],
+                    'name' => ['type' => 'string'],
+                    'type' => ['type' => 'string', 'enum' => ['string', 'number', 'boolean', 'datetime']],
+                    'position' => ['type' => 'integer'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                ],
+            ],
+            'DataTable' => [
+                'type' => 'object',
+                'required' => ['id', 'workspace_id', 'user_id', 'name', 'visibility'],
+                'properties' => [
+                    'id' => ['type' => 'string', 'example' => 'dtbl_k8Zt3xQ9mA2f'],
+                    'workspace_id' => ['type' => 'string'],
+                    'user_id' => ['type' => 'string'],
+                    'user_name' => ['type' => 'string', 'nullable' => true],
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'team_name' => ['type' => 'string', 'nullable' => true],
+                    'name' => ['type' => 'string'],
+                    'description' => ['type' => 'string', 'nullable' => true],
+                    'group' => ['type' => 'string', 'nullable' => true],
+                    'visibility' => ['type' => 'string', 'enum' => ['owner', 'team', 'workspace']],
+                    'columns_count' => ['type' => 'integer'],
+                    'rows_count' => ['type' => 'integer', 'nullable' => true],
+                    'can_manage' => ['type' => 'boolean'],
+                    'columns' => [
+                        'type' => 'array',
+                        'items' => ['$ref' => '#/components/schemas/DataTableColumn'],
+                    ],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                ],
+            ],
+            'DataTablePayload' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string', 'maxLength' => 128],
+                    'description' => ['type' => 'string', 'nullable' => true],
+                    'group' => ['type' => 'string', 'maxLength' => 100, 'nullable' => true],
+                    'visibility' => ['type' => 'string', 'enum' => ['owner', 'team', 'workspace']],
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'user_id' => ['type' => 'string'],
+                ],
+            ],
+            'DataTableCreatePayload' => [
+                'allOf' => [
+                    ['$ref' => '#/components/schemas/DataTablePayload'],
+                    ['type' => 'object', 'required' => ['name']],
+                ],
+            ],
+            'DataTableColumnPayload' => [
+                'type' => 'object',
+                'required' => ['name', 'type'],
+                'properties' => [
+                    'name' => ['type' => 'string', 'maxLength' => 63],
+                    'type' => ['type' => 'string', 'enum' => ['string', 'number', 'boolean', 'datetime']],
+                    'position' => ['type' => 'integer', 'minimum' => 0],
+                ],
+            ],
+            'DataTableColumnUpdatePayload' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string', 'maxLength' => 63],
+                    'position' => ['type' => 'integer', 'minimum' => 0],
+                ],
+            ],
+            'DataTableRowValues' => [
+                'type' => 'object',
+                'description' => 'Values keyed by column name. Column names are matched case-insensitively.',
+                'additionalProperties' => $nullableValue,
+                'example' => ['email' => 'person@example.com', 'active' => true],
+            ],
+            'DataTableRow' => [
+                'type' => 'object',
+                'description' => 'System fields plus one property per Data Table column.',
+                'required' => ['id', 'created_at', 'updated_at'],
+                'properties' => [
+                    'id' => ['type' => 'integer', 'nullable' => true],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'dry_run_state' => ['type' => 'string', 'enum' => ['before', 'after']],
+                ],
+                'additionalProperties' => $nullableValue,
+            ],
+            'DataTableFilter' => [
+                'type' => 'object',
+                'required' => ['column', 'operator'],
+                'properties' => [
+                    'column' => ['type' => 'string', 'description' => 'Column name or a system column: id, created_at, updated_at.'],
+                    'operator' => [
+                        'type' => 'string',
+                        'enum' => ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is_empty', 'is_not_empty', 'is_true', 'is_false'],
+                    ],
+                    'value' => $nullableValue,
+                ],
+            ],
+            'DataTableRowsPage' => [
+                'type' => 'object',
+                'properties' => [
+                    'current_page' => ['type' => 'integer'],
+                    'data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/DataTableRow']],
+                    'per_page' => ['type' => 'integer'],
+                    'total' => ['type' => 'integer'],
+                    'last_page' => ['type' => 'integer'],
+                ],
+            ],
+            'DataTablesPage' => [
+                'type' => 'object',
+                'properties' => [
+                    'current_page' => ['type' => 'integer'],
+                    'data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/DataTable']],
+                    'per_page' => ['type' => 'integer'],
+                    'total' => ['type' => 'integer'],
+                    'last_page' => ['type' => 'integer'],
+                ],
+            ],
+            'DataTableAffectedRows' => [
+                'type' => 'object',
+                'properties' => [
+                    'affected' => ['type' => 'integer'],
+                    'updated' => ['type' => 'integer'],
+                    'deleted' => ['type' => 'integer'],
+                    'rows' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/DataTableRow']],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function dataTableParameters(): array
+    {
+        return [
+            'dataTable' => [
+                'name' => 'dataTable',
+                'in' => 'path',
+                'required' => true,
+                'description' => 'Data Table ID.',
+                'schema' => ['type' => 'string'],
+            ],
+            'dataTableColumn' => [
+                'name' => 'column',
+                'in' => 'path',
+                'required' => true,
+                'description' => 'Data Table column ID.',
+                'schema' => ['type' => 'string'],
+            ],
+            'dataTableRow' => [
+                'name' => 'row',
+                'in' => 'path',
+                'required' => true,
+                'description' => 'Data Table row ID.',
+                'schema' => ['type' => 'integer', 'minimum' => 1],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function dataTablePaths(): array
+    {
+        $workspace = ['$ref' => '#/components/parameters/workspace'];
+        $table = ['$ref' => '#/components/parameters/dataTable'];
+        $column = ['$ref' => '#/components/parameters/dataTableColumn'];
+        $row = ['$ref' => '#/components/parameters/dataTableRow'];
+        $standardErrors = [
+            '401' => $this->dataTableJsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
+            '403' => $this->dataTableJsonResponse('The API key user cannot mutate this resource.', '#/components/schemas/Error'),
+            '404' => $this->dataTableJsonResponse('Workspace or Data Table resource not found.', '#/components/schemas/Error'),
+            '422' => $this->dataTableJsonResponse('Validation failed.', '#/components/schemas/Error'),
+        ];
+        $tableUpdate = [
+            'tags' => ['Data Tables'],
+            'summary' => 'Update a Data Table',
+            'description' => 'Updates metadata, owner, team, or visibility. Omitted fields are unchanged.',
+            'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTablePayload'),
+            'responses' => [
+                '200' => $this->dataTableJsonResponse('Updated Data Table.', '#/components/schemas/DataTable'),
+                ...$standardErrors,
+            ],
+        ];
+        $columnUpdate = [
+            'tags' => ['Data Tables'],
+            'summary' => 'Update a Data Table column',
+            'description' => 'Renames or repositions a column. Column types are immutable.',
+            'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTableColumnUpdatePayload'),
+            'responses' => [
+                '200' => $this->dataTableJsonResponse('Updated column.', '#/components/schemas/DataTableColumn'),
+                ...$standardErrors,
+            ],
+        ];
+        $rowUpdate = [
+            'tags' => ['Data Tables'],
+            'summary' => 'Update a Data Table row',
+            'requestBody' => $this->dataTableRequestBodySchema([
+                'type' => 'object',
+                'required' => ['values'],
+                'properties' => [
+                    'values' => ['$ref' => '#/components/schemas/DataTableRowValues'],
+                ],
+            ]),
+            'responses' => [
+                '200' => $this->dataTableJsonResponse('Updated row.', '#/components/schemas/DataTableRow'),
+                ...$standardErrors,
+            ],
+        ];
+
+        return [
+            '/workspaces/{workspace}/data-tables' => [
+                'get' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'List Data Tables',
+                    'description' => 'Returns visible Data Tables in a workspace. The workspace path accepts an ID or lookup key.',
+                    'operationId' => 'listDataTables',
+                    'parameters' => [
+                        $workspace,
+                        ['name' => 'search', 'in' => 'query', 'schema' => ['type' => 'string']],
+                        ['name' => 'group', 'in' => 'query', 'schema' => ['type' => 'string', 'nullable' => true]],
+                        ['name' => 'visibility', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['owner', 'team', 'workspace']]],
+                        ['name' => 'per_page', 'in' => 'query', 'schema' => ['type' => 'integer', 'default' => 50, 'maximum' => 100]],
+                        ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1]],
+                    ],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Paginated Data Tables.', '#/components/schemas/DataTablesPage'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'post' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Create a Data Table',
+                    'operationId' => 'createDataTable',
+                    'parameters' => [$workspace],
+                    'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTableCreatePayload'),
+                    'responses' => [
+                        '201' => $this->dataTableJsonResponse('Created Data Table.', '#/components/schemas/DataTable'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}' => [
+                'get' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Get a Data Table',
+                    'operationId' => 'getDataTable',
+                    'parameters' => [$table],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Data Table with its columns.', '#/components/schemas/DataTable'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => ['operationId' => 'updateDataTable', 'parameters' => [$table], ...$tableUpdate],
+                'put' => ['operationId' => 'replaceDataTable', 'parameters' => [$table], ...$tableUpdate],
+                'delete' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Delete a Data Table',
+                    'operationId' => 'deleteDataTable',
+                    'parameters' => [$table],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Data Table deleted.'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/columns' => [
+                'get' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'List Data Table columns',
+                    'operationId' => 'listDataTableColumns',
+                    'parameters' => [$table],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Ordered columns.', null, [
+                            'type' => 'array',
+                            'items' => ['$ref' => '#/components/schemas/DataTableColumn'],
+                        ]),
+                        ...$standardErrors,
+                    ],
+                ],
+                'post' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Create a Data Table column',
+                    'operationId' => 'createDataTableColumn',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTableColumnPayload'),
+                    'responses' => [
+                        '201' => $this->dataTableJsonResponse('Created column.', '#/components/schemas/DataTableColumn'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/columns/reorder' => [
+                'put' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Reorder all Data Table columns',
+                    'operationId' => 'reorderDataTableColumns',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableRequestBodySchema([
+                        'type' => 'object',
+                        'required' => ['ids'],
+                        'properties' => [
+                            'ids' => ['type' => 'array', 'items' => ['type' => 'string']],
+                        ],
+                    ]),
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Reordered columns.', null, [
+                            'type' => 'array',
+                            'items' => ['$ref' => '#/components/schemas/DataTableColumn'],
+                        ]),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/columns/{column}' => [
+                'get' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Get a Data Table column',
+                    'operationId' => 'getDataTableColumn',
+                    'parameters' => [$table, $column],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Data Table column.', '#/components/schemas/DataTableColumn'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => ['operationId' => 'updateDataTableColumn', 'parameters' => [$table, $column], ...$columnUpdate],
+                'put' => ['operationId' => 'replaceDataTableColumn', 'parameters' => [$table, $column], ...$columnUpdate],
+                'delete' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Delete a Data Table column',
+                    'operationId' => 'deleteDataTableColumn',
+                    'parameters' => [$table, $column],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Column deleted.'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/rows' => [
+                'get' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'List Data Table rows',
+                    'description' => 'Returns named row values. Filters use bracket-style query parameters.',
+                    'operationId' => 'listDataTableRows',
+                    'parameters' => [
+                        $table,
+                        ['name' => 'filters', 'in' => 'query', 'style' => 'deepObject', 'explode' => true, 'schema' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/DataTableFilter']]],
+                        ['name' => 'match_type', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['all', 'any'], 'default' => 'all']],
+                        ['name' => 'sort_by', 'in' => 'query', 'schema' => ['type' => 'string', 'default' => 'id']],
+                        ['name' => 'sort_direction', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['asc', 'desc'], 'default' => 'asc']],
+                        ['name' => 'per_page', 'in' => 'query', 'schema' => ['type' => 'integer', 'default' => 50, 'maximum' => 100]],
+                        ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1]],
+                    ],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Paginated rows.', '#/components/schemas/DataTableRowsPage'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'post' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Insert a Data Table row',
+                    'operationId' => 'insertDataTableRow',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableRowValuesRequestBody(),
+                    'responses' => [
+                        '201' => $this->dataTableJsonResponse('Inserted row.', '#/components/schemas/DataTableRow'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Update Data Table rows by filters',
+                    'description' => 'At least one filter is required unless update_all is true.',
+                    'operationId' => 'updateDataTableRows',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableFilteredMutationRequestBody(includeUpdateAll: true),
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Affected rows.', '#/components/schemas/DataTableAffectedRows'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'delete' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Delete Data Table rows',
+                    'description' => 'Deletes up to 100 explicit row IDs, or rows matching at least one filter.',
+                    'operationId' => 'deleteDataTableRows',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableFilteredMutationRequestBody(includeIds: true),
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Deleted rows.', '#/components/schemas/DataTableAffectedRows'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/rows/bulk' => [
+                'post' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Insert Data Table rows in bulk',
+                    'operationId' => 'insertDataTableRowsBulk',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableRequestBodySchema([
+                        'type' => 'object',
+                        'required' => ['rows'],
+                        'properties' => [
+                            'rows' => [
+                                'type' => 'array',
+                                'minItems' => 1,
+                                'maxItems' => 1000,
+                                'items' => ['$ref' => '#/components/schemas/DataTableRowValues'],
+                            ],
+                        ],
+                    ]),
+                    'responses' => [
+                        '201' => $this->dataTableJsonResponse('Rows inserted.'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/rows/upsert' => [
+                'post' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Upsert Data Table rows',
+                    'description' => 'Updates every matching row, or inserts one row when no match exists. At least one filter is required.',
+                    'operationId' => 'upsertDataTableRows',
+                    'parameters' => [$table],
+                    'requestBody' => $this->dataTableFilteredMutationRequestBody(requireFilters: true),
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Affected rows.', '#/components/schemas/DataTableAffectedRows'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/data-tables/{dataTable}/rows/{row}' => [
+                'get' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Get a Data Table row',
+                    'operationId' => 'getDataTableRow',
+                    'parameters' => [$table, $row],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Data Table row.', '#/components/schemas/DataTableRow'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => ['operationId' => 'updateDataTableRow', 'parameters' => [$table, $row], ...$rowUpdate],
+                'put' => ['operationId' => 'replaceDataTableRow', 'parameters' => [$table, $row], ...$rowUpdate],
+                'delete' => [
+                    'tags' => ['Data Tables'],
+                    'summary' => 'Delete a Data Table row',
+                    'operationId' => 'deleteDataTableRow',
+                    'parameters' => [$table, $row],
+                    'responses' => [
+                        '200' => $this->dataTableJsonResponse('Row deleted.'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function dataTableRequestBody(string $schemaRef): array
+    {
+        return $this->dataTableRequestBodySchema(['$ref' => $schemaRef]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @return array{required: true, content: array{'application/json': array{schema: array<string, mixed>}}}
+     */
+    private function dataTableRequestBodySchema(array $schema): array
+    {
+        return [
+            'required' => true,
+            'content' => [
+                'application/json' => ['schema' => $schema],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function dataTableRowValuesRequestBody(): array
+    {
+        return $this->dataTableRequestBodySchema([
+            'type' => 'object',
+            'required' => ['values'],
+            'properties' => [
+                'values' => ['$ref' => '#/components/schemas/DataTableRowValues'],
+            ],
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function dataTableFilteredMutationRequestBody(
+        bool $requireFilters = false,
+        bool $includeUpdateAll = false,
+        bool $includeIds = false,
+    ): array {
+        $properties = [
+            'filters' => [
+                'type' => 'array',
+                'minItems' => $requireFilters ? 1 : 0,
+                'maxItems' => 20,
+                'items' => ['$ref' => '#/components/schemas/DataTableFilter'],
+            ],
+            'match_type' => ['type' => 'string', 'enum' => ['all', 'any'], 'default' => 'all'],
+            'values' => ['$ref' => '#/components/schemas/DataTableRowValues'],
+            'dry_run' => ['type' => 'boolean', 'default' => false],
+        ];
+        if ($includeUpdateAll) {
+            $properties['update_all'] = ['type' => 'boolean', 'default' => false];
+        }
+        if ($includeIds) {
+            $properties['ids'] = [
+                'type' => 'array',
+                'minItems' => 1,
+                'maxItems' => 100,
+                'items' => ['type' => 'integer', 'minimum' => 1],
+            ];
+            unset($properties['values']);
+        }
+
+        return $this->dataTableRequestBodySchema([
+            'type' => 'object',
+            'required' => $requireFilters ? ['filters', 'values'] : ($includeIds ? [] : ['values']),
+            'properties' => $properties,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $schema
+     * @return array<string, mixed>
+     */
+    private function dataTableJsonResponse(
+        string $description,
+        ?string $schemaRef = null,
+        ?array $schema = null,
+    ): array {
+        $response = ['description' => $description];
+        if ($schemaRef !== null || $schema !== null) {
+            $response['content'] = [
+                'application/json' => [
+                    'schema' => $schema ?? ['$ref' => $schemaRef],
+                ],
+            ];
+        }
+
+        return $response;
     }
 }

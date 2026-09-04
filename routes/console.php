@@ -27,6 +27,13 @@ Schedule::command('runs:reconcile-stale')
 Schedule::command('entitlements:sync-stale')
     ->hourly()
     ->onOneServer();
+Schedule::call(
+    fn () => \App\Models\McpBrokerAuthorizationCode::query()
+        ->where('expires_at', '<=', now())
+        ->delete(),
+)->name('mcp-broker:prune-authorization-codes')
+    ->hourly()
+    ->onOneServer();
 Schedule::command('license:ping')
     ->daily()
     ->onOneServer();

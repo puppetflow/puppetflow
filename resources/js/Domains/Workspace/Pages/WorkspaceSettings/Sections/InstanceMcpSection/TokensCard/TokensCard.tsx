@@ -7,6 +7,7 @@ import { useToast } from '@/App/Hooks/useToast';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import type { McpAccessToken } from '@/Domains/Workspace/types';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
+import { usePersistedAccordion } from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/InstanceMcpSection/usePersistedAccordion';
 import { formatDate, requestJson } from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/InstanceMcpSection/utils';
 import * as S from './styled';
 
@@ -18,14 +19,13 @@ interface Props {
     readOnly?: boolean;
     setBusy: (busy: boolean) => void;
     setTokenBusy: (busy: boolean) => void;
-    setOauthClientBusy: (busy: boolean) => void;
     setError: (error: string | null) => void;
 }
 
-export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly, setBusy, setTokenBusy, setOauthClientBusy, setError }: Props) {
+export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly, setBusy, setTokenBusy, setError }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
     const { toast } = useToast();
-    const [expanded, setExpanded] = useState(false);
+    const [expanded, setExpanded] = usePersistedAccordion('token');
     const [currentTokens, setCurrentTokens] = useState(tokens);
     const [tokenName, setTokenName] = useState('');
     const [plainToken, setPlainToken] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly
         if (!ok) return;
 
         setBusy(true);
-        setOauthClientBusy(true);
+        setTokenBusy(true);
         setError(null);
         try {
             await requestJson(`/workspace/mcp/tokens/${token.id}`, { method: 'DELETE' });
@@ -74,6 +74,7 @@ export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unable to revoke MCP token.');
         } finally {
+            setTokenBusy(false);
             setBusy(false);
         }
     };
@@ -94,27 +95,27 @@ export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly
             <SharedS.AccordionCard open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
                 <SharedS.AccordionSummary>
                     <SharedS.AccordionSummaryContent>
-                        <S.ModeLabel>Manual mode</S.ModeLabel>
+                        <S.ModeLabel>Direct manual connection</S.ModeLabel>
                         <SharedS.CardTitle>
                             <Icon icon="lucide:key-round" width={15} height={15} />
-                            Access Token Endpoint
+                            Manual Access Token
                             <DocHelpLink
                                 path="/guide/mcp#create-an-access-token"
                                 label="Open access token documentation"
                             />
                         </SharedS.CardTitle>
                         <S.SectionHint>
-                            Use this mode for CLI tools, self-hosted agents or clients where copying a bearer token is acceptable. The token is tied to one user and this workspace.
+                            Use this mode for CLI tools, self-hosted agents or clients without OAuth support. You copy a secret bearer token manually, and it grants access only to this workspace as its owner.
                         </S.SectionHint>
                     </SharedS.AccordionSummaryContent>
-                    <SharedS.AccordionToggle>
+                    <SharedS.AccordionToggle data-accordion-toggle>
                         {expanded ? 'Close' : 'Open'}
                         <Icon data-accordion-chevron icon="lucide:chevron-down" width={15} height={15} />
                     </SharedS.AccordionToggle>
                 </SharedS.AccordionSummary>
                 <SharedS.AccordionBody>
                     <S.EndpointBox>
-                        <Input label="HTTP MCP endpoint" value={endpoint} readOnly />
+                        <Input label="Manual MCP endpoint" value={endpoint} readOnly />
                         <S.SettingsInlineHint>Authenticate with `Authorization: Bearer mcp_...`.</S.SettingsInlineHint>
                     </S.EndpointBox>
                     {!readOnly && (

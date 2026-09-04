@@ -42,6 +42,7 @@ use App\Http\Controllers\Library\LibraryController;
 use App\Http\Controllers\Licensing\LicenseLauncherController;
 use App\Http\Controllers\Mailbox\MailboxController;
 use App\Http\Controllers\Mailbox\MailboxEmailController;
+use App\Http\Controllers\Mcp\McpBrokerController;
 use App\Http\Controllers\Mcp\McpOAuthController;
 use App\Http\Controllers\NotificationChannel\NotificationChannelController;
 use App\Http\Controllers\Snippet\SnippetController;
@@ -68,6 +69,12 @@ Route::get('.well-known/oauth-authorization-server/workspaces/{workspace}', [Mcp
 Route::post('oauth/register/{workspace}', [McpOAuthController::class, 'register'])
     ->middleware('throttle:20,1')
     ->name('mcp.oauth.register');
+Route::get('mcp/broker/authorize', [McpBrokerController::class, 'showAuthorization'])
+    ->middleware('throttle:30,1')
+    ->name('mcp.broker.authorize');
+Route::post('mcp/broker/authorize', [McpBrokerController::class, 'approve'])
+    ->middleware(['auth', 'throttle:10,1'])
+    ->name('mcp.broker.approve');
 
 if (! config('license.managed_license')) {
     Route::get('license', [LicenseLauncherController::class, 'show'])->name('license.launcher');

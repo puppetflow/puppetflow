@@ -31,6 +31,7 @@ export default function UsersTreeSection({
             <SectionS.Row
                 href="/flows?view=users"
                 $active={active}
+                $disabled={false}
                 onClick={(event) => handleLinkClick(event, '/flows?view=users')}
             >
                 <SectionS.Chevron

@@ -21,6 +21,15 @@ final class DataTableRowValidator
     }
 
     /**
+     * @param  array<array-key, mixed>  $values
+     * @return array<string, mixed>
+     */
+    public function validateNamed(DataTable $table, array $values, bool $partial = false): array
+    {
+        return $this->validateNamedAgainstColumns($table->columns()->get(), $values, $partial);
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $rows
      * @return list<array<string, mixed>>
      */
@@ -32,6 +41,31 @@ final class DataTableRowValidator
         foreach ($rows as $index => $values) {
             try {
                 $normalized[] = $this->validateAgainstColumns($columns, $values);
+            } catch (ValidationException $exception) {
+                $errors = [];
+                foreach ($exception->errors() as $key => $messages) {
+                    $errors["rows.{$index}.{$key}"] = $messages;
+                }
+
+                throw ValidationException::withMessages($errors);
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  list<array<array-key, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    public function validateManyNamed(DataTable $table, array $rows): array
+    {
+        $columns = $table->columns()->get();
+        $normalized = [];
+
+        foreach ($rows as $index => $values) {
+            try {
+                $normalized[] = $this->validateNamedAgainstColumns($columns, $values);
             } catch (ValidationException $exception) {
                 $errors = [];
                 foreach ($exception->errors() as $key => $messages) {
@@ -77,6 +111,66 @@ final class DataTableRowValidator
             }
 
             $normalized[$column->name] = $this->normalize($column, $values[$columnId]);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  Collection<int, DataTableColumn>  $columnModels
+     * @param  array<array-key, mixed>  $values
+     * @return array<string, mixed>
+     */
+    private function validateNamedAgainstColumns(
+        Collection $columnModels,
+        array $values,
+        bool $partial = false,
+    ): array {
+        $valueKeys = array_keys($values);
+        if (array_filter($valueKeys, fn (mixed $name): bool => ! is_string($name)) !== []) {
+            throw ValidationException::withMessages([
+                'values' => 'Data table column names must be strings.',
+            ]);
+        }
+
+        /** @var list<string> $stringKeys */
+        $stringKeys = $valueKeys;
+        $normalizedKeys = array_map('strtolower', $stringKeys);
+        if (count(array_unique($normalizedKeys)) !== count($normalizedKeys)) {
+            throw ValidationException::withMessages([
+                'values' => 'Data table column names must be unique ignoring case.',
+            ]);
+        }
+        $providedKeys = array_combine($normalizedKeys, $stringKeys);
+
+        $columns = $columnModels->keyBy(
+            fn (DataTableColumn $column): string => strtolower($column->name),
+        );
+        $reserved = array_intersect($normalizedKeys, ['id', 'created_at', 'updated_at']);
+        $unknown = array_filter(
+            $stringKeys,
+            fn (string $name): bool => ! $columns->has(strtolower($name)),
+        );
+
+        if ($unknown !== [] || $reserved !== []) {
+            throw ValidationException::withMessages([
+                'values' => 'The row contains unknown or reserved columns.',
+            ]);
+        }
+
+        $normalized = [];
+        foreach ($columns as $column) {
+            $matchingKey = $providedKeys[strtolower($column->name)] ?? null;
+
+            if ($matchingKey === null) {
+                if (! $partial) {
+                    $normalized[$column->name] = null;
+                }
+
+                continue;
+            }
+
+            $normalized[$column->name] = $this->normalize($column, $values[$matchingKey]);
         }
 
         return $normalized;
@@ -130,6 +224,10 @@ final class DataTableRowValidator
     private function datetimeValue(DataTableColumn $column, mixed $value): string
     {
         if (! is_string($value)) {
+            $this->invalid($column, 'an ISO 8601 datetime');
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/', $value) !== 1) {
             $this->invalid($column, 'an ISO 8601 datetime');
         }
 
