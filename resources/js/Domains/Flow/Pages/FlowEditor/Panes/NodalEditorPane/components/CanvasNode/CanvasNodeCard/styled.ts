@@ -225,6 +225,7 @@ export const NodeLabelText = styled.span`
 
 export const NodeDeactivatedLabel = styled.span`
     display: block;
+    pointer-events: auto;
 `;
 
 export const NodeHint = styled.div`

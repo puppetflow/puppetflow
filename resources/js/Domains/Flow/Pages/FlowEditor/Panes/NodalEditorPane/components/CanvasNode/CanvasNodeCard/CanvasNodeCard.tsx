@@ -178,6 +178,7 @@ export default function CanvasNodeCard({
                     title={new URL(siteUrl).hostname}
                     onPointerDown={event => event.stopPropagation()}
                     onClick={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
                 >
                     <Icon icon="lucide:globe-2" width={11} height={11} />
                     <img
@@ -190,7 +191,10 @@ export default function CanvasNodeCard({
                 </S.NodeSiteBadge>
             )}
             {!readOnly && (!node.system || (node.system === 'function' && node.scopeId)) && (
-                <S.NodeHoverActions onPointerDown={event => event.stopPropagation()}>
+                <S.NodeHoverActions
+                    onPointerDown={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
+                >
                     <SharedS.NodeHoverButton
                         type="button"
                         title="Delete node"
@@ -275,7 +279,16 @@ export default function CanvasNodeCard({
             </S.NodeTile>
             <S.NodeLabel>
                 <S.NodeLabelText>{displayLabel}</S.NodeLabelText>
-                {node.deactivated && <S.NodeDeactivatedLabel>(Deactivated)</S.NodeDeactivatedLabel>}
+                {node.deactivated && (
+                    <S.NodeDeactivatedLabel
+                        onPointerDown={event => {
+                            if (event.detail >= 2) event.stopPropagation();
+                        }}
+                        onDoubleClick={event => event.stopPropagation()}
+                    >
+                        (Deactivated)
+                    </S.NodeDeactivatedLabel>
+                )}
             </S.NodeLabel>
             {node.system === 'terminate' && (
                 <S.NodeHint>
@@ -309,6 +322,7 @@ export default function CanvasNodeCard({
                 <S.NodeRunAction
                     type="button"
                     onPointerDown={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
                     onClick={event => {
                         event.stopPropagation();
                         onRun();

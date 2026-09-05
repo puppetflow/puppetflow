@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FlowRun } from '@/Domains/Flow/types';
 import type { CanvasNode, NodeParameterValue } from '../types';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
@@ -96,6 +96,7 @@ export default function NodeConfigModal({
     onRenameNode,
     onNavigateNode,
 }: NodeConfigModalProps) {
+    const pointerStartedOnBackdropRef = useRef(false);
     const previewRun = useNodalPreviewRun(flowId, latestRun);
     const {
         entry,
@@ -132,8 +133,16 @@ export default function NodeConfigModal({
         <S.NodeConfigBackdrop
             data-modal-overlay
             data-modal-kind="node-config"
-            onClick={handleClose}
+            onClick={event => {
+                if (pointerStartedOnBackdropRef.current && event.target === event.currentTarget) {
+                    handleClose();
+                }
+                pointerStartedOnBackdropRef.current = false;
+            }}
             onWheel={event => event.stopPropagation()}
+            onPointerDownCapture={event => {
+                pointerStartedOnBackdropRef.current = event.target === event.currentTarget;
+            }}
             onPointerDown={event => event.stopPropagation()}
         >
             <S.NodeConfigShell>
