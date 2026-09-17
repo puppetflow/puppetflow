@@ -1,4 +1,5 @@
 import { csrfHeaders } from '@/Shared/Utils/csrf';
+import { laravelErrorMessage } from '@/Shared/Utils/laravelValidation';
 import type { CanvasNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import {
     normalizeParameterValue,
@@ -40,13 +41,6 @@ export function mcpConnectionConfigFromNode(node: CanvasNode): McpConnectionConf
     };
 }
 
-function errorMessage(payload: {
-    message?: string;
-    errors?: Record<string, string[]>;
-}, fallback: string): string {
-    return Object.values(payload.errors ?? {}).flat()[0] ?? payload.message ?? fallback;
-}
-
 export async function discoverMcpTools(
     config: McpConnectionConfig,
     signal?: AbortSignal,
@@ -66,7 +60,7 @@ export async function discoverMcpTools(
         errors?: Record<string, string[]>;
     };
     if (!response.ok) {
-        throw new Error(errorMessage(payload, 'Unable to connect to the MCP server.'));
+        throw new Error(laravelErrorMessage(payload) ?? 'Unable to connect to the MCP server.');
     }
 
     return Array.isArray(payload.tools) ? payload.tools : [];

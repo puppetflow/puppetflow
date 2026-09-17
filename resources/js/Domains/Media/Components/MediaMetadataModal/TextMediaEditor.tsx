@@ -11,6 +11,7 @@ import { useToast } from '@/App/Hooks/useToast';
 import type { MediaAsset } from '@/Domains/Media/types';
 import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import { csrfHeaders } from '@/Shared/Utils/csrf';
+import { laravelErrorMessage } from '@/Shared/Utils/laravelValidation';
 import * as S from './styled';
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
@@ -37,14 +38,6 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
     yaml: 'yaml',
     yml: 'yaml',
 };
-
-function responseError(payload: unknown, fallback: string): string {
-    if (!payload || typeof payload !== 'object') return fallback;
-    const response = payload as { message?: unknown; errors?: Record<string, unknown> };
-    const contentError = response.errors?.content;
-    if (Array.isArray(contentError) && typeof contentError[0] === 'string') return contentError[0];
-    return typeof response.message === 'string' ? response.message : fallback;
-}
 
 export interface TextMediaEditorHandle {
     save: () => Promise<boolean>;
@@ -95,7 +88,7 @@ const TextMediaEditor = forwardRef<TextMediaEditorHandle, Props>(function TextMe
         })
             .then(async response => {
                 const payload: unknown = await response.json().catch(() => null);
-                if (!response.ok) throw new Error(responseError(payload, 'The text file could not be loaded.'));
+                if (!response.ok) throw new Error(laravelErrorMessage(payload) ?? 'The text file could not be loaded.');
                 const value = (payload as { content?: unknown }).content;
                 if (typeof value !== 'string') throw new Error('The server returned invalid text content.');
                 setContent(value);
@@ -122,7 +115,7 @@ const TextMediaEditor = forwardRef<TextMediaEditorHandle, Props>(function TextMe
                 body: JSON.stringify({ content }),
             });
             const payload: unknown = await response.json().catch(() => null);
-            if (!response.ok) throw new Error(responseError(payload, 'The text file could not be saved.'));
+            if (!response.ok) throw new Error(laravelErrorMessage(payload) ?? 'The text file could not be saved.');
             setSavedContent(content);
             return true;
         } catch (exception) {

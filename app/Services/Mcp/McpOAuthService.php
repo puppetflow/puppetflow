@@ -57,11 +57,12 @@ final class McpOAuthService
         $verifier = Str::random(96);
         $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
         $scopes = $this->requestedScopes($config['scopes'] ?? null, $metadata['scopes_supported'] ?? []);
+        $authorizationEndpoint = $this->requiredUrl($metadata, 'authorization_endpoint');
 
         $credential->update(['config' => array_merge($config, [
             'client_id' => $clientId,
             'client_secret' => $clientSecret,
-            'authorization_endpoint' => $this->requiredUrl($metadata, 'authorization_endpoint'),
+            'authorization_endpoint' => $authorizationEndpoint,
             'token_endpoint' => $this->requiredUrl($metadata, 'token_endpoint'),
             'token_endpoint_auth_method' => $tokenAuthMethod,
             'resource' => $endpoint,
@@ -83,7 +84,7 @@ final class McpOAuthService
             'resource' => $endpoint,
         ], fn (string $value): bool => $value !== '');
 
-        return ['authorization_url' => $this->requiredUrl($metadata, 'authorization_endpoint').'?'.http_build_query($query)];
+        return ['authorization_url' => $authorizationEndpoint.'?'.http_build_query($query)];
     }
 
     public function pendingCredential(string $state): McpCredential

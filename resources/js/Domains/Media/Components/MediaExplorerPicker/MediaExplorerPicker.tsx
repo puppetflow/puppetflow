@@ -46,67 +46,81 @@ function findFolder(
     return null;
 }
 
-function resolveLocation(data: PickerData, key = 'personal'): Location {
-    if (key === 'workspace') {
-        return { key, label: 'Workspace', icon: 'lucide:building-2', items: data.workspaceRootItems };
-    }
-
-    const team = data.teamTrees.find(item => `team:${item.id}` === key);
-    if (team) return { key, label: team.name, icon: 'lucide:users', items: team.rootItems };
-
-    const user = data.userTrees.find(item => `user:${item.id}` === key);
-    if (user) return { key, label: user.name, icon: 'lucide:user-round', items: user.rootItems };
-
-    const folder = findFolder([
-        ...data.folderTree,
-        ...data.workspaceTree,
-        ...data.teamTrees.flatMap(item => item.tree),
-        ...data.userTrees.flatMap(item => item.tree),
-    ], key);
-    if (folder) return { key, label: folder.name, icon: 'lucide:folder', items: folder.items };
-
-    return { key: 'personal', label: 'Personal', icon: 'lucide:user', items: data.rootItems };
+/** A sidebar root (personal, workspace, team, user) with the folder tree hanging under it. */
+interface RootLocation {
+    location: Location;
+    tree: ExplorerFolderTree<MediaTreeItem>[];
+    depth: number;
 }
 
-function FolderRows({
-    folders,
-    depth,
-    activeKey,
-    onOpen,
-}: {
-    folders: ExplorerFolderTree<MediaTreeItem>[];
+function rootLocations(data: PickerData): RootLocation[] {
+    return [
+        {
+            depth: 0,
+            tree: data.folderTree,
+            location: { key: 'personal', label: 'Personal', icon: 'lucide:user', items: data.rootItems },
+        },
+        {
+            depth: 0,
+            tree: data.workspaceTree,
+            location: { key: 'workspace', label: 'Workspace', icon: 'lucide:building-2', items: data.workspaceRootItems },
+        },
+        ...data.teamTrees.map(team => ({
+            depth: 1,
+            tree: team.tree,
+            location: { key: `team:${team.id}`, label: team.name, icon: 'lucide:users', items: team.rootItems },
+        })),
+        ...data.userTrees.map(user => ({
+            depth: 0,
+            tree: user.tree,
+            location: { key: `user:${user.id}`, label: user.name, icon: 'lucide:user-round', items: user.rootItems },
+        })),
+    ];
+}
+
+function folderLocation(folder: ExplorerFolderTree<MediaTreeItem>): Location {
+    return { key: `folder:${folder.id}`, label: folder.name, icon: 'lucide:folder', items: folder.items };
+}
+
+function resolveLocation(data: PickerData, key = 'personal'): Location {
+    const roots = rootLocations(data);
+    const root = roots.find(candidate => candidate.location.key === key);
+    if (root) return root.location;
+
+    const folder = findFolder(roots.flatMap(candidate => candidate.tree), key);
+    if (folder) return folderLocation(folder);
+
+    return roots[0].location;
+}
+
+interface RowProps {
     depth: number;
     activeKey: string;
     onOpen: (location: Location) => void;
-}) {
-    return folders.map(folder => {
-        const key = `folder:${folder.id}`;
-        return (
-            <div key={key}>
-                <S.TreeRow
-                    type="button"
-                    $depth={depth}
-                    $active={activeKey === key}
-                    onClick={() => onOpen({
-                        key,
-                        label: folder.name,
-                        icon: 'lucide:folder',
-                        items: folder.items,
-                    })}
-                >
-                    <Icon icon="lucide:folder" width={14} />
-                    <span>{folder.name}</span>
-                    <small>{folder.items.length}</small>
-                </S.TreeRow>
-                <FolderRows
-                    folders={folder.children}
-                    depth={depth + 1}
-                    activeKey={activeKey}
-                    onOpen={onOpen}
-                />
-            </div>
-        );
-    });
+}
+
+function LocationRow({ location, depth, activeKey, onOpen }: RowProps & { location: Location }) {
+    return (
+        <S.TreeRow
+            type="button"
+            $depth={depth}
+            $active={activeKey === location.key}
+            onClick={() => onOpen(location)}
+        >
+            <Icon icon={location.icon} width={14} />
+            <span>{location.label}</span>
+            <small>{location.items.length}</small>
+        </S.TreeRow>
+    );
+}
+
+function FolderRows({ folders, depth, activeKey, onOpen }: RowProps & { folders: ExplorerFolderTree<MediaTreeItem>[] }) {
+    return folders.map(folder => (
+        <div key={folder.id}>
+            <LocationRow location={folderLocation(folder)} depth={depth} activeKey={activeKey} onOpen={onOpen} />
+            <FolderRows folders={folder.children} depth={depth + 1} activeKey={activeKey} onOpen={onOpen} />
+        </div>
+    ));
 }
 
 export default function MediaExplorerPicker({ zIndex, onClose, onSelect }: Props) {
@@ -183,76 +197,10 @@ export default function MediaExplorerPicker({ zIndex, onClose, onSelect }: Props
                     {data && (
                         <>
                             <S.SectionLabel>Library</S.SectionLabel>
-                            <S.TreeRow
-                                type="button"
-                                $depth={0}
-                                $active={location?.key === 'personal'}
-                                onClick={() => open({
-                                    key: 'personal',
-                                    label: 'Personal',
-                                    icon: 'lucide:user',
-                                    items: data.rootItems,
-                                })}
-                            >
-                                <Icon icon="lucide:user" width={14} />
-                                <span>Personal</span>
-                                <small>{data.rootItems.length}</small>
-                            </S.TreeRow>
-                            <FolderRows folders={data.folderTree} depth={1} activeKey={location?.key ?? ''} onOpen={open} />
-                            <S.TreeRow
-                                type="button"
-                                $depth={0}
-                                $active={location?.key === 'workspace'}
-                                onClick={() => open({
-                                    key: 'workspace',
-                                    label: 'Workspace',
-                                    icon: 'lucide:building-2',
-                                    items: data.workspaceRootItems,
-                                })}
-                            >
-                                <Icon icon="lucide:building-2" width={14} />
-                                <span>Workspace</span>
-                                <small>{data.workspaceRootItems.length}</small>
-                            </S.TreeRow>
-                            <FolderRows folders={data.workspaceTree} depth={1} activeKey={location?.key ?? ''} onOpen={open} />
-                            {data.teamTrees.map(team => (
-                                <div key={team.id}>
-                                    <S.TreeRow
-                                        type="button"
-                                        $depth={1}
-                                        $active={location?.key === `team:${team.id}`}
-                                        onClick={() => open({
-                                            key: `team:${team.id}`,
-                                            label: team.name,
-                                            icon: 'lucide:users',
-                                            items: team.rootItems,
-                                        })}
-                                    >
-                                        <Icon icon="lucide:users" width={14} />
-                                        <span>{team.name}</span>
-                                        <small>{team.rootItems.length}</small>
-                                    </S.TreeRow>
-                                    <FolderRows folders={team.tree} depth={2} activeKey={location?.key ?? ''} onOpen={open} />
-                                </div>
-                            ))}
-                            {data.userTrees.map(userTree => (
-                                <div key={userTree.id}>
-                                    <S.TreeRow
-                                        type="button"
-                                        $depth={0}
-                                        $active={location?.key === `user:${userTree.id}`}
-                                        onClick={() => open({
-                                            key: `user:${userTree.id}`,
-                                            label: userTree.name,
-                                            icon: 'lucide:user-round',
-                                            items: userTree.rootItems,
-                                        })}
-                                    >
-                                        <Icon icon="lucide:user-round" width={14} />
-                                        <span>{userTree.name}</span>
-                                        <small>{userTree.rootItems.length}</small>
-                                    </S.TreeRow>
-                                    <FolderRows folders={userTree.tree} depth={1} activeKey={location?.key ?? ''} onOpen={open} />
+                            {rootLocations(data).map(root => (
+                                <div key={root.location.key}>
+                                    <LocationRow location={root.location} depth={root.depth} activeKey={location?.key ?? ''} onOpen={open} />
+                                    <FolderRows folders={root.tree} depth={root.depth + 1} activeKey={location?.key ?? ''} onOpen={open} />
                                 </div>
                             ))}
                         </>
