@@ -6,6 +6,7 @@ use App\Authorization\AuthorizationContextFactory;
 use App\Authorization\Visibility\SharedResourceVisibility;
 use App\Enums\Authorization\Ability;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Internal\Concerns\ResolvesRuntimeActor;
 use App\Models\Flow;
 use App\Models\FlowRun;
 use App\Models\McpCredential;
@@ -19,6 +20,8 @@ use Illuminate\Validation\Rule;
 
 final class RuntimeMcpController extends Controller
 {
+    use ResolvesRuntimeActor;
+
     public function __construct(
         private readonly McpClientService $client,
         private readonly AuthorizationContextFactory $authorizationContexts,
@@ -32,7 +35,7 @@ final class RuntimeMcpController extends Controller
         $validated = $this->validateServer($request);
         [$run, $flow, $actor] = $this->runtimeContext($request);
         $credential = $this->credential($validated, $flow, $actor);
-        $endpoint = $this->requiredEndpoint($credential);
+        $endpoint = $credential->requiredEndpoint();
         $tools = $this->client->listTools(
             $endpoint,
             $credential->transport(),
@@ -69,7 +72,7 @@ final class RuntimeMcpController extends Controller
         $validated = $this->validateServer($request, withTool: true);
         [$run, $flow, $actor] = $this->runtimeContext($request);
         $credential = $this->credential($validated, $flow, $actor);
-        $endpoint = $this->requiredEndpoint($credential);
+        $endpoint = $credential->requiredEndpoint();
         $tool = $validated['tool'] ?? null;
         abort_unless(is_string($tool), 422, 'MCP tool is required.');
         $mode = $validated['tools']['mode'];
@@ -122,18 +125,6 @@ final class RuntimeMcpController extends Controller
         return $request->validate($rules);
     }
 
-    /** @return array{FlowRun, Flow, User} */
-    private function runtimeContext(Request $request): array
-    {
-        $run = $request->attributes->get('runner');
-        abort_unless($run instanceof FlowRun && $run->status === 'running', 409, 'The flow run is not active.');
-        $flow = Flow::query()->find($run->flow_id);
-        $actor = User::query()->find($run->triggered_by);
-        abort_unless($flow instanceof Flow && $actor instanceof User, 403);
-
-        return [$run, $flow, $actor];
-    }
-
     /**
      * @param  array{
      *     credentialId: string
@@ -154,14 +145,6 @@ final class RuntimeMcpController extends Controller
         abort_unless(Gate::forUser($actor)->allows(Ability::USE->value, $credential), 403);
 
         return $credential;
-    }
-
-    private function requiredEndpoint(McpCredential $credential): string
-    {
-        $endpoint = $credential->endpoint();
-        abort_unless($endpoint !== null, 422, 'The MCP credential does not define an endpoint.');
-
-        return $endpoint;
     }
 
     private function toolPrefix(string $nodeId): string

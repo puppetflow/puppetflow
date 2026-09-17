@@ -273,13 +273,10 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::delete('ai-models/{aiModel}', [AiModelController::class, 'destroy'])->name('ai-models.destroy');
     Route::get('ai-models/{aiModel}/usages', [AiModelController::class, 'usages'])->name('ai-models.usages');
 
-    Route::get('mcp-credentials', [McpCredentialController::class, 'index'])->name('mcp-credentials.index');
     Route::get('mcp-credentials/from-variable', [McpCredentialController::class, 'showFromVariable'])->name('mcp-credentials.from-variable');
     Route::put('mcp-credentials/from-variable/{variable}', [McpCredentialController::class, 'updateFromVariable'])->name('mcp-credentials.update-from-variable');
     Route::post('mcp-credentials', [McpCredentialController::class, 'store'])->name('mcp-credentials.store');
     Route::post('mcp-tools/discover', [McpCredentialController::class, 'discoverTools'])->name('mcp-tools.discover');
-    Route::put('mcp-credentials/{mcpCredential}', [McpCredentialController::class, 'update'])->name('mcp-credentials.update');
-    Route::delete('mcp-credentials/{mcpCredential}', [McpCredentialController::class, 'destroy'])->name('mcp-credentials.destroy');
     Route::post('mcp-credentials/{mcpCredential}/oauth', [McpCredentialController::class, 'beginOAuth'])->name('mcp-credentials.oauth.begin');
     Route::post('mcp-oauth/authorize', [McpCredentialController::class, 'beginOAuthFromVariable'])->name('mcp-oauth.authorize');
     Route::get('mcp-credentials/oauth/callback', [McpCredentialController::class, 'completeOAuth'])->name('mcp-credentials.oauth.callback');

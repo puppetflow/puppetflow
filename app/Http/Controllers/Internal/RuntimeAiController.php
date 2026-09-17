@@ -6,11 +6,9 @@ use App\Authorization\AuthorizationContextFactory;
 use App\Authorization\Visibility\SharedResourceVisibility;
 use App\Enums\Integration\IntegrationCategoryEnum;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Internal\Concerns\ResolvesRuntimeActor;
 use App\Models\AiModel;
-use App\Models\Flow;
-use App\Models\FlowRun;
 use App\Models\Integration;
-use App\Models\User;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Integration\Ai\AiService;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +16,8 @@ use Illuminate\Http\Request;
 
 class RuntimeAiController extends Controller
 {
+    use ResolvesRuntimeActor;
+
     public function __construct(
         private readonly AiService $ai,
         private readonly AuthorizationContextFactory $authorizationContexts,
@@ -48,11 +48,7 @@ class RuntimeAiController extends Controller
             'options.tools.*.description' => ['nullable', 'string', 'max:4096'],
             'options.tools.*.inputSchema' => ['required_with:options.tools', 'array'],
         ]);
-        $run = $request->attributes->get('runner');
-        abort_unless($run instanceof FlowRun && $run->status === 'running', 409, 'The flow run is not active.');
-        $flow = Flow::query()->find($run->flow_id);
-        $actor = User::query()->find($run->triggered_by);
-        abort_unless($flow instanceof Flow && $actor instanceof User, 403);
+        [$run, $flow, $actor] = $this->runtimeContext($request);
         $context = $this->authorizationContexts->for($actor, $flow->workspace_id);
 
         $modelQuery = AiModel::query()

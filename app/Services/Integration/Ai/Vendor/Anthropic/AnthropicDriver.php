@@ -4,12 +4,15 @@ namespace App\Services\Integration\Ai\Vendor\Anthropic;
 
 use App\Contracts\Integration\Ai\AiProviderDriverInterface;
 use App\Enums\Integration\IntegrationAiProviderEnum;
+use App\Services\Integration\Ai\Vendor\Concerns\DecodesToolArguments;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class AnthropicDriver implements AiProviderDriverInterface
 {
+    use DecodesToolArguments;
+
     public function provider(): IntegrationAiProviderEnum
     {
         return IntegrationAiProviderEnum::ANTHROPIC;
@@ -217,23 +220,6 @@ class AnthropicDriver implements AiProviderDriverInterface
             ])
             ->connectTimeout(10)
             ->timeout(120);
-    }
-
-    /** @param array<string, mixed> $part
-     * @return array<mixed, mixed>|\stdClass
-     */
-    private function toolArguments(array $part): array|\stdClass
-    {
-        if (is_string($part['arguments_json'] ?? null)) {
-            $decoded = json_decode($part['arguments_json']);
-            if ($decoded instanceof \stdClass) {
-                return $decoded;
-            }
-        }
-
-        return is_array($part['arguments'] ?? null) && $part['arguments'] !== []
-            ? $part['arguments']
-            : new \stdClass;
     }
 
     private function supported(mixed $capability): ?bool

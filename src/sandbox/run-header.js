@@ -3193,7 +3193,7 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
     continueOnError = false,
     visibleOnly = false,
     index = 0,
-  } = options;
+  } = options || {};
   // Media assets are staged in a private temporary directory for the duration of the upload.
   const stagedMedia = isMediaId
     ? await __runnerOperations.mediaDownload({ media_id: uploadFilename })
