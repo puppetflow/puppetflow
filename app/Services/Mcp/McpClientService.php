@@ -3,7 +3,6 @@
 namespace App\Services\Mcp;
 
 use App\Models\McpCredential;
-use App\Services\Security\PublicHttpTargetGuard;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -22,7 +21,7 @@ final class McpClientService
     private const SESSION_TTL_MINUTES = 30;
 
     public function __construct(
-        private readonly PublicHttpTargetGuard $targetGuard,
+        private readonly McpTargetGuard $targets,
         private readonly McpOAuthService $oauth,
         private readonly McpHeaderValidator $headerValidator,
     ) {}
@@ -256,7 +255,7 @@ final class McpClientService
             array_merge($headers, ['Accept' => 'text/event-stream']),
             $this->remainingTimeout($deadline),
         )
-            ->withOptions(['stream' => true] + $this->targetOptions($endpoint))
+            ->withOptions(['stream' => true] + $this->targets->requestOptions($endpoint))
             ->get($endpoint);
         if ($response->failed()) {
             $this->throwSseFailure($response, 'connection');
@@ -431,7 +430,7 @@ final class McpClientService
                     continue;
                 }
                 $resolved = $this->resolveUrl($baseUrl, trim($parsed['data']));
-                $this->targetOptions($resolved);
+                $this->targets->requestOptions($resolved);
 
                 return $resolved;
             }
@@ -652,21 +651,6 @@ final class McpClientService
             ->withHeaders($headers)
             ->connectTimeout(min(10, max(1, (int) ceil($timeout / 1000))))
             ->timeout(max(1, (int) ceil($timeout / 1000)))
-            ->withOptions($this->targetOptions($endpoint));
-    }
-
-    /** @return array<string, mixed> */
-    private function targetOptions(string $endpoint): array
-    {
-        return $this->targetGuard->requestOptions(
-            $endpoint,
-            allowPrivateAddresses: (bool) config('puppetflow.mcp_client_allow_private', false),
-            allowHttp: $this->allowHttp(),
-        );
-    }
-
-    private function allowHttp(): bool
-    {
-        return (bool) config('puppetflow.mcp_client_allow_http', false);
+            ->withOptions($this->targets->requestOptions($endpoint));
     }
 }

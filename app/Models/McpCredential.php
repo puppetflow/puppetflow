@@ -6,6 +6,7 @@ use App\Casts\SafeEncrypted;
 use App\Models\Concerns\HasStringId;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Validation\ValidationException;
 
 /**
  * @property string $id
@@ -53,6 +54,13 @@ class McpCredential extends Model
         $endpoint = $this->config['endpoint'] ?? null;
 
         return is_string($endpoint) && trim($endpoint) !== '' ? trim($endpoint) : null;
+    }
+
+    /** @throws ValidationException when the credential has no endpoint to contact. */
+    public function requiredEndpoint(): string
+    {
+        return $this->endpoint()
+            ?? throw ValidationException::withMessages(['endpoint' => 'The MCP credential does not define an endpoint.']);
     }
 
     public function transport(): string

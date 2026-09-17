@@ -60,23 +60,8 @@ export default function PreviewSection({
     selectedExecutionIndex = 0,
     onSelectExecution,
     loading = false,
-    value,
-    copyValue,
     ...props
 }: PreviewSectionProps) {
-    if (loading) {
-        return (
-            <S.Pane>
-                <DataInspector
-                    {...props}
-                    value={undefined}
-                    loading
-                    tabStorageKey={`puppetflow:node-config:${props.title.toLowerCase()}:inspector-tab`}
-                />
-            </S.Pane>
-        );
-    }
-
     const droppedExecutions = executionStatus?.dropped ?? executions[0]?.dropped ?? 0;
     const dropReason = executionStatus?.dropReason ?? executions[0]?.dropReason ?? 'history';
     const executionFooterHint = droppedExecutions > 0
@@ -90,7 +75,8 @@ export default function PreviewSection({
         detailBadge: execution.detailBadge,
         dividerBefore: index > 0 && execution.loopIndex === 0,
     }));
-    const sourceControl = sources || showExecutionSelector ? (
+    // While the displayed node's data is being prepared, the selectors would describe the previous node.
+    const sourceControl = !loading && (sources || showExecutionSelector) ? (
         <S.PreviewControls>
             {sources && (
                 <S.SourceSelector>
@@ -139,8 +125,7 @@ export default function PreviewSection({
         <S.Pane>
             <DataInspector
                 {...props}
-                value={value}
-                copyValue={copyValue}
+                loading={loading}
                 sourceControl={sourceControl}
                 schemaSources={sources?.map(source => ({
                     id: source.id,

@@ -23,7 +23,7 @@ class ReconcileStaleFlowRuns extends Command
         $recovered = 0;
 
         FlowRun::query()
-            ->select('id')
+            ->select(['id', 'flow_id'])
             ->where('status', 'running')
             ->whereNotNull('running_at')
             ->orderBy('running_at')

@@ -36,22 +36,6 @@ final class McpCredentialController extends Controller
         private readonly VariableResolverService $variables,
     ) {}
 
-    public function index(Request $request): JsonResponse
-    {
-        $this->features->abortIfDisabled('mcp_enabled');
-        /** @var User $user */
-        $user = $request->user();
-        $context = $this->authorizationContexts->for($user, $this->workspaceIdFromSession());
-        $query = McpCredential::query()->where('is_active', true)->where('stale', false);
-        $this->visibility->applyUse($query, $context);
-
-        return response()->json([
-            'credentials' => $query->orderBy('name')->get([
-                'id', 'name', 'authentication', 'scope', 'team_id', 'is_active',
-            ]),
-        ]);
-    }
-
     public function showFromVariable(Request $request): JsonResponse
     {
         $this->features->abortIfDisabled('mcp_enabled');
@@ -126,55 +110,6 @@ final class McpCredentialController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, McpCredential $mcpCredential): JsonResponse
-    {
-        $this->features->abortIfDisabled('mcp_enabled');
-        $this->features->abortIfStale($mcpCredential);
-        $this->assertWorkspace($mcpCredential);
-        Gate::authorize(Ability::UPDATE->value, $mcpCredential);
-        $validated = $this->validateCredential($request, $mcpCredential);
-        $workspaceId = $mcpCredential->workspace_id;
-        $ownerData = array_key_exists('user_id', $validated) ? ['user_id' => $validated['user_id']] : [];
-        $ownerId = $this->resolveOwnerId($ownerData, $workspaceId, $mcpCredential->user_id);
-        $teamId = $validated['scope'] === 'team'
-            ? $this->resolveWorkspaceTeamId($validated['team_id'] ?? null, $workspaceId)
-            : null;
-        if (
-            $ownerId !== $mcpCredential->user_id
-            || $validated['scope'] !== $mcpCredential->scope
-            || $teamId !== $mcpCredential->team_id
-        ) {
-            Gate::authorize(Ability::MANAGE_SCOPE->value, $mcpCredential);
-        }
-        $this->assignments->validate(
-            $workspaceId,
-            $ownerId,
-            $validated['scope'],
-            $teamId,
-        );
-        $config = $this->mergedConfig($mcpCredential, $validated['authentication'], $validated['config']);
-        $variables = $this->variablesForCredential($mcpCredential);
-        $variables->each(fn (UserVariable $variable) => Gate::authorize(Ability::UPDATE->value, $variable));
-        DB::transaction(function () use ($mcpCredential, $variables, $validated, $config, $ownerId, $teamId): void {
-            $mcpCredential->update([
-                'user_id' => $ownerId,
-                'name' => $validated['name'],
-                'authentication' => $validated['authentication'],
-                'config' => $config,
-                'scope' => $validated['scope'],
-                'team_id' => $teamId,
-                'is_active' => $validated['is_active'],
-            ]);
-            $variables->each(fn (UserVariable $variable) => $variable->update([
-                'user_id' => $ownerId,
-                'scope' => $validated['scope'],
-                'team_id' => $teamId,
-            ]));
-        });
-
-        return response()->json(['credential' => $this->publicCredential($mcpCredential->refresh())]);
-    }
-
     public function updateFromVariable(Request $request, UserVariable $variable): JsonResponse
     {
         $this->features->abortIfDisabled('mcp_enabled');
@@ -241,22 +176,6 @@ final class McpCredentialController extends Controller
         ]);
     }
 
-    public function destroy(McpCredential $mcpCredential): JsonResponse
-    {
-        $this->features->abortIfDisabled('mcp_enabled');
-        $this->features->abortIfStale($mcpCredential);
-        $this->assertWorkspace($mcpCredential);
-        Gate::authorize(Ability::DELETE->value, $mcpCredential);
-        $variables = $this->variablesForCredential($mcpCredential);
-        $variables->each(fn (UserVariable $variable) => Gate::authorize(Ability::UPDATE->value, $variable));
-        DB::transaction(function () use ($mcpCredential, $variables): void {
-            $variables->each->delete();
-            $mcpCredential->delete();
-        });
-
-        return response()->json(status: 204);
-    }
-
     public function discoverTools(Request $request): JsonResponse
     {
         $this->features->abortIfDisabled('mcp_enabled');
@@ -265,7 +184,7 @@ final class McpCredentialController extends Controller
             'timeout' => ['nullable', 'integer', 'min:1', 'max:900000'],
         ]);
         $credential = $this->credentialFromVariable($request, $validated['credential_variable_id']);
-        $endpoint = $this->requiredEndpoint($credential);
+        $endpoint = $credential->requiredEndpoint();
 
         return response()->json([
             'tools' => $this->client->listTools(
@@ -290,7 +209,7 @@ final class McpCredentialController extends Controller
 
         return response()->json($this->oauth->begin(
             $mcpCredential,
-            $this->requiredEndpoint($mcpCredential),
+            $mcpCredential->requiredEndpoint(),
             $validated['dynamic_registration'] ?? true,
         ));
     }
@@ -311,7 +230,7 @@ final class McpCredentialController extends Controller
 
         return response()->json($this->oauth->begin(
             $credential,
-            $this->requiredEndpoint($credential),
+            $credential->requiredEndpoint(),
             $validated['dynamic_registration'] ?? true,
         ));
     }
@@ -520,14 +439,6 @@ final class McpCredentialController extends Controller
         return $credential;
     }
 
-    private function requiredEndpoint(McpCredential $credential): string
-    {
-        $endpoint = $credential->endpoint();
-        abort_unless($endpoint !== null, 422, 'The MCP credential does not define an endpoint.');
-
-        return $endpoint;
-    }
-
     private function assertWorkspace(McpCredential $credential): void
     {
         abort_unless($credential->workspace_id === $this->workspaceIdFromSession(), 404);
@@ -611,16 +522,5 @@ final class McpCredentialController extends Controller
         return is_string($incoming['client_secret'] ?? null)
             && $incoming['client_secret'] !== ''
             && $incoming['client_secret'] !== ($existing['client_secret'] ?? null);
-    }
-
-    /** @return \Illuminate\Support\Collection<int, UserVariable> */
-    private function variablesForCredential(McpCredential $credential): \Illuminate\Support\Collection
-    {
-        return UserVariable::query()
-            ->where('workspace_id', $credential->workspace_id)
-            ->where('type', UserVariable::TYPE_MCP_CREDENTIALS)
-            ->get()
-            ->filter(fn (UserVariable $variable): bool => $variable->value === $credential->id)
-            ->values();
     }
 }

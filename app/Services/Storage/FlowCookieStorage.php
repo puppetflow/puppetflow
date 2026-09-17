@@ -4,7 +4,6 @@ namespace App\Services\Storage;
 
 use App\Models\Flow;
 use App\Models\FlowUserCookieJar;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 final class FlowCookieStorage
@@ -72,50 +71,32 @@ final class FlowCookieStorage
             return;
         }
 
-        Cache::lock($this->lockName($flow, $userId), 300)->block(30, function () use (
-            $flow,
-            $userId,
-            $originalJars,
-            $localJars,
-            $cookieGeneration,
-        ): void {
-            DB::transaction(function () use (
-                $flow,
-                $userId,
-                $originalJars,
-                $localJars,
-                $cookieGeneration,
-            ): void {
-                $currentGeneration = Flow::query()
-                    ->whereKey($flow->getKey())
-                    ->lockForUpdate()
-                    ->firstOrFail(['cookie_generation'])
-                    ->cookie_generation;
-                if ($currentGeneration !== $cookieGeneration) {
-                    return;
+        $this->withLockedGeneration($flow, function (int $currentGeneration) use ($flow, $userId, $originalJars, $localJars, $cookieGeneration): void {
+            // The jars were cleared while this run was in flight: its cookies are stale.
+            if ($currentGeneration !== $cookieGeneration) {
+                return;
+            }
+
+            foreach (array_unique([...array_keys($originalJars), ...array_keys($localJars)]) as $filename) {
+                $original = $originalJars[$filename] ?? null;
+                $current = $localJars[$filename] ?? null;
+                if ($current === $original) {
+                    continue;
                 }
 
-                foreach (array_unique([...array_keys($originalJars), ...array_keys($localJars)]) as $filename) {
-                    $original = $originalJars[$filename] ?? null;
-                    $current = $localJars[$filename] ?? null;
-                    if ($current === $original) {
-                        continue;
-                    }
+                $profileName = $this->profileNameFromFilename($filename);
+                if ($current === null) {
+                    FlowUserCookieJar::query()
+                        ->where('flow_id', $flow->getKey())
+                        ->where('user_id', $userId)
+                        ->where('jar_name', $profileName)
+                        ->delete();
 
-                    $profileName = $this->profileNameFromFilename($filename);
-                    if ($current === null) {
-                        FlowUserCookieJar::query()
-                            ->where('flow_id', $flow->getKey())
-                            ->where('user_id', $userId)
-                            ->where('jar_name', $profileName)
-                            ->delete();
-
-                        continue;
-                    }
-
-                    $this->writeProfile($flow, $userId, $profileName, $current);
+                    continue;
                 }
-            });
+
+                $this->writeProfile($flow, $userId, $profileName, $current);
+            }
         });
 
         $this->clearLocalDirectory($localDirectory);
@@ -125,11 +106,25 @@ final class FlowCookieStorage
     {
         $this->artifacts->deleteFlowDirectory($flow, 'cookies');
         DB::transaction(function () use ($flow): void {
-            Flow::query()
+            Flow::query()->whereKey($flow->getKey())->increment('cookie_generation');
+            FlowUserCookieJar::query()->where('flow_id', $flow->getKey())->delete();
+        });
+    }
+
+    /**
+     * Serializes jar writers of a flow through its row lock; the callback receives the current cookie generation.
+     *
+     * @param  callable(int): void  $callback
+     */
+    private function withLockedGeneration(Flow $flow, callable $callback): void
+    {
+        DB::transaction(function () use ($flow, $callback): void {
+            $generation = Flow::query()
                 ->whereKey($flow->getKey())
                 ->lockForUpdate()
-                ->increment('cookie_generation');
-            FlowUserCookieJar::query()->where('flow_id', $flow->getKey())->delete();
+                ->firstOrFail(['cookie_generation'])
+                ->cookie_generation;
+            $callback($generation);
         });
     }
 
@@ -176,7 +171,7 @@ final class FlowCookieStorage
             return [];
         }
 
-        Cache::lock($this->lockName($flow, $userId), 300)->block(30, function () use ($flow, $userId, $jars): void {
+        $this->withLockedGeneration($flow, function () use ($flow, $userId, $jars): void {
             foreach ($jars as $filename => $cookies) {
                 $profileName = $this->profileNameFromFilename($filename);
                 $exists = FlowUserCookieJar::query()
@@ -282,15 +277,5 @@ final class FlowCookieStorage
             ['flow_id' => $flow->getKey(), 'user_id' => $userId, 'jar_name' => $profileName],
             ['cookies' => $decoded],
         );
-    }
-
-    private function lockName(Flow $flow, string $userId): string
-    {
-        $id = $flow->getKey();
-        if (! is_int($id) && ! is_string($id)) {
-            throw new \LogicException('Flow cookie storage requires a persisted flow.');
-        }
-
-        return 'flow-cookie-storage:'.$id.':'.$userId;
     }
 }

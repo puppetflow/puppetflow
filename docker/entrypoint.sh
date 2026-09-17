@@ -55,6 +55,9 @@ ensure_passport_keys() {
 # /app/storage as a shared persistent volume for every application container.
 if [[ "$1" == *"supervisord"* ]]; then
     ensure_passport_keys
+    # /tmp may be a fresh volume (Kubernetes emptyDir) that hides the directory
+    # created at image build time, so recreate it before rendering the config.
+    mkdir -p /tmp/nginx
     sed "s/__MEDIA_MAX_REQUEST_BYTES__/${MEDIA_MAX_REQUEST_BYTES}/g" \
         /etc/nginx/templates/puppetflow.conf.template \
         > /tmp/nginx/puppetflow.conf

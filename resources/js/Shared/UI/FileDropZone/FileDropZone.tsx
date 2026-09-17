@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useGlobalDragReset } from '@/Shared/Explorer/useGlobalDragReset';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import * as S from './styled';
 
@@ -41,17 +42,7 @@ export default function FileDropZone({
     const [rejected, setRejected] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const resetDragging = useCallback(() => setDragging(false), []);
-
-    useEffect(() => {
-        document.addEventListener('dragend', resetDragging);
-        document.addEventListener('drop', resetDragging);
-        window.addEventListener('blur', resetDragging);
-        return () => {
-            document.removeEventListener('dragend', resetDragging);
-            document.removeEventListener('drop', resetDragging);
-            window.removeEventListener('blur', resetDragging);
-        };
-    }, [resetDragging]);
+    useGlobalDragReset(resetDragging);
 
     const emit = (list: FileList | null) => {
         const files = Array.from(list ?? []);

@@ -3,6 +3,7 @@
 namespace App\Services\Media;
 
 use App\Enums\Authorization\Ability;
+use App\Jobs\GenerateMediaVideoThumbnail;
 use App\Models\MediaAsset;
 use App\Models\MediaFolder;
 use App\Models\StoredUpload;
@@ -13,7 +14,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -44,10 +44,7 @@ final class MediaStorageService
         'image/svg+xml',
     ];
 
-    public function __construct(
-        private readonly UploadStorage $uploads,
-        private readonly VideoThumbnailService $videoThumbnails,
-    ) {}
+    public function __construct(private readonly UploadStorage $uploads) {}
 
     /**
      * Stores a batch of files in one location; every asset is rolled back when one upload fails.
@@ -115,21 +112,15 @@ final class MediaStorageService
                 $location,
                 $file->getClientOriginalName(),
             );
-            try {
-                $sourcePath = $file->getRealPath();
-                $this->videoThumbnails->generate($asset, is_string($sourcePath) ? $sourcePath : null);
-            } catch (\Throwable $exception) {
-                Log::warning('Video thumbnail generation failed.', [
-                    'media_id' => $asset->id,
-                    'exception' => $exception,
-                ]);
-            }
-
-            return $asset;
         } catch (\Throwable $exception) {
             $this->uploads->delete($path);
             throw $exception;
         }
+        if (str_starts_with((string) $upload->mime_type, 'video/')) {
+            GenerateMediaVideoThumbnail::dispatch($asset->id);
+        }
+
+        return $asset;
     }
 
     public function allocatePath(string $workspaceId, string $filename): string

@@ -3,7 +3,6 @@
 namespace App\Services\Mcp;
 
 use App\Models\McpCredential;
-use App\Services\Security\PublicHttpTargetGuard;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
@@ -13,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 final class McpOAuthService
 {
-    public function __construct(private readonly PublicHttpTargetGuard $targetGuard) {}
+    public function __construct(private readonly McpTargetGuard $targets) {}
 
     /** @return array{authorization_url: string} */
     public function begin(McpCredential $credential, string $endpoint, bool $dynamicRegistration = true): array
@@ -269,11 +268,7 @@ final class McpOAuthService
             ->asJson()
             ->connectTimeout(10)
             ->timeout(30)
-            ->withOptions($this->targetGuard->requestOptions(
-                $url,
-                allowPrivateAddresses: (bool) config('puppetflow.mcp_client_allow_private', false),
-                allowHttp: (bool) config('puppetflow.mcp_client_allow_http', false),
-            ));
+            ->withOptions($this->targets->requestOptions($url));
     }
 
     /**
@@ -342,11 +337,7 @@ final class McpOAuthService
         if ($value === null || filter_var($value, FILTER_VALIDATE_URL) === false) {
             throw ValidationException::withMessages(['oauth' => "MCP OAuth metadata is missing {$key}."]);
         }
-        $this->targetGuard->requestOptions(
-            $value,
-            allowPrivateAddresses: (bool) config('puppetflow.mcp_client_allow_private', false),
-            allowHttp: (bool) config('puppetflow.mcp_client_allow_http', false),
-        );
+        $this->targets->requestOptions($value);
 
         return $value;
     }

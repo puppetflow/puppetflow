@@ -4,12 +4,15 @@ namespace App\Services\Integration\Ai\Vendor\Gemini;
 
 use App\Contracts\Integration\Ai\AiProviderDriverInterface;
 use App\Enums\Integration\IntegrationAiProviderEnum;
+use App\Services\Integration\Ai\Vendor\Concerns\DecodesToolArguments;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class GeminiDriver implements AiProviderDriverInterface
 {
+    use DecodesToolArguments;
+
     public function provider(): IntegrationAiProviderEnum
     {
         return IntegrationAiProviderEnum::GEMINI;
@@ -125,8 +128,18 @@ class GeminiDriver implements AiProviderDriverInterface
                     'parts' => $parts,
                 ];
             })
-            ->values()
-            ->all();
+            // Gemini expects the responses of a parallel tool call turn in a single content,
+            // so consecutive same-role contents (one per tool result in our format) are merged.
+            ->reduce(function (array $contents, array $content): array {
+                $last = array_key_last($contents);
+                if ($last !== null && $contents[$last]['role'] === $content['role']) {
+                    $contents[$last]['parts'] = [...$contents[$last]['parts'], ...$content['parts']];
+                } else {
+                    $contents[] = $content;
+                }
+
+                return $contents;
+            }, []);
 
         $generationConfig = array_filter([
             'temperature' => $options['temperature'] ?? null,
@@ -252,23 +265,6 @@ class GeminiDriver implements AiProviderDriverInterface
     private function request(): \Illuminate\Http\Client\PendingRequest
     {
         return Http::acceptJson()->asJson()->connectTimeout(10)->timeout(120);
-    }
-
-    /** @param array<string, mixed> $part
-     * @return array<mixed, mixed>|\stdClass
-     */
-    private function toolArguments(array $part): array|\stdClass
-    {
-        if (is_string($part['arguments_json'] ?? null)) {
-            $decoded = json_decode($part['arguments_json']);
-            if ($decoded instanceof \stdClass) {
-                return $decoded;
-            }
-        }
-
-        return is_array($part['arguments'] ?? null) && $part['arguments'] !== []
-            ? $part['arguments']
-            : new \stdClass;
     }
 
     /** @param list<string> $markers */

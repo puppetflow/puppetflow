@@ -122,18 +122,15 @@ interface PreviewInputs {
 const NAVIGATION_SETTLE_MS = 180;
 function useNavigationSettledPreviewInputs(inputs: PreviewInputs): PreviewInputs {
     const [settled, setSettled] = useState(inputs);
-    const settledNodeId = settled.node.id;
+    const sameNode = inputs.node.id === settled.node.id;
 
     useEffect(() => {
-        if (inputs.node.id === settledNodeId) {
-            setSettled(inputs);
-            return;
-        }
+        if (sameNode) return;
         const timeout = setTimeout(() => setSettled(inputs), NAVIGATION_SETTLE_MS);
         return () => clearTimeout(timeout);
-    }, [inputs, settledNodeId]);
+    }, [inputs, sameNode]);
 
-    return settled;
+    return sameNode ? inputs : settled;
 }
 
 export default function NodeConfigModal({

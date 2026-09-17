@@ -13,7 +13,7 @@ final class PublicHttpTargetGuard
     {
         $parts = parse_url($url);
         if (! is_array($parts)) {
-            throw new \InvalidArgumentException('Webhook URL is invalid.');
+            throw new \InvalidArgumentException('Target URL is invalid.');
         }
 
         $scheme = strtolower(is_string($parts['scheme'] ?? null) ? $parts['scheme'] : '');
@@ -22,21 +22,21 @@ final class PublicHttpTargetGuard
             throw new \InvalidArgumentException('Target URL must use HTTPS.');
         }
         if (isset($parts['user']) || isset($parts['pass'])) {
-            throw new \InvalidArgumentException('Webhook URL must not contain credentials.');
+            throw new \InvalidArgumentException('Target URL must not contain credentials.');
         }
         if (filter_var($host, FILTER_VALIDATE_IP) === false && preg_match('/^[a-z0-9.-]+$/', $host) !== 1) {
-            throw new \InvalidArgumentException('Webhook URL hostname is invalid.');
+            throw new \InvalidArgumentException('Target URL hostname is invalid.');
         }
 
         $port = is_int($parts['port'] ?? null) ? $parts['port'] : ($scheme === 'http' ? 80 : 443);
 
         $addresses = $this->resolve($host);
         if ($addresses === []) {
-            throw new \InvalidArgumentException('Webhook URL must resolve only to public IP addresses.');
+            throw new \InvalidArgumentException('Target URL must resolve only to public IP addresses.');
         }
         foreach ($addresses as $address) {
             if (! $allowPrivateAddresses && ! $this->isPublic($address)) {
-                throw new \InvalidArgumentException('Webhook URL must resolve only to public IP addresses.');
+                throw new \InvalidArgumentException('Target URL must resolve only to public IP addresses.');
             }
         }
 
