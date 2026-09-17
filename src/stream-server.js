@@ -34,6 +34,9 @@ const FRAME_METADATA_LENGTH_BYTES = 4;
 const CRITICAL_PUBLISH_RETRIES = 3;
 const CRITICAL_PUBLISH_RETRY_MS = 25;
 const STATUS_VALUES = new Set(['connecting', 'streaming', 'ended']);
+// Producer text messages announcing a binary payload that follows them.
+const BINARY_METADATA_TYPES = new Set(['frame-meta', 'audio-meta']);
+const AUDIO_MAX_PAYLOAD = 1024 * 1024;
 const COALESCED_CONTROL_TYPES = new Set(['mousemove', 'wheel']);
 const CONTROL_TYPES = new Set([
     'mousemove', 'mousedown', 'mouseup', 'wheel', 'keydown', 'keyup',
@@ -494,7 +497,7 @@ function decodeFrame(raw) {
     }
     try {
         const metadata = JSON.parse(raw.subarray(metadataStart, frameStart).toString('utf8'));
-        if (!isProducerMessage(metadata) || metadata.type !== 'frame-meta') {
+        if (!isProducerMessage(metadata) || !BINARY_METADATA_TYPES.has(metadata.type)) {
             return null;
         }
         return {
@@ -667,6 +670,7 @@ async function handleProducerConnection(ws, runId) {
     let subscriptionReleased = false;
     let terminalPublish = null;
     let framePublishPending = false;
+    let audioPublishPending = false;
     const cleanup = async () => {
         if (terminalPublish) {
             await terminalPublish;
@@ -760,9 +764,24 @@ async function handleProducerConnection(ws, runId) {
             session.pendingFrameMetadata = null;
             if (frame.length === 0
                 || frame.length > PRODUCER_MAX_PAYLOAD
-                || framePublishPending
                 || !session.leaseReady
                 || !metadata) {
+                return;
+            }
+            if (metadata.type === 'audio-meta') {
+                // PCM chunks are small and frequent; an odd byte count cannot be
+                // valid 16-bit audio, so drop it rather than relay garbage.
+                if (frame.length > AUDIO_MAX_PAYLOAD || frame.length % 2 !== 0 || audioPublishPending) {
+                    return;
+                }
+                audioPublishPending = true;
+                publishOwned(runId, session, encodeFrame(metadata, frame))
+                    .finally(() => {
+                        audioPublishPending = false;
+                    });
+                return;
+            }
+            if (framePublishPending) {
                 return;
             }
             framePublishPending = true;
@@ -777,7 +796,7 @@ async function handleProducerConnection(ws, runId) {
         if (!message) {
             return;
         }
-        if (message.type === 'frame-meta') {
+        if (BINARY_METADATA_TYPES.has(message.type)) {
             session.pendingFrameMetadata = message;
             return;
         }
@@ -1092,6 +1111,18 @@ function isProducerMessage(message) {
             && (message.sessionId === undefined
                 || typeof message.sessionId === 'string'
                 || Number.isFinite(message.sessionId))
+            && (message.tabName === undefined || isTabName(message.tabName));
+    }
+    if (message.type === 'audio-meta') {
+        return Number.isInteger(message.sampleRate)
+            && message.sampleRate >= 8000
+            && message.sampleRate <= 96000
+            && (message.channels === 1 || message.channels === 2)
+            && Number.isFinite(message.ts)
+            && typeof message.sourceId === 'string'
+            && message.sourceId.length > 0
+            && message.sourceId.length <= 64
+            && /^[A-Za-z0-9_-]+$/.test(message.sourceId)
             && (message.tabName === undefined || isTabName(message.tabName));
     }
     if (message.type === 'url') {

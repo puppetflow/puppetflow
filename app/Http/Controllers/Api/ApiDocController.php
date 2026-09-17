@@ -202,6 +202,7 @@ class ApiDocController extends Controller
                             'viewport_width' => ['type' => 'integer', 'nullable' => true],
                             'viewport_height' => ['type' => 'integer', 'nullable' => true],
                             'keyboard_speed' => ['type' => 'integer', 'nullable' => true],
+                            'user_agent' => ['type' => 'string', 'nullable' => true],
                             'disable_web_security' => ['type' => 'boolean'],
                             'finally_enabled' => ['type' => 'boolean'],
                             'library_locked' => ['type' => 'boolean'],
@@ -251,6 +252,7 @@ class ApiDocController extends Controller
                                     'viewport_width' => ['type' => 'integer'],
                                     'viewport_height' => ['type' => 'integer'],
                                     'keyboard_speed' => ['type' => 'integer'],
+                                    'default_user_agent' => ['type' => 'string', 'nullable' => true],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
                                     'require_two_factor' => [
                                         'type' => 'boolean',
@@ -300,6 +302,7 @@ class ApiDocController extends Controller
                             'viewport_width' => ['type' => 'integer', 'minimum' => 320, 'maximum' => 3840],
                             'viewport_height' => ['type' => 'integer', 'minimum' => 200, 'maximum' => 2160],
                             'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
+                            'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
                             'icon_type' => ['type' => 'string', 'enum' => ['emoji', 'color']],
                             'icon_value' => ['type' => 'string', 'nullable' => true, 'maxLength' => 100],
                             'icon_color' => ['type' => 'string', 'nullable' => true, 'maxLength' => 7],
@@ -322,6 +325,7 @@ class ApiDocController extends Controller
                                     'viewport_width' => ['type' => 'integer', 'minimum' => 320, 'maximum' => 3840],
                                     'viewport_height' => ['type' => 'integer', 'minimum' => 200, 'maximum' => 2160],
                                     'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
+                                    'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
                                     'require_two_factor' => [
                                         'type' => 'boolean',

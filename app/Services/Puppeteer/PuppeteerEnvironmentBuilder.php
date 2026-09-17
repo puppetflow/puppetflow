@@ -64,6 +64,10 @@ final class PuppeteerEnvironmentBuilder
             'RECORDING_ENABLED' => $recordingEnabled ? 'true' : 'false',
             'FLOW_RUN_SCREENCAST_QUALITY' => $this->scalarConfig('puppetflow.screencast_quality', '60'),
             'FLOW_RUN_SCREENCAST_NTH_FRAME' => $this->scalarConfig('puppetflow.screencast_nth_frame', '1'),
+            'FLOW_RUN_AUDIO_CAPTURE' => filter_var(config('puppetflow.audio_capture_enabled', true), FILTER_VALIDATE_BOOL)
+                ? 'true'
+                : 'false',
+            'FLOW_RUN_AUDIO_SAMPLE_RATE' => $this->scalarConfig('puppetflow.audio_sample_rate', '24000'),
             'ARTIFACTS_LIST' => implode(',', FlowRunArtifactTypeEnum::getStringList()),
             'ARTIFACTS_EXPORTABLE_LIST' => implode(',', array_map(
                 static fn (FlowRunArtifactTypeEnum|string $type): string => $type instanceof FlowRunArtifactTypeEnum
@@ -119,6 +123,10 @@ final class PuppeteerEnvironmentBuilder
         $viewport = $flow->getEffectiveViewport();
         $env['VIEWPORT_WIDTH'] = (string) $viewport['width'];
         $env['VIEWPORT_HEIGHT'] = (string) $viewport['height'];
+        $userAgent = $flow->getEffectiveUserAgent();
+        if ($userAgent !== null) {
+            $env['BROWSER_USER_AGENT'] = $userAgent;
+        }
         if ($flow->disable_web_security !== null) {
             $env['BROWSER_DISABLE_WEB_SECURITY'] = $flow->disable_web_security ? 'true' : 'false';
         }

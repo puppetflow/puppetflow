@@ -1,7 +1,10 @@
 import React from 'react';
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
+import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import Input from '@/Shared/UI/Input/Input';
 import Button from '@/Shared/UI/Button/Button';
+import UserAgentInput from '@/Shared/UI/UserAgentInput/UserAgentInput';
+import type { PageProps } from '@/App/types';
 import type { Workspace } from '@/Domains/Workspace/types';
 import * as S from './BrowserSection.styled';
 
@@ -11,10 +14,13 @@ interface Props {
 }
 
 export default function BrowserSection({ workspace, readOnly }: Props) {
+    const { settings } = usePage<InertiaPageProps & PageProps>().props;
+    const instanceUserAgent = settings.default_user_agent ?? '';
     const form = useForm({
         viewport_width: workspace.viewport_width ?? 1280,
         viewport_height: workspace.viewport_height ?? 720,
         keyboard_speed: workspace.keyboard_speed ?? 100,
+        default_user_agent: workspace.default_user_agent ?? '',
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -57,6 +63,18 @@ export default function BrowserSection({ workspace, readOnly }: Props) {
             />
             <S.FieldHint>
                 Default delay between keystrokes in milliseconds (0-10000). Can be overridden per flow or run.
+            </S.FieldHint>
+            <UserAgentInput
+                label="Default user agent"
+                placeholder={instanceUserAgent || 'Runtime default (Chrome)'}
+                value={form.data.default_user_agent}
+                onChange={value => form.setData('default_user_agent', value)}
+                error={form.errors.default_user_agent}
+                disabled={readOnly}
+            />
+            <S.FieldHint>
+                Default browser user agent for all flows in this workspace. Leave empty to inherit the instance default
+                (BROWSER_USER_AGENT). Can be overridden per flow.
             </S.FieldHint>
             {!readOnly && (
                 <S.FormActions>

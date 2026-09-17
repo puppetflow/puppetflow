@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AudioChunkMeta } from './useBrowserAudio';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'streaming' | 'disconnected' | 'ended' | 'error';
 
@@ -7,7 +8,33 @@ interface UseBrowserStreamOptions {
     flowId: Id;
     isRunning: boolean;
     liveViewEnabled: boolean;
+    onAudioChunk?: (meta: AudioChunkMeta, data: ArrayBuffer) => void;
     runId: number;
+}
+
+type PendingBinary =
+    | { kind: 'frame'; deviceWidth: number; deviceHeight: number; tabName?: string }
+    | { kind: 'audio'; meta: AudioChunkMeta };
+
+function parseAudioMeta(message: Record<string, unknown>): AudioChunkMeta | null {
+    if (
+        typeof message.sampleRate !== 'number'
+        || !Number.isFinite(message.sampleRate)
+        || message.sampleRate < 8000
+        || message.sampleRate > 96000
+        || (message.channels !== 1 && message.channels !== 2)
+        || typeof message.ts !== 'number'
+        || typeof message.sourceId !== 'string'
+    ) {
+        return null;
+    }
+    return {
+        sampleRate: message.sampleRate,
+        channels: message.channels,
+        ts: message.ts,
+        sourceId: message.sourceId,
+        ...(typeof message.tabName === 'string' ? { tabName: message.tabName } : {}),
+    };
 }
 
 function resolveStreamUrl(url: string): URL {
@@ -29,13 +56,16 @@ export function useBrowserStream({
     flowId,
     isRunning,
     liveViewEnabled,
+    onAudioChunk,
     runId,
 }: UseBrowserStreamOptions) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const imgRef = useRef<HTMLImageElement | null>(null);
     const metaRef = useRef<{ deviceWidth: number; deviceHeight: number } | null>(null);
-    const pendingMetaRef = useRef<{ deviceWidth: number; deviceHeight: number; tabName?: string } | null>(null);
+    const pendingMetaRef = useRef<PendingBinary | null>(null);
+    const onAudioChunkRef = useRef(onAudioChunk);
+    onAudioChunkRef.current = onAudioChunk;
     const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const disposedSocketsRef = useRef(new WeakSet<WebSocket>());
     const frameUrlRef = useRef<string | null>(null);
@@ -212,10 +242,14 @@ export function useBrowserStream({
                         setStatus('error');
                     } else if (message.type === 'frame-meta') {
                         pendingMetaRef.current = {
+                            kind: 'frame',
                             deviceWidth: message.metadata.deviceWidth,
                             deviceHeight: message.metadata.deviceHeight,
                             ...(typeof message.tabName === 'string' ? { tabName: message.tabName } : {}),
                         };
+                    } else if (message.type === 'audio-meta') {
+                        const audioMeta = parseAudioMeta(message);
+                        pendingMetaRef.current = audioMeta ? { kind: 'audio', meta: audioMeta } : null;
                     } else if (message.type === 'url') {
                         const tabName = typeof message.tabName === 'string'
                             ? message.tabName
@@ -233,10 +267,16 @@ export function useBrowserStream({
                 } catch (_) {}
             } else {
                 if (pendingMetaRef.current) {
-                    const frameMeta = pendingMetaRef.current;
+                    const pending = pendingMetaRef.current;
                     pendingMetaRef.current = null;
+                    if (pending.kind === 'audio') {
+                        // Sound from every tab is relayed; background tabs are audible too.
+                        onAudioChunkRef.current?.(pending.meta, event.data as ArrayBuffer);
+                        return;
+                    }
+                    const frameMeta = pending;
                     if (frameMeta.tabName && frameMeta.tabName !== activeTabNameRef.current) return;
-                    metaRef.current = frameMeta;
+                    metaRef.current = { deviceWidth: frameMeta.deviceWidth, deviceHeight: frameMeta.deviceHeight };
                     const frameTabName = frameMeta.tabName ?? activeTabNameRef.current;
                     drawFrame(new Blob([event.data], { type: 'image/jpeg' }), () => {
                         if (!frameTabName || frameTabName === activeTabNameRef.current) {

@@ -116,6 +116,7 @@ class Flow extends Model
         'viewport_width',
         'viewport_height',
         'keyboard_speed',
+        'user_agent',
         'disable_web_security',
         'finally_enabled',
         'last_run_result',
@@ -361,6 +362,20 @@ class Flow extends Model
     public function getEffectiveKeyboardSpeed(): int
     {
         return $this->keyboard_speed ?? $this->workspace->keyboard_speed ?? 100;
+    }
+
+    /**
+     * Precedence: flow, then workspace default, then instance default (BROWSER_USER_AGENT).
+     * Returns null when the runtime should fall back to its built-in value.
+     */
+    public function getEffectiveUserAgent(): ?string
+    {
+        $value = is_string($this->user_agent) ? trim($this->user_agent) : '';
+        if ($value !== '') {
+            return $value;
+        }
+
+        return $this->workspace?->getEffectiveDefaultUserAgent() ?? Workspace::instanceDefaultUserAgent();
     }
 
     public function getEffectiveRetentionLimit(): int
