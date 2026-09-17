@@ -4,6 +4,7 @@ namespace App\Services\Storage;
 
 use App\Exceptions\InstanceStorageQuotaExceededException;
 use App\Models\FlowRunArtifact;
+use App\Models\StorageUploadReservation;
 use App\Models\StoredUpload;
 use App\Services\FeatureFlags\FeatureFlagService;
 use Closure;
@@ -13,9 +14,9 @@ final class InstanceStorageQuotaService
 {
     private const LOCK_NAME = 'instance-storage:quota-admission';
 
-    private const LOCK_SECONDS = 3600;
+    private const LOCK_SECONDS = 300;
 
-    private const WAIT_SECONDS = 300;
+    private const WAIT_SECONDS = 30;
 
     public function __construct(
         private readonly FeatureFlagService $featureFlags,
@@ -31,6 +32,10 @@ final class InstanceStorageQuotaService
         return (int) (
             StoredUpload::query()->where('status', StoredUpload::STATUS_READY)->sum('size_bytes')
             + FlowRunArtifact::query()->where('status', FlowRunArtifact::STATUS_READY)->sum('size_bytes')
+            + StorageUploadReservation::query()
+                ->where('status', StorageUploadReservation::STATUS_PENDING)
+                ->where('expires_at', '>', now())
+                ->sum('expected_bytes')
         );
     }
 

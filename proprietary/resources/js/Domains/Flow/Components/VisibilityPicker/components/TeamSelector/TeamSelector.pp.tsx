@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { useTheme } from 'styled-components';
 import { useSearchablePopover } from '@/Shared/Hooks/useSearchablePopover';
-import type { TeamTree } from '@/Domains/Folder/types';
+import type { ExplorerTeamTree as TeamTree } from '@/Shared/Explorer/types';
 import * as S from './styled.pp';
 
 interface Props {

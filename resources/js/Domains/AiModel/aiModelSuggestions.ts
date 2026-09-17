@@ -8,6 +8,7 @@ export interface AiModelSuggestion {
     capabilities: Record<string, boolean>;
     scope: string;
     team_name: string | null;
+    can_manage: boolean;
     ai_integration: {
         id: Id;
         name: string;

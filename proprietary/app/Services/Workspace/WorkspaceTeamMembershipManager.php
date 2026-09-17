@@ -3,7 +3,11 @@
 namespace App\Services\Workspace;
 
 use App\Enums\Authorization\Ability;
+use App\Models\McpCredential;
+use App\Models\MediaAsset;
+use App\Models\MediaFolder;
 use App\Models\User;
+use App\Models\UserVariable;
 use App\Models\Workspace;
 use App\Models\WorkspaceTeam;
 use App\Services\Workspace\Identity\IdentityRows;
@@ -109,6 +113,7 @@ final class WorkspaceTeamMembershipManager
             $removedIds = array_values(array_diff($currentTeamIds, $teamIds));
 
             if ($removedIds !== []) {
+                $this->reassignRemovedResources([$user->id], $removedIds);
                 DB::table('team_user')
                     ->where('user_id', $user->id)
                     ->whereIn('team_id', $removedIds)
@@ -160,6 +165,17 @@ final class WorkspaceTeamMembershipManager
                 $this->ensureMembership($lockedWorkspace, $user->id, $workspaceRole);
             }
 
+            $currentTeamIds = DB::table('team_user')
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->where('user_id', $user->id)
+                ->pluck('team_id')
+                ->filter(fn (mixed $id): bool => is_string($id) && $id !== '')
+                ->values()
+                ->all();
+            $this->reassignRemovedResources(
+                [$user->id],
+                array_values(array_diff($currentTeamIds, $teamIds)),
+            );
             DB::table('team_user')
                 ->where('workspace_id', $lockedWorkspace->id)
                 ->where('user_id', $user->id)
@@ -246,12 +262,47 @@ final class WorkspaceTeamMembershipManager
             }
 
             if ($replace) {
+                $removedUserIds = array_values(array_diff($currentUserIds, $userIds));
+                $this->reassignRemovedResources($removedUserIds, [$lockedTeam->id]);
                 $query = DB::table('team_user')->where('team_id', $lockedTeam->id);
                 $userIds === []
                     ? $query->delete()
                     : $query->whereNotIn('user_id', $userIds)->delete();
             }
         });
+    }
+
+    /**
+     * Team-scoped resources must not keep an owner who no longer belongs to the team.
+     *
+     * @param  list<string>  $userIds
+     * @param  list<string>  $teamIds
+     */
+    private function reassignRemovedResources(array $userIds, array $teamIds): void
+    {
+        if ($userIds === [] || $teamIds === []) {
+            return;
+        }
+
+        $assignment = ['visibility' => 'owner', 'team_id' => null];
+        MediaFolder::query()
+            ->whereIn('team_id', $teamIds)
+            ->whereIn('user_id', $userIds)
+            ->update($assignment);
+        MediaAsset::query()
+            ->whereIn('team_id', $teamIds)
+            ->whereIn('user_id', $userIds)
+            ->update($assignment);
+
+        $assignment = ['scope' => 'user', 'team_id' => null];
+        McpCredential::query()
+            ->whereIn('team_id', $teamIds)
+            ->whereIn('user_id', $userIds)
+            ->update($assignment);
+        UserVariable::query()
+            ->whereIn('team_id', $teamIds)
+            ->whereIn('user_id', $userIds)
+            ->update($assignment);
     }
 
     private function ensureMembership(Workspace $workspace, string $userId, ?string $role): void

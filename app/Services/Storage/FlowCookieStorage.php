@@ -5,12 +5,21 @@ namespace App\Services\Storage;
 use App\Models\Flow;
 use App\Models\FlowUserCookieJar;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 final class FlowCookieStorage
 {
     public function __construct(
         private readonly RunArtifactStorage $artifacts,
     ) {}
+
+    public function generation(Flow $flow): int
+    {
+        return Flow::query()
+            ->whereKey($flow->getKey())
+            ->firstOrFail(['cookie_generation'])
+            ->cookie_generation;
+    }
 
     /**
      * @return array<string, string>
@@ -43,8 +52,13 @@ final class FlowCookieStorage
     /**
      * @param  array<string, string>  $originalJars
      */
-    public function persist(Flow $flow, ?string $userId, string $localDirectory, array $originalJars): void
-    {
+    public function persist(
+        Flow $flow,
+        ?string $userId,
+        string $localDirectory,
+        array $originalJars,
+        int $cookieGeneration,
+    ): void {
         if ($userId === null) {
             $this->clearLocalDirectory($localDirectory);
 
@@ -63,27 +77,45 @@ final class FlowCookieStorage
             $userId,
             $originalJars,
             $localJars,
+            $cookieGeneration,
         ): void {
-            foreach (array_unique([...array_keys($originalJars), ...array_keys($localJars)]) as $filename) {
-                $original = $originalJars[$filename] ?? null;
-                $current = $localJars[$filename] ?? null;
-                if ($current === $original) {
-                    continue;
+            DB::transaction(function () use (
+                $flow,
+                $userId,
+                $originalJars,
+                $localJars,
+                $cookieGeneration,
+            ): void {
+                $currentGeneration = Flow::query()
+                    ->whereKey($flow->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail(['cookie_generation'])
+                    ->cookie_generation;
+                if ($currentGeneration !== $cookieGeneration) {
+                    return;
                 }
 
-                $jarName = $this->jarNameFromFilename($filename);
-                if ($current === null) {
-                    FlowUserCookieJar::query()
-                        ->where('flow_id', $flow->getKey())
-                        ->where('user_id', $userId)
-                        ->where('jar_name', $jarName)
-                        ->delete();
+                foreach (array_unique([...array_keys($originalJars), ...array_keys($localJars)]) as $filename) {
+                    $original = $originalJars[$filename] ?? null;
+                    $current = $localJars[$filename] ?? null;
+                    if ($current === $original) {
+                        continue;
+                    }
 
-                    continue;
+                    $profileName = $this->profileNameFromFilename($filename);
+                    if ($current === null) {
+                        FlowUserCookieJar::query()
+                            ->where('flow_id', $flow->getKey())
+                            ->where('user_id', $userId)
+                            ->where('jar_name', $profileName)
+                            ->delete();
+
+                        continue;
+                    }
+
+                    $this->writeProfile($flow, $userId, $profileName, $current);
                 }
-
-                $this->writeJar($flow, $userId, $jarName, $current);
-            }
+            });
         });
 
         $this->clearLocalDirectory($localDirectory);
@@ -91,8 +123,14 @@ final class FlowCookieStorage
 
     public function clear(Flow $flow): void
     {
-        FlowUserCookieJar::query()->where('flow_id', $flow->getKey())->delete();
         $this->artifacts->deleteFlowDirectory($flow, 'cookies');
+        DB::transaction(function () use ($flow): void {
+            Flow::query()
+                ->whereKey($flow->getKey())
+                ->lockForUpdate()
+                ->increment('cookie_generation');
+            FlowUserCookieJar::query()->where('flow_id', $flow->getKey())->delete();
+        });
     }
 
     /**
@@ -108,11 +146,11 @@ final class FlowCookieStorage
             ->get();
 
         foreach ($storedJars as $storedJar) {
-            $jarName = $storedJar->getAttribute('jar_name');
-            if (! is_string($jarName)) {
-                throw new \RuntimeException('Stored flow cookie jar name is invalid.');
+            $profileName = $storedJar->getAttribute('jar_name');
+            if (! is_string($profileName)) {
+                throw new \RuntimeException('Stored flow cookie profile name is invalid.');
             }
-            $filename = $this->filenameFromJarName($jarName);
+            $filename = $this->filenameFromProfileName($profileName);
             $cookies = $storedJar->cookies;
             $jars[$filename] = json_encode($cookies, JSON_THROW_ON_ERROR);
         }
@@ -140,14 +178,14 @@ final class FlowCookieStorage
 
         Cache::lock($this->lockName($flow, $userId), 300)->block(30, function () use ($flow, $userId, $jars): void {
             foreach ($jars as $filename => $cookies) {
-                $jarName = $this->jarNameFromFilename($filename);
+                $profileName = $this->profileNameFromFilename($filename);
                 $exists = FlowUserCookieJar::query()
                     ->where('flow_id', $flow->getKey())
                     ->where('user_id', $userId)
-                    ->where('jar_name', $jarName)
+                    ->where('jar_name', $profileName)
                     ->exists();
                 if (! $exists) {
-                    $this->writeJar($flow, $userId, $jarName, $cookies);
+                    $this->writeProfile($flow, $userId, $profileName, $cookies);
                 }
             }
         });
@@ -171,7 +209,7 @@ final class FlowCookieStorage
                 continue;
             }
             $filename = basename($path);
-            $this->jarNameFromFilename($filename);
+            $this->profileNameFromFilename($filename);
             $contents = file_get_contents($path);
             if (! is_string($contents)) {
                 throw new \RuntimeException("Unable to read cookie jar {$filename}.");
@@ -187,7 +225,7 @@ final class FlowCookieStorage
         return $jars;
     }
 
-    private function jarNameFromFilename(string $filename): string
+    private function profileNameFromFilename(string $filename): string
     {
         if (
             $filename === ''
@@ -196,20 +234,20 @@ final class FlowCookieStorage
             || in_array($filename, ['.', '..'], true)
             || ! str_ends_with(strtolower($filename), '.json')
         ) {
-            throw new \RuntimeException('Stored flow cookie jar filename is invalid.');
+            throw new \RuntimeException('Stored flow cookie profile filename is invalid.');
         }
 
-        $jarName = substr($filename, 0, -5);
-        if ($jarName === '') {
-            throw new \RuntimeException('Stored flow cookie jar name is invalid.');
+        $profileName = substr($filename, 0, -5);
+        if ($profileName === '') {
+            throw new \RuntimeException('Stored flow cookie profile name is invalid.');
         }
 
-        return $jarName;
+        return $profileName;
     }
 
-    private function filenameFromJarName(string $jarName): string
+    private function filenameFromProfileName(string $profileName): string
     {
-        return $this->jarNameFromFilename($jarName.'.json').'.json';
+        return $this->profileNameFromFilename($profileName.'.json').'.json';
     }
 
     private function clearLocalDirectory(string $directory): void
@@ -233,15 +271,15 @@ final class FlowCookieStorage
         }
     }
 
-    private function writeJar(Flow $flow, string $userId, string $jarName, string $cookies): void
+    private function writeProfile(Flow $flow, string $userId, string $profileName, string $cookies): void
     {
         $decoded = json_decode($cookies, true, 512, JSON_THROW_ON_ERROR);
         if (! is_array($decoded)) {
-            throw new \RuntimeException("Cookie jar {$jarName} must contain a JSON array.");
+            throw new \RuntimeException("Cookie profile {$profileName} must contain a JSON array.");
         }
 
         FlowUserCookieJar::query()->updateOrCreate(
-            ['flow_id' => $flow->getKey(), 'user_id' => $userId, 'jar_name' => $jarName],
+            ['flow_id' => $flow->getKey(), 'user_id' => $userId, 'jar_name' => $profileName],
             ['cookies' => $decoded],
         );
     }

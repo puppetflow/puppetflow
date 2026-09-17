@@ -1,4 +1,4 @@
-import styled, { keyframes } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
 const spin = keyframes`
     to {
@@ -122,6 +122,13 @@ export const SelectTextIcon = styled.div`
     line-height: 15px;
 `;
 
+export const SelectImageIcon = styled.img`
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    object-fit: cover;
+`;
+
 export const SelectLoadingIcon = styled(SelectIconSlot)`
     color: ${({ theme }) => theme.colors.text.tertiary};
 
@@ -208,7 +215,7 @@ export const SelectActionRow = styled.div`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
 `;
 
-export const SelectAction = styled.button`
+export const SelectAction = styled.button<{ $loading?: boolean }>`
     min-width: 0;
     flex: 1;
     width: 100%;
@@ -225,7 +232,7 @@ export const SelectAction = styled.button`
 
     svg {
         flex-shrink: 0;
-        animation: ${spin} 0.8s linear infinite;
+        ${({ $loading }) => $loading && css`animation: ${spin} 0.8s linear infinite;`}
     }
 
     &:hover:not(:disabled) {
@@ -280,7 +287,31 @@ export const SelectOptionDivider = styled.div`
     background: ${({ theme }) => theme.colors.border.default};
 `;
 
-export const SelectOption = styled.button<{ $active?: boolean; $selected?: boolean }>`
+export const SelectOptionRow = styled.div<{ $active?: boolean; $editable?: boolean }>`
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme, $active }) => (
+        $active
+            ? `color-mix(in srgb, ${theme.colors.bg.hover} 55%, transparent)`
+            : 'transparent'
+    )};
+
+    &:hover,
+    &:focus-within {
+        background: ${({ theme }) => `color-mix(in srgb, ${theme.colors.bg.hover} 55%, transparent)`};
+    }
+
+    ${({ $editable }) => $editable && css`
+        &:hover [data-option-detail],
+        &:focus-within [data-option-detail] {
+            visibility: hidden;
+        }
+    `}
+`;
+
+export const SelectOption = styled.button<{ $selected?: boolean }>`
     width: 100%;
     min-width: 0;
     display: flex;
@@ -290,11 +321,7 @@ export const SelectOption = styled.button<{ $active?: boolean; $selected?: boole
     padding: 8px 9px;
     border-radius: ${({ theme }) => theme.radius.sm};
     color: ${({ theme }) => theme.colors.text.secondary};
-    background: ${({ theme, $active }) => (
-        $active
-            ? `color-mix(in srgb, ${theme.colors.bg.hover} 55%, transparent)`
-            : 'transparent'
-    )};
+    background: transparent;
     text-align: left;
     cursor: pointer;
 
@@ -318,8 +345,40 @@ export const SelectOption = styled.button<{ $active?: boolean; $selected?: boole
         pointer-events: none;
     }
 
-    &:hover {
-        background: ${({ theme }) => `color-mix(in srgb, ${theme.colors.bg.hover} 55%, transparent)`};
+`;
+
+export const SelectOptionEdit = styled.button<{ $selected?: boolean }>`
+    position: absolute;
+    top: 50%;
+    right: ${({ $selected }) => ($selected ? '30px' : '8px')};
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    background: ${({ theme }) => theme.colors.bg.primary};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.border.default};
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition:
+        opacity ${({ theme }) => theme.transition.fast},
+        color ${({ theme }) => theme.transition.fast},
+        background ${({ theme }) => theme.transition.fast};
+
+    ${SelectOptionRow}:hover &,
+    ${SelectOptionRow}:focus-within & {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    &:hover,
+    &:focus-visible {
+        color: ${({ theme }) => theme.colors.text.primary};
+        background: ${({ theme }) => theme.colors.bg.hover};
     }
 `;
 
@@ -334,6 +393,7 @@ export const SelectCheck = styled.span`
 
 export const SelectOptionMain = styled.div`
     min-width: 0;
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     gap: 7px;

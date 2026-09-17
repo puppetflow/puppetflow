@@ -401,11 +401,11 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
 /* @help Interaction
  * @sig $upload(fileInputSelectorOrHandle, uploadFilename, options?)
  * @aliases attach file, upload file, choose file
- * @desc Upload a file from the downloads directory to a file input element. Accepts a CSS selector string or an ElementHandle.
- * @nodal-desc Upload a downloaded file into a file input on the page.
+ * @desc Upload a file from the run downloads or an authorized 12-character Media Library ID (`media_...`) to a file input. Media files stay staged until the run ends so delayed form submissions can still read them. Accepts a CSS selector string or an ElementHandle.
+ * @nodal-desc Upload a downloaded file or an authorized Media Library item into a file input on the page.
  * @opt timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param fileInputSelectorOrHandle [string, selector]: CSS selector or ElementHandle for the file input.
- * @nodal-param uploadFilename: File path or downloads filename to upload.
+ * @nodal-param uploadFilename [media]: Media Library item, media ID, or a custom file name from the run downloads.
  * @nodal-param options: File input selection options.
  * @nodal-param options.timeout [number]: Maximum time to wait for the file input, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the file input cannot be found.
@@ -417,17 +417,26 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
     throw new Error('$upload: filename is required (got ' + typeof uploadFilename + ')');
   }
   __emitAction('upload', uploadFilename);
-  const filePath = $getDownloadsPathFile(uploadFilename);
-  if (!fs.existsSync(filePath)) {
-    throw new Error('$upload: file not found: ' + filePath);
-  }
+  const isMediaId = /^media_[A-Za-z0-9]{12}$/.test(uploadFilename);
   const isHandle = typeof fileInputSelectorOrHandle === 'object' && fileInputSelectorOrHandle !== null;
   const {
     timeout = 30000,
     continueOnError = false,
     visibleOnly = false,
     index = 0,
-  } = options || {};
+  } = options;
+  // Media assets are staged in a private temporary directory for the duration of the upload.
+  const stagedMedia = isMediaId
+    ? await __runnerOperations.mediaDownload({ media_id: uploadFilename })
+    : null;
+  if (stagedMedia) {
+    // Chromium may read the selected file only when the form is submitted.
+    _pendingCleanup.push(stagedMedia.directory);
+  }
+  const filePath = stagedMedia ? stagedMedia.path : $getDownloadsPathFile(uploadFilename);
+  if (!fs.existsSync(filePath)) {
+    throw new Error('$upload: file not found: ' + filePath);
+  }
   const selection = await __internalSelect(fileInputSelectorOrHandle, {
     timeout,
     continueOnError,

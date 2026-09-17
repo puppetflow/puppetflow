@@ -11,6 +11,8 @@ interface Props {
     showDisabledFeatures: boolean;
     disabledFeatureMessage: string;
     disabled?: boolean;
+    /** Resource noun used in the owner description ("flow", "media file"). */
+    resourceLabel?: string;
     onChange: (visibility: Visibility) => void;
 }
 
@@ -30,6 +32,7 @@ export default function VisibilitySelector({
     showDisabledFeatures,
     disabledFeatureMessage,
     disabled,
+    resourceLabel = 'flow',
     onChange,
 }: Props) {
     const theme = useTheme();
@@ -39,7 +42,9 @@ export default function VisibilitySelector({
             icon: 'lucide:user',
             color: theme.colors.accent.warning,
             title: 'Owner',
-            description: 'Only the owner can see and run this flow.',
+            description: resourceLabel === 'flow'
+                ? 'Only the owner can see and run this flow.'
+                : `Only the owner can see and use this ${resourceLabel}.`,
             enabled: true,
         },
         ...(teamsEnabled || showDisabledFeatures

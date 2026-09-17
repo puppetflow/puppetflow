@@ -1,5 +1,6 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { RenderedExpression } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import EditorActions from './EditorActions/EditorActions';
 import ExpressionPreview from './ExpressionPreview/ExpressionPreview';
 import {
@@ -12,7 +13,7 @@ import * as Shared from './shared.styled';
 
 interface ExpressionEditorShellProps {
     value: ScalarNodeParameterValue;
-    renderedExpression: { ok: true; value: unknown } | { ok: false; error: string };
+    renderedExpression: RenderedExpression;
     renderVisible: boolean;
     inlineEditorHeight: number;
     theme: string;
@@ -85,7 +86,8 @@ export default function ExpressionEditorShell({
             {renderVisible && (
                 <S.ExpressionInlineRender
                     tabIndex={0}
-                    $error={!renderedExpression.ok}
+                    $error={!renderedExpression.ok && !renderedExpression.loading}
+                    $loading={!renderedExpression.ok && renderedExpression.loading}
                 >
                     {renderedExpression.ok
                         ? <ExpressionPreview value={renderedExpression.value} />

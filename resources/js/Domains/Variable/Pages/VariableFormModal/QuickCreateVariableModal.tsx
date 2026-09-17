@@ -10,8 +10,10 @@ import type { VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/v
 import OwnershipScope from './components/OwnershipScope/OwnershipScope';
 import TypeProviderSelection from './components/TypeProviderSelection/TypeProviderSelection';
 import ValueEditor from './components/ValueEditor/ValueEditor';
+import McpCredentialFields from './components/ValueEditor/McpCredentialFields';
 import GroupCombobox from './GroupCombobox';
 import { useVariableForm } from './useVariableForm';
+import { ErrorText } from './styled';
 import * as S from './QuickCreateVariableModal.styled';
 
 interface QuickCreateVariableModalProps {
@@ -62,15 +64,24 @@ export default function QuickCreateVariableModal({
                         editing={null}
                         integrations={variableForm.vaultIntegrations}
                         isOpen={isOpen}
+                        mcpEnabled={variableForm.mcpEnabled}
                         onTypeChange={variableForm.handleTypeChange}
                         onVaultChange={variableForm.handleVaultChange}
                     />
-                    <ValueEditor
-                        type={form.data.type}
-                        value={form.data.value}
-                        error={form.errors.value}
-                        onChange={value => form.setData('value', value)}
-                    />
+                    {form.data.type === 'mcp_credentials' ? (
+                        <McpCredentialFields
+                            data={form.data}
+                            errors={form.errors}
+                            onChange={(key, value) => form.setData(previous => ({ ...previous, [key]: value }))}
+                        />
+                    ) : (
+                        <ValueEditor
+                            type={form.data.type}
+                            value={form.data.value}
+                            error={form.errors.value}
+                            onChange={value => form.setData('value', value)}
+                        />
+                    )}
                     <GroupCombobox
                         value={form.data.group}
                         onChange={value => form.setData('group', value)}
@@ -89,6 +100,7 @@ export default function QuickCreateVariableModal({
                         onOwnerChange={variableForm.setOwnerId}
                         onOwnerRoleChange={variableForm.setTargetUserRole}
                     />
+                    {form.errors.scope && <ErrorText>{form.errors.scope}</ErrorText>}
                     <S.Actions>
                         <Button type="button" variant="secondary" onClick={onClose} disabled={variableForm.submitting}>
                             Cancel

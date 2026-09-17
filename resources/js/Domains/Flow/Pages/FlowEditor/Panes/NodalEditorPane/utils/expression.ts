@@ -145,6 +145,7 @@ const formatFixedLiteral = (
         || valueType === 'channel'
         || valueType === 'mailbox-watcher'
         || valueType === 'data-table'
+        || valueType === 'media'
     ) {
         return JSON.stringify(value);
     }
@@ -590,10 +591,15 @@ const formatTypedFieldForCompiler = (
     }
 };
 
+export type RenderedExpression =
+    | { ok: true; value: unknown }
+    // `loading` flags a failure caused by preview data still being fetched, not by the expression.
+    | { ok: false; error: string; loading?: boolean };
+
 export const evaluateExpressionPreview = (
     value: string,
     scope: { inputData: unknown; pageData?: unknown; outputData: unknown; nodeData?: unknown; runData?: unknown; contextData?: unknown; variableData?: Record<string, unknown> },
-): { ok: true; value: unknown } | { ok: false; error: string } => {
+): RenderedExpression => {
     try {
         return {
             ok: true,

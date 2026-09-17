@@ -65,6 +65,7 @@ export default function SuggestionPicker({
             return {
                 value: String(channel.id),
                 label: channel.name,
+                editable: channel.can_manage,
                 icon: provider?.icon,
                 iconColor: provider?.color,
                 ...detailWithVisibility(
@@ -104,6 +105,10 @@ export default function SuggestionPicker({
             }}
             onRefresh={onRefresh}
             onClear={value ? () => onChange({ mode: 'fixed', value: '' }) : undefined}
+            onEditOption={isMailboxWatcher ? undefined : async option => {
+                await quickRequirementCreation.edit('channel', option.value);
+                await onRefresh?.();
+            }}
             onChange={nextValue => onChange({ mode: 'fixed', value: nextValue })}
         />
     );

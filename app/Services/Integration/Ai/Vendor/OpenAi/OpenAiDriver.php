@@ -45,11 +45,12 @@ class OpenAiDriver implements AiProviderDriverInterface
 
     public function message(string $apiKey, string $model, array $messages, array $options = []): array
     {
-        $input = collect($messages)->map(function (array $message): array {
+        $input = collect($messages)->flatMap(function (array $message): array {
             $role = in_array($message['role'] ?? null, ['user', 'assistant', 'system'], true)
                 ? $message['role']
                 : 'user';
-            $content = collect(is_array($message['content'] ?? null) ? $message['content'] : [])
+            $parts = is_array($message['content'] ?? null) ? $message['content'] : [];
+            $conversationContent = collect($parts)
                 ->map(function (mixed $part) use ($role): ?array {
                     if (! is_array($part)) {
                         return null;
@@ -68,8 +69,35 @@ class OpenAiDriver implements AiProviderDriverInterface
                 ->filter()
                 ->values()
                 ->all();
+            $items = $conversationContent === [] ? [] : [['role' => $role, 'content' => $conversationContent]];
+            foreach ($parts as $part) {
+                if (! is_array($part)) {
+                    continue;
+                }
+                if (($part['type'] ?? null) === 'tool_call' && is_string($part['id'] ?? null) && is_string($part['name'] ?? null)) {
+                    $items[] = [
+                        'type' => 'function_call',
+                        'call_id' => $part['id'],
+                        'name' => $part['name'],
+                        'arguments' => is_string($part['arguments_json'] ?? null)
+                            ? $part['arguments_json']
+                            : json_encode(
+                                is_array($part['arguments'] ?? null) && $part['arguments'] !== []
+                                    ? $part['arguments']
+                                    : new \stdClass,
+                            ),
+                    ];
+                }
+                if (($part['type'] ?? null) === 'tool_result' && is_string($part['tool_call_id'] ?? null)) {
+                    $items[] = [
+                        'type' => 'function_call_output',
+                        'call_id' => $part['tool_call_id'],
+                        'output' => is_string($part['text'] ?? null) ? $part['text'] : '',
+                    ];
+                }
+            }
 
-            return ['role' => $role, 'content' => $content];
+            return $items;
         })->values()->all();
 
         // OpenAI rejects json_object output unless an input message mentions "json".
@@ -92,6 +120,17 @@ class OpenAiDriver implements AiProviderDriverInterface
 
         if (is_array($options['response_format'] ?? null)) {
             $payload['text'] = ['format' => $options['response_format']];
+        }
+        if (is_array($options['tools'] ?? null) && $options['tools'] !== []) {
+            $payload['tools'] = collect($options['tools'])->filter(fn (mixed $tool): bool => is_array($tool))->map(fn (mixed $tool): array => [
+                'type' => 'function',
+                'name' => is_string($tool['name'] ?? null) ? $tool['name'] : 'tool',
+                'description' => is_string($tool['description'] ?? null) ? $tool['description'] : '',
+                'parameters' => is_array($tool['inputSchema'] ?? null)
+                    ? $tool['inputSchema']
+                    : ['type' => 'object', 'properties' => new \stdClass],
+                'strict' => false,
+            ])->values()->all();
         }
 
         $response = $this->request($apiKey)->post('https://api.openai.com/v1/responses', $payload);
@@ -128,9 +167,23 @@ class OpenAiDriver implements AiProviderDriverInterface
             ->pluck('text')
             ->filter(fn (mixed $text): bool => is_string($text))
             ->implode('');
+        $toolCalls = collect($output)
+            ->filter(fn (mixed $item): bool => is_array($item) && ($item['type'] ?? null) === 'function_call')
+            ->map(fn (array $item): array => [
+                'id' => is_string($item['call_id'] ?? null) ? $item['call_id'] : (string) ($item['id'] ?? ''),
+                'name' => is_string($item['name'] ?? null) ? $item['name'] : '',
+                'arguments' => is_string($item['arguments'] ?? null)
+                    ? (json_decode($item['arguments'], true) ?: [])
+                    : [],
+                'argumentsJson' => is_string($item['arguments'] ?? null) ? $item['arguments'] : '{}',
+            ])
+            ->filter(fn (array $call): bool => $call['id'] !== '' && $call['name'] !== '')
+            ->values()
+            ->all();
 
         return [
             'text' => $text,
+            'toolCalls' => $toolCalls,
             'content' => $output,
             'usage' => is_array($raw['usage'] ?? null) ? $raw['usage'] : [],
             'model' => $raw['model'] ?? $model,
@@ -139,12 +192,12 @@ class OpenAiDriver implements AiProviderDriverInterface
         ];
     }
 
-    /** @param array<int, array{role: string, content: array<int, array<string, string>>}> $input */
+    /** @param array<int, array<string, mixed>> $input */
     private function inputMentionsJson(array $input): bool
     {
         foreach ($input as $message) {
-            foreach ($message['content'] as $part) {
-                if (str_contains(strtolower($part['text'] ?? ''), 'json')) {
+            foreach (is_array($message['content'] ?? null) ? $message['content'] : [] as $part) {
+                if (is_array($part) && str_contains(strtolower(is_string($part['text'] ?? null) ? $part['text'] : ''), 'json')) {
                     return true;
                 }
             }

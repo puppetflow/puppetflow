@@ -82,7 +82,6 @@ export default function FlowImportModal({
     const [mailboxCreationOpen, setMailboxCreationOpen] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
     const [visibility, setVisibility] = useState<VisibilityPickerValue>(() => buildInitialVisibility(defaultVisibility, defaultFolderId, defaultTeamId));
-    const [dragging, setDragging] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const fileReadId = useRef(0);
@@ -104,7 +103,6 @@ export default function FlowImportModal({
         setMailboxCreationOpen(false);
         setFileName(null);
         setVisibility(buildInitialVisibility(defaultVisibility, defaultFolderId, defaultTeamId));
-        setDragging(false);
         setSubmitting(false);
         setSubmitError(null);
     });
@@ -282,9 +280,7 @@ export default function FlowImportModal({
                         <S.FormScroller>
                             <SourceFileInput
                                 fileName={fileName}
-                                dragging={dragging}
                                 hasError={!!submitError && !parsedFile}
-                                onDraggingChange={setDragging}
                                 onFile={readFile}
                             />
 

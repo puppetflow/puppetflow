@@ -5,7 +5,7 @@ const DOCUMENTATION_PAGE_GROUPS = [
         path: '/reference/flow-api/navigation',
         names: new Set([
             '$gotoUrl', '$gotoTab', '$setViewport', '$screenshot',
-            '$saveCookies', '$loadCookies', '$loginRemember',
+            '$saveCookies', '$loadCookies', '$clearCookies', '$loginRemember',
         ]),
     },
     {

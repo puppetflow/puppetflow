@@ -8,7 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Mail\WorkspaceInvitationMail;
 use App\Models\Flow;
 use App\Models\Folder;
+use App\Models\McpCredential;
 use App\Models\User;
+use App\Models\UserVariable;
 use App\Models\Workspace;
 use App\Models\WorkspaceProxy;
 use App\Models\WorkspaceTeam;
@@ -287,6 +289,10 @@ class TeamController extends Controller
 
         Flow::where('team_id', $team->id)
             ->update(['team_id' => null, 'visibility' => 'owner', 'workspace_folder_id' => null]);
+        McpCredential::where('team_id', $team->id)
+            ->update(['team_id' => null, 'scope' => 'user']);
+        UserVariable::where('team_id', $team->id)
+            ->update(['team_id' => null, 'scope' => 'user']);
 
         Folder::where('team_id', $team->id)->each(function (Folder $folder) {
             $folder->delete();

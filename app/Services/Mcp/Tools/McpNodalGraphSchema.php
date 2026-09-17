@@ -76,6 +76,11 @@ final class McpNodalGraphSchema
                                 'pattern' => '^[A-Za-z0-9_-]{1,64}$',
                                 'default' => 'input',
                             ],
+                            'connectionType' => [
+                                'type' => 'string',
+                                'enum' => ['flow', 'ai_tool'],
+                                'default' => 'flow',
+                            ],
                         ],
                     ],
                 ],

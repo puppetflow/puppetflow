@@ -893,6 +893,13 @@ class LibraryCatalogService
     private function withBlueprintCode(LibraryBlueprint $blueprint): LibraryBlueprint
     {
         $flows = array_map(function (LibraryFlowItem $item): LibraryFlowItem {
+            if ($item->flowType === 'nodal' && $item->nodalGraph !== null && trim($item->code ?? '') === '') {
+                return $item->withCode(
+                    $this->nodalCompiler->compile($item->nodalGraph),
+                    $item->nodalGraph,
+                );
+            }
+
             if ($item->code !== null) {
                 if ($item->inputDefinitions === [] && $item->flowType === 'code') {
                     $metadata = $this->metadataFromCode($item->code);
@@ -922,6 +929,17 @@ class LibraryCatalogService
             return $item->withCode($nodalSource['code'], $nodalSource['graph'], $defaultInputs, $inputDefinitions);
         }, $blueprint->flows);
         $snippets = array_map(function (LibrarySnippetItem $item): LibrarySnippetItem {
+            if ($item->snippetType === 'nodal' && $item->nodalGraph !== null && trim($item->code ?? '') === '') {
+                return $item->withCode(
+                    $this->nodalCompiler->compile(
+                        $item->nodalGraph,
+                        'function',
+                        $this->snippetArguments->validate($item->args),
+                    ),
+                    $item->nodalGraph,
+                );
+            }
+
             if ($item->code !== null) {
                 return $item;
             }

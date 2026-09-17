@@ -18,6 +18,7 @@ import {
     createEffectiveAutocompleteContext,
     createExpressionOutputData,
     createStaticNodeAfterData,
+    expandNodalPreview,
     mergeOutputContextPreview,
     nodeStateLabel,
     resolveSniffCallbackValue,
@@ -80,7 +81,8 @@ const normalizeExecutions = (
 
         return {
             value,
-            ordinal: status.dropped + index + 1,
+            // The runtime keeps the first executions, so retained snapshots are always a prefix.
+            ordinal: index + 1,
             ...status,
             ...detail,
             loopIndex: executionLoopIndex(value),
@@ -121,7 +123,8 @@ export default function useNodeConfigModal({
     const catalogEntry = node.system ? node.entry : getEntryByName(node.entry.name);
     const entry = !node.system && catalogEntry.category === 'Custom' ? node.entry : catalogEntry;
     const args = getSignatureArgs(entry.signature);
-    const nodalPreviewData = asRecord(latestRun?.internal_meta?.nodal_preview);
+    const rawNodalPreview = latestRun?.internal_meta?.nodal_preview;
+    const nodalPreviewData = useMemo(() => expandNodalPreview(rawNodalPreview), [rawNodalPreview]);
     const nodalPreviewNodes = asRecord(nodalPreviewData?.nodes);
     const nodalPreviewExecutions = asRecord(nodalPreviewData?.executions);
     const nodalPreviewExecutionMeta = asRecord(nodalPreviewData?.executionMeta);
@@ -214,13 +217,11 @@ export default function useNodeConfigModal({
             : callbackValue ?? (hasRuntimeValue ? runtimeValue : staticValue);
         const visible = (state: unknown) => (exposesLoopContext ? state : withoutLoopContext(state));
         const executionIndex = executions.length > 1
-            ? Math.min(
-                Math.max(0, beforeExecutionIndexBySourceId[sourceNode.id] ?? executions.length - 1),
-                executions.length - 1,
-            )
+            ? Math.min(Math.max(0, beforeExecutionIndexBySourceId[sourceNode.id] ?? 0), executions.length - 1)
             : 0;
         const value = visible(executions[executionIndex]?.value ?? fallbackValue);
-        const latestValue = visible(executions.at(-1)?.value ?? fallbackValue);
+        // Retained executions are the first ones; the node snapshot holds the final state.
+        const latestValue = visible(fallbackValue);
 
         return {
             id: sourceNode.id,
@@ -278,10 +279,7 @@ export default function useNodeConfigModal({
         currentNodeExecutionStatus,
     );
     const selectedAfterExecutionIndex = currentNodeExecutions.length > 1
-        ? Math.min(
-            Math.max(0, afterExecutionIndex ?? currentNodeExecutions.length - 1),
-            currentNodeExecutions.length - 1,
-        )
+        ? Math.min(Math.max(0, afterExecutionIndex ?? 0), currentNodeExecutions.length - 1)
         : 0;
     const selectBeforeExecution = (index: number) => {
         if (!selectedPreviewSource) return;

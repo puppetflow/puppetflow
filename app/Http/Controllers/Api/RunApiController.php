@@ -18,6 +18,7 @@ use App\Models\Flow;
 use App\Models\FlowRun;
 use App\Models\User;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Flow\Query\FlowRunProjection;
 use App\Services\Runtime\RunnerSignalService;
 use App\Services\Storage\ArtifactResponseFactory;
 use App\Services\Storage\RunArtifactQueryService;
@@ -47,6 +48,7 @@ class RunApiController extends Controller
         }
         /** @var Flow $flow */
         $query = FlowRun::where('flow_id', $flow->id)
+            ->select(FlowRunProjection::RUN_COLUMNS)
             ->with(['triggeredBy:id,name', 'trigger:id'])
             ->latest();
         /** @var User $user */
@@ -204,6 +206,21 @@ class RunApiController extends Controller
         if ($response === null) {
             abort(404);
         }
+
+        return $response;
+    }
+
+    public function sniffBody(Request $request, string $id, FlowRun $run, string $captureId): Response
+    {
+        [$flow, $error] = $this->authorizeFlow($request, $id);
+        if ($error) {
+            return $error;
+        }
+        /** @var Flow $flow */
+        $this->authorizeRun($request, $flow, $run);
+
+        $response = $this->artifactResponses->makeSniffBody($run, $captureId);
+        abort_if($response === null, 404);
 
         return $response;
     }

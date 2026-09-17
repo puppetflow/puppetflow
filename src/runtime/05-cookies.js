@@ -1,35 +1,36 @@
 /* @help Cookies
- * @sig $saveCookies(jarName?, options?)
+ * @sig $saveCookies(profile?, options?)
  * @aliases save browser session, persist login, store cookies
  * @desc Save browser cookies and localStorage by origin. Default jar name: "Default".
  * @nodal-desc Save cookies and localStorage for reuse in later runs.
  * @nodal-output void
  * @opt persistLocalStorage: true
- * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "Default".
+ * @nodal-param profile [cookie-profile]: Browser storage profile to save. Use a simple label like "main" or leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Save localStorage with cookies. Enabled by default.
  */
-const __resolveCookieJarName = function(jarName) {
-  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'Default';
+const __resolveCookieProfileName = function(profile) {
+  return typeof profile === 'string' && profile.trim() ? profile.trim() : 'Default';
 };
-const __resolveCookieHelperArguments = function(jarName, options) {
-  if (jarName && typeof jarName === 'object' && !Array.isArray(jarName)) {
-    options = jarName;
-    jarName = undefined;
+const __defaultCookieProfileName = 'Default';
+const __resolveCookieHelperArguments = function(profile, options) {
+  if (profile && typeof profile === 'object' && !Array.isArray(profile)) {
+    options = profile;
+    profile = undefined;
   }
   const resolvedOptions = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
   return {
-    jarName: __resolveCookieJarName(jarName),
+    profile: __resolveCookieProfileName(profile),
     persistLocalStorage: resolvedOptions.persistLocalStorage !== false,
   };
 };
-let __activeBrowserStorageJarName = null;
+let __activeBrowserStorageProfile = null;
 let __activeBrowserStoragePersistLocalStorage = true;
 let __localStorageByOrigin = {};
 const __localStorageRestoreScriptByPage = new WeakMap();
 
-const __cookieJarPath = function(jarName, helperName) {
-  return __resolveArtifactPath(paths.cookies, __resolveCookieJarName(jarName) + '.json', helperName + ' path');
+const __cookieProfilePath = function(profile, helperName) {
+  return __resolveArtifactPath(paths.cookies, __resolveCookieProfileName(profile) + '.json', helperName + ' path');
 };
 
 const __normalizeLocalStorageByOrigin = function(value) {
@@ -41,13 +42,13 @@ const __normalizeLocalStorageByOrigin = function(value) {
   }));
 };
 
-const __readCookieJar = async function(jarName, helperName) {
+const __readCookieProfile = async function(profile, helperName) {
   let content;
   try {
-    content = await fs.promises.readFile(__cookieJarPath(jarName, helperName), 'utf8');
+    content = await fs.promises.readFile(__cookieProfilePath(profile, helperName), 'utf8');
   } catch (error) {
-    if (jarName !== 'Default' || !error || error.code !== 'ENOENT') throw error;
-    content = await fs.promises.readFile(__cookieJarPath('default', helperName), 'utf8');
+    if (profile !== 'Default' || !error || error.code !== 'ENOENT') throw error;
+    content = await fs.promises.readFile(__cookieProfilePath('default', helperName), 'utf8');
   }
   const raw = JSON.parse(content);
   if (Array.isArray(raw)) {
@@ -85,7 +86,7 @@ const __capturePageLocalStorage = async function(page) {
 };
 
 const __installLocalStorageRestore = async function(page) {
-  if (!page || !__activeBrowserStorageJarName) return;
+  if (!page || !__activeBrowserStorageProfile) return;
   const previous = __localStorageRestoreScriptByPage.get(page);
   if (previous) {
     await page.removeScriptToEvaluateOnNewDocument(previous).catch(() => {});
@@ -107,12 +108,13 @@ const __installLocalStorageRestore = async function(page) {
 };
 
 const __captureBrowserStorage = async function(
-  jarName = __activeBrowserStorageJarName,
+  profile = __activeBrowserStorageProfile,
   persistLocalStorage = __activeBrowserStoragePersistLocalStorage,
 ) {
-  if (!jarName) return false;
-  const resolvedJarName = __resolveCookieJarName(jarName);
-  if (persistLocalStorage) {
+  if (!profile) return false;
+  const resolvedProfile = __resolveCookieProfileName(profile);
+  const captureDefaultShadow = resolvedProfile !== __defaultCookieProfileName;
+  if (persistLocalStorage || captureDefaultShadow) {
     for (const page of await $browser.pages()) {
       const captured = await __capturePageLocalStorage(page);
       if (captured && typeof captured.origin === 'string') {
@@ -121,67 +123,138 @@ const __captureBrowserStorage = async function(
     }
   }
   const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  fs.writeFileSync(__cookieJarPath(resolvedJarName, '$saveCookies'), JSON.stringify({
+  const browserStorage = JSON.stringify({
     version: 1,
     cookies,
     localStorage: persistLocalStorage ? __localStorageByOrigin : {},
-  }, null, 2), { mode: 0o600 });
+  }, null, 2);
+  fs.writeFileSync(__cookieProfilePath(resolvedProfile, '$saveCookies'), browserStorage, { mode: 0o600 });
+  if (captureDefaultShadow) {
+    fs.writeFileSync(__cookieProfilePath(__defaultCookieProfileName, '$saveCookies'), JSON.stringify({
+      version: 1,
+      cookies,
+      localStorage: __localStorageByOrigin,
+    }, null, 2), { mode: 0o600 });
+  }
   return true;
 };
 
-const __internalSaveCookies = async function(jarName) {
-  const resolvedJarName = __resolveCookieJarName(jarName);
-  const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  fs.writeFileSync(__cookieJarPath(resolvedJarName, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
+const __captureDefaultBrowserStorage = async function() {
+  return __captureBrowserStorage(__defaultCookieProfileName, true);
 };
-const $saveCookies = async function(jarName, options) {
-  const resolved = __resolveCookieHelperArguments(jarName, options);
-  __activeBrowserStorageJarName = resolved.jarName;
+const __shadowSaveDefaultBrowserStorage = async function() {
+  try {
+    return await __captureDefaultBrowserStorage();
+  } catch (error) {
+    console.error(
+      'Cannot shadow-save the Default browser storage profile:',
+      error && error.message ? error.message : error,
+    );
+    return false;
+  }
+};
+
+const __internalSaveCookies = async function(profile) {
+  const resolvedProfile = __resolveCookieProfileName(profile);
+  const cookies = (await $client.send('Network.getAllCookies')).cookies;
+  fs.writeFileSync(__cookieProfilePath(resolvedProfile, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
+};
+const $saveCookies = async function(profile, options) {
+  const resolved = __resolveCookieHelperArguments(profile, options);
+  __activeBrowserStorageProfile = resolved.profile;
   __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
   if (!resolved.persistLocalStorage) __localStorageByOrigin = {};
-  __emitAction('cookies', resolved.jarName);
-  console.debug('Saving browser storage to:', resolved.jarName);
-  await __captureBrowserStorage(resolved.jarName, resolved.persistLocalStorage);
+  __emitAction('cookies', resolved.profile);
+  console.debug('Saving browser storage to:', resolved.profile);
+  await __captureBrowserStorage(resolved.profile, resolved.persistLocalStorage);
 };
 
 /* @help Cookies
- * @sig $loadCookies(jarName?, options?)
+ * @sig $loadCookies(profile?, options?)
  * @aliases restore browser session, restore login, reuse cookies
  * @desc Load cookies and restore localStorage before page scripts run. Returns false on error, true on success.
  * @nodal-desc Restore previously saved cookies and localStorage.
  * @nodal-output boolean
  * @opt persistLocalStorage: true
- * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to load. Leave empty for "Default".
+ * @nodal-param profile [cookie-profile]: Browser storage profile to load. Leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Restore and continue persisting localStorage. Enabled by default.
  */
-const __internalLoadCookies = async function(jarName) {
-  const resolvedJarName = __resolveCookieJarName(jarName);
+const __internalLoadCookies = async function(profile) {
+  const resolvedProfile = __resolveCookieProfileName(profile);
   try {
-    const jar = await __readCookieJar(resolvedJarName, '$loadCookies');
-    await __restoreCookies(jar.cookies);
-    return jar;
+    const storedProfile = await __readCookieProfile(resolvedProfile, '$loadCookies');
+    await __restoreCookies(storedProfile.cookies);
+    return storedProfile;
   } catch {
     return false;
   }
 };
-const $loadCookies = async function(jarName, options) {
-  const resolved = __resolveCookieHelperArguments(jarName, options);
-  __activeBrowserStorageJarName = resolved.jarName;
+const $loadCookies = async function(profile, options) {
+  const resolved = __resolveCookieHelperArguments(profile, options);
+  __activeBrowserStorageProfile = resolved.profile;
   __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
-  __emitAction('cookies', resolved.jarName);
-  console.debug('Loading browser storage from store:', resolved.jarName);
+  __emitAction('cookies', resolved.profile);
+  console.debug('Loading browser storage from store:', resolved.profile);
   __localStorageByOrigin = {};
-  const jar = await __internalLoadCookies(resolved.jarName);
-  if (!jar) {
-    console.error('Cannot load browser storage from store:', resolved.jarName);
+  const storedProfile = await __internalLoadCookies(resolved.profile);
+  if (!storedProfile) {
+    console.error('Cannot load browser storage from store:', resolved.profile);
   } else {
-    __localStorageByOrigin = resolved.persistLocalStorage ? jar.localStorage : {};
-    console.debug('Successfully loaded browser storage from store:', resolved.jarName);
+    __localStorageByOrigin = resolved.persistLocalStorage ? storedProfile.localStorage : {};
+    console.debug('Successfully loaded browser storage from store:', resolved.profile);
   }
   for (const page of await $browser.pages()) {
     await __installLocalStorageRestore(page);
   }
-  return Boolean(jar);
+  return Boolean(storedProfile);
+};
+
+const __initializeDefaultBrowserStorage = async function() {
+  __activeBrowserStorageProfile = __defaultCookieProfileName;
+  __activeBrowserStoragePersistLocalStorage = true;
+  __localStorageByOrigin = {};
+  const storedProfile = await __internalLoadCookies(__defaultCookieProfileName);
+  if (storedProfile) __localStorageByOrigin = storedProfile.localStorage;
+  for (const page of await $browser.pages()) {
+    await __installLocalStorageRestore(page);
+  }
+  return Boolean(storedProfile);
+};
+
+/* @help Cookies
+ * @sig $clearCookies(profile?)
+ * @aliases clear browser session, delete cookies, reset cookies
+ * @desc Delete the selected stored profile. Also clear current browser cookies and storage when clearing Default or the active profile.
+ * @nodal-desc Delete a saved cookie profile and clear it from the current browser when active.
+ * @nodal-output void
+ * @nodal-param profile [cookie-profile]: Saved browser storage profile to delete. Leave empty for "Default".
+ */
+const $clearCookies = async function(profile) {
+  const resolvedProfile = __resolveCookieProfileName(profile);
+  const clearsCurrentBrowserStorage = resolvedProfile === __defaultCookieProfileName
+    || resolvedProfile === __activeBrowserStorageProfile;
+  __emitAction('cookies', resolvedProfile);
+  console.debug('Clearing browser storage profile:', resolvedProfile);
+
+  await fs.promises.unlink(__cookieProfilePath(resolvedProfile, '$clearCookies')).catch(error => {
+    if (!error || error.code !== 'ENOENT') throw error;
+  });
+  if (!clearsCurrentBrowserStorage) return;
+
+  await $client.send('Network.clearBrowserCookies');
+  for (const page of await $browser.pages()) {
+    await page.evaluate(() => {
+      try { window.localStorage.clear(); } catch (_) {}
+      try { window.sessionStorage.clear(); } catch (_) {}
+    }).catch(() => {});
+  }
+  __localStorageByOrigin = {};
+  __activeBrowserStorageProfile = __defaultCookieProfileName;
+  __activeBrowserStoragePersistLocalStorage = true;
+  for (const page of await $browser.pages()) {
+    await __installLocalStorageRestore(page);
+  }
+  await __captureDefaultBrowserStorage();
 };
 

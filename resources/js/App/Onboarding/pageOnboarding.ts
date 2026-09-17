@@ -97,6 +97,15 @@ const PAGE_ONBOARDING: PageOnboardingCopy[] = [
         matches: exact('/data-tables'),
     },
     {
+        key: 'media-library',
+        version: 2,
+        title: 'Organize files for your automations',
+        description: 'The Media Library stores reusable images, videos, documents, and other files for your flows.',
+        highlights: ['Upload and organize files in personal, workspace, or team folders', 'Reuse existing tags or add custom tags to classify files', 'Select media in flow inputs or pass a media ID to $upload'],
+        nextStep: 'Upload a file, then select it from a flow input or an Upload node.',
+        matches: exact('/media-library'),
+    },
+    {
         key: 'integrations',
         version: 1,
         title: 'Connect external services',
@@ -182,6 +191,7 @@ const MARKETING_LINES: Record<string, string> = {
     mailboxes: 'Turn every incoming email into a trigger your automations can act on.',
     snippets: 'Write useful logic once, then reuse it everywhere.',
     'data-tables': 'Give every automation a reliable place to read and write structured data.',
+    'media-library': 'Keep every file your automations need organized and ready to use.',
     integrations: 'Connect the services your automations need to do real work.',
     'ai-models': 'Give your automations the intelligence to understand, decide, and act.',
     'workspace.settings': 'Shape a workspace that works exactly the way your team does.',
@@ -241,6 +251,12 @@ const PRESENTATIONS: Record<string, OnboardingPresentation> = {
         mediaIcons: ['lucide:table', 'lucide:panel-top'],
         layout: 'cards',
         accent: 'lime',
+    },
+    'media-library': {
+        icon: 'lucide:images',
+        mediaIcons: ['lucide:upload-cloud', 'lucide:folder-tree'],
+        layout: 'cards',
+        accent: 'cyan',
     },
     integrations: {
         icon: 'lucide:plug-zap',

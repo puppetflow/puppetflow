@@ -83,12 +83,13 @@ export type RawNodeParameterValue = string | NodeParameterValue;
 
 export type NodePortSide = 'input' | 'output';
 export type NodePortKind = string;
+export type NodalConnectionType = 'flow' | 'ai_tool';
 
 export type Point = { x: number; y: number };
 
 export interface NodalGraph {
     nodes: { id: string; name: string; kind?: 'stickyNote'; deactivated?: boolean; label?: string; x: number; y: number; values?: Record<string, RawNodeParameterValue>; system?: NodalSystemNode; callArguments?: string[]; scopeId?: string; localFunctionId?: string; stickyNote?: StickyNoteData }[];
-    edges: { id: string; sourceNodeId: string; targetNodeId: string; sourcePort?: string; targetPort?: string }[];
+    edges: { id: string; sourceNodeId: string; targetNodeId: string; sourcePort?: string; targetPort?: string; connectionType?: NodalConnectionType }[];
 }
 
 export interface CanvasEdge {
@@ -97,12 +98,14 @@ export interface CanvasEdge {
     targetNodeId: string;
     sourcePort?: string;
     targetPort?: string;
+    connectionType?: NodalConnectionType;
 }
 
 export interface PendingConnectionTarget {
     fromNodeId: string;
     fromPort: NodePortKind;
     fromSide: NodePortSide;
+    connectionType: NodalConnectionType;
     x: number;
     y: number;
 }
@@ -122,6 +125,7 @@ export interface ConnectionDragState {
     fromNodeId: string;
     fromPort: NodePortKind;
     fromSide: NodePortSide;
+    connectionType: NodalConnectionType;
     startX: number;
     startY: number;
     currentX: number;

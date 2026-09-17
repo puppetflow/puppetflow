@@ -45,6 +45,12 @@ export const FieldHelp = styled.p`
     color: ${({ theme }) => theme.colors.text.secondary};
 `;
 
+export const CredentialField = styled.div`
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+`;
+
 export const PickerLabel = styled.div`
     display: flex;
     align-items: center;

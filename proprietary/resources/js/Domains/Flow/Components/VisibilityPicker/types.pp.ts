@@ -1,4 +1,4 @@
-import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
+import type { ExplorerFolderTree as FolderTree, ExplorerTeamTree as TeamTree } from '@/Shared/Explorer/types';
 
 export type Visibility = 'owner' | 'workspace' | 'team';
 export type FolderTarget = Visibility | null;
@@ -22,4 +22,8 @@ export interface VisibilityPickerProps {
     ownerChanged?: boolean;
     disabled?: boolean;
     disabledHint?: string;
+    /** Folder resource endpoint used for inline folder creation (defaults to flow folders). */
+    folderEndpoint?: string;
+    /** Resource noun used in the option descriptions (defaults to "flow"). */
+    resourceLabel?: string;
 }

@@ -23,6 +23,20 @@ class WorkspaceTeam extends Model
 
     protected $fillable = ['workspace_id', 'name'];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (WorkspaceTeam $team): void {
+            MediaAsset::query()->where('team_id', $team->id)->update([
+                'team_id' => null,
+                'folder_id' => null,
+                'visibility' => 'owner',
+            ]);
+            MediaFolder::query()->where('team_id', $team->id)->whereNull('parent_id')->each(
+                fn (MediaFolder $folder) => $folder->delete(),
+            );
+        });
+    }
+
     /** @return BelongsTo<Workspace, $this> */
     public function workspace(): BelongsTo
     {

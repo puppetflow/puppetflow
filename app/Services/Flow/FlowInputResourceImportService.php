@@ -15,6 +15,7 @@ final class FlowInputResourceImportService
         'mailboxWatchers' => 'mailbox_watchers',
         'aiModels' => 'ai_models',
         'dataTables' => 'data_tables',
+        'mediaAssets' => 'media_assets',
     ];
 
     public function __construct(
@@ -54,7 +55,8 @@ final class FlowInputResourceImportService
         $availableIds = collect($projected)->map(
             fn (array $resources) => collect($resources)
                 ->pluck('id')
-                ->map(fn (mixed $id): string => (string) $id)
+                ->filter(fn (mixed $id): bool => is_string($id) || is_int($id))
+                ->map(fn (string|int $id): string => (string) $id)
                 ->flip(),
         );
 
@@ -64,7 +66,10 @@ final class FlowInputResourceImportService
         );
     }
 
-    /** @param array<string, list<string>> $idsByKind */
+    /**
+     * @param  array<array-key, mixed>  $values
+     * @param  array<string, list<string>>  $idsByKind
+     */
     private function collectReferences(array $values, array &$idsByKind): void
     {
         foreach ($values as $value) {
@@ -77,7 +82,7 @@ final class FlowInputResourceImportService
         }
     }
 
-    /** @param Collection<string, Collection<string, int>> $availableIds */
+    /** @param Collection<string, Collection<string, int|string>> $availableIds */
     private function clearUnavailableValue(mixed $value, Collection $availableIds): mixed
     {
         $reference = $this->reference($value);
@@ -97,7 +102,7 @@ final class FlowInputResourceImportService
     {
         if (
             ! is_string($value)
-            || preg_match('/^\$\{(channels|mailboxWatchers|aiModels|dataTables)\.([a-zA-Z0-9_.-]+)\}$/', $value, $matches) !== 1
+            || preg_match('/^\$\{(channels|mailboxWatchers|aiModels|dataTables|mediaAssets)\.([a-zA-Z0-9_.-]+)\}$/', $value, $matches) !== 1
         ) {
             return null;
         }

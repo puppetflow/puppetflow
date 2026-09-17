@@ -50,7 +50,6 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
     const [scope, setScope] = useState<IntegrationScope>('owner');
     const [teamId, setTeamId] = useState<Id | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
-    const [dragging, setDragging] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -65,7 +64,6 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
         setScope('owner');
         setTeamId(null);
         setFileName(null);
-        setDragging(false);
         setSubmitting(false);
         setSubmitError(null);
     });
@@ -153,10 +151,8 @@ export default function SnippetImportModal({ isOpen, onClose, groups, teams, onI
                         <S.FormScroller>
                             <SourceInput
                                 fileName={fileName}
-                                dragging={dragging}
                                 hasError={!!submitError && !fileName}
                                 onFile={readFile}
-                                onDraggingChange={setDragging}
                             />
 
                             {fileName && (

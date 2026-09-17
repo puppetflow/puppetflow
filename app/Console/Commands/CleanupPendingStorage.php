@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\DeleteStoredFiles;
 use App\Models\StorageDeletion;
+use App\Services\Media\DirectMediaUploadService;
 use Illuminate\Console\Command;
 
 class CleanupPendingStorage extends Command
@@ -16,6 +17,7 @@ class CleanupPendingStorage extends Command
     {
         $chunkOption = $this->option('chunk');
         $chunk = max(1, is_numeric($chunkOption) ? (int) $chunkOption : 100);
+        app(DirectMediaUploadService::class)->cleanupExpired($chunk);
         $rawIds = StorageDeletion::query()
             ->orderBy('attempts')
             ->orderBy('id')

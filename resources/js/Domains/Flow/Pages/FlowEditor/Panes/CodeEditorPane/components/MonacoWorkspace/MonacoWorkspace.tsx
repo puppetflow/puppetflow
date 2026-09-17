@@ -185,6 +185,7 @@ export const MonacoWorkspace = forwardRef<MonacoWorkspaceHandle, MonacoWorkspace
             <S.CodePane $readOnly={readOnly}>
                 <CodeEditor
                     gizmos
+                    resourceGizmos
                     onGizmoClick={handleCodeGizmoClick}
                     height="100%"
                     language="javascript"

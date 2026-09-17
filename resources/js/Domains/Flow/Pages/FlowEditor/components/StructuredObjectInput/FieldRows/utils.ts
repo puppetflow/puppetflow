@@ -24,6 +24,7 @@ const TYPE_LABELS: Record<Exclude<FieldValueType, 'variable'>, string> = {
     'mailbox-watcher': 'Mailbox Watcher',
     'ai-model': 'AI Model',
     datatable: 'Data Table',
+    media: 'Media',
 };
 
 export function fieldTypeOptions(
@@ -38,7 +39,7 @@ export function fieldTypeOptions(
             'number',
             'boolean',
             'variable',
-            ...(allowResources ? ['channel', 'mailbox-watcher', 'ai-model', 'datatable'] as const : []),
+            ...(allowResources ? ['channel', 'mailbox-watcher', 'ai-model', 'datatable', 'media'] as const : []),
             ...(allowCollections ? ['object', 'array'] as const : []),
             'null',
         ];

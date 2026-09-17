@@ -6,6 +6,7 @@ use App\DTO\Workspace\WorkspaceMutationData;
 use App\Models\DataTable;
 use App\Models\Flow;
 use App\Models\Folder;
+use App\Models\McpCredential;
 use App\Models\NotificationChannel;
 use App\Models\UserVariable;
 use App\Models\Workspace;
@@ -123,6 +124,7 @@ class EnsureWorkspaceAccess
                     || $parameter instanceof Folder
                     || $parameter instanceof UserVariable
                     || $parameter instanceof NotificationChannel
+                    || $parameter instanceof McpCredential
                 )
             ) {
                 abort_unless($this->stringValue($parameter->getAttribute('workspace_id')) === $workspaceId, 404);

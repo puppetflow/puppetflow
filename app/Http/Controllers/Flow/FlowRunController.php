@@ -22,6 +22,7 @@ use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\ArtifactCleanupService;
 use App\Services\Flow\FlowRunnerService;
 use App\Services\Flow\FlowRunTerminalizer;
+use App\Services\Flow\Query\FlowRunProjection;
 use App\Services\Flow\Query\FlowTreeBuilder;
 use App\Services\Runtime\RunnerSignalService;
 use App\Services\Storage\ArtifactResponseFactory;
@@ -32,6 +33,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class FlowRunController extends Controller
 {
@@ -112,6 +114,7 @@ class FlowRunController extends Controller
         $this->authorizeFlowAccess($flow, Ability::VIEW);
 
         $runsQuery = FlowRun::query()
+            ->select(FlowRunProjection::RUN_COLUMNS)
             ->where('flow_id', $flow->id)
             ->with(['triggeredBy:id,name', 'trigger:id,type,label'])
             ->latest();
@@ -132,21 +135,22 @@ class FlowRunController extends Controller
         return response()->json($paginated);
     }
 
-    public function show(Request $request, Flow $flow, FlowRun $run): JsonResponse
+    public function show(Request $request, Flow $flow, string $run): JsonResponse
     {
         $this->authorizeFlowAccess($flow, Ability::VIEW);
+        $includeNodalPreview = $request->boolean('include_nodal_preview');
+        $columns = $includeNodalPreview
+            ? [...FlowRunProjection::RUN_COLUMNS, 'internal_meta']
+            : FlowRunProjection::RUN_COLUMNS;
+        $run = FlowRun::query()->select($columns)->findOrFail($run);
         $this->authorizeRunAccess($flow, $run);
 
-        $includeNodalPreview = $request->boolean('include_nodal_preview');
-        if (! $includeNodalPreview) {
-            $run->setAttribute('internal_meta', null);
-        }
         $run->load(['triggeredBy:id,name', 'trigger:id,type,label']);
         $run->setAttribute(
             'has_recording',
             $this->features->enabled('recording_enabled') && $run->recordingExists(),
         );
-        $run->redactSecretsForClient()
+        $run->redactSecretsForClient($includeNodalPreview)
             ->makeVisible([
                 'console_logs',
                 'action_logs',
@@ -184,6 +188,17 @@ class FlowRunController extends Controller
         if ($response === null) {
             abort(404);
         }
+
+        return $response;
+    }
+
+    public function sniffBody(Flow $flow, FlowRun $run, string $captureId): SymfonyResponse
+    {
+        $this->authorizeFlowAccess($flow, Ability::VIEW);
+        $this->authorizeRunAccess($flow, $run);
+
+        $response = $this->artifactResponses->makeSniffBody($run, $captureId);
+        abort_if($response === null, 404);
 
         return $response;
     }
@@ -301,6 +316,7 @@ class FlowRunController extends Controller
 
         /** @var \Illuminate\Database\Eloquent\Collection<int, FlowRun> $runs */
         $runs = $flow->runs()
+            ->select(['id', 'flow_id', 'status'])
             ->whereIn('id', $validated['ids'])
             ->get();
 

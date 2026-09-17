@@ -27,7 +27,7 @@ services:
     container_name: puppetflow-app
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8044:8000"
     volumes:
       - .:/app
       - /app/vendor

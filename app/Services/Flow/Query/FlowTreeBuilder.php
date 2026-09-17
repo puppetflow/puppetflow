@@ -4,14 +4,14 @@ namespace App\Services\Flow\Query;
 
 use App\Authorization\AuthorizationContext;
 use App\Authorization\AuthorizationContextFactory;
-use App\Authorization\ScopeEvaluator;
 use App\Authorization\Visibility\FlowVisibility;
 use App\Authorization\Visibility\FolderVisibility;
 use App\Models\Flow;
 use App\Models\Folder;
 use App\Models\User;
 use App\Models\WorkspaceTeam;
-use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Explorer\ExplorerAccess;
+use App\Services\Explorer\FolderTreeAssembler;
 use Illuminate\Support\Collection;
 
 final class FlowTreeBuilder
@@ -23,9 +23,9 @@ final class FlowTreeBuilder
     ];
 
     public function __construct(
-        private readonly FeatureFlagService $features,
         private readonly AuthorizationContextFactory $contexts,
-        private readonly ScopeEvaluator $scopes,
+        private readonly ExplorerAccess $access,
+        private readonly FolderTreeAssembler $assembler,
         private readonly FlowVisibility $flowVisibility,
         private readonly FolderVisibility $folderVisibility,
     ) {}
@@ -37,11 +37,7 @@ final class FlowTreeBuilder
      */
     public function visibleTeamIds(AuthorizationContext $context, string $workspaceId): array
     {
-        $teamIds = $this->scopes->isAdministrator($context)
-            ? WorkspaceTeam::where('workspace_id', $workspaceId)->pluck('id')->all()
-            : $context->teamIds;
-
-        return array_values(array_filter($teamIds, static fn (mixed $id): bool => is_string($id)));
+        return $this->access->visibleTeamIds($context, $workspaceId);
     }
 
     /** @return list<array<string, mixed>> */
@@ -110,7 +106,7 @@ final class FlowTreeBuilder
                 'id' => $owner->id,
                 'name' => $owner->name,
                 'tree' => $this->tree($ownerFolders, $folderFlows, 'folder_id'),
-                'rootFlows' => array_values($rootFlows->map(fn (Flow $flow) => $this->flow($flow))->all()),
+                'rootItems' => array_values($rootFlows->map(fn (Flow $flow) => $this->flow($flow))->all()),
             ];
         })->all());
     }
@@ -188,7 +184,7 @@ final class FlowTreeBuilder
                 'name' => $team->name,
                 'root_folder_id' => $root?->id,
                 'tree' => $root ? $this->tree($teamFolders, $teamFlows, 'workspace_folder_id', false, $root->id) : [],
-                'rootFlows' => $rootFlows->map(fn (Flow $flow) => $this->flow($flow))->all(),
+                'rootItems' => $rootFlows->map(fn (Flow $flow) => $this->flow($flow))->all(),
             ];
         }
 
@@ -198,15 +194,7 @@ final class FlowTreeBuilder
     /** @return list<string> */
     public function ownerFallbackVisibilities(): array
     {
-        $visibilities = ['owner'];
-        if (! $this->features->workspaceSharingEnabled()) {
-            $visibilities[] = 'workspace';
-        }
-        if (! $this->features->teamsEnabled()) {
-            $visibilities[] = 'team';
-        }
-
-        return $visibilities;
+        return $this->access->ownerFallbackVisibilities();
     }
 
     /**
@@ -221,35 +209,16 @@ final class FlowTreeBuilder
         bool $includeOwner = false,
         ?string $startParent = null,
     ): array {
-        $grouped = [];
-        foreach ($flows as $flow) {
-            $grouped[$flow->{$folderKey}][] = $this->flow($flow);
-        }
-        $build = function (?string $parentId) use ($folders, $grouped, $includeOwner, &$build): array {
-            $children = $parentId === null
-                ? $folders->whereNull('parent_id')
-                : $folders->where('parent_id', $parentId);
+        $grouped = $this->assembler->groupItems($flows, $folderKey, fn (Flow $flow): array => $this->flow($flow));
 
-            return $children->values()->map(function (Folder $folder) use ($grouped, $includeOwner, &$build) {
-                $node = [
-                    'id' => $folder->id,
-                    'name' => $folder->name,
-                    'parent_id' => $folder->parent_id,
-                    'children' => $build($folder->id),
-                    'flows' => $grouped[$folder->id] ?? [],
-                ];
-                if ($includeOwner) {
-                    $node['owner_name'] = $folder->owner?->name;
-                }
-                if ($folder->team_id !== null) {
-                    $node['team_id'] = $folder->team_id;
-                }
-
-                return $node;
-            })->all();
-        };
-
-        return array_values($build($startParent));
+        return $this->assembler->build(
+            $folders,
+            $grouped,
+            $startParent,
+            $includeOwner
+                ? fn (Folder $folder): array => ['owner_name' => $folder->owner?->name]
+                : null,
+        );
     }
 
     /** @return array<string, mixed> */

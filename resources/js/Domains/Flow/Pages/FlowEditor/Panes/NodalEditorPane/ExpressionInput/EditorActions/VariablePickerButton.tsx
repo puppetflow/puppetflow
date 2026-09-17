@@ -13,6 +13,7 @@ import {
     useNodeValidationResourceRevision,
     useRefreshNodeValidationResources,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/NodeValidationContext';
+import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 import { dropdownStyle } from '../utils';
 import * as S from './styled';
 
@@ -27,6 +28,7 @@ export default function VariablePickerButton({
     onBeforeOpen,
     onSelect,
 }: VariablePickerButtonProps) {
+    const quickRequirementCreation = useQuickRequirementCreation();
     const triggerRef = useRef<HTMLButtonElement | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const searchRef = useRef<HTMLInputElement | null>(null);
@@ -59,7 +61,7 @@ export default function VariablePickerButton({
         let cancelled = false;
         setLoading(true);
         setLoadFailed(false);
-        fetchVariableSuggestions(resourceRevision > 0)
+        fetchVariableSuggestions(true)
             .then(variables => {
                 if (!cancelled) setSuggestions(variables);
             })
@@ -212,14 +214,34 @@ export default function VariablePickerButton({
                         ) : filteredSuggestions.length === 0 ? (
                             <S.VariableStatus>No variable found.</S.VariableStatus>
                         ) : filteredSuggestions.map(variable => (
-                            <S.VariableItem
+                            <S.VariableItemRow
                                 key={variable.id}
-                                type="button"
-                                onClick={() => selectVariable(String(variable.id))}
+                                $editable={Boolean(variable.can_manage)}
                             >
-                                <strong>{variable.key}</strong>
-                                <span>{variable.type}</span>
-                            </S.VariableItem>
+                                <S.VariableItem
+                                    type="button"
+                                    onClick={() => selectVariable(String(variable.id))}
+                                >
+                                    <strong>{variable.key}</strong>
+                                    <S.VariableItemDetail data-item-detail>
+                                        {variable.type}
+                                    </S.VariableItemDetail>
+                                </S.VariableItem>
+                                {variable.can_manage && (
+                                    <S.VariableItemEdit
+                                        type="button"
+                                        title={`Edit ${variable.key}`}
+                                        aria-label={`Edit ${variable.key}`}
+                                        onClick={() => {
+                                            close();
+                                            void quickRequirementCreation.edit('variable', variable.id)
+                                                .then(refresh);
+                                        }}
+                                    >
+                                        <Icon icon="lucide:pencil" width={13} height={13} />
+                                    </S.VariableItemEdit>
+                                )}
+                            </S.VariableItemRow>
                         ))}
                     </S.VariableList>
                 </S.VariableDropdown>,

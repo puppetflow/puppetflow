@@ -232,7 +232,7 @@ export const PROVIDERS: ProviderConfig[] = [
         fields: [
             { key: 'region', label: 'Region', placeholder: 'eu-west-3', type: 'text', required: true },
             { key: 'access_key_id', label: 'Access Key ID', placeholder: 'AKIA...', type: 'text', required: true },
-            { key: 'secret_access_key', label: 'Secret Access Key', placeholder: '••••••••••••••••', type: 'password', required: true },
+            { key: 'secret_access_key', label: 'Secret Access Key', placeholder: '****************', type: 'password', required: true },
             { key: 'session_token', label: 'Session Token (Optional)', placeholder: 'Session token', type: 'password' },
         ],
         docUrl: 'https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html',
@@ -250,7 +250,7 @@ export const PROVIDERS: ProviderConfig[] = [
             { key: 'vault_url', label: 'Vault URL', placeholder: 'https://my-vault.vault.azure.net', type: 'url', required: true },
             { key: 'tenant_id', label: 'Tenant ID', placeholder: '00000000-0000-0000-0000-000000000000', type: 'text', required: true },
             { key: 'client_id', label: 'Client ID', placeholder: '00000000-0000-0000-0000-000000000000', type: 'text', required: true },
-            { key: 'client_secret', label: 'Client Secret', placeholder: '••••••••••••••••', type: 'password', required: true },
+            { key: 'client_secret', label: 'Client Secret', placeholder: '****************', type: 'password', required: true },
         ],
         docUrl: 'https://learn.microsoft.com/en-us/azure/key-vault/secrets/',
         docLabel: 'Azure Key Vault Secrets documentation',

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { useSearchablePopover } from '@/Shared/Hooks/useSearchablePopover';
 import { useUserPickerOptions, type PickerUser } from './hooks/useUserPickerOptions';
@@ -15,11 +16,14 @@ interface UserPickerProps {
     disabled?: boolean;
     clearable?: boolean;
     fetchUrl?: string;
+    portal?: boolean;
 }
 
-export default function UserPicker({ label, value, onChange, onSelect, placeholder = 'Select a user…', disabled, clearable = true, fetchUrl = '/workspace/users-search' }: UserPickerProps) {
+export default function UserPicker({ label, value, onChange, onSelect, placeholder = 'Select a user…', disabled, clearable = true, fetchUrl = '/workspace/users-search', portal = false }: UserPickerProps) {
     const [open, setOpen] = useState(false);
+    const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const {
         search,
@@ -36,13 +40,30 @@ export default function UserPicker({ label, value, onChange, onSelect, placehold
         onDismiss: () => setOpen(false),
         reset: () => setSearch(''),
         focusRef: searchRef,
-        containerRefs: [wrapperRef],
+        containerRefs: [wrapperRef, dropdownRef],
         eventType: 'mousedown',
     });
 
     useEffect(() => {
         if (disabled) setOpen(false);
     }, [disabled]);
+
+    useEffect(() => {
+        if (!open || !portal) return;
+
+        const updateDropdownRect = () => {
+            setDropdownRect(wrapperRef.current?.getBoundingClientRect() ?? null);
+        };
+
+        updateDropdownRect();
+        window.addEventListener('resize', updateDropdownRect);
+        window.addEventListener('scroll', updateDropdownRect, true);
+
+        return () => {
+            window.removeEventListener('resize', updateDropdownRect);
+            window.removeEventListener('scroll', updateDropdownRect, true);
+        };
+    }, [open, portal]);
 
     const handleSelect = (user: PickerUser) => {
         setSelectedUser(user);
@@ -59,6 +80,59 @@ export default function UserPicker({ label, value, onChange, onSelect, placehold
         onSelect?.(null);
     };
 
+    const dropdown = (
+        <S.Dropdown
+            ref={dropdownRef}
+            $portaled={portal}
+            style={portal ? {
+                top: (dropdownRect?.bottom ?? 0) + 4,
+                left: dropdownRect?.left ?? 0,
+                minWidth: dropdownRect?.width,
+            } : undefined}
+        >
+            <S.DropdownHeader>
+                <S.Search
+                    ref={searchRef}
+                    value={search}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                    placeholder="Search by name or email…"
+                />
+                <S.RefreshButton
+                    type="button"
+                    title="Refresh users"
+                    aria-label="Refresh users"
+                    disabled={loading}
+                    $loading={loading}
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={() => void refresh()}
+                >
+                    <Icon icon="lucide:refresh-cw" width={13} height={13} />
+                </S.RefreshButton>
+            </S.DropdownHeader>
+            {loading ? (
+                <S.Loader>
+                    <Icon icon="lucide:loader-circle" width={16} height={16} />
+                </S.Loader>
+            ) : (
+                <S.List>
+                    {users.length === 0 ? (
+                        <S.Empty>No users found</S.Empty>
+                    ) : users.map(u => (
+                        <S.Item
+                            key={u.id}
+                            $active={u.id === value}
+                            onClick={() => handleSelect(u)}
+                        >
+                            <Icon icon="lucide:user" width={14} />
+                            {u.name}
+                            <S.ItemEmail>{u.email}</S.ItemEmail>
+                        </S.Item>
+                    ))}
+                </S.List>
+            )}
+        </S.Dropdown>
+    );
+
     return (
         <S.Wrapper ref={wrapperRef}>
             {label && <S.Label>{label}</S.Label>}
@@ -69,7 +143,12 @@ export default function UserPicker({ label, value, onChange, onSelect, placehold
                 <S.TriggerButton
                     type="button"
                     disabled={disabled}
-                    onClick={() => setOpen(o => !o)}
+                    onClick={() => {
+                        if (!open && portal) {
+                            setDropdownRect(wrapperRef.current?.getBoundingClientRect() ?? null);
+                        }
+                        setOpen(current => !current);
+                    }}
                 >
                     <S.TriggerContent>
                         {selectedUser ? (
@@ -89,50 +168,10 @@ export default function UserPicker({ label, value, onChange, onSelect, placehold
                 )}
                 <Icon icon="lucide:chevron-down" width={14} />
             </S.Trigger>
-            {open && (
-                <S.Dropdown>
-                    <S.DropdownHeader>
-                        <S.Search
-                            ref={searchRef}
-                            value={search}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-                            placeholder="Search by name or email…"
-                        />
-                        <S.RefreshButton
-                            type="button"
-                            title="Refresh users"
-                            aria-label="Refresh users"
-                            disabled={loading}
-                            $loading={loading}
-                            onMouseDown={event => event.preventDefault()}
-                            onClick={() => void refresh()}
-                        >
-                            <Icon icon="lucide:refresh-cw" width={13} height={13} />
-                        </S.RefreshButton>
-                    </S.DropdownHeader>
-                    {loading ? (
-                        <S.Loader>
-                            <Icon icon="lucide:loader-circle" width={16} height={16} />
-                        </S.Loader>
-                    ) : (
-                        <S.List>
-                            {users.length === 0 ? (
-                                <S.Empty>No users found</S.Empty>
-                            ) : users.map(u => (
-                                <S.Item
-                                    key={u.id}
-                                    $active={u.id === value}
-                                    onClick={() => handleSelect(u)}
-                                >
-                                    <Icon icon="lucide:user" width={14} />
-                                    {u.name}
-                                    <S.ItemEmail>{u.email}</S.ItemEmail>
-                                </S.Item>
-                            ))}
-                        </S.List>
-                    )}
-                </S.Dropdown>
-            )}
+            {open && (!portal || dropdownRect) && (portal ? createPortal(
+                dropdown,
+                document.body,
+            ) : dropdown)}
         </S.Wrapper>
     );
 }

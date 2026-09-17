@@ -46,7 +46,7 @@ class GeminiDriver implements AiProviderDriverInterface
                         'text' => true,
                         'vision' => $this->supportsImageInput($id),
                         'structured_output' => null,
-                        'tools' => null,
+                        'tools' => $this->supportsToolCalling($id),
                     ],
                     'context_window' => is_numeric($model['inputTokenLimit'] ?? null)
                         ? (int) $model['inputTokenLimit']
@@ -73,6 +73,11 @@ class GeminiDriver implements AiProviderDriverInterface
         return str_starts_with($model, 'gemini-') ? true : null;
     }
 
+    private function supportsToolCalling(string $aiModelId): ?bool
+    {
+        return str_starts_with(strtolower($aiModelId), 'gemini-') ? true : null;
+    }
+
     public function message(string $apiKey, string $model, array $messages, array $options = []): array
     {
         $contents = collect($messages)
@@ -91,6 +96,22 @@ class GeminiDriver implements AiProviderDriverInterface
                         }
                         if (($part['type'] ?? null) === 'text' && is_string($part['text'] ?? null)) {
                             return ['text' => $part['text']];
+                        }
+                        if (($part['type'] ?? null) === 'tool_call' && is_string($part['name'] ?? null)) {
+                            return ['functionCall' => [
+                                'name' => $part['name'],
+                                'args' => $this->toolArguments($part),
+                                ...(is_string($part['id'] ?? null) ? ['id' => $part['id']] : []),
+                            ]];
+                        }
+                        if (($part['type'] ?? null) === 'tool_result' && is_string($part['name'] ?? null)) {
+                            return ['functionResponse' => [
+                                'name' => $part['name'],
+                                ...(is_string($part['tool_call_id'] ?? null) ? ['id' => $part['tool_call_id']] : []),
+                                'response' => [
+                                    'result' => is_string($part['text'] ?? null) ? $part['text'] : '',
+                                ],
+                            ]];
                         }
 
                         return null;
@@ -126,6 +147,17 @@ class GeminiDriver implements AiProviderDriverInterface
         }
         if (is_string($options['system'] ?? null) && $options['system'] !== '') {
             $payload['systemInstruction'] = ['parts' => [['text' => $options['system']]]];
+        }
+        if (is_array($options['tools'] ?? null) && $options['tools'] !== []) {
+            $payload['tools'] = [[
+                'functionDeclarations' => collect($options['tools'])->filter(fn (mixed $tool): bool => is_array($tool))->map(fn (mixed $tool): array => [
+                    'name' => is_string($tool['name'] ?? null) ? $tool['name'] : 'tool',
+                    'description' => is_string($tool['description'] ?? null) ? $tool['description'] : '',
+                    'parametersJsonSchema' => is_array($tool['inputSchema'] ?? null)
+                        ? $tool['inputSchema']
+                        : ['type' => 'object', 'properties' => new \stdClass],
+                ])->values()->all(),
+            ]];
         }
 
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/'
@@ -164,6 +196,19 @@ class GeminiDriver implements AiProviderDriverInterface
             }
         }
         $this->ensureSuccess($response);
+        $decodedObject = json_decode($response->body());
+        $objectParts = is_object($decodedObject)
+            && is_array($decodedObject->candidates ?? null)
+            && is_object($decodedObject->candidates[0] ?? null)
+            && is_object($decodedObject->candidates[0]->content ?? null)
+            && is_array($decodedObject->candidates[0]->content->parts ?? null)
+                ? $decodedObject->candidates[0]->content->parts
+                : [];
+        $argumentJson = collect($objectParts)
+            ->filter(fn (mixed $part): bool => is_object($part) && is_object($part->functionCall ?? null))
+            ->map(fn (object $part): string => json_encode($part->functionCall->args ?? new \stdClass) ?: '{}')
+            ->values()
+            ->all();
         $decoded = $response->json();
         $raw = is_array($decoded) ? $decoded : [];
         $candidates = is_array($raw['candidates'] ?? null) ? $raw['candidates'] : [];
@@ -174,9 +219,28 @@ class GeminiDriver implements AiProviderDriverInterface
             ->pluck('text')
             ->filter(fn (mixed $text): bool => is_string($text))
             ->implode('');
+        $toolCalls = collect($parts)
+            ->filter(fn (mixed $part): bool => is_array($part) && is_array($part['functionCall'] ?? null))
+            ->values()
+            ->map(function (array $part, int $index) use ($argumentJson): array {
+                $name = is_string($part['functionCall']['name'] ?? null) ? $part['functionCall']['name'] : '';
+
+                return [
+                    'id' => is_string($part['functionCall']['id'] ?? null)
+                        ? $part['functionCall']['id']
+                        : 'gemini-'.$index.'-'.($name !== '' ? $name : 'tool'),
+                    'name' => $name,
+                    'arguments' => is_array($part['functionCall']['args'] ?? null) ? $part['functionCall']['args'] : [],
+                    'argumentsJson' => $argumentJson[$index] ?? '{}',
+                ];
+            })
+            ->filter(fn (array $call): bool => $call['name'] !== '')
+            ->values()
+            ->all();
 
         return [
             'text' => $text,
+            'toolCalls' => $toolCalls,
             'content' => $parts,
             'usage' => is_array($raw['usageMetadata'] ?? null) ? $raw['usageMetadata'] : [],
             'model' => $model,
@@ -188,6 +252,23 @@ class GeminiDriver implements AiProviderDriverInterface
     private function request(): \Illuminate\Http\Client\PendingRequest
     {
         return Http::acceptJson()->asJson()->connectTimeout(10)->timeout(120);
+    }
+
+    /** @param array<string, mixed> $part
+     * @return array<mixed, mixed>|\stdClass
+     */
+    private function toolArguments(array $part): array|\stdClass
+    {
+        if (is_string($part['arguments_json'] ?? null)) {
+            $decoded = json_decode($part['arguments_json']);
+            if ($decoded instanceof \stdClass) {
+                return $decoded;
+            }
+        }
+
+        return is_array($part['arguments'] ?? null) && $part['arguments'] !== []
+            ? $part['arguments']
+            : new \stdClass;
     }
 
     /** @param list<string> $markers */

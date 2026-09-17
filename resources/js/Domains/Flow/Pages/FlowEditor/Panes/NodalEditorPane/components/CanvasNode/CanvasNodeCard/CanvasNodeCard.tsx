@@ -8,7 +8,11 @@ import {
     getNodeCategoryColor,
     getNodeIcon,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
-import { getNodeInputPorts, getNodeOutputPorts } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import {
+    getNodeInputPorts,
+    getNodeOutputPorts,
+    MCP_CLIENT_TOOL_NODE_NAME,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import { getNodeSiteUrl, getSiteFaviconUrl } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/site';
 import {
     getMissingRequiredParameters,
@@ -18,6 +22,10 @@ import {
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import { canDeactivateNode, EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import { useNodeValidationResources } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/NodeValidationContext';
+import type { ReferenceDisplay } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/referenceDisplays';
+import type { EditableFlowResourceKind } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
+import { getNodeResourceDisplays } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/resourceBadges';
+import ResourceBadge from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/CanvasNode/ResourceBadge/ResourceBadge';
 import * as S from './styled';
 import * as SharedS from '../shared.styled';
 
@@ -34,6 +42,7 @@ interface CanvasNodeCardProps {
     runError?: boolean;
     readOnly?: boolean;
     openMenu: boolean;
+    resourceReferences: ReadonlyMap<string, ReferenceDisplay>;
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>, node: CanvasNode) => void;
     onDoubleClick: (node: CanvasNode) => void;
     onPortPointerDown: (event: React.PointerEvent<HTMLDivElement>, node: CanvasNode, port: NodePortKind, side: 'input' | 'output') => void;
@@ -41,7 +50,16 @@ interface CanvasNodeCardProps {
     onToggleDeactivation: (node: CanvasNode) => void;
     onDelete: (nodeIds: Iterable<string>) => void;
     onToggleMenu: (nodeId: string) => void;
+    onEditResource: (kind: EditableFlowResourceKind, id: Id) => Promise<void>;
     onRun?: () => void;
+}
+
+function ToolPortShape({ position }: { position?: 'left' | 'right' | 'top' | 'bottom' }) {
+    return (
+        <S.ToolHandleShape $position={position} viewBox="0 0 16 16" aria-hidden>
+            <path d="M8 1.5c.45 0 .85.24 1.08.64l5.67 10.11c.53.95-.16 2.13-1.25 2.13h-11c-1.09 0-1.78-1.18-1.25-2.13L6.92 2.14c.23-.4.63-.64 1.08-.64Z" />
+        </S.ToolHandleShape>
+    );
 }
 
 export default function CanvasNodeCard({
@@ -57,6 +75,7 @@ export default function CanvasNodeCard({
     runError,
     readOnly,
     openMenu,
+    resourceReferences,
     onPointerDown,
     onDoubleClick,
     onPortPointerDown,
@@ -64,6 +83,7 @@ export default function CanvasNodeCard({
     onToggleDeactivation,
     onDelete,
     onToggleMenu,
+    onEditResource,
     onRun,
 }: CanvasNodeCardProps) {
     const handledPointerDoubleClickRef = useRef(false);
@@ -121,6 +141,10 @@ export default function CanvasNodeCard({
     const invalid = validationIssues.length > 0;
     const siteUrl = invalid ? null : getNodeSiteUrl(node);
     const faviconUrl = siteUrl ? getSiteFaviconUrl(siteUrl) : null;
+    const resourceDisplays = useMemo(
+        () => getNodeResourceDisplays(node, resourceReferences),
+        [node, resourceReferences],
+    );
     const displayLabel = node.system === 'terminate'
         ? 'FINALLY'
         : node.system === 'function' && !node.scopeId
@@ -165,33 +189,47 @@ export default function CanvasNodeCard({
             onDoubleClick={handleNativeDoubleClick}
             style={{ left: node.x, top: node.y }}
         >
-            {invalid && (
-                <S.NodeValidationBadge title={validationIssues.map(issue => issue.message).join('\n')}>
-                    <Icon icon="lucide:x" width={12} height={12} />
-                </S.NodeValidationBadge>
-            )}
-            {siteUrl && faviconUrl && (
-                <S.NodeSiteBadge
-                    href={siteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={new URL(siteUrl).hostname}
-                    onPointerDown={event => event.stopPropagation()}
-                    onClick={event => event.stopPropagation()}
-                    onDoubleClick={event => event.stopPropagation()}
-                >
-                    <Icon icon="lucide:globe-2" width={11} height={11} />
-                    <img
-                        src={faviconUrl}
-                        alt=""
-                        onError={event => {
-                            event.currentTarget.style.display = 'none';
-                        }}
-                    />
-                </S.NodeSiteBadge>
+            {(invalid || (siteUrl && faviconUrl) || resourceDisplays.length > 0) && (
+                <S.NodeBadgeStack>
+                    {resourceDisplays.map(resource => (
+                        resource.resourceKind && resource.resourceId != null && (
+                            <ResourceBadge
+                                key={`${resource.resourceKind}:${resource.resourceId}`}
+                                resource={resource}
+                                onClick={() => void onEditResource(resource.resourceKind!, resource.resourceId!)}
+                            />
+                        )
+                    ))}
+                    {siteUrl && faviconUrl && (
+                        <S.NodeSiteBadge
+                            href={siteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={new URL(siteUrl).hostname}
+                            onPointerDown={event => event.stopPropagation()}
+                            onClick={event => event.stopPropagation()}
+                            onDoubleClick={event => event.stopPropagation()}
+                        >
+                            <Icon icon="lucide:globe-2" width={11} height={11} />
+                            <img
+                                src={faviconUrl}
+                                alt=""
+                                onError={event => {
+                                    event.currentTarget.style.display = 'none';
+                                }}
+                            />
+                        </S.NodeSiteBadge>
+                    )}
+                    {invalid && (
+                        <S.NodeValidationBadge title={validationIssues.map(issue => issue.message).join('\n')}>
+                            <Icon icon="lucide:x" width={12} height={12} />
+                        </S.NodeValidationBadge>
+                    )}
+                </S.NodeBadgeStack>
             )}
             {!readOnly && (!node.system || (node.system === 'function' && node.scopeId)) && (
                 <S.NodeHoverActions
+                    $bottom={node.entry.name === MCP_CLIENT_TOOL_NODE_NAME}
                     onPointerDown={event => event.stopPropagation()}
                     onDoubleClick={event => event.stopPropagation()}
                 >
@@ -305,7 +343,7 @@ export default function CanvasNodeCard({
                     Receives the arguments passed by the caller
                 </S.NodeHint>
             )}
-            {inputPorts.map((port, index) => (
+            {inputPorts.map(port => (
                 <S.NodeHandle
                     key={port.id}
                     data-node-port
@@ -313,10 +351,19 @@ export default function CanvasNodeCard({
                     data-port-kind={port.id}
                     data-port-side={port.side}
                     $side="input"
-                    $index={index}
-                    $count={inputPorts.length}
+                    $position={port.position}
+                    $tool={port.connectionType === 'ai_tool'}
+                    $index={inputPorts.filter(candidate => candidate.position === port.position).indexOf(port)}
+                    $count={inputPorts.filter(candidate => candidate.position === port.position).length}
                     onPointerDown={event => onPortPointerDown(event, node, port.id, port.side)}
-                />
+                >
+                    {port.connectionType === 'ai_tool' && (
+                        <ToolPortShape position={port.position} />
+                    )}
+                    {port.connectionType === 'ai_tool' && (
+                        <S.NodeHandleLabel $position={port.position}>{port.label}</S.NodeHandleLabel>
+                    )}
+                </S.NodeHandle>
             ))}
             {node.system === 'run' && onRun && (
                 <S.NodeRunAction
@@ -332,7 +379,7 @@ export default function CanvasNodeCard({
                     Run Flow
                 </S.NodeRunAction>
             )}
-            {outputPorts.map((port, index) => (
+            {outputPorts.map(port => (
                 <S.NodeHandle
                     key={port.id}
                     data-node-port
@@ -340,12 +387,17 @@ export default function CanvasNodeCard({
                     data-port-kind={port.id}
                     data-port-side={port.side}
                     $side="output"
-                    $index={index}
-                    $count={outputPorts.length}
+                    $position={port.position}
+                    $tool={port.connectionType === 'ai_tool'}
+                    $index={outputPorts.filter(candidate => candidate.position === port.position).indexOf(port)}
+                    $count={outputPorts.filter(candidate => candidate.position === port.position).length}
                     onPointerDown={event => onPortPointerDown(event, node, port.id, port.side)}
                 >
-                    {outputPorts.length > 1 && (
-                        <S.NodeHandleLabel>{port.label}</S.NodeHandleLabel>
+                    {port.connectionType === 'ai_tool' && (
+                        <ToolPortShape position={port.position} />
+                    )}
+                    {(outputPorts.length > 1 || port.connectionType === 'ai_tool') && (
+                        <S.NodeHandleLabel $position={port.position}>{port.label}</S.NodeHandleLabel>
                     )}
                 </S.NodeHandle>
             ))}

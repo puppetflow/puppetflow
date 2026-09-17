@@ -128,6 +128,24 @@ export const VariableList = styled.div`
     border-top: 1px solid ${({ theme }) => theme.colors.border.default};
 `;
 
+export const VariableItemRow = styled.div<{ $editable?: boolean }>`
+    position: relative;
+    width: 100%;
+    border-radius: ${({ theme }) => theme.radius.sm};
+
+    &:hover,
+    &:focus-within {
+        background: ${({ theme }) => theme.colors.bg.hover};
+    }
+
+    ${({ $editable }) => $editable && `
+        &:hover [data-item-detail],
+        &:focus-within [data-item-detail] {
+            visibility: hidden;
+        }
+    `}
+`;
+
 export const VariableItem = styled.button`
     width: 100%;
     display: flex;
@@ -140,11 +158,6 @@ export const VariableItem = styled.button`
     background: transparent;
     text-align: left;
 
-    &:hover,
-    &:focus-visible {
-        background: ${({ theme }) => theme.colors.bg.hover};
-    }
-
     strong {
         min-width: 0;
         overflow: hidden;
@@ -153,11 +166,44 @@ export const VariableItem = styled.button`
         font-size: 12px;
     }
 
-    span {
-        flex-shrink: 0;
-        color: ${({ theme }) => theme.colors.text.tertiary};
-        font-size: 10px;
-        text-transform: uppercase;
+`;
+
+export const VariableItemDetail = styled.span`
+    flex-shrink: 0;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 10px;
+    text-transform: uppercase;
+`;
+
+export const VariableItemEdit = styled.button`
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    background: ${({ theme }) => theme.colors.bg.secondary};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.border.default};
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: opacity ${({ theme }) => theme.transition.fast};
+
+    ${VariableItemRow}:hover &,
+    ${VariableItemRow}:focus-within & {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    &:hover,
+    &:focus-visible {
+        color: ${({ theme }) => theme.colors.text.primary};
+        background: ${({ theme }) => theme.colors.bg.hover};
     }
 `;
 

@@ -6,6 +6,7 @@ use App\Enums\Authorization\Ability;
 use App\Models\Flow;
 use App\Models\FlowRun;
 use App\Models\WorkspaceTeam;
+use App\Services\Flow\Query\FlowRunProjection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -59,7 +60,10 @@ final class McpResourceResolver
             throw ValidationException::withMessages(['run_id' => 'Run ID is required.']);
         }
 
-        $run = FlowRun::where('flow_id', $flow->id)->find($runId);
+        $run = FlowRun::query()
+            ->select(FlowRunProjection::RUN_COLUMNS)
+            ->where('flow_id', $flow->id)
+            ->find($runId);
         if (! $run || Gate::forUser($context->user)->denies($ability->value, $run)) {
             throw ValidationException::withMessages(['run_id' => 'Run not found.']);
         }

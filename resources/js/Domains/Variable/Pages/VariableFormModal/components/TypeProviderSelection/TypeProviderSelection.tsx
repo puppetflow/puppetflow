@@ -1,5 +1,5 @@
 import type { Integration } from '@/Domains/Integration/types';
-import type { UserVariable } from '@/Domains/Variable/types';
+import { MCP_CREDENTIALS_UI, type UserVariable } from '@/Domains/Variable/types';
 import VaultFields from '@proprietary/Domains/Variable/Pages/VariableFormModal/VaultFields.pp';
 import type { VariableFormData, VaultFormPatch } from '@/Domains/Variable/Pages/VariableFormModal/types';
 import { buildVaultTypeOptions } from '@proprietary/Domains/Variable/Pages/VariableFormModal/utils.pp';
@@ -13,6 +13,7 @@ interface TypeProviderSelectionProps {
     editing: UserVariable | null;
     integrations: Integration[];
     isOpen: boolean;
+    mcpEnabled: boolean;
     onTypeChange: (value: string) => void;
     onVaultChange: (patch: VaultFormPatch) => void;
 }
@@ -23,6 +24,7 @@ export default function TypeProviderSelection({
     editing,
     integrations,
     isOpen,
+    mcpEnabled,
     onTypeChange,
     onVaultChange,
 }: TypeProviderSelectionProps) {
@@ -30,6 +32,14 @@ export default function TypeProviderSelection({
         ? `vault:${data.vault_provider}`
         : data.type;
     const options = [
+        ...((mcpEnabled && !editing) || data.type === 'mcp_credentials'
+            ? [{
+                value: 'mcp_credentials',
+                label: MCP_CREDENTIALS_UI.label,
+                icon: MCP_CREDENTIALS_UI.icon,
+                iconColor: MCP_CREDENTIALS_UI.color,
+            }]
+            : []),
         { value: 'text', label: 'Text', icon: DATA_TYPE_ICONS.text },
         { value: 'secret', label: 'Secret', icon: DATA_TYPE_ICONS.secret },
         { value: 'object', label: 'Object', icon: DATA_TYPE_ICONS.object },
@@ -55,7 +65,7 @@ export default function TypeProviderSelection({
                     invalid={Boolean(error)}
                     searchThreshold={0}
                     showOptionValue={false}
-                    onChange={onTypeChange}
+                    onChange={editing?.type === 'mcp_credentials' ? () => undefined : onTypeChange}
                 />
                 {error && <InputShared.Error>{error}</InputShared.Error>}
             </InputShared.Wrapper>

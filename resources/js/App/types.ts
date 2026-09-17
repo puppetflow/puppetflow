@@ -23,6 +23,12 @@ export interface AppSettings {
     invitation_requests_enabled: boolean;
     magic_link_enabled: boolean;
     server_timezone?: string;
+    media_upload: {
+        transport: 'proxy' | 'presigned';
+        checksum_algorithm: 'sha256' | 'md5';
+        max_file_bytes: number;
+        max_files: number;
+    };
     max_flow_timeout_seconds: number;
     grabber_chrome_store_url: string;
     grabber_firefox_store_url: string;

@@ -81,6 +81,20 @@ class Integration extends Model
         return bin2hex(random_bytes(32));
     }
 
+    /**
+     * @param  array<string, mixed>  $incoming
+     * @return array<string, mixed>
+     */
+    public function mergeConfigPreservingBlank(array $incoming): array
+    {
+        $updates = array_filter(
+            $incoming,
+            static fn (mixed $value): bool => $value !== null && $value !== '',
+        );
+
+        return array_merge($this->config ?? [], $updates);
+    }
+
     protected function casts(): array
     {
         return [

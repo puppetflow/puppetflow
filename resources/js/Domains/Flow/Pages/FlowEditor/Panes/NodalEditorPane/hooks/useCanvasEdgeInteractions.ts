@@ -1,6 +1,11 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { DEFAULT_INPUT_PORT } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import {
+    DEFAULT_INPUT_PORT,
+    getNodeInputPorts,
+    getNodeOutputPorts,
+    getNodePortDefinition,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
     connectEdgeWithStructuredJoins,
     connectsSeparateSystemFlows,
@@ -70,10 +75,28 @@ export function useCanvasEdgeInteractions({
         const targetPortElement = targetElement?.closest<HTMLElement>('[data-node-port]');
         const targetNodeElement = targetElement?.closest<HTMLElement>('[data-node-card]');
         const targetNodeId = targetPortElement?.dataset.nodeId ?? targetNodeElement?.dataset.nodeId;
-        const targetPort = (targetPortElement?.dataset.portKind as NodePortKind | undefined)
+        const hoveredNode = nodes.find(node => node.id === targetNodeId);
+        const compatibleToolPort = connectionDragState.connectionType === 'ai_tool' && hoveredNode
+            ? (connectionDragState.fromSide === 'output'
+                ? getNodeInputPorts(hoveredNode.entry.name)
+                : getNodeOutputPorts(hoveredNode.entry.name, hoveredNode.entry)
+            ).find(port => port.connectionType === 'ai_tool')
+            : undefined;
+        const targetPort = compatibleToolPort?.id
+            ?? (targetPortElement?.dataset.portKind as NodePortKind | undefined)
             ?? (targetNodeId && targetNodeId !== connectionDragState.fromNodeId ? DEFAULT_INPUT_PORT : undefined);
-        const targetSide = (targetPortElement?.dataset.portSide as NodePortSide | undefined)
+        const targetSide = compatibleToolPort?.side
+            ?? (targetPortElement?.dataset.portSide as NodePortSide | undefined)
             ?? (targetNodeId && targetNodeId !== connectionDragState.fromNodeId ? 'input' : undefined);
+        const draggedFromNode = nodes.find(node => node.id === connectionDragState.fromNodeId);
+        const draggedFromPort = draggedFromNode
+            ? getNodePortDefinition(
+                draggedFromNode.entry.name,
+                draggedFromNode.entry,
+                connectionDragState.fromPort,
+                connectionDragState.fromSide,
+            )
+            : undefined;
 
         if (
             targetNodeId
@@ -88,34 +111,53 @@ export function useCanvasEdgeInteractions({
             const targetPortId = connectionDragState.fromSide === 'output' ? targetPort : connectionDragState.fromPort;
             const sourceNode = nodes.find(node => node.id === sourceNodeId);
             const targetNode = nodes.find(node => node.id === finalTargetNodeId);
+            const sourceDefinition = sourceNode
+                ? getNodePortDefinition(sourceNode.entry.name, sourceNode.entry, sourcePort, 'output')
+                : undefined;
+            const targetDefinition = targetNode
+                ? getNodePortDefinition(targetNode.entry.name, targetNode.entry, targetPortId, 'input')
+                : undefined;
+            if (
+                !sourceDefinition
+                || !targetDefinition
+                || (sourceDefinition.connectionType ?? 'flow') !== (targetDefinition.connectionType ?? 'flow')
+            ) {
+                connectionDragRef.current = null;
+                setConnectionDrag(null);
+                return true;
+            }
             if ((sourceNode?.scopeId ?? null) !== (targetNode?.scopeId ?? null)) {
                 connectionDragRef.current = null;
                 setConnectionDrag(null);
                 return true;
             }
-            if (connectsSeparateSystemFlows(nodes, edges, sourceNodeId, finalTargetNodeId)) {
+            if (
+                sourceDefinition.connectionType !== 'ai_tool'
+                && connectsSeparateSystemFlows(nodes, edges, sourceNodeId, finalTargetNodeId)
+            ) {
                 connectionDragRef.current = null;
                 setConnectionDrag(null);
                 return true;
             }
 
             recordHistory();
-            setEdges(current => connectEdgeWithStructuredJoins(
-                nodes,
-                current,
-                {
+            const nextEdge = {
                     id: `${sourceNodeId}:${sourcePort}->${finalTargetNodeId}:${targetPortId}`,
                     sourceNodeId,
                     targetNodeId: finalTargetNodeId,
                     sourcePort,
                     targetPort: targetPortId,
-                },
-            ));
+                    connectionType: sourceDefinition.connectionType ?? 'flow',
+            };
+            setEdges(current => sourceDefinition.connectionType === 'ai_tool'
+                ? [...current.filter(edge => edge.id !== nextEdge.id), nextEdge]
+                : connectEdgeWithStructuredJoins(nodes, current, nextEdge));
         } else if (!targetNodeId || targetNodeId === connectionDragState.fromNodeId) {
             setPendingConnectionTarget({
                 fromNodeId: connectionDragState.fromNodeId,
                 fromPort: connectionDragState.fromPort,
                 fromSide: connectionDragState.fromSide,
+                connectionType: draggedFromPort?.connectionType ?? 'flow',
                 x: connectionDragState.currentX,
                 y: connectionDragState.currentY,
             });
@@ -144,11 +186,13 @@ export function useCanvasEdgeInteractions({
 
         event.stopPropagation();
         const start = getPortPosition(node, port, side);
+        const portDefinition = getNodePortDefinition(node.entry.name, node.entry, port, side);
         const nextDrag = {
             pointerId: event.pointerId,
             fromNodeId: node.id,
             fromPort: port,
             fromSide: side,
+            connectionType: portDefinition?.connectionType ?? 'flow',
             startX: start.x,
             startY: start.y,
             currentX: start.x,

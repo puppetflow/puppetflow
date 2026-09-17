@@ -58,6 +58,7 @@ class ArtifactCleanupService
                 DB::transaction(function () use ($ids, $artifactsByRun): void {
                     /** @var \Illuminate\Database\Eloquent\Collection<int, FlowRun> $lockedRuns */
                     $lockedRuns = FlowRun::query()
+                        ->select(['id', 'flow_id', 'status'])
                         ->whereKey($ids)
                         ->orderBy('id')
                         ->lockForUpdate()
@@ -103,6 +104,7 @@ class ArtifactCleanupService
     {
         /** @var \Illuminate\Database\Eloquent\Collection<int, FlowRun> $runs */
         $runs = FlowRun::query()
+            ->select(['id', 'flow_id', 'status'])
             ->where('flow_id', $flow->id)
             ->whereIn('status', self::TERMINAL_STATUSES)
             ->get();

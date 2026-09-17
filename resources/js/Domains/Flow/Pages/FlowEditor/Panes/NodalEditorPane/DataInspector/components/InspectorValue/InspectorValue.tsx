@@ -79,6 +79,7 @@ export default function InspectorValue({
                 <S.PrimitiveValue $kind={syntaxHighlight ? 'reference' : 'default'}>
                     {formattedValue.slice(0, referenceOffset)}
                     <S.ReferenceId>{referenceId}</S.ReferenceId>
+                    {'\u00A0'}
                     <S.ReferenceLabel>{referenceLabel}</S.ReferenceLabel>
                     {formattedValue.slice(referenceOffset + referenceId.length)}
                 </S.PrimitiveValue>

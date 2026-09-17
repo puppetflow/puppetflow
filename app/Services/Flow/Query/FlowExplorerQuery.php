@@ -5,15 +5,14 @@ namespace App\Services\Flow\Query;
 use App\Authorization\AuthorizationContext;
 use App\Authorization\AuthorizationContextFactory;
 use App\Authorization\OnBehalfOwnerResolver;
-use App\Authorization\ScopeEvaluator;
 use App\Authorization\Visibility\FlowVisibility;
 use App\Authorization\Visibility\FolderVisibility;
 use App\Enums\Authorization\Ability;
 use App\Models\Flow;
 use App\Models\Folder;
 use App\Models\User;
-use App\Models\WorkspaceTeam;
-use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Explorer\ExplorerAccess;
+use App\Services\Explorer\ExplorerFilters;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -25,8 +24,7 @@ final class FlowExplorerQuery
         private readonly AuthorizationContextFactory $contexts,
         private readonly FlowVisibility $visibility,
         private readonly FolderVisibility $folderVisibility,
-        private readonly ScopeEvaluator $scopes,
-        private readonly FeatureFlagService $features,
+        private readonly ExplorerAccess $access,
         private readonly FlowTreeBuilder $trees,
         private readonly FlowBreadcrumbBuilder $breadcrumbs,
         private readonly FlowOwnerRoleProjector $roles,
@@ -36,24 +34,20 @@ final class FlowExplorerQuery
     public function render(Request $request, string $workspaceId, User $user): Response
     {
         $context = $this->contexts->for($user, $workspaceId);
-        $teamIds = $this->scopes->isAdministrator($context)
-            ? WorkspaceTeam::where('workspace_id', $workspaceId)->pluck('id')->all()
-            : $context->teamIds;
-        /** @var list<string> $teamIds */
-        $teamIds = array_values($teamIds);
-        $workspaceAllowed = $this->scopes->isAdministrator($context)
-            || ($this->features->workspaceSharingEnabled() && $context->isWorkspaceMember);
-        $folderId = trim($request->string('folder_id')->toString());
-        $search = $request->string('search')->toString();
-        $view = $request->string('view')->toString();
-        $everywhere = $request->boolean('search_everywhere') && $search !== '';
-        $currentFolder = $folderId !== ''
+        $filters = ExplorerFilters::fromRequest($request);
+        $teamIds = $this->access->visibleTeamIds($context, $workspaceId);
+        $workspaceAllowed = $this->access->workspaceAllowed($context);
+        $folderId = $filters->folderId;
+        $search = $filters->search;
+        $view = $filters->view;
+        $everywhere = $filters->everywhere;
+        $currentFolder = $folderId !== null
             ? Folder::where('workspace_id', $workspaceId)
                 ->where('id', $folderId)
                 ->with(['owner:id,name', 'team:id'])
                 ->first()
             : null;
-        abort_if($folderId !== '' && ! $currentFolder, 404);
+        abort_if($folderId !== null && ! $currentFolder, 404);
         $folderId = $currentFolder?->id;
         if ($currentFolder) {
             abort_unless($user->can(Ability::VIEW->value, $currentFolder), 404);
@@ -65,7 +59,7 @@ final class FlowExplorerQuery
                 ? $currentFolder->owner_id
                 : null;
             if ($requestedOwnerId === null) {
-                $requestedOwnerId = trim($request->string('owner_id')->toString()) ?: null;
+                $requestedOwnerId = $filters->ownerId;
             }
             if ($requestedOwnerId !== null) {
                 $requestedOwnerId = User::workspaceMemberId($requestedOwnerId, $workspaceId);
@@ -185,7 +179,7 @@ final class FlowExplorerQuery
         $this->roles->projectTrees($workspaceId, $userTrees);
 
         return Inertia::render('Flow/FlowExplorer/FlowExplorer', [
-            'flows' => $paginated,
+            'items' => $paginated,
             'folders' => $folders,
             'currentFolder' => $currentFolder,
             'breadcrumbs' => $this->breadcrumbs->folders($currentFolder),
@@ -193,15 +187,12 @@ final class FlowExplorerQuery
             'userTrees' => $userTrees,
             'workspaceTree' => $workspaceTree,
             'teamTrees' => $teamTrees,
-            'rootFlows' => $rootFlows,
-            'workspaceRootFlows' => $workspaceRootFlows,
-            'filters' => [
-                'search' => $search,
-                'folder_id' => $currentFolder?->id,
-                'view' => $view,
-                'owner_id' => $personalOwner->id === $user->id ? null : $personalOwner->id,
-                'search_everywhere' => $everywhere ? '1' : null,
-            ],
+            'rootItems' => $rootFlows,
+            'workspaceRootItems' => $workspaceRootFlows,
+            'filters' => $filters->toPayload(
+                $currentFolder?->id,
+                $personalOwner->id === $user->id ? null : $personalOwner->id,
+            ),
             'personalOwner' => [
                 'id' => $personalOwner->id,
                 'name' => $personalOwner->name,

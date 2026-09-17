@@ -21,16 +21,26 @@ import IntegrationFormModal from '@/Domains/Integration/Pages/IntegrationFormMod
 import MailboxDomainModal from '@/Domains/Integration/Pages/MailboxDomainModal/MailboxDomainModal';
 import { IntegrationCreationBridge } from '@/Domains/Integration/Contexts/IntegrationCreationContext';
 import AiModelFormModal from '@/Domains/AiModel/Pages/AiModelFormModal';
-import type { AiIntegration, CreatedAiModel } from '@/Domains/AiModel/types';
+import type { AiIntegration, AiModel, CreatedAiModel } from '@/Domains/AiModel/types';
+import { invalidateAiModelSuggestionsCache } from '@/Domains/AiModel/aiModelSuggestions';
 import ChannelFormModal from '@/Domains/NotificationChannel/Pages/ChannelFormModal/ChannelFormModal';
-import type { CreatedNotificationChannel } from '@/Domains/NotificationChannel/types';
+import type { CreatedNotificationChannel, NotificationChannel } from '@/Domains/NotificationChannel/types';
+import { invalidateChannelCache } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
+import VariableFormModal from '@/Domains/Variable/Pages/VariableFormModal/VariableFormModal';
+import type { UserVariable } from '@/Domains/Variable/types';
+import { invalidateVariableCache } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
+import { refreshReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import CreateMailboxModal from '@/Domains/Mailbox/Pages/CreateMailboxModal/CreateMailboxModal';
 import type { CreatedMailbox, MailboxWatcher } from '@/Domains/Mailbox/types';
 import WatcherFormModal from '@/Domains/Flow/Pages/FlowEditor/Panes/MailboxesPane/components/WatcherFormModal/WatcherFormModal';
 import type { MailboxOption } from '@/Domains/Flow/Pages/FlowEditor/Panes/MailboxesPane/types';
+import MediaUploadModal from '@/Domains/Media/Components/MediaUploadModal/MediaUploadModal';
+import MediaExplorerPicker from '@/Domains/Media/Components/MediaExplorerPicker/MediaExplorerPicker';
+import type { MediaAsset, MediaTreeItem } from '@/Domains/Media/types';
 import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
 import Modal from '@/Shared/UI/Modal/Modal';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
+import { useToast } from '@/App/Hooks/useToast';
 import { useRefreshNodeValidationResources } from './NodeValidationContext';
 import * as S from './QuickRequirementCreationContext.styled';
 
@@ -39,7 +49,9 @@ export type QuickRequirementCreationKind =
     | 'ai-model'
     | 'channel'
     | 'mailbox'
-    | 'mailbox-watcher';
+    | 'mailbox-watcher'
+    | 'media'
+    | 'media-picker';
 
 export type AiRequiredCapability = 'text' | 'vision';
 
@@ -58,6 +70,8 @@ export interface QuickRequirementCreationOptions {
     channel: undefined;
     mailbox: undefined;
     'mailbox-watcher': undefined;
+    media: undefined;
+    'media-picker': undefined;
 }
 
 export interface QuickRequirementCreationResult {
@@ -66,6 +80,8 @@ export interface QuickRequirementCreationResult {
     channel: CreatedNotificationChannel;
     mailbox: CreatedMailbox;
     'mailbox-watcher': MailboxWatcher;
+    media: MediaAsset;
+    'media-picker': MediaTreeItem;
 }
 
 export interface QuickRequirementCreate {
@@ -74,10 +90,19 @@ export interface QuickRequirementCreate {
     (kind: 'channel'): Promise<CreatedNotificationChannel | null>;
     (kind: 'mailbox'): Promise<CreatedMailbox | null>;
     (kind: 'mailbox-watcher'): Promise<MailboxWatcher | null>;
+    (kind: 'media'): Promise<MediaAsset | null>;
+    (kind: 'media-picker'): Promise<MediaTreeItem | null>;
+}
+
+export type EditableFlowResourceKind = 'variable' | 'ai-model' | 'channel';
+
+export interface QuickRequirementEdit {
+    (kind: EditableFlowResourceKind, id: Id): Promise<void>;
 }
 
 interface QuickRequirementCreationContextValue {
     create: QuickRequirementCreate;
+    edit: QuickRequirementEdit;
     refresh: (kind: 'integrations' | 'mailboxes') => Promise<void>;
     available: boolean;
 }
@@ -89,7 +114,9 @@ type Stage =
     | 'ai-model'
     | 'channel'
     | 'mailbox'
-    | 'watcher';
+    | 'watcher'
+    | 'media'
+    | 'media-picker';
 
 interface QuickCreationSession {
     id: number;
@@ -112,11 +139,18 @@ type AnyCreationResult = QuickRequirementCreationResult[QuickRequirementCreation
 type PendingResolver = (result: AnyCreationResult | null) => void;
 
 const noopCreate = (() => Promise.resolve(null)) as QuickRequirementCreate;
+const noopEdit = (() => Promise.resolve()) as QuickRequirementEdit;
 const QuickRequirementCreationContext = createContext<QuickRequirementCreationContextValue>({
     create: noopCreate,
+    edit: noopEdit,
     refresh: () => Promise.resolve(),
     available: false,
 });
+
+type EditingResource =
+    | { kind: 'variable'; item: UserVariable }
+    | { kind: 'ai-model'; item: AiModel }
+    | { kind: 'channel'; item: NotificationChannel };
 
 const isAvailableProvider = (provider: ProviderConfig) => (
     !provider.comingSoon
@@ -139,7 +173,11 @@ export function QuickRequirementCreationProvider({
     const page = usePage<InertiaPageProps & PageProps & FlowEditorProps>().props;
     const refreshValidation = useRefreshNodeValidationResources();
     const { confirm, ConfirmModal } = useConfirm();
+    const { toast } = useToast();
     const [activeStack, setActiveStack] = useState<QuickCreationSession[]>([]);
+    const [editingResource, setEditingResource] = useState<EditingResource | null>(null);
+    const editingRequestRef = useRef(0);
+    const editingResolveRef = useRef<(() => void) | null>(null);
     const [aiIntegrations, setAiIntegrations] = useState<AiIntegration[]>(() => page.aiIntegrations ?? []);
     const [messengerIntegrations, setMessengerIntegrations] = useState(() => page.messengerIntegrations ?? []);
     const [mailboxIntegrations, setMailboxIntegrations] = useState<Integration[]>(() => page.mailboxIntegrations ?? []);
@@ -151,6 +189,9 @@ export function QuickRequirementCreationProvider({
     const isAdmin = page.auth.user?.workspace_role === 'admin';
 
     useEffect(() => () => {
+        editingRequestRef.current += 1;
+        editingResolveRef.current?.();
+        editingResolveRef.current = null;
         sessionsRef.current.forEach(session => session.resolve(null));
         sessionsRef.current = [];
     }, []);
@@ -265,6 +306,17 @@ export function QuickRequirementCreationProvider({
 
             if (kind === 'channel') {
                 session.stage = messengerIntegrations.length > 0 ? 'channel' : 'provider';
+                replaceSessions([...sessionsRef.current, session]);
+                return;
+            }
+
+            if (kind === 'media') {
+                session.stage = 'media';
+                replaceSessions([...sessionsRef.current, session]);
+                return;
+            }
+            if (kind === 'media-picker') {
+                session.stage = 'media-picker';
                 replaceSessions([...sessionsRef.current, session]);
                 return;
             }
@@ -399,6 +451,66 @@ export function QuickRequirementCreationProvider({
         complete(sessionId, watcher);
     };
 
+    const edit = ((kind: EditableFlowResourceKind, id: Id) => new Promise<void>(resolve => {
+        editingResolveRef.current?.();
+        editingResolveRef.current = resolve;
+        const requestId = ++editingRequestRef.current;
+        const resourceId = encodeURIComponent(String(id).split('.')[0]);
+        const endpoint = kind === 'variable'
+            ? `/variables/${resourceId}`
+            : kind === 'ai-model'
+                ? `/ai-models/${resourceId}`
+                : `/channels/${resourceId}`;
+
+        void fetch(endpoint, {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+        }).then(async response => {
+            if (!response.ok) throw new Error('Resource could not be loaded.');
+            const payload = await response.json() as {
+                variable?: UserVariable;
+                ai_model?: AiModel;
+                channel?: NotificationChannel;
+            };
+            if (requestId !== editingRequestRef.current) return;
+
+            if (kind === 'variable' && payload.variable) {
+                setEditingResource({ kind, item: payload.variable });
+                return;
+            }
+            if (kind === 'ai-model' && payload.ai_model) {
+                setEditingResource({ kind, item: payload.ai_model });
+                return;
+            }
+            if (kind === 'channel' && payload.channel) {
+                setEditingResource({ kind, item: payload.channel });
+                return;
+            }
+            throw new Error('Resource payload is missing.');
+        }).catch(() => {
+            if (requestId !== editingRequestRef.current) return;
+            editingResolveRef.current = null;
+            resolve();
+            toast('This resource cannot be edited or is no longer available.', 'error');
+        });
+    })) as QuickRequirementEdit;
+
+    const closeEditingResource = () => {
+        editingRequestRef.current += 1;
+        const kind = editingResource?.kind;
+        setEditingResource(null);
+        if (kind === 'variable') invalidateVariableCache();
+        if (kind === 'ai-model') invalidateAiModelSuggestionsCache();
+        if (kind === 'channel') invalidateChannelCache();
+        if (kind) {
+            refreshReferenceLabelDecorations();
+            window.dispatchEvent(new CustomEvent('flow-resource-references:refresh'));
+            void refreshValidation();
+        }
+        editingResolveRef.current?.();
+        editingResolveRef.current = null;
+    };
+
     const mailboxIntegration = mailboxIntegrations[0];
     const integrationCreationValue = {
         available: true,
@@ -410,7 +522,7 @@ export function QuickRequirementCreationProvider({
     };
 
     return (
-        <QuickRequirementCreationContext.Provider value={{ create, refresh, available: true }}>
+        <QuickRequirementCreationContext.Provider value={{ create, edit, refresh, available: true }}>
             <IntegrationCreationBridge value={integrationCreationValue}>
             {children}
             {activeStack.map((modal, modalIndex) => (
@@ -539,8 +651,57 @@ export function QuickRequirementCreationProvider({
                     quickMode
                 />
             )}
+            {modal.stage === 'media' && (
+                <MediaUploadModal
+                    zIndex={1050 + modalIndex * 20}
+                    onClose={() => settle(modal.id, null)}
+                    onUploaded={asset => complete(modal.id, asset)}
+                />
+            )}
+            {modal.stage === 'media-picker' && (
+                <MediaExplorerPicker
+                    zIndex={1050 + modalIndex * 20}
+                    onClose={() => settle(modal.id, null)}
+                    onSelect={asset => complete(modal.id, asset)}
+                />
+            )}
                 </Fragment>
             ))}
+            {editingResource?.kind === 'variable' && (
+                <VariableFormModal
+                    editing={editingResource.item}
+                    groups={page.variableGroups ?? []}
+                    teams={teams}
+                    isWorkspaceAdmin={isAdmin}
+                    isOpen
+                    onClose={closeEditingResource}
+                    confirm={confirm}
+                />
+            )}
+            {editingResource?.kind === 'ai-model' && (
+                <AiModelFormModal
+                    model={editingResource.item}
+                    aiIntegrations={aiIntegrations}
+                    groups={page.aiModelGroups ?? []}
+                    teams={teams}
+                    onClose={closeEditingResource}
+                    zIndex={1070}
+                    quickMode
+                />
+            )}
+            {editingResource?.kind === 'channel' && (
+                <ChannelFormModal
+                    mode="edit"
+                    channel={editingResource.item}
+                    messengerIntegrations={messengerIntegrations}
+                    groups={page.channelGroups ?? []}
+                    teams={teams}
+                    isAdmin={isAdmin}
+                    onClose={closeEditingResource}
+                    zIndex={1070}
+                    quickMode
+                />
+            )}
             <ConfirmModal />
             </IntegrationCreationBridge>
         </QuickRequirementCreationContext.Provider>

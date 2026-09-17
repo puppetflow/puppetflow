@@ -111,6 +111,7 @@ class Workspace extends Model
 
         static::deleting(function (Workspace $workspace) {
             $workspace->dataTables->each->delete();
+            $workspace->mediaAssets->each->delete();
             $workspace->flows->each->delete();
 
             DB::afterCommit(
@@ -155,6 +156,18 @@ class Workspace extends Model
     public function dataTables(): HasMany
     {
         return $this->hasMany(DataTable::class);
+    }
+
+    /** @return HasMany<MediaAsset, $this> */
+    public function mediaAssets(): HasMany
+    {
+        return $this->hasMany(MediaAsset::class);
+    }
+
+    /** @return HasMany<MediaFolder, $this> */
+    public function mediaFolders(): HasMany
+    {
+        return $this->hasMany(MediaFolder::class);
     }
 
     public function getEffectiveRetentionDefault(): int

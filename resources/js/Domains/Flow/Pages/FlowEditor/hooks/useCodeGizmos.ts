@@ -6,6 +6,8 @@ import {
     getCodeGizmos,
     type CodeGizmo,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/codeGizmos';
+import { useEditableResourceDisplays } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/referenceDisplays';
+import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 
 type MonacoInstance = Parameters<OnMount>[1];
 
@@ -13,6 +15,7 @@ interface UseCodeGizmosOptions {
     code: string;
     editorInstance: editor.IStandaloneCodeEditor | null;
     monacoInstance: MonacoInstance | null;
+    resourceGizmos?: boolean;
     selectorGizmos?: boolean;
     onGizmoClick?: (gizmo: CodeGizmo, forceOnboarding?: boolean) => void;
 }
@@ -45,17 +48,20 @@ export const useCodeGizmos = ({
     code,
     editorInstance,
     monacoInstance,
+    resourceGizmos = false,
     selectorGizmos = true,
     onGizmoClick,
 }: UseCodeGizmosOptions) => {
+    const references = useEditableResourceDisplays(resourceGizmos);
+    const quickRequirement = useQuickRequirementCreation();
     const gizmoScopeClassRef = useRef<string | null>(null);
     if (!gizmoScopeClassRef.current) {
         gizmoScopeClassRef.current = `nop-code-gizmos-${nextGizmoScopeId++}`;
     }
     const gizmoScopeClass = gizmoScopeClassRef.current;
     const gizmos = useMemo(
-        () => getCodeGizmos(code).filter(gizmo => selectorGizmos || gizmo.kind !== 'selector'),
-        [code, selectorGizmos],
+        () => getCodeGizmos(code, references).filter(gizmo => selectorGizmos || gizmo.kind !== 'selector'),
+        [code, references, selectorGizmos],
     );
     const gizmoDecorations = useMemo(() => {
         if (!monacoInstance) return [];
@@ -81,6 +87,21 @@ export const useCodeGizmos = ({
                     options: {
                         glyphMarginClassName: `nop-code-gizmo-favicon ${gizmoScopeClass}-favicon-${index} ${gizmoScopeClass}-click-${index}`,
                         glyphMarginHoverMessage: { value: gizmo.siteHostname ?? gizmo.name },
+                        glyphMargin: {
+                            position: monacoInstance.editor.GlyphMarginLane.Right,
+                        },
+                    },
+                });
+            }
+            const resource = gizmo.resources?.[0];
+            if (resource) {
+                decorations.push({
+                    range,
+                    options: {
+                        glyphMarginClassName: `nop-code-gizmo-resource ${gizmoScopeClass}-resource-${index} ${gizmoScopeClass}-resource-click-${index}`,
+                        glyphMarginHoverMessage: {
+                            value: gizmo.resources?.map(item => `Edit ${item.label}`).join('\n\n') ?? resource.label,
+                        },
                         glyphMargin: {
                             position: monacoInstance.editor.GlyphMarginLane.Right,
                         },
@@ -114,8 +135,20 @@ export const useCodeGizmos = ({
 
             return getTargetGizmo(target);
         };
+        const getTargetResourceGizmo = (target: HTMLElement | null) => {
+            if (!target?.closest('.nop-code-gizmo-resource')) return null;
+            const gizmoIndex = gizmos.findIndex((_gizmo, index) =>
+                target.closest(`.${gizmoScopeClass}-resource-click-${index}`));
+            return gizmos[gizmoIndex] ?? null;
+        };
         const mouseDownDisposable = editorInstance.onMouseDown(event => {
             const target = event.target.element;
+            const resourceGizmo = getTargetResourceGizmo(target);
+            const resource = resourceGizmo?.resources?.[0];
+            if (resource?.resourceKind && resource.resourceId != null) {
+                void quickRequirement.edit(resource.resourceKind, resource.resourceId);
+                return;
+            }
             const faviconGizmo = getTargetFaviconGizmo(target);
             if (faviconGizmo?.targetUrl) {
                 window.open(faviconGizmo.targetUrl, '_blank', 'noopener,noreferrer');
@@ -168,7 +201,7 @@ export const useCodeGizmos = ({
             mouseMoveDisposable.dispose();
             mouseLeaveDisposable.dispose();
         };
-    }, [editorInstance, gizmoScopeClass, gizmos, onGizmoClick]);
+    }, [editorInstance, gizmoScopeClass, gizmos, onGizmoClick, quickRequirement]);
 
     useEffect(() => {
         const editorNode = editorInstance?.getDomNode();
@@ -179,6 +212,10 @@ export const useCodeGizmos = ({
 
         Promise.all(gizmos.map(async (gizmo, index) => {
             const iconUrl = await getGizmoIconUrl(gizmo.icon, gizmo.color);
+            const resource = gizmo.resources?.[0];
+            const resourceIconUrl = resource
+                ? await getGizmoIconUrl(resource.icon, resource.iconColor ?? '#64748b')
+                : null;
             return `
                 .${gizmoScopeClass}-${index} {
                     --nop-code-gizmo-color: ${gizmo.color};
@@ -187,6 +224,11 @@ export const useCodeGizmos = ({
                 ${gizmo.faviconUrl ? `
                     .${gizmoScopeClass}-favicon-${index} {
                         background-image: url("${gizmo.faviconUrl}") !important;
+                    }
+                ` : ''}
+                ${resourceIconUrl ? `
+                    .${gizmoScopeClass}-resource-${index} {
+                        background-image: url("${resourceIconUrl}") !important;
                     }
                 ` : ''}
             `;

@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\ArtifactCleanupService;
 use App\Services\Flow\FlowRunMetadataFilter;
+use App\Services\Flow\Query\FlowRunProjection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,11 +64,13 @@ class FlowRunsPageController extends Controller
         $perPage = min(max($request->integer('per_page', 50), 1), 100);
 
         $runningRuns = (clone $filteredQuery)
+            ->select(FlowRunProjection::LIST_COLUMNS)
             ->whereIn('flow_runs.status', self::ACTIVE_STATUSES)
             ->paginate(perPage: $perPage, pageName: 'running_page')
             ->withQueryString();
 
         $terminatedRuns = (clone $filteredQuery)
+            ->select(FlowRunProjection::LIST_COLUMNS)
             ->whereIn('flow_runs.status', self::TERMINATED_STATUSES)
             ->paginate(perPage: $perPage, pageName: 'terminated_page')
             ->withQueryString();
@@ -132,6 +135,7 @@ class FlowRunsPageController extends Controller
 
         /** @var \Illuminate\Database\Eloquent\Collection<int, FlowRun> $runs */
         $runs = $this->visibleRunsQuery($request)
+            ->select(['flow_runs.id', 'flow_runs.flow_id', 'flow_runs.status'])
             ->whereIn('flow_runs.id', $validated['ids'])
             ->get();
 

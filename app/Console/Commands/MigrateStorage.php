@@ -47,6 +47,7 @@ class MigrateStorage extends Command
         $uploadCount = 0;
         $failures = 0;
         $query = FlowRun::query()
+            ->select(['id', 'flow_id', 'status'])
             ->with('flow')
             ->whereIn('status', ['success', 'error', 'cancelled'])
             ->orderBy('id');

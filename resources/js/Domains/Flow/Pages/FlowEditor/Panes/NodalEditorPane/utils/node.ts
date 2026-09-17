@@ -1,4 +1,5 @@
 import type { CanvasEdge, CanvasNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { getNodeInputPorts, getNodeOutputPorts } from './constants';
 import { formatEntryLabel } from './catalog';
 
@@ -37,9 +38,16 @@ export function isSingleHandleNode(node: CanvasNode): boolean {
 }
 
 export function isEdgeInsertableNode(node: CanvasNode): boolean {
-    return !node.system
-        && getNodeInputPorts(node.entry.name).length === 1
-        && getNodeOutputPorts(node.entry.name, node.entry).length > 0;
+    return !node.system && isEdgeInsertableEntry(node.entry);
+}
+
+export function isEdgeInsertableEntry(entry: HelpEntryDef): boolean {
+    const flowInputs = getNodeInputPorts(entry.name)
+        .filter(port => (port.connectionType ?? 'flow') === 'flow');
+    const flowOutputs = getNodeOutputPorts(entry.name, entry)
+        .filter(port => (port.connectionType ?? 'flow') === 'flow');
+
+    return flowInputs.length === 1 && flowOutputs.length > 0;
 }
 
 export function primaryNodeOutputPort(node: CanvasNode): string | null {

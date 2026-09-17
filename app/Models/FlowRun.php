@@ -9,6 +9,7 @@
 namespace App\Models;
 
 use App\Casts\SafeEncrypted;
+use App\Services\Flow\Query\FlowRunProjection;
 use App\Services\Mailbox\MailboxRunQueueService;
 use App\Services\Runtime\RunnerSignalService;
 use App\Services\Storage\RunArtifactPathResolver;
@@ -89,6 +90,7 @@ class FlowRun extends Model
         'recording_size_bytes',
         'screenshots_size_bytes',
         'downloads_size_bytes',
+        'sniff_bodies_size_bytes',
         'flow_data_size_bytes',
         'console_logs_size_bytes',
         'storage_size_bytes',
@@ -142,6 +144,7 @@ class FlowRun extends Model
             'recording_size_bytes' => 'integer',
             'screenshots_size_bytes' => 'integer',
             'downloads_size_bytes' => 'integer',
+            'sniff_bodies_size_bytes' => 'integer',
             'flow_data_size_bytes' => 'integer',
             'console_logs_size_bytes' => 'integer',
             'storage_size_bytes' => 'integer',
@@ -153,6 +156,14 @@ class FlowRun extends Model
             'action_results' => 'array',
             'resolved_secrets' => SafeEncrypted::class.':true,true',
         ];
+    }
+
+    public function resolveRouteBindingQuery($query, $value, $field = null)
+    {
+        /** @var \Illuminate\Database\Eloquent\Builder<self> $bindingQuery */
+        $bindingQuery = parent::resolveRouteBindingQuery($query, $value, $field);
+
+        return $bindingQuery->select(FlowRunProjection::RUN_COLUMNS);
     }
 
     /**
@@ -286,14 +297,17 @@ class FlowRun extends Model
         return $user instanceof User ? ['id' => $user->id, 'name' => $user->name] : null;
     }
 
-    public function redactSecretsForClient(): self
+    public function redactSecretsForClient(bool $includeInternalMeta = false): self
     {
         $secrets = $this->resolvedSecretValues();
+        $attributes = $includeInternalMeta
+            ? self::REDACTED_ATTRIBUTES
+            : array_values(array_diff(self::REDACTED_ATTRIBUTES, ['internal_meta']));
 
         $this->setAttribute('secrets_redacted', true);
 
         if ($secrets === null) {
-            foreach (self::REDACTED_ATTRIBUTES as $attribute) {
+            foreach ($attributes as $attribute) {
                 $value = $this->getAttribute($attribute);
                 $this->setAttribute($attribute, $this->redactionUnavailableValue($value));
             }
@@ -306,7 +320,7 @@ class FlowRun extends Model
             return $this;
         }
 
-        foreach (self::REDACTED_ATTRIBUTES as $attribute) {
+        foreach ($attributes as $attribute) {
             $this->setAttribute(
                 $attribute,
                 $this->redactValue($this->getAttribute($attribute), $secrets),

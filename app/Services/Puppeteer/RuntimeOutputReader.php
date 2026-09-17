@@ -14,15 +14,72 @@ final class RuntimeOutputReader
     /** @return array<array-key, mixed>|null */
     public function output(string $path): ?array
     {
+        return $this->decode($this->consume($path));
+    }
+
+    /**
+     * The internal output (nodal previews) is produced by the runtime without a hard size
+     * guarantee, so it is read with a byte ceiling to keep the worker's memory bounded. An
+     * oversized preview is replaced by a marker the editor surfaces instead of silently vanishing.
+     *
+     * @return array<array-key, mixed>|null
+     */
+    public function internalOutput(string $path): ?array
+    {
+        $maxBytes = $this->internalOutputMaxBytes();
+        $json = $this->consume($path, $maxBytes + 1);
+        if ($json !== null && strlen($json) > $maxBytes) {
+            Log::warning('Runtime internal output omitted because it exceeded its byte limit.', ['limit' => $maxBytes]);
+
+            return ['nodal_preview' => ['omitted' => ['reason' => 'size', 'limit' => $maxBytes]]];
+        }
+
+        return $this->decode($json);
+    }
+
+    /** Raw internal output left in place for internalOutput(); null when missing or above the ceiling. */
+    public function peekInternalOutput(string $path): ?string
+    {
+        $maxBytes = $this->internalOutputMaxBytes();
+        $json = $this->read($path, $maxBytes + 1);
+
+        return $json !== null && strlen($json) <= $maxBytes ? $json : null;
+    }
+
+    /** @return positive-int */
+    private function internalOutputMaxBytes(): int
+    {
+        return max(1, config()->integer('puppetflow.runner_internal_output_max_bytes'));
+    }
+
+    /** @param  positive-int|null  $length */
+    private function read(string $path, ?int $length = null): ?string
+    {
         if (! file_exists($path)) {
             return null;
         }
-        $json = file_get_contents($path);
+        $json = $length === null ? file_get_contents($path) : file_get_contents($path, length: $length);
+
+        return is_string($json) ? $json : null;
+    }
+
+    /**
+     * Reads a runtime output file (up to $length bytes) and removes it.
+     *
+     * @param  positive-int|null  $length
+     */
+    private function consume(string $path, ?int $length = null): ?string
+    {
+        $json = $this->read($path, $length);
         @unlink($path);
-        if ($json === false) {
-            return null;
-        }
-        $decoded = json_decode($json, true);
+
+        return $json;
+    }
+
+    /** @return array<array-key, mixed>|null */
+    private function decode(?string $json): ?array
+    {
+        $decoded = $json === null ? null : json_decode($json, true);
 
         return is_array($decoded) ? $decoded : null;
     }

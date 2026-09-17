@@ -10,6 +10,9 @@ const __runInternalOutputPath = process.env.RUN_INTERNAL_OUTPUT_PATH || '';
 const __actionLogsPath = process.env.RUN_ACTION_LOGS_PATH || '';
 const $json = JSON.parse(fs.readFileSync(__runInputPath, 'utf8'));
 $json.$context.meta = {};
+// The run context travels in the input file but flow code receives it as its own argument:
+// run($page, $input, $context, $client). $json keeps the raw file for the runtime itself.
+const { $context: __runContext, ...__runInput } = $json;
 
 /* @help Globals
  * @sig $viewportWidth
@@ -153,20 +156,101 @@ const __runnerOperations = (() => {
       request.end(payload);
     });
   };
+  // Filename advertised by Content-Disposition, reduced to a safe basename.
+  const responseFilename = function(contentDisposition, fallback) {
+    const disposition = String(Array.isArray(contentDisposition) ? contentDisposition[0] : contentDisposition || '');
+    const match = disposition.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i)
+      || disposition.match(/filename\s*=\s*(?:"([^"]*)"|([^;]+))/i);
+    let filename = (match?.[1] || match?.[2] || '').trim().replace(/^"(.*)"$/, '$1');
+    try { filename = decodeURIComponent(filename); } catch {}
+    const safe = [...path.basename(filename.replace(/\\/g, '/'))]
+      .filter(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127)
+      .join('')
+      .trim();
+    return safe && safe !== '.' && safe !== '..' ? safe : fallback;
+  };
+  // POSTs a JSON body and streams the binary response into a private temporary directory.
+  const downloadToTmp = async function(url, body, timeoutMs) {
+    const parsedUrl = new URL(url);
+    const transport = parsedUrl.protocol === 'https:'
+      ? require('https')
+      : require('http');
+    const payload = JSON.stringify(body);
+    const directoryName = 'media-' + crypto.randomBytes(16).toString('hex');
+    const directory = __resolveArtifactPath(paths.tmp, directoryName, 'Media temporary directory');
+
+    return await new Promise((resolve, reject) => {
+      let settled = false;
+      const settle = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        if (callback === reject) {
+          try { fs.rmSync(directory, { recursive: true, force: true }); } catch {}
+        }
+        callback(value);
+      };
+      const request = transport.request(parsedUrl, {
+        method: 'POST',
+        agent: false,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/octet-stream',
+          'Content-Length': Buffer.byteLength(payload),
+          'Connection': 'close',
+        },
+      }, response => {
+        const status = Number(response.statusCode) || 0;
+        response.on('error', error => settle(reject, error));
+        if (status < 200 || status >= 300) {
+          const chunks = [];
+          response.on('data', chunk => chunks.length < 64 && chunks.push(Buffer.from(chunk).subarray(0, 1024)));
+          response.on('end', () => {
+            const detail = Buffer.concat(chunks).toString('utf8').trim();
+            settle(reject, new Error('Runtime API request failed with HTTP ' + status + (detail ? ': ' + detail : '.')));
+          });
+          return;
+        }
+
+        const filename = responseFilename(response.headers['content-disposition'], body.media_id);
+        const target = __resolveArtifactPath(paths.tmp, path.join(directoryName, filename), 'Media temporary file');
+        fs.mkdirSync(directory, { recursive: false, mode: 0o700 });
+        const output = fs.createWriteStream(target, { flags: 'wx', mode: 0o600 });
+        response.on('aborted', () => settle(reject, new Error('Runtime API media response was aborted.')));
+        output.on('error', error => settle(reject, error));
+        output.on('close', () => settle(resolve, { path: target, directory }));
+        response.pipe(output);
+      });
+      const deadline = setTimeout(() => {
+        request.destroy(new Error('Runtime API request timed out after ' + timeoutMs + 'ms.'));
+      }, timeoutMs);
+      request.on('error', error => settle(reject, error));
+      request.end(payload);
+    });
+  };
   const request = async function(endpoint, body, timeoutMs = 10000) {
     if (!baseUrl || !token) {
       throw new Error('Runtime API is not available for this run.');
     }
-    const safeTimeout = Math.max(1000, Math.min(Number(timeoutMs) || 10000, 300000));
+    const safeTimeout = Math.max(1000, Math.min(Number(timeoutMs) || 10000, 900000));
     return await send(baseUrl + endpoint, body, safeTimeout);
   };
 
   return Object.freeze({
     available: Boolean(baseUrl && token && send),
     aiExecute: (body, timeoutMs) => request('/ai/execute', body, timeoutMs),
+    mcpTools: (body, timeoutMs) => request('/mcp/tools', body, timeoutMs),
+    mcpCall: (body, timeoutMs) => request('/mcp/call', body, timeoutMs),
     dataTableRead: body => request('/data-table/read', body, 30000),
     dataTableWrite: body => request('/data-table/write', body, 30000),
     dataTableSchema: body => request('/data-table/schema', body, 30000),
+    mediaDownload: body => {
+      if (!baseUrl || !token) {
+        throw new Error('Runtime API is not available for this run.');
+      }
+      return downloadToTmp(baseUrl + '/media/download', body, 300000);
+    },
     mailboxClaim: body => request('/mailbox/claim', body),
     mailboxRenew: body => request('/mailbox/renew', body),
     waitingDeclare: body => request('/waiting/declare', body),

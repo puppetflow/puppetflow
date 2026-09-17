@@ -29,6 +29,7 @@ export interface ContextMenuProps {
     onAddNode: () => void;
     onAddStickyNote: (position: { x: number; y: number }) => void;
     onTidyWorkflow: () => void;
+    onFocusGraph: () => void;
     onPasteHere: (position: { x: number; y: number }) => void;
     onDeleteNode: (node: CanvasNode) => void;
     onDeleteSelection: () => void;

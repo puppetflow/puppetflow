@@ -179,6 +179,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if ($workers = config('app.server_workers')) {
+            $_ENV['PHP_CLI_SERVER_WORKERS'] = (string) $workers;
+            $_SERVER['PHP_CLI_SERVER_WORKERS'] = (string) $workers;
+        }
+
         if (config('app.scheme') === 'https') {
             \Illuminate\Support\Facades\URL::forceScheme('https');
         }

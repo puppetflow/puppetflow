@@ -36,76 +36,84 @@ class RunArtifactFinalizer
         // indexed artifacts serves both the quota delta and the write loop.
         $existingArtifacts = $run->artifacts()->get()
             ->keyBy(fn (FlowRunArtifact $artifact): string => $artifact->type.'|'.$artifact->relative_path);
-        $deletionIds = $this->quota->admit(
-            fn (): int => $this->artifactDelta($existingArtifacts, $files),
-            function () use ($run, $files, $diskName, $durableDisk, $existingArtifacts): array {
-                $prepared = [];
-                foreach ($files as $file) {
-                    $artifact = $existingArtifacts->get($file['type'].'|'.$file['relative_path']);
-                    if (! $this->filesystem->objectMatches(
-                        $durableDisk,
-                        $file['storage_path'],
-                        $file['size_bytes'],
-                        $file['checksum_sha256'],
-                    )) {
-                        $stream = $this->filesystem->workspace()->readStream($file['workspace_path']);
-                        if (! is_resource($stream)) {
-                            throw new \RuntimeException('Unable to open an artifact workspace stream.');
-                        }
-                        try {
-                            $durableDisk->put($file['storage_path'], $stream);
-                        } finally {
-                            fclose($stream);
-                        }
+        $prepared = [];
+        $writtenPaths = [];
+        try {
+            foreach ($files as $file) {
+                $artifact = $existingArtifacts->get($file['type'].'|'.$file['relative_path']);
+                if (! $this->filesystem->objectMatches(
+                    $durableDisk,
+                    $file['storage_path'],
+                    $file['size_bytes'],
+                    $file['checksum_sha256'],
+                )) {
+                    $stream = $this->filesystem->workspace()->readStream($file['workspace_path']);
+                    if (! is_resource($stream)) {
+                        throw new \RuntimeException('Unable to open an artifact workspace stream.');
                     }
-                    if (! $this->filesystem->objectMatches(
-                        $durableDisk,
-                        $file['storage_path'],
-                        $file['size_bytes'],
-                        $file['checksum_sha256'],
-                    )) {
-                        throw new \RuntimeException('Artifact verification failed after durable storage write.');
+                    try {
+                        $durableDisk->put($file['storage_path'], $stream);
+                        $writtenPaths[] = $file['storage_path'];
+                    } finally {
+                        fclose($stream);
                     }
-                    $prepared[] = [
-                        'file' => $file,
-                        'previous_disk' => $artifact?->disk,
-                        'previous_storage_path' => $artifact?->storage_path,
-                    ];
                 }
-
-                return DB::transaction(function () use ($run, $prepared, $diskName): array {
-                    $deletionIds = [];
-                    foreach ($prepared as $item) {
-                        $file = $item['file'];
-                        $run->artifacts()->updateOrCreate([
-                            'type' => $file['type'],
-                            'relative_path' => $file['relative_path'],
-                        ], [
-                            'storage_path' => $file['storage_path'],
-                            'disk' => $diskName,
-                            'size_bytes' => $file['size_bytes'],
-                            'mime_type' => $file['mime_type'],
-                            'checksum_sha256' => $file['checksum_sha256'],
-                            'status' => FlowRunArtifact::STATUS_READY,
-                        ]);
-                        $previousDisk = $item['previous_disk'];
-                        $previousStoragePath = $item['previous_storage_path'];
-                        if (
-                            is_string($previousDisk)
-                            && $previousDisk !== ''
-                            && $previousDisk !== $diskName
-                            && is_string($previousStoragePath)
-                            && $previousStoragePath !== ''
-                            && ! $this->filesystem->disksShareLocalRoot($previousDisk, $diskName)
-                        ) {
-                            $deletionIds[] = $this->deletions->stage($previousDisk, $previousStoragePath);
+                if (! $this->filesystem->objectMatches(
+                    $durableDisk,
+                    $file['storage_path'],
+                    $file['size_bytes'],
+                    $file['checksum_sha256'],
+                )) {
+                    throw new \RuntimeException('Artifact verification failed after durable storage write.');
+                }
+                $prepared[] = [
+                    'file' => $file,
+                    'previous_disk' => $artifact?->disk,
+                    'previous_storage_path' => $artifact?->storage_path,
+                ];
+            }
+            $deletionIds = $this->quota->admit(
+                fn (): int => $this->artifactDelta($existingArtifacts, $files),
+                function () use ($run, $prepared, $diskName): array {
+                    return DB::transaction(function () use ($run, $prepared, $diskName): array {
+                        $deletionIds = [];
+                        foreach ($prepared as $item) {
+                            $file = $item['file'];
+                            $run->artifacts()->updateOrCreate([
+                                'type' => $file['type'],
+                                'relative_path' => $file['relative_path'],
+                            ], [
+                                'storage_path' => $file['storage_path'],
+                                'disk' => $diskName,
+                                'size_bytes' => $file['size_bytes'],
+                                'mime_type' => $file['mime_type'],
+                                'checksum_sha256' => $file['checksum_sha256'],
+                                'status' => FlowRunArtifact::STATUS_READY,
+                            ]);
+                            $previousDisk = $item['previous_disk'];
+                            $previousStoragePath = $item['previous_storage_path'];
+                            if (
+                                is_string($previousDisk)
+                                && $previousDisk !== ''
+                                && $previousDisk !== $diskName
+                                && is_string($previousStoragePath)
+                                && $previousStoragePath !== ''
+                                && ! $this->filesystem->disksShareLocalRoot($previousDisk, $diskName)
+                            ) {
+                                $deletionIds[] = $this->deletions->stage($previousDisk, $previousStoragePath);
+                            }
                         }
-                    }
 
-                    return $deletionIds;
-                });
-            },
-        );
+                        return $deletionIds;
+                    });
+                },
+            );
+        } catch (\Throwable $exception) {
+            foreach ($writtenPaths as $storagePath) {
+                $durableDisk->delete($storagePath);
+            }
+            throw $exception;
+        }
         $this->deletions->dispatch($deletionIds);
 
         foreach ($files as $file) {

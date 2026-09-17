@@ -20,7 +20,7 @@ final class FlowRunRetentionService
     public function enforce(Flow $flow): void
     {
         try {
-            $limit = $this->effectiveLimit($flow);
+            $limit = $flow->getEffectiveRetentionLimit();
             if ($limit <= 0) {
                 return;
             }
@@ -33,6 +33,7 @@ final class FlowRunRetentionService
 
             /** @var \Illuminate\Database\Eloquent\Collection<int, FlowRun> $runsToDelete */
             $runsToDelete = $completedRuns
+                ->select(['id', 'flow_id', 'status'])
                 ->orderByDesc('created_at')
                 ->skip($limit)
                 ->take($totalRuns - $limit)
@@ -47,15 +48,5 @@ final class FlowRunRetentionService
         } catch (\Throwable $exception) {
             Log::warning("Retention cleanup failed for flow {$flow->id}: {$exception->getMessage()}");
         }
-    }
-
-    private function effectiveLimit(Flow $flow): int
-    {
-        $workspaceMaximum = $flow->workspace->runs_retention_max ?? 0;
-        $limit = $flow->getEffectiveRetentionLimit();
-
-        return $workspaceMaximum > 0 && $limit > $workspaceMaximum
-            ? $workspaceMaximum
-            : $limit;
     }
 }

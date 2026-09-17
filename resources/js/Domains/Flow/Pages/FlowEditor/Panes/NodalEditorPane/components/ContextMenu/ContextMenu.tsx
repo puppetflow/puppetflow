@@ -31,6 +31,7 @@ export default function ContextMenu({
     onAddNode,
     onAddStickyNote,
     onTidyWorkflow,
+    onFocusGraph,
     onPasteHere,
     onDeleteNode,
     onDeleteSelection,
@@ -99,6 +100,7 @@ export default function ContextMenu({
                         onAddNode={onAddNode}
                         onAddStickyNote={onAddStickyNote}
                         onTidyWorkflow={onTidyWorkflow}
+                        onFocusGraph={onFocusGraph}
                         onPasteHere={onPasteHere}
                         onClose={onClose}
                     />

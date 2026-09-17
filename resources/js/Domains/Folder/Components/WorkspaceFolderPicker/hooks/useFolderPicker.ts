@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import type { FolderTree } from '@/Domains/Folder/types';
+import type { ExplorerFolderTree as FolderTree } from '@/Shared/Explorer/types';
 import type {
     FolderScope,
     FolderSelection,
@@ -14,6 +14,8 @@ interface UseFolderPickerOptions {
     rootLabel: string;
     scope?: FolderScope;
     ownerId?: Id | null;
+    teamId?: Id | null;
+    createFolderEndpoint?: string;
     onConfirm: WorkspaceFolderPickerProps['onConfirm'];
 }
 
@@ -24,6 +26,8 @@ export function useFolderPicker({
     rootLabel,
     scope,
     ownerId,
+    teamId,
+    createFolderEndpoint = '/folders',
     onConfirm,
 }: UseFolderPickerOptions) {
     const [selectedId, setSelectedId] = useState<FolderSelection>(null);
@@ -85,18 +89,19 @@ export function useFolderPicker({
             const parentId = creatingAtRoot
                 ? (rootFolderId ?? null)
                 : creatingInId;
-            const { data } = await axios.post('/folders', {
+            const { data } = await axios.post(createFolderEndpoint, {
                 name,
                 parent_id: parentId,
                 is_shared: scope !== 'owner',
                 ...(scope === 'owner' && ownerId && { owner_id: ownerId }),
+                ...(scope === 'team' && !parentId && teamId && { team_id: teamId }),
             });
             const newFolder: FolderTree = {
                 id: data.id,
                 name: data.name,
                 parent_id: data.parent_id,
                 children: [],
-                flows: [],
+                items: [],
             };
 
             setLocalTree(currentTree =>
@@ -115,11 +120,13 @@ export function useFolderPicker({
         cancelCreate,
         creatingAtRoot,
         creatingInId,
+        createFolderEndpoint,
         creatingSaving,
         newFolderName,
         ownerId,
         rootFolderId,
         scope,
+        teamId,
     ]);
 
     return {

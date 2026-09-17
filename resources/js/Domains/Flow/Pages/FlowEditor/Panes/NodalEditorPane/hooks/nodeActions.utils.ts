@@ -2,6 +2,7 @@ import {
     connectEdgeWithStructuredJoins,
     edgeSourcePort,
     edgeTargetPort,
+    isExecutionEdge,
     normalizeStructuredEdges,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { parse } from 'acorn';
@@ -32,7 +33,9 @@ export function reconnectDeletedLinearNodes(nodes: CanvasNode[], edges: CanvasEd
     const remainingNodes = nodes.filter(node => !removableIds.has(node.id));
 
     const incomingBoundaryEdges = edges.filter(edge => (
-        !removableIds.has(edge.sourceNodeId) && removableIds.has(edge.targetNodeId)
+        isExecutionEdge(edge)
+        && !removableIds.has(edge.sourceNodeId)
+        && removableIds.has(edge.targetNodeId)
     ));
 
     incomingBoundaryEdges.forEach(incomingEdge => {
@@ -45,7 +48,7 @@ export function reconnectDeletedLinearNodes(nodes: CanvasNode[], edges: CanvasEd
             if (!nodeId || visited.has(nodeId)) continue;
             visited.add(nodeId);
 
-            edges.filter(edge => edge.sourceNodeId === nodeId).forEach(edge => {
+            edges.filter(edge => isExecutionEdge(edge) && edge.sourceNodeId === nodeId).forEach(edge => {
                 if (removableIds.has(edge.targetNodeId)) {
                     queue.push(edge.targetNodeId);
                 } else {

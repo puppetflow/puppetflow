@@ -54,7 +54,7 @@ export function useFlowEditorController({
     const baseCodeReadOnly = !canEdit || flow.source_type === 'repository' || flow.library_locked;
     const isNodalFlow = flow.flow_type === 'nodal';
     const saved = isNodalFlow
-        ? JSON.stringify(nodalGraph) === JSON.stringify(savedNodalGraph)
+        ? JSON.stringify(normalizeNodalGraph(nodalGraph)) === JSON.stringify(normalizeNodalGraph(savedNodalGraph))
         : code === savedCode;
     const pendingRunOpenRef = useRef(false);
     const defaultInputsSaveRef = useRef<(() => void) | null>(null);

@@ -48,7 +48,8 @@ const $breakpoint = async function(label, context = {}) {
   const contextVars = {
     $page,
     $browser,
-    $input: $json,
+    $input: __runInput,
+    $context: __runContext,
     $client,
     $sleep,
     $fillInput,

@@ -9,6 +9,7 @@ import { codeGizmoStyles } from '@/Shared/CodeEditor/shared/code-gizmos.styled';
 
 interface CodeEditorProps extends EditorProps {
     gizmos?: boolean;
+    resourceGizmos?: boolean;
     selectorGizmos?: boolean;
     onGizmoClick?: (gizmo: CodeGizmo, forceOnboarding?: boolean) => void;
 }
@@ -19,6 +20,7 @@ const EditorScope = styled.div<{ $gizmos: boolean; $clickableGizmos: boolean }>`
     ${({ $clickableGizmos }) => $clickableGizmos && css`
         .nop-code-gizmo,
         .nop-code-gizmo-favicon,
+        .nop-code-gizmo-resource,
         .nop-code-gizmo-selector {
             cursor: pointer;
         }
@@ -31,6 +33,7 @@ const getLineNumberMinChars = (lineCount: number, configuredMinimum = 5) => (
 
 export function CodeEditor({
     gizmos = false,
+    resourceGizmos = false,
     selectorGizmos = true,
     onGizmoClick,
     onMount,
@@ -62,6 +65,7 @@ export function CodeEditor({
         code: gizmos ? code : '',
         editorInstance,
         monacoInstance,
+        resourceGizmos: gizmos && resourceGizmos,
         selectorGizmos,
         onGizmoClick,
     });

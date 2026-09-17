@@ -9,6 +9,7 @@ use App\Models\Mailbox;
 use App\Models\MailboxDomain;
 use App\Models\MailboxWatcher;
 use App\Models\McpAccessToken;
+use App\Models\McpCredential;
 use App\Models\McpOauthClient;
 use App\Models\McpOauthConnection;
 use App\Models\NotificationChannel;
@@ -248,6 +249,10 @@ class FeatureFlagService
         $summary['mcp_access_tokens'] = $this->syncModelStale(McpAccessToken::class, $mcpEnabled);
         $summary['mcp_oauth_clients'] = $this->syncModelStale(McpOauthClient::class, $mcpEnabled);
         $summary['mcp_oauth_connections'] = $this->syncModelStale(McpOauthConnection::class, $mcpEnabled);
+        $summary['mcp_credentials'] = $this->syncModelStale(
+            McpCredential::class,
+            $mcpEnabled && $this->enabled('ai_enabled'),
+        );
 
         $summary['vault_integrations'] = $this->syncIntegrationStale(IntegrationCategoryEnum::VAULT, $this->enabled('vaults_enabled'));
         $summary['ai_integrations'] = $this->syncIntegrationStale(IntegrationCategoryEnum::AI, $this->enabled('ai_enabled'));

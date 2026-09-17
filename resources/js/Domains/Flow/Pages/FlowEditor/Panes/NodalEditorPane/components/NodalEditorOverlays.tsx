@@ -138,6 +138,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                     })}
                     onAddStickyNote={addStickyNote}
                     onTidyWorkflow={canvasViewActions.reorderGraph}
+                    onFocusGraph={canvasViewActions.viewportCenter}
                     onPasteHere={pasteNodesFromClipboard}
                     onDeleteNode={canvasViewActions.deleteNode}
                     onDeleteSelection={canvasViewActions.deleteSelection}

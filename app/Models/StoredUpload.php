@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class StoredUpload extends Model
 {
@@ -23,5 +24,11 @@ class StoredUpload extends Model
         return [
             'size_bytes' => 'integer',
         ];
+    }
+
+    /** @return HasOne<MediaAsset, $this> */
+    public function mediaAsset(): HasOne
+    {
+        return $this->hasOne(MediaAsset::class);
     }
 }

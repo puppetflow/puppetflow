@@ -1,10 +1,9 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { router } from '@inertiajs/react';
 import AppLayout from '@/App/Layout/AppLayout/AppLayout';
 import StatsGrid, { type StatItem } from '@/Shared/UI/StatsGrid/StatsGrid';
 import RunDetailModal from '@/Domains/Flow/Pages/FlowEditor/Modals/RunDetailModal/RunDetailModal';
-import { useSyncedRunDetail } from '@/Domains/Flow/Hooks/Run/useSyncedRunDetail';
 import { useOptimisticRunCancellation } from '@/Domains/Flow/Hooks/Run/useOptimisticRunCancellation';
 import { useToast } from '@/App/Hooks/useToast';
 import { useRunAgainModal } from '@/Domains/Flow/Hooks/useRunAgainModal';
@@ -55,7 +54,30 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
     const waitingHumanIds = useRunsPolling(allRuns, runningRuns.data.length);
     const { deletingSelected, deleteSelectedRuns, ConfirmModal } = useBatchRunDeletion(removeRunIdsFromSelection);
 
-    useSyncedRunDetail(displayedAllRuns, detailRun, setDetailRun);
+    useEffect(() => {
+        setDetailRun(current => {
+            if (!current) return current;
+
+            const freshRun = displayedAllRuns.find(run => run.id === current.id);
+            return freshRun ? { ...current, ...freshRun } : null;
+        });
+    }, [displayedAllRuns]);
+
+    const openRunDetail = useCallback(async (run: FlowRun) => {
+        if (!run.flow) return;
+
+        try {
+            const response = await fetch(`/flows/${encodeURIComponent(String(run.flow.id))}/runs/${run.id}`, {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) throw new Error(`Failed to load run ${run.id}`);
+
+            const detail = await response.json() as FlowRun;
+            setDetailRun({ ...run, ...detail });
+        } catch {
+            toast('Unable to load run details');
+        }
+    }, [toast]);
 
     const handleKillRun = useCallback((run: FlowRun) => {
         if (!run.flow) return;
@@ -83,7 +105,7 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
         deleting: deletingSelected,
         perPage,
         onPerPageChange: changePerPage,
-        onOpen: setDetailRun,
+        onOpen: openRunDetail,
         onToggleSelect: toggleRunSelection,
         onToggleVisible: toggleVisibleRunSelection,
         onClearSelection: clearRunSelection,
@@ -134,7 +156,7 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
                 onKill={handleKillRun}
                 onRerun={openRunAgainModal}
                 navigationRuns={displayedAllRuns}
-                onNavigate={setDetailRun}
+                onNavigate={openRunDetail}
                 footerExtra={detailRun?.flow ? (
                     <S.FlowLinkButton
                         href={`/flows/${detailRun.flow.id}`}

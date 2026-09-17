@@ -25,6 +25,7 @@ const PAGE_DOMAINS: Record<string, string> = {
     Integrations: 'Integration',
     License: 'Licensing',
     Mailbox: 'Mailbox',
+    Media: 'Media',
     Profile: 'Profile',
     Snippet: 'Snippet',
     Variables: 'Variable',

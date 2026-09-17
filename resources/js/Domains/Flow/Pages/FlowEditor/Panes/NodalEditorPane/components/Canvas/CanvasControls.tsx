@@ -41,7 +41,7 @@ export default function CanvasControls({
     return (
         <>
             <S.CanvasControls>
-                <S.CanvasControlButton type="button" onClick={onCenter} title="Center on graph">
+                <S.CanvasControlButton type="button" onClick={onCenter} title="Center on graph (F)">
                     <Icon icon="lucide:locate-fixed" width={14} height={14} />
                 </S.CanvasControlButton>
                 <S.CanvasControlButton type="button" onClick={onZoomOut} title="Zoom out">

@@ -6,6 +6,7 @@ use App\Authorization\Visibility\FlowRunVisibility;
 use App\Models\FlowRun;
 use App\Models\User;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Flow\Query\FlowRunProjection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
@@ -26,6 +27,10 @@ class FlowRunSearchService
         $this->visibility->applyForUser($query, $user, $workspaceId);
 
         return $query
+            ->select(array_values(array_diff(
+                FlowRunProjection::RUN_COLUMNS,
+                ['console_logs', 'action_logs', 'code_snapshot'],
+            )))
             ->with([
                 'flow:id,name,icon_type,icon_value,icon_color,icon_upload_path,timeout_seconds,flow_type,nodal_graph,finally_enabled,keyboard_speed,viewport_width,viewport_height,owner_id,workspace_id,team_id',
                 'flow.workspace:id',

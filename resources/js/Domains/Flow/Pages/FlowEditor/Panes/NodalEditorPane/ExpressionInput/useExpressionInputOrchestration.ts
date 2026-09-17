@@ -10,7 +10,7 @@ import { fetchChannelSuggestions, type ChannelSuggestion } from '@/Domains/Flow/
 import { fetchMailboxWatcherSuggestions, type WatcherSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
 import { fetchVariableSuggestions, type VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import type { ScalarNodeParameterValue } from '../types';
-import { evaluateExpressionPreview, expressionForPath } from '../utils/expression';
+import { evaluateExpressionPreview, expressionForPath, type RenderedExpression } from '../utils/expression';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
 import type { ExpressionInputType } from './FixedInputRenderer';
 import { hasOpenEditorAutocomplete, insertPathExpression } from './utils';
@@ -113,13 +113,13 @@ export function useExpressionInputOrchestration({
     const channelSuggestions = channelResource.resource;
     const watcherSuggestions = watcherResource.resource;
     const variableSuggestions = variableResource.resource;
-    const renderedExpression = useMemo(() => {
+    const renderedExpression = useMemo((): RenderedExpression => {
         const variableData = Object.fromEntries(
             variableSuggestions
                 .filter(variable => Object.prototype.hasOwnProperty.call(variable, 'preview_value'))
                 .map(variable => [variable.id, variable.preview_value]),
         );
-        return evaluateExpressionPreview(value.value, {
+        const rendered = evaluateExpressionPreview(value.value, {
             inputData: autocompleteContext.inputData,
             pageData: autocompleteContext.pageData,
             outputData,
@@ -128,7 +128,13 @@ export function useExpressionInputOrchestration({
             contextData: autocompleteContext.contextData,
             variableData,
         });
+        // Captured bodies arrive after the run metadata; until then a failure most likely
+        // comes from the missing body rather than from the expression itself.
+        return !rendered.ok && autocompleteContext.capturesLoading
+            ? { ok: false, error: 'Loading captured responses…', loading: true }
+            : rendered;
     }, [
+        autocompleteContext.capturesLoading,
         autocompleteContext.contextData,
         autocompleteContext.inputData,
         autocompleteContext.nodeData,

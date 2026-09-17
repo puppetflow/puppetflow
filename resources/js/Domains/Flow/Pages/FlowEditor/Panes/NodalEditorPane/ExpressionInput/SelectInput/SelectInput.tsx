@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { useAnchoredDropdownPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useAnchoredDropdownPosition';
 import { dropdownStyle } from '../utils';
+import * as Shared from '../shared.styled';
 import * as S from './styled';
+
+export interface SelectInputAction {
+    label: ReactNode;
+    /** Resolves with the value to select, or null when cancelled. */
+    onAction: () => Promise<string | null>;
+}
 
 interface SelectInputProps {
     options: NodalSelectOption[];
@@ -14,7 +21,21 @@ interface SelectInputProps {
     allowCustomValue?: boolean;
     customValueLabel?: string;
     readOnly?: boolean;
+    action?: SelectInputAction;
+    browseAction?: () => Promise<string | null>;
     onChange: (value: ScalarNodeParameterValue) => void;
+}
+
+function OptionIcon({ option }: { option: NodalSelectOption }) {
+    if (!option.iconUrl && !option.icon) return null;
+
+    return (
+        <S.OptionIcon aria-hidden style={option.iconColor ? { color: option.iconColor } : undefined}>
+            {option.iconUrl
+                ? <img src={option.iconUrl} alt="" loading="lazy" />
+                : <Icon icon={option.icon!} width={14} height={14} />}
+        </S.OptionIcon>
+    );
 }
 
 export default function SelectInput({
@@ -25,11 +46,16 @@ export default function SelectInput({
     allowCustomValue = false,
     customValueLabel = 'tab name',
     readOnly,
+    action,
+    browseAction,
     onChange,
 }: SelectInputProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
+    const [actionRunning, setActionRunning] = useState(false);
+    const [browseRunning, setBrowseRunning] = useState(false);
+    const actionRunningRef = useRef(false);
     const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const triggerRef = useRef<HTMLButtonElement | null>(null);
     const { dropdownRect, updateDropdownPosition } = useAnchoredDropdownPosition(
@@ -93,6 +119,36 @@ export default function SelectInput({
         close();
     };
 
+    const runAction = async () => {
+        if (!action || actionRunningRef.current) return;
+        actionRunningRef.current = true;
+        setActionRunning(true);
+        try {
+            const created = await action.onAction();
+            if (created) {
+                onChange({ mode: 'fixed', value: created });
+                close();
+            }
+            window.requestAnimationFrame(() => triggerRef.current?.focus());
+        } finally {
+            actionRunningRef.current = false;
+            setActionRunning(false);
+        }
+    };
+
+    const browse = async () => {
+        if (!browseAction || browseRunning) return;
+        close();
+        setBrowseRunning(true);
+        try {
+            const picked = await browseAction();
+            if (picked) onChange({ mode: 'fixed', value: picked });
+        } finally {
+            setBrowseRunning(false);
+            window.requestAnimationFrame(() => triggerRef.current?.focus());
+        }
+    };
+
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (readOnly) return;
 
@@ -137,6 +193,7 @@ export default function SelectInput({
             onKeyDown={handleKeyDown}
             onBlurCapture={event => {
                 if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                if (actionRunningRef.current) return;
                 close();
             }}
         >
@@ -150,10 +207,11 @@ export default function SelectInput({
                     setOpen(current => !current);
                 }}
             >
-                <span>{(selectedOption?.label ?? value) || placeholder || 'Select a value...'}</span>
+                {selectedOption && <OptionIcon option={selectedOption} />}
+                <span data-select-label>{(selectedOption?.label ?? value) || placeholder || 'Select a value...'}</span>
                 <Icon icon="lucide:chevron-down" width={14} height={14} />
             </S.SelectTrigger>
-            {open && !readOnly && dropdownRect && (
+            {open && !readOnly && !actionRunning && dropdownRect && (
                 <S.SelectDropdown
                     data-node-field-dropdown="true"
                     style={dropdownStyle(dropdownRect)}
@@ -175,6 +233,31 @@ export default function SelectInput({
                             }}
                         />
                     )}
+                    {action && (
+                        <Shared.DropdownActionRow>
+                            <Shared.DropdownAction
+                                type="button"
+                                onMouseDown={event => event.preventDefault()}
+                                onClick={() => void runAction()}
+                            >
+                                {action.label}
+                            </Shared.DropdownAction>
+                        </Shared.DropdownActionRow>
+                    )}
+                    {browseAction && (
+                        <Shared.DropdownActionRow>
+                            <Shared.DropdownAction
+                                type="button"
+                                $loading={browseRunning}
+                                disabled={browseRunning}
+                                onMouseDown={event => event.preventDefault()}
+                                onClick={() => void browse()}
+                            >
+                                <Icon icon={browseRunning ? 'lucide:loader-circle' : 'lucide:folder-search'} width={13} />
+                                Browse library
+                            </Shared.DropdownAction>
+                        </Shared.DropdownActionRow>
+                    )}
                     {selectableOptions.length > 0 ? (
                         selectableOptions.map((option, optionIndex) => (
                             <S.SelectOption
@@ -190,6 +273,7 @@ export default function SelectInput({
                                 onMouseEnter={() => setActiveIndex(optionIndex)}
                                 onClick={() => selectOption(option)}
                             >
+                                <OptionIcon option={option} />
                                 <strong>{option.label}</strong>
                                 {option.detail && <span>{option.detail}</span>}
                                 {option.value === value && (

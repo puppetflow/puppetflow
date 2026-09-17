@@ -3,6 +3,7 @@ import {
     DEFAULT_OUTPUT_PORT,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
+    getBranchEdgePath,
     getEdgePath,
     getEdgeMidpoint,
     getPendingEdgePath,
@@ -15,7 +16,10 @@ import type {
     ConnectionDragState,
     KnifeDragState,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import type { EdgeDropTarget } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
+import {
+    isExecutionEdge,
+    type EdgeDropTarget,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import * as S from './CanvasEdgeLayer.styled';
 
 interface CanvasEdgeLayerProps {
@@ -50,13 +54,15 @@ export default function CanvasEdgeLayer({
                 const midpoint = getEdgeMidpoint(start, end);
                 const passCount = runPassed ? runProgress?.edgePassCounts.get(edge.id) ?? 0 : 0;
                 const showPassCount = passCount >= 2;
+                const executionEdge = isExecutionEdge(edge);
 
                 return (
                     <g key={edge.id}>
                         <S.EdgePath
                             $active={edgeDropTarget?.edgeId === edge.id}
                             $runPassed={runPassed}
-                            d={getEdgePath(start, end)}
+                            $tool={!executionEdge}
+                            d={executionEdge ? getEdgePath(start, end) : getBranchEdgePath(start, end)}
                         />
                         {showPassCount && (
                             <S.EdgeRunCountBadge transform={`translate(${midpoint.x} ${midpoint.y})`}>
@@ -69,11 +75,16 @@ export default function CanvasEdgeLayer({
             })}
             {connectionDrag && (
                 <S.PendingEdgePath
-                    d={getPendingEdgePath(
-                        { x: connectionDrag.startX, y: connectionDrag.startY },
-                        { x: connectionDrag.currentX, y: connectionDrag.currentY },
-                        connectionDrag.fromSide,
-                    )}
+                    d={connectionDrag.connectionType === 'ai_tool'
+                        ? getBranchEdgePath(
+                            { x: connectionDrag.startX, y: connectionDrag.startY },
+                            { x: connectionDrag.currentX, y: connectionDrag.currentY },
+                        )
+                        : getPendingEdgePath(
+                            { x: connectionDrag.startX, y: connectionDrag.startY },
+                            { x: connectionDrag.currentX, y: connectionDrag.currentY },
+                            connectionDrag.fromSide,
+                        )}
                 />
             )}
             {knifeDrag && knifeDrag.points.length > 0 && (

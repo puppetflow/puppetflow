@@ -121,6 +121,13 @@ class FlowSearchApiController extends Controller
 
         $this->runSearch->applyFiltersFromRequest($query, $request);
 
+        if ($request->boolean('logs')) {
+            $query->addSelect('console_logs');
+        }
+        if ($request->boolean('code')) {
+            $query->addSelect('code_snapshot');
+        }
+
         $perPage = min(max($request->integer('per_page', 50), 1), 100);
         $paginated = $query->paginate($perPage);
 

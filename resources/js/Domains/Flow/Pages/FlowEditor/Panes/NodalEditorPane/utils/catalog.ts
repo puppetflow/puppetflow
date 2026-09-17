@@ -288,6 +288,7 @@ const NODE_LABEL_BY_NAME: Record<string, string> = {
     $setOutput: 'Set Output',
     $aiMessage: 'AI Message',
     $aiControl: 'AI Control',
+    $mcpClientTool: 'MCP Client Tool',
     $httpRequest: 'HTTP Request',
     $dataTableInsertRow: 'Insert Row',
     $dataTableUpdateRows: 'Update Row(s)',

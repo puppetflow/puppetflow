@@ -73,7 +73,7 @@ final class FlowOwnerRoleProjector
     {
         $ids = [];
         foreach ($trees as $node) {
-            foreach (['flows', 'rootFlows'] as $key) {
+            foreach (['items', 'rootItems'] as $key) {
                 $flows = isset($node[$key]) && is_array($node[$key]) ? $node[$key] : [];
                 foreach ($flows as $flow) {
                     if (is_array($flow) && isset($flow['owner_id']) && is_string($flow['owner_id'])) {
@@ -98,7 +98,7 @@ final class FlowOwnerRoleProjector
     private function inject(array &$trees, array $roles): void
     {
         foreach ($trees as &$node) {
-            foreach (['flows', 'rootFlows'] as $key) {
+            foreach (['items', 'rootItems'] as $key) {
                 if (! isset($node[$key]) || ! is_array($node[$key])) {
                     continue;
                 }

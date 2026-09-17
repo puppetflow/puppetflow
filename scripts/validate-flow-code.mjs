@@ -17,14 +17,16 @@ try {
         && node.id?.name === 'run'
     ));
     const run = runs.length === 1 ? runs[0] : null;
-    const validParameters = run?.params.length === 2
-        && run.params[0]?.type === 'Identifier'
+    // $context and $client are optional trailing parameters.
+    const validParameters = run !== null
+        && run.params.length >= 2
+        && run.params.length <= 4
+        && run.params.every(param => param.type === 'Identifier')
         && run.params[0].name === '$page'
-        && run.params[1]?.type === 'Identifier'
         && run.params[1].name === '$input';
 
     if (!run?.async || !validParameters) {
-        throw new Error('The source must define a top-level async function run($page, $input).');
+        throw new Error('The source must define a top-level async function run($page, $input, $context, $client).');
     }
 } catch (error) {
     process.stderr.write(error instanceof Error ? error.message : 'The JavaScript source is invalid.');

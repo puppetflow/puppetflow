@@ -43,8 +43,7 @@ class UploadStorage
         $filename = $this->normalizeFilename($filename);
         $path = $directory.'/'.$filename;
         $diskName = $this->selectedDiskName();
-        $disk = $this->disk($diskName);
-        $storagePath = $this->storagePath($path);
+        $storagePath = $this->versionedStoragePath($path);
         $sourcePath = $file->getRealPath();
         $sourceSize = filesize($sourcePath);
         $sourceChecksum = hash_file('sha256', $sourcePath);
@@ -57,19 +56,18 @@ class UploadStorage
         }
 
         try {
-            $this->quota->admit(
-                fn (): int => $sourceSize - $this->readySize($path),
-                function () use ($disk, $storagePath, $stream, $file, $path, $diskName, $sourceSize, $sourceChecksum): void {
-                    $disk->put($storagePath, $stream, ['mimetype' => $file->getMimeType()]);
-                    $this->persistVerified(
-                        $path,
-                        $diskName,
-                        $storagePath,
-                        $file->getMimeType(),
-                        $sourceSize,
-                        $sourceChecksum,
-                    );
-                },
+            $this->writeAndPersist(
+                $path,
+                $diskName,
+                $storagePath,
+                fn (FilesystemAdapter $disk) => $disk->put(
+                    $storagePath,
+                    $stream,
+                    ['mimetype' => $file->getMimeType()],
+                ),
+                $file->getMimeType(),
+                $sourceSize,
+                $sourceChecksum,
             );
         } finally {
             fclose($stream);
@@ -88,26 +86,69 @@ class UploadStorage
         $filename = $this->normalizeFilename($filename);
         $path = $directory.'/'.$filename;
         $diskName = $this->selectedDiskName();
-        $storagePath = $this->storagePath($path);
+        $storagePath = $this->versionedStoragePath($path);
         $options = $mimeType === null ? [] : ['mimetype' => $mimeType];
 
         $contentSize = strlen($contents);
-        $this->quota->admit(
-            fn (): int => $contentSize - $this->readySize($path),
-            function () use ($diskName, $storagePath, $contents, $options, $path, $mimeType, $contentSize): void {
-                $this->disk($diskName)->put($storagePath, $contents, $options);
-                $this->persistVerified(
-                    $path,
-                    $diskName,
-                    $storagePath,
-                    $mimeType,
-                    $contentSize,
-                    hash('sha256', $contents),
-                );
-            },
+        $this->writeAndPersist(
+            $path,
+            $diskName,
+            $storagePath,
+            fn (FilesystemAdapter $disk) => $disk->put($storagePath, $contents, $options),
+            $mimeType,
+            $contentSize,
+            hash('sha256', $contents),
         );
 
         return $path;
+    }
+
+    /** @return array{disk: string, storage_path: string} */
+    public function allocateDirectTarget(string $path): array
+    {
+        $path = $this->normalizePath($path);
+
+        return [
+            'disk' => $this->selectedDiskName(),
+            'storage_path' => $this->versionedStoragePath($path),
+        ];
+    }
+
+    public function registerVerifiedObject(
+        string $path,
+        string $disk,
+        string $storagePath,
+        int $sizeBytes,
+        ?string $mimeType,
+        string $checksumSha256,
+    ): StoredUpload {
+        $path = $this->normalizePath($path);
+        [$upload, $ids] = $this->persistMetadata($path, $disk, $storagePath, [
+            'size_bytes' => $sizeBytes,
+            'mime_type' => $mimeType,
+            'checksum_sha256' => $checksumSha256,
+        ]);
+        $this->dispatchDeletions($ids);
+
+        return $upload;
+    }
+
+    /** @param list<array{disk: string, storage_path: string}> $locations */
+    public function queuePhysicalDeletions(array $locations): void
+    {
+        if ($locations === []) {
+            return;
+        }
+        $ids = DB::transaction(function () use ($locations): array {
+            return array_map(
+                fn (array $location): int => $this->stageDeletion(
+                    $location['disk'],
+                    $location['storage_path'],
+                ),
+                $locations,
+            );
+        });
+        DB::afterCommit(fn () => $this->dispatchDeletions($ids));
     }
 
     public function contents(string $path): ?string
@@ -120,6 +161,19 @@ class UploadStorage
         $contents = $this->disk($upload->disk)->get($upload->storage_path);
 
         return is_string($contents) ? $contents : null;
+    }
+
+    /** @return resource|null */
+    public function readStream(string $path)
+    {
+        $upload = $this->find($path);
+        if ($upload === null) {
+            return null;
+        }
+
+        $stream = $this->disk($upload->disk)->readStream($upload->storage_path);
+
+        return is_resource($stream) ? $stream : null;
     }
 
     public function exists(string $path): bool
@@ -176,26 +230,20 @@ class UploadStorage
         }
         $destination = $this->normalizePath($destination);
         $targetDiskName = $this->selectedDiskName();
-        $targetDisk = $this->disk($targetDiskName);
-        $targetPath = $this->storagePath($destination);
+        $targetPath = $this->versionedStoragePath($destination);
         $stream = $this->disk($source->disk)->readStream($source->storage_path);
         if (! is_resource($stream)) {
             throw new \RuntimeException('Unable to read uploaded source file.');
         }
         try {
-            $this->quota->admit(
-                fn (): int => $source->size_bytes - $this->readySize($destination),
-                function () use ($targetDisk, $targetPath, $stream, $destination, $targetDiskName, $source): void {
-                    $targetDisk->put($targetPath, $stream);
-                    $this->persistVerified(
-                        $destination,
-                        $targetDiskName,
-                        $targetPath,
-                        $source->mime_type,
-                        $source->size_bytes,
-                        $source->checksum_sha256,
-                    );
-                },
+            $this->writeAndPersist(
+                $destination,
+                $targetDiskName,
+                $targetPath,
+                fn (FilesystemAdapter $disk) => $disk->put($targetPath, $stream),
+                $source->mime_type,
+                $source->size_bytes,
+                $source->checksum_sha256,
             );
         } finally {
             fclose($stream);
@@ -232,12 +280,7 @@ class UploadStorage
             return null;
         }
 
-        $size = $disk->size($storagePath);
-
-        return $this->quota->admit(
-            fn (): int => $size - $this->readySize($path),
-            fn (): StoredUpload => $this->persistVerified($path, $diskName, $storagePath),
-        );
+        return $this->persistVerified($path, $diskName, $storagePath);
     }
 
     public function localSourceExists(string $path): bool
@@ -321,7 +364,7 @@ class UploadStorage
         return $filename;
     }
 
-    private function selectedDiskName(): string
+    public function selectedDiskName(): string
     {
         $disk = config('filesystems.app_storage_disk', 'puppetflow-local');
 
@@ -345,6 +388,40 @@ class UploadStorage
         return 'uploads/'.$this->normalizePath($path);
     }
 
+    private function versionedStoragePath(string $path): string
+    {
+        $storagePath = $this->storagePath($path);
+
+        return dirname($storagePath).'/.versions/'.bin2hex(random_bytes(20)).'-'.basename($storagePath);
+    }
+
+    /** @param \Closure(FilesystemAdapter): mixed $write */
+    private function writeAndPersist(
+        string $path,
+        string $diskName,
+        string $storagePath,
+        \Closure $write,
+        ?string $mimeType,
+        int $expectedSize,
+        string $expectedChecksum,
+    ): void {
+        $disk = $this->disk($diskName);
+        try {
+            $write($disk);
+            $this->persistVerified(
+                $path,
+                $diskName,
+                $storagePath,
+                $mimeType,
+                $expectedSize,
+                $expectedChecksum,
+            );
+        } catch (\Throwable $exception) {
+            $disk->delete($storagePath);
+            throw $exception;
+        }
+    }
+
     private function persistVerified(
         string $path,
         string $diskName,
@@ -354,56 +431,78 @@ class UploadStorage
         ?string $expectedChecksum = null,
     ): StoredUpload {
         $disk = $this->disk($diskName);
-        $metadata = $this->verifiedMetadata($disk, $storagePath);
-        if (
-            ($expectedSize !== null && $metadata['size_bytes'] !== $expectedSize)
-            || (
-                $expectedChecksum !== null
-                && ! hash_equals($expectedChecksum, $metadata['checksum_sha256'])
-            )
-        ) {
-            $disk->delete($storagePath);
-            throw new \RuntimeException('Uploaded file failed durable storage verification.');
-        }
-        if ($verifiedMimeType !== null) {
-            $metadata['mime_type'] = $verifiedMimeType;
-        }
         $previous = StoredUpload::query()->where('path', $path)->first();
 
         try {
-            [$upload, $ids] = DB::transaction(function () use (
-                $path,
-                $diskName,
-                $storagePath,
-                $metadata,
-                $previous,
-            ): array {
-                $upload = StoredUpload::query()->updateOrCreate(['path' => $path], [
-                    'storage_path' => $storagePath,
-                    'disk' => $diskName,
-                    'size_bytes' => $metadata['size_bytes'],
-                    'mime_type' => $metadata['mime_type'],
-                    'checksum_sha256' => $metadata['checksum_sha256'],
-                    'status' => StoredUpload::STATUS_READY,
-                ]);
-                $ids = [];
-                if (
-                    $previous !== null
-                    && ($previous->disk !== $diskName || $previous->storage_path !== $storagePath)
-                ) {
-                    $ids[] = $this->stageDeletion($previous->disk, $previous->storage_path);
-                }
-
-                return [$upload, $ids];
-            });
+            $metadata = $this->verifiedMetadata($disk, $storagePath);
+            if (
+                ($expectedSize !== null && $metadata['size_bytes'] !== $expectedSize)
+                || (
+                    $expectedChecksum !== null
+                    && ! hash_equals($expectedChecksum, $metadata['checksum_sha256'])
+                )
+            ) {
+                throw new \RuntimeException('Uploaded file failed durable storage verification.');
+            }
+            if ($verifiedMimeType !== null) {
+                $metadata['mime_type'] = $verifiedMimeType;
+            }
+            [$upload, $ids] = $this->quota->admit(
+                fn (): int => $metadata['size_bytes'] - $this->readySize($path),
+                fn (): array => $this->persistMetadata($path, $diskName, $storagePath, $metadata),
+            );
         } catch (\Throwable $exception) {
-            $this->disk($diskName)->delete($storagePath);
+            if (
+                $previous === null
+                || $previous->disk !== $diskName
+                || $previous->storage_path !== $storagePath
+            ) {
+                $disk->delete($storagePath);
+            }
             throw $exception;
         }
 
         $this->dispatchDeletions($ids);
 
         return $upload;
+    }
+
+    /**
+     * @param  array{size_bytes: int, mime_type: string|null, checksum_sha256: string}  $metadata
+     * @return array{StoredUpload, list<int>}
+     */
+    private function persistMetadata(
+        string $path,
+        string $diskName,
+        string $storagePath,
+        array $metadata,
+    ): array {
+        return DB::transaction(function () use ($path, $diskName, $storagePath, $metadata): array {
+            $current = StoredUpload::query()->where('path', $path)->lockForUpdate()->first();
+            $previousDisk = $current?->disk;
+            $previousStoragePath = $current?->storage_path;
+            $attributes = [
+                'storage_path' => $storagePath,
+                'disk' => $diskName,
+                ...$metadata,
+                'status' => StoredUpload::STATUS_READY,
+            ];
+            if ($current === null) {
+                $current = StoredUpload::query()->create(['path' => $path, ...$attributes]);
+            } else {
+                $current->update($attributes);
+            }
+            $ids = [];
+            if (
+                $previousDisk !== null
+                && $previousStoragePath !== null
+                && ($previousDisk !== $diskName || $previousStoragePath !== $storagePath)
+            ) {
+                $ids[] = $this->stageDeletion($previousDisk, $previousStoragePath);
+            }
+
+            return [$current, $ids];
+        });
     }
 
     private function readySize(string $path): int

@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e
 
+MEDIA_MAX_UPLOAD_BYTES="${MEDIA_MAX_UPLOAD_BYTES:-52428800}"
+if [[ ! "$MEDIA_MAX_UPLOAD_BYTES" =~ ^[0-9]+$ ]] || (( MEDIA_MAX_UPLOAD_BYTES < 1024 )); then
+    echo "[entrypoint] MEDIA_MAX_UPLOAD_BYTES must be an integer of at least 1024 bytes." >&2
+    exit 1
+fi
+# The API accepts 20 files. Keep one MiB for the multipart envelope.
+MEDIA_MAX_REQUEST_BYTES=$((MEDIA_MAX_UPLOAD_BYTES * 20 + 1048576))
+export MEDIA_MAX_UPLOAD_BYTES MEDIA_MAX_REQUEST_BYTES
+
 has_passport_env_value() {
     local value="${1:-}"
     [[ -n "$value" && "$value" != "null" && "$value" != "(null)" ]]
@@ -46,6 +55,9 @@ ensure_passport_keys() {
 # /app/storage as a shared persistent volume for every application container.
 if [[ "$1" == *"supervisord"* ]]; then
     ensure_passport_keys
+    sed "s/__MEDIA_MAX_REQUEST_BYTES__/${MEDIA_MAX_REQUEST_BYTES}/g" \
+        /etc/nginx/templates/puppetflow.conf.template \
+        > /tmp/nginx/puppetflow.conf
 fi
 
 # Cache Laravel config with runtime env vars (always, for all containers)

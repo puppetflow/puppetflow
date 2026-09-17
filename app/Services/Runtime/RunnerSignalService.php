@@ -150,7 +150,20 @@ class RunnerSignalService
 
     private function lockRun(FlowRun $run): ?FlowRun
     {
-        return FlowRun::query()->whereKey($run->getKey())->lockForUpdate()->first();
+        return FlowRun::query()
+            ->select([
+                'id',
+                'status',
+                'runtime_wait_id',
+                'runtime_validation_message',
+                'runtime_waiting_at',
+                'runtime_continue_requested_at',
+                'runtime_consumed_wait_id',
+                'runtime_consumed_at',
+            ])
+            ->whereKey($run->getKey())
+            ->lockForUpdate()
+            ->first();
     }
 
     private function clearColumns(FlowRun $run): void

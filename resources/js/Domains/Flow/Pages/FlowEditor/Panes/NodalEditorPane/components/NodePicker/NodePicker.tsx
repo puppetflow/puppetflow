@@ -1,17 +1,23 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { useActiveOptionScroll } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useActiveOptionScroll';
-import { NODE_CATEGORIES } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import {
+    getNodeInputPorts,
+    getNodeOutputPorts,
+    NODE_CATEGORIES,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
     formatToolboxNodeLabel,
     getNodeCategoryColor,
     getNodeIcon,
+    VISUAL_HELP_ENTRIES,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
 import { getHelpEntryActionsWidth, getHelpEntryDocumentationPath } from '@/Domains/Flow/Pages/FlowEditor/utils/helpDocumentation';
 import type { PendingConnectionTarget, PendingEdgeInsertion } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import { isEdgeInsertableEntry } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import * as S from './styled';
 
 interface NodePickerProps {
@@ -38,11 +44,36 @@ export default function NodePicker({
     onAddNode,
 }: NodePickerProps) {
     const hasSearch = Boolean(search.trim());
+    const toolConnection = pendingConnectionTarget?.connectionType === 'ai_tool';
+    const compatibleEntries = useMemo(() => {
+        if (pendingEdgeInsertion) return visibleEntries.filter(isEdgeInsertableEntry);
+        if (!pendingConnectionTarget) return visibleEntries;
+        const candidates = toolConnection ? VISUAL_HELP_ENTRIES : visibleEntries;
+        const matchingPorts = (entry: HelpEntryDef) => (
+            pendingConnectionTarget.fromSide === 'output'
+                ? getNodeInputPorts(entry.name)
+                : getNodeOutputPorts(entry.name, entry)
+        );
+        const compatible = candidates.filter(entry => matchingPorts(entry).some(port => (
+            (port.connectionType ?? 'flow') === pendingConnectionTarget.connectionType
+        )));
+        if (!toolConnection || !search.trim()) return compatible;
+
+        const query = search.trim().toLowerCase();
+        return compatible.filter(entry => (
+            formatToolboxNodeLabel(entry).toLowerCase().includes(query)
+            || entry.name.toLowerCase().includes(query)
+            || (entry.nodalDesc ?? entry.desc).toLowerCase().includes(query)
+        ));
+    }, [pendingConnectionTarget, pendingEdgeInsertion, search, toolConnection, visibleEntries]);
+    const pickerCategories = toolConnection
+        ? NODE_CATEGORIES.filter(category => category.key === 'ai')
+        : NODE_CATEGORIES;
     const [activeIndex, setActiveIndex] = useState(0);
     const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
     useActiveOptionScroll({
         open: true,
-        itemsDependency: visibleEntries,
+        itemsDependency: compatibleEntries,
         queryDependency: search,
         activeIndex,
         setActiveIndex,
@@ -50,11 +81,11 @@ export default function NodePicker({
     });
 
     const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (visibleEntries.length === 0) return;
+        if (compatibleEntries.length === 0) return;
 
         if (event.key === 'ArrowDown') {
             event.preventDefault();
-            setActiveIndex(current => Math.min(visibleEntries.length - 1, current + 1));
+            setActiveIndex(current => Math.min(compatibleEntries.length - 1, current + 1));
             return;
         }
 
@@ -66,7 +97,7 @@ export default function NodePicker({
 
         if (event.key === 'Enter') {
             event.preventDefault();
-            onAddNode(visibleEntries[activeIndex] ?? visibleEntries[0]);
+            onAddNode(compatibleEntries[activeIndex] ?? compatibleEntries[0]);
         }
     };
 
@@ -115,15 +146,15 @@ export default function NodePicker({
             </S.SearchWrap>
             <S.PickerBody>
                 <S.CategoryRail>
-                    {NODE_CATEGORIES.map(category => (
+                    {pickerCategories.map(category => (
                         <S.CategoryPageButton
                             key={category.key}
                             type="button"
-                            $active={!hasSearch && activeCategoryKey === category.key}
+                            $active={!hasSearch && (toolConnection || activeCategoryKey === category.key)}
                             $color={category.color}
                             onClick={() => onSelectCategory(category.key)}
                         >
-                            <S.CategoryPageIcon $active={!hasSearch && activeCategoryKey === category.key} $color={category.color}>
+                            <S.CategoryPageIcon $active={!hasSearch && (toolConnection || activeCategoryKey === category.key)} $color={category.color}>
                                 <Icon icon={category.icon} width={14} height={14} />
                             </S.CategoryPageIcon>
                             <span>{category.label}</span>
@@ -131,10 +162,10 @@ export default function NodePicker({
                     ))}
                 </S.CategoryRail>
                 <S.PickerContent>
-                    {visibleEntries.length === 0 ? (
+                    {compatibleEntries.length === 0 ? (
                         <S.EmptySearch>No matching nodes.</S.EmptySearch>
                     ) : (
-                        visibleEntries.map((entry, index) => {
+                        compatibleEntries.map((entry, index) => {
                             const entryColor = getNodeCategoryColor(entry);
                             const entryDescription = [entry.nodalDesc, entry.desc]
                                 .find(description => description?.trim())

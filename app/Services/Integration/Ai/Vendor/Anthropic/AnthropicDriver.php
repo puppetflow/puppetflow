@@ -39,7 +39,7 @@ class AnthropicDriver implements AiProviderDriverInterface
                         'text' => true,
                         'vision' => $this->supported($capabilities['image_input'] ?? null) ?? true,
                         'structured_output' => $this->supported($capabilities['structured_outputs'] ?? null),
-                        'tools' => $this->supported($capabilities['tool_use'] ?? null),
+                        'tools' => true,
                     ],
                     'context_window' => is_numeric($model['max_input_tokens'] ?? null)
                         ? (int) $model['max_input_tokens']
@@ -77,6 +77,21 @@ class AnthropicDriver implements AiProviderDriverInterface
                         }
                         if (($part['type'] ?? null) === 'text' && is_string($part['text'] ?? null)) {
                             return ['type' => 'text', 'text' => $part['text']];
+                        }
+                        if (($part['type'] ?? null) === 'tool_call' && is_string($part['id'] ?? null) && is_string($part['name'] ?? null)) {
+                            return [
+                                'type' => 'tool_use',
+                                'id' => $part['id'],
+                                'name' => $part['name'],
+                                'input' => $this->toolArguments($part),
+                            ];
+                        }
+                        if (($part['type'] ?? null) === 'tool_result' && is_string($part['tool_call_id'] ?? null)) {
+                            return [
+                                'type' => 'tool_result',
+                                'tool_use_id' => $part['tool_call_id'],
+                                'content' => is_string($part['text'] ?? null) ? $part['text'] : '',
+                            ];
                         }
 
                         return null;
@@ -121,6 +136,15 @@ class AnthropicDriver implements AiProviderDriverInterface
                 ],
             ];
         }
+        if (is_array($options['tools'] ?? null) && $options['tools'] !== []) {
+            $payload['tools'] = collect($options['tools'])->filter(fn (mixed $tool): bool => is_array($tool))->map(fn (mixed $tool): array => [
+                'name' => is_string($tool['name'] ?? null) ? $tool['name'] : 'tool',
+                'description' => is_string($tool['description'] ?? null) ? $tool['description'] : '',
+                'input_schema' => is_array($tool['inputSchema'] ?? null)
+                    ? $tool['inputSchema']
+                    : ['type' => 'object', 'properties' => new \stdClass],
+            ])->values()->all();
+        }
 
         $response = $this->request($apiKey)->post('https://api.anthropic.com/v1/messages', $payload);
         for ($attempt = 0; $attempt < 2 && $response->failed(); $attempt++) {
@@ -143,6 +167,13 @@ class AnthropicDriver implements AiProviderDriverInterface
             }
         }
         $this->ensureSuccess($response);
+        $decodedObject = json_decode($response->body());
+        $argumentJsonById = [];
+        foreach (is_object($decodedObject) && is_array($decodedObject->content ?? null) ? $decodedObject->content : [] as $part) {
+            if (is_object($part) && ($part->type ?? null) === 'tool_use' && is_string($part->id ?? null)) {
+                $argumentJsonById[$part->id] = json_encode($part->input ?? new \stdClass) ?: '{}';
+            }
+        }
         $decoded = $response->json();
         $raw = is_array($decoded) ? $decoded : [];
         $content = is_array($raw['content'] ?? null) ? $raw['content'] : [];
@@ -151,9 +182,23 @@ class AnthropicDriver implements AiProviderDriverInterface
             ->pluck('text')
             ->filter(fn (mixed $text): bool => is_string($text))
             ->implode('');
+        $toolCalls = collect($content)
+            ->filter(fn (mixed $part): bool => is_array($part) && ($part['type'] ?? null) === 'tool_use')
+            ->map(fn (array $part): array => [
+                'id' => is_string($part['id'] ?? null) ? $part['id'] : '',
+                'name' => is_string($part['name'] ?? null) ? $part['name'] : '',
+                'arguments' => is_array($part['input'] ?? null) ? $part['input'] : [],
+                'argumentsJson' => is_string($part['id'] ?? null)
+                    ? ($argumentJsonById[$part['id']] ?? '{}')
+                    : '{}',
+            ])
+            ->filter(fn (array $call): bool => $call['id'] !== '' && $call['name'] !== '')
+            ->values()
+            ->all();
 
         return [
             'text' => $text,
+            'toolCalls' => $toolCalls,
             'content' => $content,
             'usage' => is_array($raw['usage'] ?? null) ? $raw['usage'] : [],
             'model' => $raw['model'] ?? $model,
@@ -172,6 +217,23 @@ class AnthropicDriver implements AiProviderDriverInterface
             ])
             ->connectTimeout(10)
             ->timeout(120);
+    }
+
+    /** @param array<string, mixed> $part
+     * @return array<mixed, mixed>|\stdClass
+     */
+    private function toolArguments(array $part): array|\stdClass
+    {
+        if (is_string($part['arguments_json'] ?? null)) {
+            $decoded = json_decode($part['arguments_json']);
+            if ($decoded instanceof \stdClass) {
+                return $decoded;
+            }
+        }
+
+        return is_array($part['arguments'] ?? null) && $part['arguments'] !== []
+            ? $part['arguments']
+            : new \stdClass;
     }
 
     private function supported(mixed $capability): ?bool

@@ -47,6 +47,11 @@ export type StructuredGraphAnalysis = {
 
 const nodeName = (node: TopologyNode): string => 'name' in node ? node.name : node.entry.name;
 const outputKey = (nodeId: string, port: string) => `${nodeId}\0${port}`;
+export const isExecutionEdge = (edge: CanvasEdge): boolean => (
+    edge.connectionType !== 'ai_tool'
+    && edgeSourcePort(edge) !== 'ai_tool'
+    && edgeTargetPort(edge) !== 'ai_tool'
+);
 
 const buildTopology = (nodes: TopologyNode[], edges: CanvasEdge[]) => {
     const topology: Topology = {
@@ -57,7 +62,7 @@ const buildTopology = (nodes: TopologyNode[], edges: CanvasEdge[]) => {
     };
     let valid = true;
 
-    edges.forEach(edge => {
+    edges.filter(isExecutionEdge).forEach(edge => {
         const source = topology.nodes.get(edge.sourceNodeId);
         const target = topology.nodes.get(edge.targetNodeId);
         const key = outputKey(edge.sourceNodeId, edgeSourcePort(edge));
@@ -293,7 +298,7 @@ export const collectSystemFlowNodeIds = (
         if (!nodeId) continue;
 
         edges
-            .filter(edge => edge.sourceNodeId === nodeId)
+            .filter(edge => isExecutionEdge(edge) && edge.sourceNodeId === nodeId)
             .forEach(edge => {
                 const targetNode = nodeById.get(edge.targetNodeId);
                 if (!targetNode || (targetNode.system && targetNode.id !== rootNode.id) || nodeIds.has(targetNode.id)) return;
@@ -328,7 +333,7 @@ export function collectDownstreamNodeIds(edges: CanvasEdge[], startNodeId: strin
 
         downstreamNodeIds.add(nodeId);
         edges.forEach(edge => {
-            if (edge.sourceNodeId === nodeId && !downstreamNodeIds.has(edge.targetNodeId)) {
+            if (isExecutionEdge(edge) && edge.sourceNodeId === nodeId && !downstreamNodeIds.has(edge.targetNodeId)) {
                 queue.push(edge.targetNodeId);
             }
         });

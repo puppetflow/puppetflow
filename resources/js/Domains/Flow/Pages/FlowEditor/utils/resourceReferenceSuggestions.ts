@@ -4,8 +4,9 @@ import { fetchChannelSuggestions } from './channelSuggestions';
 import { matchesCompletionModelUri, idCompletionItem, type CompletionModel, type CompletionPosition } from './completionCore';
 import { fetchDataTableSuggestions } from './dataTableSuggestions';
 import { fetchMailboxWatcherSuggestions } from './mailboxWatcherSuggestions';
+import { fetchMediaAssetSuggestions } from './mediaAssetSuggestions';
 
-const REFERENCE_PATTERN = /\$\{(channels|mailboxWatchers|aiModels|dataTables)\.([a-zA-Z0-9_.-]*)$/;
+const REFERENCE_PATTERN = /\$\{(channels|mailboxWatchers|aiModels|dataTables|mediaAssets)\.([a-zA-Z0-9_.-]*)$/;
 const NAMESPACE_PATTERN = /\$\{([a-zA-Z]*)$/;
 
 const NAMESPACE_DETAILS: Record<string, string> = {
@@ -14,6 +15,7 @@ const NAMESPACE_DETAILS: Record<string, string> = {
     mailboxWatchers: 'Mailbox watchers',
     aiModels: 'AI models',
     dataTables: 'Data Tables',
+    mediaAssets: 'Media Library',
 };
 
 export function registerJsonReferenceNamespaceCompletions(
@@ -112,6 +114,17 @@ export function registerJsonResourceReferenceCompletions(
                     suggestions: dataTables.map(table => idCompletionItem(table, {
                         kind: monaco.languages.CompletionItemKind.Reference,
                         detail: `${table.visibility ?? 'private'} - ${table.columns.length} columns - ${table.id}`,
+                        range,
+                    })),
+                };
+            }
+
+            if (namespace === 'mediaAssets') {
+                const assets = await fetchMediaAssetSuggestions();
+                return {
+                    suggestions: assets.map(asset => idCompletionItem(asset, {
+                        kind: monaco.languages.CompletionItemKind.Reference,
+                        detail: `${asset.mime_type} - ${asset.id}`,
                         range,
                     })),
                 };

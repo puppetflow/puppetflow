@@ -5,8 +5,9 @@ import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import { registerAiModelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/aiModelSuggestions';
 import { registerChannelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
-import { registerCookieJarCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
+import { registerCookieProfileCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
 import { registerDataTableCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
+import { registerMediaAssetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/mediaAssetSuggestions';
 import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monacoBase';
 import { registerNodalAutocompleteCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
@@ -77,11 +78,12 @@ export default function CodeNodeEditor({
             registerAiModelCompletions(monaco, modelUri),
             registerChannelCompletions(monaco, modelUri),
             ...(flowId ? [registerDataTableCompletions(monaco, flowId, modelUri)] : []),
+            registerMediaAssetCompletions(monaco, modelUri),
             registerSnippetCompletions(monaco, modelUri),
             registerTabNameCompletions(monaco, modelUri, autocompleteContext.tabNames),
             registerStopwatchNameCompletions(monaco, modelUri, autocompleteContext.stopwatchNames),
             registerSniffProfileCompletions(monaco, modelUri, autocompleteContext.sniffProfileNames),
-            registerCookieJarCompletions(monaco, modelUri, autocompleteContext.cookieJarNames),
+            registerCookieProfileCompletions(monaco, modelUri, autocompleteContext.cookieProfileNames),
         ];
     }, [autocompleteContext, flowId, outputData]);
 

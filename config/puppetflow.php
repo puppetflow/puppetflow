@@ -32,6 +32,11 @@ return [
         (int) env('RUNNER_HTTP_SNIFFING_MAX_BODY_BYTES', 5242880),
     ),
 
+    'runner_internal_output_max_bytes' => max(
+        1024,
+        (int) env('RUNNER_INTERNAL_OUTPUT_MAX_BYTES', 4194304),
+    ),
+
     'runner_nodal_preview_max_history_bytes' => max(
         1024,
         (int) env('RUNNER_NODAL_PREVIEW_MAX_HISTORY_BYTES', 1048576),
@@ -39,7 +44,7 @@ return [
 
     'runner_nodal_preview_max_executions_per_node' => max(
         1,
-        (int) env('RUNNER_NODAL_PREVIEW_MAX_EXECUTIONS_PER_NODE', 20),
+        (int) env('RUNNER_NODAL_PREVIEW_MAX_EXECUTIONS_PER_NODE', 3),
     ),
 
     'runner_nodal_preview_max_string_chars' => max(
@@ -65,6 +70,11 @@ return [
 
     'trigger_max_depth' => max(1, (int) env('TRIGGER_MAX_DEPTH', 32)),
 
+    'media' => [
+        'max_upload_bytes' => max(1024, (int) env('MEDIA_MAX_UPLOAD_BYTES', 52428800)),
+        'max_upload_files' => max(1, (int) env('MEDIA_MAX_UPLOAD_FILES', 20)),
+    ],
+
     'repository_webhook_rate_limit_per_minute' => max(
         1,
         (int) env('REPOSITORY_WEBHOOK_RATE_LIMIT_PER_MINUTE', 300),
@@ -86,6 +96,8 @@ return [
         'endpoint' => env('MCP_BROKER_ENDPOINT', 'https://mcp.puppetflow.com/mcp'),
         'callback_url' => env('MCP_BROKER_CALLBACK_URL', 'https://mcp.puppetflow.com/oauth/tenant/callback'),
     ],
+    'mcp_client_allow_http' => filter_var(env('MCP_CLIENT_ALLOW_HTTP', false), FILTER_VALIDATE_BOOL),
+    'mcp_client_allow_private' => filter_var(env('MCP_CLIENT_ALLOW_PRIVATE', false), FILTER_VALIDATE_BOOL),
 
     'feature_flags' => [
         'snippets_enabled' => filter_var(env('FF_SNIPPETS_ENABLED', true), FILTER_VALIDATE_BOOL),

@@ -66,6 +66,12 @@ export default function NavigationGroups({
                     visible: settings.mailbox_enabled || promoteDisabledFeatures,
                 },
                 {
+                    label: 'Media Library',
+                    icon: 'lucide:images',
+                    url: '/media-library',
+                    active: currentPath.startsWith('/media-library'),
+                },
+                {
                     label: 'Snippets',
                     icon: 'lucide:box',
                     url: '/snippets',

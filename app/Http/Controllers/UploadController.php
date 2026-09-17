@@ -23,6 +23,8 @@ class UploadController extends Controller
     {
         $upload = $uploads->find($path);
         abort_if($upload === null, 404);
+        // Media files have dedicated policy-protected preview and download routes.
+        abort_if($upload->mediaAsset()->exists(), 404);
 
         $extension = strtolower(pathinfo($upload->path, PATHINFO_EXTENSION));
         $mimeType = is_string($upload->mime_type) ? $upload->mime_type : '';

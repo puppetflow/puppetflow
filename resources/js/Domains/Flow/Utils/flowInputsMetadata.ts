@@ -8,7 +8,8 @@ export type FlowInputType =
     | 'channel'
     | 'mailbox-watcher'
     | 'ai-model'
-    | 'datatable';
+    | 'datatable'
+    | 'media';
 
 export interface FlowInputDefinition {
     name: string;
@@ -48,21 +49,23 @@ export interface ExportedMailboxWatcherSchema {
     }>;
 }
 
-export type ResourceFlowInputType = Extract<FlowInputType, 'channel' | 'mailbox-watcher' | 'ai-model' | 'datatable'>;
+export type ResourceFlowInputType = Extract<FlowInputType, 'channel' | 'mailbox-watcher' | 'ai-model' | 'datatable' | 'media'>;
 
 const INPUT_NAME = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
-const RESOURCE_REFERENCE_PATTERN = /^\$\{(channels|mailboxWatchers|aiModels|dataTables)(?:\.([a-zA-Z0-9_.-]+))?\}$/;
+const RESOURCE_REFERENCE_PATTERN = /^\$\{(channels|mailboxWatchers|aiModels|dataTables|mediaAssets)(?:\.([a-zA-Z0-9_.-]+))?\}$/;
 const RESOURCE_TYPE_BY_NAMESPACE: Record<string, ResourceFlowInputType> = {
     channels: 'channel',
     mailboxWatchers: 'mailbox-watcher',
     aiModels: 'ai-model',
     dataTables: 'datatable',
+    mediaAssets: 'media',
 };
 const RESOURCE_NAMESPACE_BY_TYPE: Record<ResourceFlowInputType, string> = {
     channel: 'channels',
     'mailbox-watcher': 'mailboxWatchers',
     'ai-model': 'aiModels',
     datatable: 'dataTables',
+    media: 'mediaAssets',
 };
 const REFERENCE_INPUT_TYPES = new Set<string>(Object.keys(RESOURCE_NAMESPACE_BY_TYPE));
 const INPUT_TYPES = new Set<string>([

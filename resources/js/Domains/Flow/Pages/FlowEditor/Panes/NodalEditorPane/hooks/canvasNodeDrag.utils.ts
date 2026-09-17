@@ -9,6 +9,7 @@ import {
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/geometry';
 import {
     getEdgeInsertionLayout,
+    isExecutionEdge,
     type EdgeDropTarget,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import type {
@@ -51,6 +52,7 @@ export const findEdgeDropTarget = (
     let closestDistance = influenceRadius;
 
     edges.forEach(edge => {
+        if (!isExecutionEdge(edge)) return;
         if (edge.sourceNodeId === draggedNodeId || edge.targetNodeId === draggedNodeId) return;
         const sourceNode = nodes.find(node => node.id === edge.sourceNodeId);
         const targetNode = nodes.find(node => node.id === edge.targetNodeId);

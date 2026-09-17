@@ -13,6 +13,7 @@ use App\Models\DataTableColumn;
 use App\Models\Flow;
 use App\Models\Integration;
 use App\Models\MailboxWatcher;
+use App\Models\MediaAsset;
 use App\Models\NotificationChannel;
 use App\Models\Snippet;
 use App\Models\SnippetVersion;
@@ -30,6 +31,7 @@ final class AuthoringResourceProjection
         'notification_channels',
         'mailbox_watchers',
         'data_tables',
+        'media_assets',
         'variables',
         'snippets',
     ];
@@ -69,6 +71,7 @@ final class AuthoringResourceProjection
                     ? $this->mailboxWatchers($flow, $context, $actor, $search, $limit, $idsByKind[$kind] ?? [])
                     : [],
                 'data_tables' => $this->dataTables($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
+                'media_assets' => $this->mediaAssets($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
                 'variables' => $this->variables($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
                 'snippets' => $this->snippets($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
             };
@@ -312,6 +315,45 @@ final class AuthoringResourceProjection
                     ],
                 ];
             })
+            ->values()
+            ->all());
+    }
+
+    /** @param list<string> $ids
+     * @return list<array<string, mixed>>
+     */
+    private function mediaAssets(
+        AuthorizationContext $context,
+        User $actor,
+        ?string $search,
+        ?int $limit,
+        array $ids,
+    ): array {
+        $query = MediaAsset::query()->with('storedUpload');
+        if ($ids !== []) {
+            $query->whereIn('id', $ids);
+        }
+        $this->visibility->applyUse($query, $context, scopeColumn: 'visibility');
+        if ($search !== null && $search !== '') {
+            $query->where(fn (Builder $query) => $query
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('original_filename', 'like', "%{$search}%")
+                ->orWhere('id', 'like', "%{$search}%"));
+        }
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        return array_values($query->orderBy('name')->get()
+            ->filter(fn (MediaAsset $asset): bool => Gate::forUser($actor)->allows(Ability::USE->value, $asset))
+            ->map(fn (MediaAsset $asset): array => [
+                'id' => $asset->id,
+                'name' => $asset->name,
+                'original_filename' => $asset->original_filename,
+                'mime_type' => $asset->storedUpload->mime_type,
+                'size_bytes' => $asset->storedUpload->size_bytes,
+                'visibility' => $asset->visibility,
+            ])
             ->values()
             ->all());
     }

@@ -1,6 +1,7 @@
 import MenuItem from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/ContextMenu/components/MenuItem/MenuItem';
 import {
     AddNodeShortcut,
+    FocusShortcut,
     PasteShortcut,
     ReorganizeShortcut,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/ContextMenu/components/MenuShortcuts/MenuShortcuts';
@@ -12,6 +13,7 @@ interface CanvasActionsSectionProps {
     onAddNode: () => void;
     onAddStickyNote: (position: { x: number; y: number }) => void;
     onTidyWorkflow: () => void;
+    onFocusGraph: () => void;
     onPasteHere: (position: { x: number; y: number }) => void;
     onClose: () => void;
 }
@@ -22,6 +24,7 @@ export default function CanvasActionsSection({
     onAddNode,
     onAddStickyNote,
     onTidyWorkflow,
+    onFocusGraph,
     onPasteHere,
     onClose,
 }: CanvasActionsSectionProps) {
@@ -49,6 +52,12 @@ export default function CanvasActionsSection({
                 label="Reorganize"
                 shortcut={<ReorganizeShortcut />}
                 onSelect={() => run(onTidyWorkflow)}
+            />
+            <MenuItem
+                icon="lucide:locate-fixed"
+                label="Focus"
+                shortcut={<FocusShortcut />}
+                onSelect={() => run(onFocusGraph)}
             />
             {canPasteHere && (
                 <MenuItem

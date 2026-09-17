@@ -9,6 +9,7 @@ use App\Models\Flow;
 use App\Models\FlowRun;
 use App\Models\User;
 use App\Services\FeatureFlags\RunCycleService;
+use App\Services\Flow\Query\FlowRunProjection;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,6 +43,7 @@ class DashboardController extends Controller
         $recentRunsQuery = FlowRun::query();
         $this->runVisibility->apply($recentRunsQuery, $context);
         $recentRuns = $recentRunsQuery
+            ->select(FlowRunProjection::RUN_COLUMNS)
             ->with(['flow:id,name,icon_type,icon_value,icon_color,icon_upload_path,timeout_seconds,flow_type,nodal_graph,finally_enabled,keyboard_speed,viewport_width,viewport_height', 'triggeredBy:id,name'])
             ->latest()
             ->take(10)
@@ -74,6 +76,7 @@ class DashboardController extends Controller
             ->sum('flows.operator_seconds');
 
         $runningRuns = (clone $runsQuery)
+            ->select(FlowRunProjection::RUN_COLUMNS)
             ->whereIn('flow_runs.status', ['running', 'pending'])
             ->with(['flow:id,name,icon_type,icon_value,icon_color,icon_upload_path,timeout_seconds,flow_type,nodal_graph,finally_enabled,keyboard_speed,viewport_width,viewport_height', 'triggeredBy:id,name'])
             ->latest()

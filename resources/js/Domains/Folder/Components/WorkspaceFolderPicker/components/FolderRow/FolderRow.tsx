@@ -1,5 +1,5 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import type { FolderTree } from '@/Domains/Folder/types';
+import type { ExplorerFolderTree as FolderTree } from '@/Shared/Explorer/types';
 import type { FolderScope } from '@/Domains/Folder/Components/WorkspaceFolderPicker/types';
 import InlineFolderCreation from '@/Domains/Folder/Components/WorkspaceFolderPicker/components/InlineFolderCreation/InlineFolderCreation';
 import * as S from './styled';

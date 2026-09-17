@@ -19,6 +19,13 @@ import {
     fetchDataTableSuggestions,
     type DataTableSuggestion,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
+import {
+    addMediaAction,
+    browseMediaAction,
+    fetchMediaAssetSuggestions,
+    mediaAssetOption,
+    type MediaAssetSuggestion,
+} from '@/Domains/Flow/Pages/FlowEditor/utils/mediaAssetSuggestions';
 import type { ResourceFieldValueType } from '@/Domains/Flow/Pages/FlowEditor/components/StructuredObjectInput/utils';
 
 interface FlowInputResourceSelectProps {
@@ -41,6 +48,7 @@ export default function FlowInputResourceSelect({
     const [channels, setChannels] = useState<ChannelSuggestion[]>([]);
     const [watchers, setWatchers] = useState<WatcherSuggestion[]>([]);
     const [dataTables, setDataTables] = useState<DataTableSuggestion[]>([]);
+    const [mediaAssets, setMediaAssets] = useState<MediaAssetSuggestion[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const aiModelOptions = useMemo(() => aiModels.map(model => {
@@ -50,6 +58,7 @@ export default function FlowInputResourceSelect({
         return {
             value: String(model.id),
             label: model.name,
+            editable: model.can_manage,
             detail: visibility ? `${visibility.label} - ${model.ai_model_id}` : model.ai_model_id,
             detailIcon: visibility?.icon,
             icon: provider?.icon,
@@ -68,6 +77,7 @@ export default function FlowInputResourceSelect({
             icon: DATA_TYPE_ICONS.datatable,
         };
     }), [dataTables]);
+    const mediaOptions = useMemo(() => mediaAssets.map(mediaAssetOption), [mediaAssets]);
 
     const loadSuggestions = useCallback(async (force = false) => {
         if (force) setRefreshing(true);
@@ -81,6 +91,8 @@ export default function FlowInputResourceSelect({
                 setWatchers(await fetchMailboxWatcherSuggestions(flowId, force));
             } else if (type === 'datatable') {
                 setDataTables(await fetchDataTableSuggestions(flowId, force));
+            } else if (type === 'media') {
+                setMediaAssets(await fetchMediaAssetSuggestions(force));
             }
         } finally {
             if (force) setRefreshing(false);
@@ -92,32 +104,44 @@ export default function FlowInputResourceSelect({
         void loadSuggestions();
     }, [loadSuggestions]);
 
-    if (type === 'ai-model' || type === 'datatable') {
+    if (type === 'ai-model' || type === 'datatable' || type === 'media') {
         const isDataTable = type === 'datatable';
+        const isMedia = type === 'media';
 
         return (
             <CustomSelect
                 value={value}
                 disabled={readOnly}
                 loading={loading}
-                options={isDataTable ? dataTableOptions : aiModelOptions}
+                options={isDataTable ? dataTableOptions : isMedia ? mediaOptions : aiModelOptions}
                 searchThreshold={0}
-                placeholder={isDataTable ? 'Select a Data Table...' : 'Select an AI model...'}
+                placeholder={isDataTable
+                    ? 'Select a Data Table...'
+                    : isMedia ? 'Select a media asset...' : 'Select an AI model...'}
                 showOptionValue={false}
                 dropdownMinWidth={320}
-                actionSlot={isDataTable ? undefined : {
-                    label: '+ Add AI Model',
-                    onAction: async () => {
-                        const model = await quickRequirementCreation.create('ai-model', {
-                            requiredCapability: 'text',
-                        });
-                        if (model) await loadSuggestions(true);
-                        return model ? String(model.id) : null;
-                    },
-                }}
+                actionSlot={isDataTable
+                    ? undefined
+                    : isMedia
+                        ? addMediaAction(quickRequirementCreation.create, () => loadSuggestions(true))
+                        : {
+                            label: '+ Add AI Model',
+                            onAction: async () => {
+                                const model = await quickRequirementCreation.create('ai-model', {
+                                    requiredCapability: 'text',
+                                });
+                                if (model) await loadSuggestions(true);
+                                return model ? String(model.id) : null;
+                            },
+                        }}
+                browseAction={isMedia ? browseMediaAction(quickRequirementCreation.create) : undefined}
                 onRefresh={() => loadSuggestions(true)}
                 refreshing={refreshing}
                 onClear={() => onChange('')}
+                onEditOption={type === 'ai-model' ? async option => {
+                    await quickRequirementCreation.edit('ai-model', option.value);
+                    await loadSuggestions(true);
+                } : undefined}
                 onChange={onChange}
             />
         );

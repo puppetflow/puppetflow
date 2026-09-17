@@ -2,13 +2,19 @@ import type { User } from '@/App/types';
 import type { Integration, IntegrationProvider } from '@/Domains/Integration/types';
 import type { Id } from '@/Shared/types';
 
+export const MCP_CREDENTIALS_UI = {
+    label: 'MCP Credentials',
+    icon: 'lucide:blocks',
+    color: '#0891b2',
+} as const;
+
 export interface UserVariable {
     id: Id;
     user_id: Id | null;
     workspace_id: Id;
     key: string;
     value: string;
-    type: 'text' | 'secret' | 'object' | 'array' | 'json' | 'vault' | 'otp';
+    type: 'text' | 'secret' | 'mcp_credentials' | 'object' | 'array' | 'json' | 'vault' | 'otp';
     vault_provider?: IntegrationProvider | null;
     vault_integration_id?: Id | null;
     vault_vault_id?: string | null;

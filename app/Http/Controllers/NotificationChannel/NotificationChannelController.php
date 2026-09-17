@@ -209,6 +209,27 @@ class NotificationChannelController extends Controller
         return back()->with('success', 'Channel created.');
     }
 
+    public function show(Request $request, NotificationChannel $channel): JsonResponse
+    {
+        $this->features()->abortIfDisabled('messenger_enabled');
+        $this->features()->abortIfStale($channel);
+        /** @var User $user */
+        $user = $request->user();
+        $this->authorizeChannel($user, $channel);
+
+        $channel->load(['user:id,name', 'messengerIntegration:id,name,provider', 'team:id,name']);
+        $this->injectOwnerWorkspaceRoles([$channel], $channel->workspace_id);
+        $rawConfig = $channel->getAttribute('config');
+        $rawConfig = is_array($rawConfig) ? $rawConfig : [];
+        $channel->setAttribute('config', [
+            'chat_id' => $rawConfig['chat_id'] ?? null,
+            'chat_name' => $rawConfig['chat_name'] ?? null,
+        ]);
+        $channel->makeVisible('config');
+
+        return response()->json(['channel' => $channel]);
+    }
+
     public function update(Request $request, NotificationChannel $channel): RedirectResponse
     {
         $this->features()->abortIfDisabled('messenger_enabled');
@@ -391,6 +412,11 @@ class NotificationChannelController extends Controller
                 'scope' => $ch->scope,
                 'team_name' => $ch->team?->name,
                 'destination' => $ch->config['chat_name'] ?? $ch->config['chat_id'] ?? '',
+                'can_manage' => $this->scopeEvaluator->canManage(
+                    $context,
+                    $workspaceId,
+                    $ch->user_id,
+                ),
             ];
         }
 

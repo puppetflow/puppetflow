@@ -6,53 +6,18 @@ use App\Enums\Authorization\Ability;
 use App\Models\DataTable;
 use App\Models\DataTableColumn;
 use App\Models\User;
-use App\Models\Workspace;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 trait ResolvesDataTableResources
 {
-    private function resolveApiWorkspace(string $identifier, User $user): Workspace
-    {
-        $workspace = Workspace::query()
-            ->where('id', $identifier)
-            ->orWhere('lookup_key', $identifier)
-            ->first();
-
-        if (
-            ! $workspace
-            || Gate::forUser($user)->denies(Ability::VIEW->value, $workspace)
-        ) {
-            abort(404, 'Workspace not found.');
-        }
-
-        return $workspace;
-    }
+    use ResolvesApiResources;
 
     private function resolveApiDataTable(
         string $identifier,
         User $user,
         Ability $ability = Ability::VIEW,
     ): DataTable {
-        $dataTable = DataTable::query()
-            ->whereKey($identifier)
-            ->first();
-
-        if (
-            ! $dataTable
-            || Gate::forUser($user)->denies(Ability::VIEW->value, $dataTable)
-        ) {
-            abort(404, 'Data table not found.');
-        }
-
-        if (
-            $ability !== Ability::VIEW
-            && Gate::forUser($user)->denies($ability->value, $dataTable)
-        ) {
-            abort(403, 'Forbidden.');
-        }
-
-        return $dataTable;
+        return $this->resolveApiResource(DataTable::class, $identifier, $user, $ability, 'Data table');
     }
 
     private function resolveApiDataTableForRequest(

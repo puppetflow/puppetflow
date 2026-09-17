@@ -24,15 +24,17 @@ export const SelectTrigger = styled.button`
     background: ${({ theme }) => theme.colors.bg.primary};
     cursor: pointer;
 
-    span {
+    > [data-select-label] {
+        flex: 1 1 auto;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        text-align: left;
         pointer-events: none;
     }
 
-    svg {
+    > svg {
         flex-shrink: 0;
         color: ${({ theme }) => theme.colors.text.tertiary};
     }
@@ -56,6 +58,7 @@ export const SelectOption = styled(Option)<{ $active?: boolean; $selected?: bool
     outline: none;
 
     strong {
+        flex: 1 1 auto;
         font-weight: ${({ $selected }) => ($selected ? 700 : 400)};
         cursor: inherit;
         pointer-events: none;
@@ -80,3 +83,21 @@ export const SelectOption = styled(Option)<{ $active?: boolean; $selected?: bool
 `;
 
 export const SelectEmpty = styled(Empty)``;
+
+export const OptionIcon = styled.span`
+    flex: 0 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    pointer-events: none;
+
+    img {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        object-fit: cover;
+    }
+`;

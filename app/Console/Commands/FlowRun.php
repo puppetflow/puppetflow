@@ -51,7 +51,9 @@ class FlowRun extends Command
         $run = null;
 
         if ($runId) {
-            $run = FlowRunModel::find($runId);
+            $run = FlowRunModel::query()
+                ->select(['id', 'input', 'code_snapshot'])
+                ->find($runId);
             if (! $run) {
                 $this->error("FlowRun #{$runId} not found.");
 

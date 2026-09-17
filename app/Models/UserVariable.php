@@ -27,6 +27,8 @@ class UserVariable extends Model
 
     public const ID_PREFIX = 'var';
 
+    public const TYPE_MCP_CREDENTIALS = 'mcp_credentials';
+
     protected $fillable = [
         'user_id',
         'workspace_id',

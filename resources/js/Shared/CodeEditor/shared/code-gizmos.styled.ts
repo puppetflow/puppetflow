@@ -2,7 +2,8 @@ import { css } from 'styled-components';
 
 export const codeGizmoStyles = css`
     .nop-code-gizmo,
-    .nop-code-gizmo-favicon {
+    .nop-code-gizmo-favicon,
+    .nop-code-gizmo-resource {
         box-sizing: border-box;
         width: 18px !important;
         height: 18px !important;
@@ -22,15 +23,21 @@ export const codeGizmoStyles = css`
     }
 
     .nop-code-gizmo-selector,
-    .nop-code-gizmo-favicon {
+    .nop-code-gizmo-favicon,
+    .nop-code-gizmo-resource {
         transform: translateX(8px);
     }
 
-    .nop-code-gizmo-favicon {
+    .nop-code-gizmo-favicon,
+    .nop-code-gizmo-resource {
         border: none;
         background-color: ${({ theme }) => theme.colors.bg.secondary};
         background-size: 18px 18px;
         box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.border.default};
         z-index: 2;
+    }
+
+    .nop-code-gizmo-resource {
+        background-size: 14px 14px;
     }
 `;

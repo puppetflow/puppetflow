@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { renderStateText, type RenderStateProps } from '../shared.styled';
 
 export const ExpressionFullscreenBackdrop = styled.div`
     position: fixed;
@@ -130,12 +131,13 @@ export const ExpressionRenderHeader = styled.div`
     }
 `;
 
-export const ExpressionRenderBody = styled.div<{ $error?: boolean }>`
+export const ExpressionRenderBody = styled.div<RenderStateProps>`
     flex: 1;
     min-height: 0;
     overflow: auto;
     padding: 12px;
     background: ${({ theme }) => theme.colors.bg.primary};
+    color: ${({ theme }) => theme.colors.text.primary};
 
     pre {
         margin: 0;
@@ -144,6 +146,6 @@ export const ExpressionRenderBody = styled.div<{ $error?: boolean }>`
         font-family: ${({ theme }) => theme.font.mono};
         font-size: 12px;
         line-height: 1.55;
-        color: ${({ theme, $error }) => ($error ? theme.colors.accent.error : theme.colors.text.primary)};
+        ${renderStateText}
     }
 `;

@@ -47,6 +47,7 @@ class MigrateFlowArtifacts extends Command
                     $migratedFlows++;
 
                     $flow->runs()
+                        ->select(['id', 'flow_id', 'status', 'has_recording'])
                         ->whereIn('status', ['success', 'error', 'cancelled'])
                         ->orderBy('id')
                         ->chunkById($chunk, function ($runs) use ($flow, $recordings, &$sealedRecordings): void {

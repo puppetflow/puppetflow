@@ -7,9 +7,9 @@ use App\Models\Flow;
 
 class BlueprintInputSchemaService
 {
-    private const REFERENCE_TYPES = ['channel', 'mailbox-watcher', 'ai-model', 'datatable'];
+    private const REFERENCE_TYPES = ['channel', 'mailbox-watcher', 'ai-model', 'datatable', 'media'];
 
-    public const TYPES = ['string', 'number', 'boolean', 'array', 'object', 'null', 'channel', 'mailbox-watcher', 'ai-model', 'datatable'];
+    public const TYPES = ['string', 'number', 'boolean', 'array', 'object', 'null', 'channel', 'mailbox-watcher', 'ai-model', 'datatable', 'media'];
 
     public static function defaultValueForType(string $type): mixed
     {

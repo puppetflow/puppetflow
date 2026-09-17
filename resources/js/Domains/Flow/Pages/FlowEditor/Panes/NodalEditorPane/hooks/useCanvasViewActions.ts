@@ -170,11 +170,18 @@ export function useCanvasViewActions({
         }));
     }, [canvasRef, edges, nodes, readOnly, recordHistory, selectedNodeIds, setNodes, setViewport, visibleNodes]);
 
-    useEffect(() => {
-        if (readOnly || canvasMode !== 'canvas') return;
+    const viewportCenter = useCallback(
+        () => centerViewportOnNodes(),
+        [centerViewportOnNodes],
+    );
 
-        const handleTidyShortcut = (event: KeyboardEvent) => {
-            if (event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 'r') return;
+    useEffect(() => {
+        if (canvasMode !== 'canvas') return;
+
+        const handleCanvasShortcut = (event: KeyboardEvent) => {
+            const key = event.key.toLowerCase();
+            if (event.metaKey || event.ctrlKey || event.altKey || (key !== 'r' && key !== 'f')) return;
+            if (key === 'r' && readOnly) return;
             if (isAnotherPaneActive() || !isActivePane()) return;
             if (editingNode || hasOpenModal()) return;
             const target = event.target instanceof Element ? event.target : null;
@@ -182,12 +189,16 @@ export function useCanvasViewActions({
 
             event.preventDefault();
             event.stopImmediatePropagation();
-            reorderGraph();
+            if (key === 'r') {
+                reorderGraph();
+            } else {
+                viewportCenter();
+            }
         };
 
-        window.addEventListener('keydown', handleTidyShortcut);
-        return () => window.removeEventListener('keydown', handleTidyShortcut);
-    }, [canvasMode, editingNode, isActivePane, isAnotherPaneActive, readOnly, reorderGraph]);
+        window.addEventListener('keydown', handleCanvasShortcut);
+        return () => window.removeEventListener('keydown', handleCanvasShortcut);
+    }, [canvasMode, editingNode, isActivePane, isAnotherPaneActive, readOnly, reorderGraph, viewportCenter]);
 
     const handleAddStickyNote = useCallback(() => {
         const rect = canvasRef.current?.getBoundingClientRect();
@@ -279,7 +290,7 @@ export function useCanvasViewActions({
             pendingNodePlacementRef.current = null;
             setPickerOpen(open => !open);
         },
-        viewportCenter: () => centerViewportOnNodes(),
+        viewportCenter,
         zoomIn: () => updateZoom(0.195),
         zoomOut: () => updateZoom(-0.195),
     };

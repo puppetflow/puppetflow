@@ -47,6 +47,8 @@ const normalizeEdges = (edges: Partial<NodalGraph['edges'][number]>[] | undefine
             targetNodeId: edge.targetNodeId!,
             sourcePort: edge.sourcePort ?? DEFAULT_OUTPUT_PORT,
             targetPort: edge.targetPort ?? DEFAULT_INPUT_PORT,
+            connectionType: edge.connectionType
+                ?? (edge.sourcePort === 'ai_tool' || edge.targetPort === 'ai_tool' ? 'ai_tool' : 'flow'),
         }));
 };
 
@@ -192,6 +194,18 @@ const rawValue = (
     key: string,
     fallback = '',
 ) => normalizeScalarParameterValue(values?.[key]).value || fallback;
+
+const nodeParameterValue = (node: NodalGraph['nodes'][number], key: string) => {
+    if (
+        key === 'profile'
+        && ['$saveCookies', '$loadCookies', '$clearCookies'].includes(node.name)
+        && node.values?.profile === undefined
+    ) {
+        return node.values?.jarName;
+    }
+
+    return node.values?.[key];
+};
 
 const expressionTemplate = (
     values: Record<string, RawNodeParameterValue> | undefined,
@@ -413,28 +427,17 @@ const __nodalPreviewMaxHistoryBytes = __nodalPreviewLimit(
 );
 const __nodalPreviewMaxExecutionsPerNode = __nodalPreviewLimit(
     'RUNNER_NODAL_PREVIEW_MAX_EXECUTIONS_PER_NODE',
-    20,
+    3,
 );
 const __nodalPreviewMaxStringChars = __nodalPreviewLimit(
     'RUNNER_NODAL_PREVIEW_MAX_STRING_CHARS',
     500,
 );
-const __truncateNodalPreviewStrings = (value) => {
-    if (typeof value === 'string') {
-        return value.length > __nodalPreviewMaxStringChars
-            ? value.slice(0, __nodalPreviewMaxStringChars) + '... (truncated)'
-            : value;
-    }
-    if (Array.isArray(value)) return value.map(__truncateNodalPreviewStrings);
-    if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(
-        Object.entries(value).map(([key, item]) => [key, __truncateNodalPreviewStrings(item)]),
-    );
-};
 const __serializeNodalPreview = (value) => {
-    const serialized = __nopSerializePreview(value);
-    if (serialized === undefined) return undefined;
-    return __truncateNodalPreviewStrings(serialized);
+    return __compactNodalExecutionValue(
+        value,
+        { remaining: __nodalPreviewMaxHistoryBytes },
+    );
 };
 const __nodalPreviewMaxExecutionBytes = Math.max(
     8192,
@@ -443,11 +446,56 @@ const __nodalPreviewMaxExecutionBytes = Math.max(
         Math.floor(__nodalPreviewMaxHistoryBytes / Math.max(2, __nodalPreviewMaxExecutionsPerNode)),
     ),
 );
+const __nodalPreviewJson = (value) => {
+    try { return JSON.stringify(value); } catch (_) { return undefined; }
+};
 const __nodalPreviewValueBytes = (value) => {
-    try { return Buffer.byteLength(JSON.stringify(value), 'utf8'); } catch (_) { return 0; }
+    const json = __nodalPreviewJson(value);
+    return json === undefined ? 0 : Buffer.byteLength(json, 'utf8');
+};
+// Snapshots drop $input/$context when identical to the RUN snapshot (the baseline is shared
+// with the terminate scope); the editor re-injects them.
+const __nodalPreviewSharedKeys = ['$input', '$context'];
+const __serializeNodalSnapshot = (value) => {
+    const serialized = __serializeNodalPreview(value);
+    if (!serialized || typeof serialized !== 'object' || Array.isArray(serialized)) return serialized;
+    for (const key of __nodalPreviewSharedKeys) {
+        const baseline = __pfNodalPreviewBaseline[key];
+        if (baseline !== undefined && __nodalPreviewJson(serialized[key]) === baseline) delete serialized[key];
+    }
+    return serialized;
+};
+// Executions keep only the fields that differ from the node's final snapshot; $absent lists
+// the fields that snapshot has and the execution did not. The editor expands them back.
+const __diffNodalPreviewExecutions = (nodeId, executions) => {
+    const base = $nodeOutputs[nodeId];
+    if (!base || typeof base !== 'object' || Array.isArray(base)) return executions;
+    const baseJson = Object.fromEntries(Object.entries(base).map(([key, item]) => [key, __nodalPreviewJson(item)]));
+    return executions.map(execution => {
+        if (!execution || typeof execution !== 'object' || Array.isArray(execution)) return execution;
+        const diff = {};
+        for (const [key, item] of Object.entries(execution)) {
+            if (__nodalPreviewJson(item) !== baseJson[key]) diff[key] = item;
+        }
+        const absent = Object.keys(base).filter(key => !(key in execution));
+        if (absent.length > 0) diff.$absent = absent;
+        return diff;
+    });
+};
+// Reserves budget for a truncation marker up front so it can always be emitted when
+// children get dropped; the reservation is released when everything fits.
+const __reserveNodalPreviewMarker = (state, marker, extraBytes = 0) => {
+    const bytes = __nodalPreviewValueBytes(marker) + extraBytes;
+    if (bytes > state.remaining) return null;
+    state.remaining -= bytes;
+    return () => { state.remaining += bytes; };
 };
 const __compactNodalExecutionValue = (value, state, depth = 0) => {
     if (state.remaining <= 0) return undefined;
+    const capturePreview = __networkSniffingPreviewBody(value);
+    if (capturePreview) {
+        return __compactNodalExecutionValue(capturePreview, state, depth);
+    }
     if (value === null || typeof value === 'boolean' || typeof value === 'number') {
         const bytes = __nodalPreviewValueBytes(value);
         if (bytes > state.remaining) return undefined;
@@ -455,11 +503,15 @@ const __compactNodalExecutionValue = (value, state, depth = 0) => {
         return value;
     }
     if (typeof value === 'string') {
-        let compacted = value;
+        let compacted = value.length > __nodalPreviewMaxStringChars
+            ? value.slice(0, __nodalPreviewMaxStringChars)
+            : value;
         const suffix = '... (truncated)';
         while (
             compacted.length > 0
-            && __nodalPreviewValueBytes(compacted === value ? compacted : compacted + suffix) > state.remaining
+            && __nodalPreviewValueBytes(
+                compacted === value ? compacted : compacted + suffix,
+            ) > state.remaining
         ) {
             compacted = compacted.slice(0, Math.max(0, Math.floor(compacted.length * 0.75)));
         }
@@ -480,11 +532,15 @@ const __compactNodalExecutionValue = (value, state, depth = 0) => {
     if (Array.isArray(value)) {
         const compacted = [];
         state.remaining -= 2;
+        const marker = '[Preview items omitted]';
+        const releaseMarker = value.length > 0 ? __reserveNodalPreviewMarker(state, marker) : null;
         for (const item of value) {
             const next = __compactNodalExecutionValue(item, state, depth + 1);
             if (next === undefined) break;
             compacted.push(next);
         }
+        if (compacted.length === value.length) releaseMarker?.();
+        else if (releaseMarker) compacted.push(marker);
         return compacted;
     }
     const compacted = {};
@@ -500,6 +556,11 @@ const __compactNodalExecutionValue = (value, state, depth = 0) => {
     const entries = Object.entries(value)
         .filter(([key]) => key !== 'captures')
         .sort(([left], [right]) => priority(left) - priority(right));
+    const marker = '[Preview properties omitted]';
+    const releaseMarker = entries.length > 0
+        ? __reserveNodalPreviewMarker(state, marker, __nodalPreviewValueBytes('$preview') + 2)
+        : null;
+    let compactedEntries = 0;
     for (const [key, item] of entries) {
         const keyBytes = __nodalPreviewValueBytes(key) + 2;
         if (keyBytes >= state.remaining) break;
@@ -507,7 +568,10 @@ const __compactNodalExecutionValue = (value, state, depth = 0) => {
         const next = __compactNodalExecutionValue(item, state, depth + 1);
         if (next === undefined) break;
         compacted[key] = next;
+        compactedEntries += 1;
     }
+    if (compactedEntries === entries.length) releaseMarker?.();
+    else if (releaseMarker) compacted.$preview = marker;
     return compacted;
 };
 const __compactSerializedNodalExecution = (serialized) => {
@@ -528,8 +592,7 @@ const __recordSerializedNodePreview = (nodeId, serialized) => {
     const previousIndex = $nodeOutputQueue.indexOf(nodeId);
     if (previousIndex >= 0) $nodeOutputQueue.splice(previousIndex, 1);
     $nodeOutputsTotalBytes -= $nodeOutputBytes[nodeId] || 0;
-    let bytes = 0;
-    try { bytes = Buffer.byteLength(JSON.stringify(serialized), 'utf8'); } catch (_) {}
+    const bytes = __nodalPreviewValueBytes(serialized);
     $nodeOutputs[nodeId] = serialized;
     $nodeOutputBytes[nodeId] = bytes;
     $nodeOutputQueue.push(nodeId);
@@ -541,28 +604,24 @@ const __recordSerializedNodePreview = (nodeId, serialized) => {
         delete $nodeOutputs[removedNodeId];
     }
 };
+// Keeps the first executions of each node: once the count is reached, later ones are only
+// counted, and when the history budget overflows the most recent snapshots go first.
 const __recordSerializedNodeExecution = (nodeId, serialized) => {
     if (serialized === undefined) return;
+    $nodeExecutionTotals[nodeId] = ($nodeExecutionTotals[nodeId] || 0) + 1;
+    const executions = $nodeExecutions[nodeId] || ($nodeExecutions[nodeId] = []);
+    if (executions.length >= __nodalPreviewMaxExecutionsPerNode) {
+        if (!$nodeExecutionDropReasons[nodeId]) $nodeExecutionDropReasons[nodeId] = 'count';
+        return;
+    }
     serialized = __compactSerializedNodalExecution(serialized);
     if (serialized === undefined) return;
-    const executions = $nodeExecutions[nodeId] || ($nodeExecutions[nodeId] = []);
-    $nodeExecutionTotals[nodeId] = ($nodeExecutionTotals[nodeId] || 0) + 1;
     executions.push(serialized);
-    let bytes = 0;
-    try { bytes = Buffer.byteLength(JSON.stringify(serialized), 'utf8'); } catch (_) {}
+    const bytes = __nodalPreviewValueBytes(serialized);
     $nodeExecutionQueue.push({ nodeId, serialized, bytes });
     $nodeExecutionBytes += bytes;
-    if (executions.length > __nodalPreviewMaxExecutionsPerNode) {
-        const removed = executions.shift();
-        if (!$nodeExecutionDropReasons[nodeId]) $nodeExecutionDropReasons[nodeId] = 'count';
-        const queueIndex = $nodeExecutionQueue.findIndex(item => item.serialized === removed);
-        if (queueIndex >= 0) {
-            $nodeExecutionBytes -= $nodeExecutionQueue[queueIndex].bytes;
-            $nodeExecutionQueue.splice(queueIndex, 1);
-        }
-    }
     while ($nodeExecutionBytes > __nodalPreviewMaxHistoryBytes && $nodeExecutionQueue.length > 1) {
-        const removableIndex = $nodeExecutionQueue.findIndex(item => (
+        const removableIndex = $nodeExecutionQueue.findLastIndex(item => (
             ($nodeExecutions[item.nodeId]?.length || 0) > 2
         ));
         if (removableIndex < 0) break;
@@ -575,15 +634,18 @@ const __recordSerializedNodeExecution = (nodeId, serialized) => {
     }
 };
 const __recordNodeExecution = (nodeId, value) => {
-    __recordSerializedNodeExecution(nodeId, __serializeNodalPreview(value));
+    __recordSerializedNodeExecution(nodeId, __serializeNodalSnapshot(value));
 };
 const __recordNodePreview = (nodeId, value, recordExecution = true) => {
-    const serialized = __serializeNodalPreview(value);
+    const serialized = __serializeNodalSnapshot(value);
     if (serialized === undefined) return;
     __recordSerializedNodePreview(nodeId, serialized);
     if (recordExecution) __recordSerializedNodeExecution(nodeId, serialized);
 };
-$nodeOutputs.RUN = __serializeNodalPreview($runRoot);`
+$nodeOutputs.RUN = __serializeNodalPreview($runRoot);
+for (const key of __nodalPreviewSharedKeys) {
+    if (!(key in __pfNodalPreviewBaseline)) __pfNodalPreviewBaseline[key] = __nodalPreviewJson($nodeOutputs.RUN?.[key]);
+}`
     .split('\n')
     .map(line => (line ? `${indent}${line}` : line))
     .join('\n');
@@ -593,7 +655,9 @@ $nodeOutputs.RUN = __serializeNodalPreview($runRoot);`
 const nodalPreviewSubmit = (indent: string) => `__setNodalPreview({
     nodes: Object.fromEntries(Object.entries($nodeOutputs).filter(([, value]) => value !== undefined)),
     executions: Object.fromEntries(
-        Object.entries($nodeExecutions).filter(([, values]) => values.length > 1),
+        Object.entries($nodeExecutions)
+            .filter(([, values]) => values.length > 1)
+            .map(([nodeId, values]) => [nodeId, __diffNodalPreviewExecutions(nodeId, values)]),
     ),
     executionMeta: Object.fromEntries(
         Object.entries($nodeExecutionTotals)
@@ -678,7 +742,24 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 return !sourceNode?.scopeId && !targetNode?.scopeId;
             }),
         };
-    const normalized = context === 'function' ? normalizeNodalFunctionGraph(mainGraph) : normalizeNodalGraph(mainGraph);
+    const normalizedWithAuxiliary = context === 'function'
+        ? normalizeNodalFunctionGraph(mainGraph)
+        : normalizeNodalGraph(mainGraph);
+    const auxiliaryNodesById = new Map(normalizedWithAuxiliary.nodes.map(node => [node.id, node]));
+    const mcpEdgesByTarget = new Map<string, NodalGraph['edges']>();
+    normalizedWithAuxiliary.edges
+        .filter(edge => edge.connectionType === 'ai_tool' || edge.sourcePort === 'ai_tool' || edge.targetPort === 'ai_tool')
+        .forEach(edge => {
+            mcpEdgesByTarget.set(edge.targetNodeId, [...(mcpEdgesByTarget.get(edge.targetNodeId) ?? []), edge]);
+        });
+    const normalized: NodalGraph = {
+        nodes: normalizedWithAuxiliary.nodes.filter(node => node.name !== '$mcpClientTool'),
+        edges: normalizedWithAuxiliary.edges.filter(edge => (
+            edge.connectionType !== 'ai_tool'
+            && edge.sourcePort !== 'ai_tool'
+            && edge.targetPort !== 'ai_tool'
+        )),
+    };
     const nodesById = new Map(normalized.nodes.map(node => [node.id, node]));
     const outgoing = new Map<string, NodalGraph['edges']>();
     const incoming = new Map<string, NodalGraph['edges']>();
@@ -727,7 +808,10 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
     const markNodeStart = (indent: string, nodeId: string) => instrumentRunProgress ? [
         `${indent}__nopRunNodeStart(${nodeId});`,
     ] : [];
-    const markNodeEnd = (indent: string, nodeId: string) => instrumentRunProgress ? [`${indent}__nopRunNodeEnd(${nodeId});`] : [];
+    const markNodeEnd = (indent: string, nodeId: string) => [
+        `${indent}await __shadowSaveDefaultBrowserStorage();`,
+        ...(instrumentRunProgress ? [`${indent}__nopRunNodeEnd(${nodeId});`] : []),
+    ];
     const markEdge = (indent: string, edge: NodalGraph['edges'][number] | null) => instrumentRunProgress && edge
         ? [`${indent}__nopRunEdge(${JSON.stringify(edge.id)});`]
         : [];
@@ -1269,13 +1353,43 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 callbackPort.parameter.path.join('.') === 'options.sniffing'
                 && Boolean(nextEdge(node.id, callbackPort.id))
             ));
+        const mcpServerSources = (mcpEdgesByTarget.get(node.id) ?? [])
+            .map(edge => auxiliaryNodesById.get(edge.sourceNodeId))
+            .filter((candidate): candidate is NodalGraph['nodes'][number] => (
+                candidate?.name === '$mcpClientTool' && !candidate.deactivated
+            ))
+            .map(mcpNode => {
+                const mcpArgs = [
+                    'credentialId',
+                    'include',
+                    'tools',
+                    'options',
+                ].map(key => {
+                    const value = normalizeParameterValue(nodeParameterValue(mcpNode, key));
+                    const source = formatParameterForCompiler(value, { awaitExpressions: true });
+
+                    return key === 'credentialId' && value.mode === 'fixed'
+                        ? `$vars(${source})`
+                        : source;
+                });
+
+                return `({ ...$mcpClientTool(${mcpArgs.join(', ')}), nodeId: ${JSON.stringify(mcpNode.id)} })`;
+            });
         const callArgs = args
             .map(arg => arg.replace(/\?$/, '').replace(/^\.\.\./, ''))
             .map(arg => {
-                let source = formatParameterForCompiler(node.values?.[arg], {
+                let source = formatParameterForCompiler(nodeParameterValue(node, arg), {
                     awaitExpressions: true,
                     valueType: entry ? getParameterMeta(entry, arg).valueType : undefined,
                 });
+                const cleanArgument = arg.replace(/\?$/, '').replace(/^\.\.\./, '');
+                if (
+                    cleanArgument === 'options'
+                    && (node.name === '$aiMessage' || node.name === '$aiControl')
+                    && mcpServerSources.length > 0
+                ) {
+                    source = `((__pfOptions) => ({ ...(__pfOptions && typeof __pfOptions === 'object' && !Array.isArray(__pfOptions) ? __pfOptions : {}), mcpServers: [${mcpServerSources.join(', ')}] }))(${source})`;
+                }
 
                 for (const callbackPort of callbackPorts.filter(candidate => candidate.parameter.argument === arg)) {
                     const { parameter } = callbackPort;
@@ -1302,6 +1416,8 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                     const callbackSource = isNetworkSniffingCallback
                         ? [
                             'async (__pfSniffingPayload) => {',
+                            // Spills the body so previews serialize a reference; flow code keeps the full payload.
+                            `${makeIndent(indentLevel + 1)}__networkSniffingSpillBody(__pfSniffingPayload);`,
                             `${makeIndent(indentLevel + 1)}${callbackPayloadsName}.push(__pfSniffingPayload);`,
                             `${makeIndent(indentLevel + 1)}let $run = $mergeNodeState($nodes[${safeNodeId}] ?? ${resultName}Base, { $capture: __pfSniffingPayload });`,
                             `${makeIndent(indentLevel + 1)}const $renderExpression = (template, $locals = {}) => __pfRenderExpression(template, { $run, $capture: __pfSniffingPayload, ...$locals });`,
@@ -1309,7 +1425,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                             callbackBody.split('\n').map(line => `    ${line}`).join('\n'),
                             `${makeIndent(indentLevel + 1)}} finally {`,
                             `${makeIndent(indentLevel + 2)}if ($nodes[${safeNodeId}]) __recordNodeExecution(${safeNodeId}, { ...$nodes[${safeNodeId}], $capture: __pfSniffingPayload, captures: [__pfSniffingPayload] });`,
-                            `${makeIndent(indentLevel + 2)}if ($nodes[${safeNodeId}]) __recordSerializedNodePreview(${safeNodeId}, __serializeNodalPreview($nodes[${safeNodeId}]));`,
+                            `${makeIndent(indentLevel + 2)}if ($nodes[${safeNodeId}]) __recordSerializedNodePreview(${safeNodeId}, __serializeNodalSnapshot($nodes[${safeNodeId}]));`,
                             `${makeIndent(indentLevel + 1)}}`,
                             `${indent}}`,
                         ].join('\n')
@@ -1421,8 +1537,10 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
 ${graphJson}
 
 ${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}const __pfInput = ${inputObject};
-const __pfContext = __pfInput && typeof __pfInput.$context === 'object' ? __pfInput.$context : {};
+// Local functions share the run context exposed by the sandbox runtime.
+const __pfContext = typeof __runContext === 'object' && __runContext ? __runContext : {};
 const __pfOutput = {};
+const __pfNodalPreviewBaseline = {};
 ${nodalRuntimePrelude('')}
 ${lines.length ? lines.join('\n') : '    // Add and connect nodes from FUNCTION to generate executable steps.'}
     return $runRoot.$output;
@@ -1433,9 +1551,12 @@ ${lines.length ? lines.join('\n') : '    // Add and connect nodes from FUNCTION 
 // Nodal graph snapshot:
 ${graphJson}
 
-${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}async function run($page, __pfInput) {
+${localFunctionDeclarations ? `${localFunctionDeclarations}\n\n` : ''}// Shared by run() and terminate() so both scopes strip against the same RUN snapshot.
+const __pfNodalPreviewBaseline = {};
+
+async function run($page, __pfInput, __pfContext) {
     if (!__pfInput || typeof __pfInput !== 'object') __pfInput = {};
-    const __pfContext = __pfInput && typeof __pfInput.$context === 'object' ? __pfInput.$context : {};
+    if (!__pfContext || typeof __pfContext !== 'object') __pfContext = {};
     const __pfOutput = {};
 ${nodalRuntimePrelude('    ')}
     try {
@@ -1447,10 +1568,10 @@ ${nodalPreviewSubmit('        ')}
     return __nopResponse;
 }
 
-async function terminate($page, __pfInput, __pfOutput) {
+async function terminate($page, __pfInput, __pfOutput, __pfContext) {
     if (!__pfInput || typeof __pfInput !== 'object') __pfInput = {};
     if (!__pfOutput || typeof __pfOutput !== 'object') __pfOutput = {};
-    const __pfContext = __pfInput && typeof __pfInput.$context === 'object' ? __pfInput.$context : {};
+    if (!__pfContext || typeof __pfContext !== 'object') __pfContext = {};
 ${nodalRuntimePrelude('    ')}
     try {
 ${finallyLines.length ? finallyLines.join('\n') : '    // Add nodes to the FINALLY line to generate cleanup steps.'}
