@@ -10,7 +10,6 @@ import type {
     CanvasNode,
     NodeParameterValue,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import {
     discoverMcpTools,
     mcpConnectionConfigFromNode,
@@ -57,15 +56,6 @@ const AUTHENTICATION_OPTIONS: { value: Authentication; label: string }[] = [
     { value: 'multipleHeaders', label: 'Multiple headers' },
 ];
 
-function inferredName(endpoint: string): string {
-    try {
-        const hostname = new URL(endpoint.trim()).hostname.replace(/^www\./, '');
-        return `${hostname.split('.')[0]?.replace(/[-_]+/g, ' ') || 'MCP'} MCP`;
-    } catch {
-        return 'MCP Server';
-    }
-}
-
 function parseHeaders(raw: string): { name: string; value: string }[] {
     return raw.split('\n').map(line => {
         const separator = line.indexOf(':');
@@ -84,10 +74,6 @@ export default function McpConnectionAssistant({
     canEditCredential,
 }: Props) {
     const config = mcpConnectionConfigFromNode(node);
-    const legacyEndpoint = normalizeScalarParameterValue(node.values.endpoint).value.trim();
-    const legacyTransport = normalizeScalarParameterValue(node.values.serverTransport).value === 'sse'
-        ? 'sse'
-        : 'httpStreamable';
     const [testing, setTesting] = useState(false);
     const [feedback, setFeedback] = useState<{ message: string; error?: boolean } | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
@@ -99,8 +85,8 @@ export default function McpConnectionAssistant({
     const [formError, setFormError] = useState('');
     const [name, setName] = useState('MCP Server');
     const [variableKey, setVariableKey] = useState('MCP Server Credential');
-    const [endpoint, setEndpoint] = useState(legacyEndpoint);
-    const [transport, setTransport] = useState<'httpStreamable' | 'sse'>(legacyTransport);
+    const [endpoint, setEndpoint] = useState('');
+    const [transport, setTransport] = useState<'httpStreamable' | 'sse'>('httpStreamable');
     const [authentication, setAuthentication] = useState<Authentication>('mcpOAuth2');
     const [selectedAuthentication, setSelectedAuthentication] = useState<Authentication | null>(null);
     const [credentialScope, setCredentialScope] = useState('user');
@@ -152,17 +138,11 @@ export default function McpConnectionAssistant({
     const openSetup = useCallback(async (forceCreate = false) => {
         const requestId = ++setupLoadRequest.current;
         const credentialVariableId = config.credentialVariableId;
-        const initialEndpoint = legacyEndpoint;
-        const initialTransport = legacyTransport;
-        const nextDefaults = {
-            name: inferredName(initialEndpoint),
-            variableKey: `${inferredName(initialEndpoint)} Credential`,
-        };
         resetSecretFields();
-        setName(nextDefaults.name);
-        setVariableKey(nextDefaults.variableKey);
-        setEndpoint(initialEndpoint);
-        setTransport(initialTransport);
+        setName('MCP Server');
+        setVariableKey('MCP Server Credential');
+        setEndpoint('');
+        setTransport('httpStreamable');
         setAuthentication('mcpOAuth2');
         setCredentialScope('user');
         setCredentialTeamId(null);
@@ -195,9 +175,9 @@ export default function McpConnectionAssistant({
             setOriginalAuthentication(credential.authentication);
             setSelectedAuthentication(credential.authentication);
             setName(credential.name);
-            setEndpoint(credential.config.endpoint || legacyEndpoint);
-            setTransport(credential.config.transport ?? legacyTransport);
-            setOriginalEndpoint(credential.config.endpoint || legacyEndpoint);
+            setEndpoint(credential.config.endpoint || '');
+            setTransport(credential.config.transport ?? 'httpStreamable');
+            setOriginalEndpoint(credential.config.endpoint || '');
             setAuthentication(credential.authentication);
             setCredentialScope(credential.scope);
             setCredentialTeamId(credential.team_id ?? null);
@@ -216,7 +196,7 @@ export default function McpConnectionAssistant({
         } finally {
             if (requestId === setupLoadRequest.current) setLoadingCredential(false);
         }
-    }, [config.credentialVariableId, legacyEndpoint, legacyTransport, resetSecretFields]);
+    }, [config.credentialVariableId, resetSecretFields]);
 
     useEffect(() => {
         if (setupRequest === handledSetupRequest.current) return;

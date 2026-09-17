@@ -174,6 +174,10 @@ final class McpClientService
                     continue;
                 }
                 throw $exception;
+            } catch (ConnectionException $exception) {
+                throw ValidationException::withMessages([
+                    'endpoint' => 'The MCP server could not be reached: '.$exception->getMessage(),
+                ]);
             }
         }
     }

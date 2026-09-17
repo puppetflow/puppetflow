@@ -174,17 +174,6 @@ const PARAM_SELECT_CHOICES: Record<string, { value: string; label: string }[]> =
         { value: 'json', label: 'JSON' },
         { value: 'schema', label: 'JSON schema' },
     ],
-    serverTransport: [
-        { value: 'httpStreamable', label: 'HTTP Streamable' },
-        { value: 'sse', label: 'Server Sent Events (Deprecated)' },
-    ],
-    authentication: [
-        { value: 'none', label: 'None' },
-        { value: 'bearer', label: 'Bearer Auth' },
-        { value: 'header', label: 'Header Auth' },
-        { value: 'multipleHeaders', label: 'Multiple Header Auth' },
-        { value: 'mcpOAuth2', label: 'MCP OAuth2' },
-    ],
     include: [
         { value: 'all', label: 'All tools' },
         { value: 'selected', label: 'Selected tools' },
