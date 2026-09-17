@@ -169,6 +169,8 @@ export interface ExplorerConfig<TItem extends ExplorerItem> {
     dragType: string;
     labels: ExplorerLabels;
     endpoints: ExplorerEndpoints;
+    /** Number of item cards per row in grid view on large screens (default 5). */
+    gridColumns?: number;
     canManageItem: (item: TItem, user: User | null) => boolean;
     renderItemCard: (props: ExplorerItemCardProps<TItem>) => ReactNode;
     renderItemIcon: (item: TItem) => ReactNode;

@@ -30,6 +30,7 @@ export const mediaExplorerConfig: ExplorerConfig<MediaAsset> = {
         moveItem: id => `/media-library/media/${id}/move`,
         batchDelete: '/media-library/batch-delete',
     },
+    gridColumns: 5,
     canManageItem: item => item.can_manage,
     renderItemCard: props => <MediaItemCard {...props} />,
     renderItemIcon: item => (
