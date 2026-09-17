@@ -1,4 +1,4 @@
-import styled, { keyframes } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import type { ConnectionStatus } from '@/Domains/Flow/Components/BrowserPane/hooks/useBrowserStream';
 
 const spin = keyframes`
@@ -47,6 +47,17 @@ export const NavButton = styled.button`
         opacity: 0.3;
         cursor: default;
     }
+`;
+
+export const AudioButton = styled(NavButton)<{ $blocked: boolean; $playing: boolean }>`
+    color: ${({ theme, $blocked, $playing }) =>
+        $blocked ? theme.colors.accent.warning :
+        $playing ? theme.colors.accent.success :
+        theme.colors.text.secondary};
+
+    ${({ $blocked }) => $blocked && css`
+        animation: ${pulse} 1.5s ease-in-out infinite;
+    `}
 `;
 
 export const AddressBar = styled.div`

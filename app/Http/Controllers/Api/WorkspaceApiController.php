@@ -176,6 +176,7 @@ class WorkspaceApiController extends Controller
             'viewport_width' => ['sometimes', 'integer', 'min:320', 'max:3840'],
             'viewport_height' => ['sometimes', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
+            'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
             'icon_type' => ['sometimes', Rule::in(['emoji', 'color'])],
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
@@ -256,6 +257,7 @@ class WorkspaceApiController extends Controller
                 'viewport_width' => $workspace->viewport_width,
                 'viewport_height' => $workspace->viewport_height,
                 'keyboard_speed' => $workspace->keyboard_speed,
+                'default_user_agent' => $workspace->default_user_agent,
                 'allow_trigger_advertising' => (bool) $workspace->allow_trigger_advertising,
                 'require_two_factor' => $this->features->enabled('two_factor_enforcement_enabled')
                     && (bool) $workspace->require_two_factor,

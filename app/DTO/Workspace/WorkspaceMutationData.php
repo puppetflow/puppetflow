@@ -98,6 +98,7 @@ final readonly class WorkspaceMutationData
      *   viewport_width?: int|null,
      *   viewport_height?: int|null,
      *   keyboard_speed?: int|null,
+     *   default_user_agent?: string|null,
      *   debug_log_object_depth?: int|null,
      *   debug_log_array_limit?: int|null,
      *   allow_trigger_advertising?: bool|null,

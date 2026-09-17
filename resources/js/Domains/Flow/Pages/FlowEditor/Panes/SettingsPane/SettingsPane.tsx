@@ -72,6 +72,7 @@ export default function SettingsPane({
         viewport_width: flow.viewport_width ?? '',
         viewport_height: flow.viewport_height ?? '',
         keyboard_speed: flow.keyboard_speed ?? '',
+        user_agent: flow.user_agent ?? '',
         disable_web_security: flow.disable_web_security ?? false,
         finally_enabled: flow.finally_enabled ?? false,
     });
@@ -161,6 +162,7 @@ export default function SettingsPane({
                         form={settingsForm}
                         viewport={limits.wsViewport}
                         keyboardSpeed={limits.wsKeyboardSpeed}
+                        userAgent={limits.wsUserAgent}
                     />
                     <S.SettingsSeparator />
                     <div ref={iconSectionRef}>

@@ -23,6 +23,7 @@ export interface SettingsFormData {
     viewport_width: number | '';
     viewport_height: number | '';
     keyboard_speed: number | '';
+    user_agent: string;
     disable_web_security: boolean;
     finally_enabled: boolean;
 }

@@ -30,6 +30,7 @@ export interface AppSettings {
         max_files: number;
     };
     max_flow_timeout_seconds: number;
+    default_user_agent: string;
     grabber_chrome_store_url: string;
     grabber_firefox_store_url: string;
     documentation_url: string;

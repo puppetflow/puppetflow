@@ -1,5 +1,6 @@
 import Input from '@/Shared/UI/Input/Input';
 import Switch from '@/Shared/UI/Switch/Switch';
+import UserAgentInput from '@/Shared/UI/UserAgentInput/UserAgentInput';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
 import type { SettingsLimits } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/useSettingsLimits';
 import * as S from './styled';
@@ -8,9 +9,10 @@ interface BrowserSectionProps {
     form: SettingsForm;
     viewport: SettingsLimits['wsViewport'];
     keyboardSpeed: SettingsLimits['wsKeyboardSpeed'];
+    userAgent: SettingsLimits['wsUserAgent'];
 }
 
-export default function BrowserSection({ form, viewport, keyboardSpeed }: BrowserSectionProps) {
+export default function BrowserSection({ form, viewport, keyboardSpeed, userAgent }: BrowserSectionProps) {
     return (
         <>
             <S.SettingsSeparator />
@@ -49,6 +51,17 @@ export default function BrowserSection({ form, viewport, keyboardSpeed }: Browse
             />
             <S.SettingsHint>
                 Override the delay between keystrokes for this flow. Leave empty to use workspace default ({keyboardSpeed} ms).
+            </S.SettingsHint>
+
+            <UserAgentInput
+                label="User agent"
+                placeholder={userAgent || 'Runtime default (Chrome)'}
+                value={form.data.user_agent}
+                onChange={value => form.setData('user_agent', value)}
+                error={form.errors.user_agent}
+            />
+            <S.SettingsHint>
+                Override the browser user agent for this flow. Leave empty to inherit the workspace default, then the instance default.
             </S.SettingsHint>
 
             <Switch

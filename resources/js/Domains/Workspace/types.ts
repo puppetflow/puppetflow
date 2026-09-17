@@ -19,6 +19,7 @@ export interface Workspace {
     viewport_width: number;
     viewport_height: number;
     keyboard_speed: number;
+    default_user_agent: string | null;
     debug_log_object_depth: number;
     debug_log_array_limit: number;
     allow_trigger_advertising: boolean;

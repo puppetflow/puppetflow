@@ -30,6 +30,7 @@ use Illuminate\Support\Str;
  * @property int $debug_log_object_depth
  * @property int $debug_log_array_limit
  * @property bool $require_two_factor
+ * @property string|null $default_user_agent
  */
 class Workspace extends Model
 {
@@ -43,7 +44,7 @@ class Workspace extends Model
         'runs_retention_default', 'runs_retention_max',
         'default_flow_timeout_seconds', 'max_flow_timeout_seconds',
         'max_retries_default', 'max_retries_max',
-        'viewport_width', 'viewport_height', 'keyboard_speed',
+        'viewport_width', 'viewport_height', 'keyboard_speed', 'default_user_agent',
         'debug_log_object_depth', 'debug_log_array_limit',
         'allow_trigger_advertising',
         'require_two_factor',
@@ -186,6 +187,28 @@ class Workspace extends Model
         $limits = array_filter([$globalMax, $workspaceMax], fn (int $limit) => $limit > 0);
 
         return empty($limits) ? 0 : min($limits);
+    }
+
+    /**
+     * Instance-wide default user agent, configured through BROWSER_USER_AGENT.
+     * Returns null when the runtime should fall back to its built-in value.
+     */
+    public static function instanceDefaultUserAgent(): ?string
+    {
+        $value = config('services.browser.user_agent', '');
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Precedence: workspace default, then instance default (BROWSER_USER_AGENT).
+     */
+    public function getEffectiveDefaultUserAgent(): ?string
+    {
+        $value = is_string($this->default_user_agent) ? trim($this->default_user_agent) : '';
+
+        return $value !== '' ? $value : self::instanceDefaultUserAgent();
     }
 
     public function getEffectiveMaxFlowTimeoutSeconds(): int

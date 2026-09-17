@@ -18,6 +18,11 @@ return [
 
     'screencast_nth_frame' => (int) env('FLOW_RUN_SCREENCAST_NTH_FRAME', 1),
 
+    // Page audio tap: heard in the live view and muxed into the run recording.
+    'audio_capture_enabled' => filter_var(env('FLOW_RUN_AUDIO_CAPTURE_ENABLED', true), FILTER_VALIDATE_BOOL),
+
+    'audio_sample_rate' => (int) env('FLOW_RUN_AUDIO_SAMPLE_RATE', 24000),
+
     'max_flow_timeout_seconds' => max(0, (int) env('FLOW_MAX_TIMEOUT_SECONDS', 0)),
 
     'queues_counter' => max(1, (int) env('APP_QUEUES_COUNTER', 1)),

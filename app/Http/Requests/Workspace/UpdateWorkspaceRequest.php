@@ -41,6 +41,7 @@ class UpdateWorkspaceRequest extends FormRequest
             'viewport_width' => ['sometimes', 'integer', 'min:320', 'max:3840'],
             'viewport_height' => ['sometimes', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
+            'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
             'debug_log_object_depth' => ['sometimes', 'integer', 'between:0,20'],
             'debug_log_array_limit' => ['sometimes', 'integer', 'between:1,1000'],
             'icon_type' => ['sometimes', 'in:emoji,color,upload'],

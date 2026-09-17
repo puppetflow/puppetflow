@@ -154,8 +154,12 @@ services:
     shm_size: "1gb"
     volumes:
       - puppetflow-execution:/app/data/execution
+      # Optional custom browser: Pinokio launches /opt/browser/chrome when it
+      # exists, otherwise the bundled Chromium. Unset: empty named volume.
+      - ${PINOKIO_BROWSER_DIR:-pinokio-browser}:/opt/browser:ro
     environment:
       TOKEN: "${PINOKIO_TOKEN:-}"
+      CHROME_EXTRA_ARGS: "${PINOKIO_CHROME_EXTRA_ARGS:-}"
 
   # PostgreSQL
   postgres:
@@ -198,3 +202,4 @@ volumes:
   puppetflow-uploads:
   puppetflow-execution:
   puppetflow-db:
+  pinokio-browser:

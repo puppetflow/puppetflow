@@ -13,7 +13,11 @@ const STATUS_ICON: Record<ConnectionStatus, string> = {
 };
 
 interface BrowserChromeProps {
+    audioBlocked: boolean;
+    audioEnabled: boolean;
+    audioPlaying: boolean;
     currentUrl: string;
+    onToggleAudio: () => void;
     send: (message: Record<string, unknown>) => void;
     setUrlFocused: (focused: boolean) => void;
     setUrlInput: (url: string) => void;
@@ -24,7 +28,11 @@ interface BrowserChromeProps {
 }
 
 export default function BrowserChrome({
+    audioBlocked,
+    audioEnabled,
+    audioPlaying,
     currentUrl,
+    onToggleAudio,
     send,
     setUrlFocused,
     setUrlInput,
@@ -33,6 +41,18 @@ export default function BrowserChrome({
     status,
     urlInput,
 }: BrowserChromeProps) {
+    const audioIcon = !audioEnabled
+        ? 'lucide:volume-x'
+        : audioBlocked
+            ? 'lucide:volume-1'
+            : audioPlaying
+                ? 'lucide:volume-2'
+                : 'lucide:volume';
+    const audioTitle = !audioEnabled
+        ? 'Unmute browser audio'
+        : audioBlocked
+            ? 'Click to allow browser audio playback'
+            : 'Mute browser audio';
     const [, setFocused] = useState(false);
 
     const handleNavigate = useCallback((url: string) => {
@@ -94,6 +114,18 @@ export default function BrowserChrome({
                     />
                 )}
             </S.AddressBar>
+            {!showRecording && (
+                <S.AudioButton
+                    onClick={onToggleAudio}
+                    disabled={!showCanvas}
+                    title={audioTitle}
+                    aria-pressed={audioEnabled}
+                    $blocked={audioBlocked && showCanvas}
+                    $playing={audioPlaying && showCanvas}
+                >
+                    <Icon icon={audioIcon} width={14} height={14} />
+                </S.AudioButton>
+            )}
             {showRecording ? (
                 <S.RecordingBadge>
                     <Icon icon="lucide:video" width={11} height={11} />

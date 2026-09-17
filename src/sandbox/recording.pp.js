@@ -83,13 +83,20 @@ function isPlausibleMp4(filePath) {
  * replay. Returns a recorder handle, or null when ffmpeg could not start;
  * every method degrades to a no-op once the underlying process dies.
  */
-function startRecording({ recordingPath, completionMarkerPath, width, height }) {
+function startRecording({ recordingPath, completionMarkerPath, width, height, audioSampleRate = 0 }) {
   let ffmpeg = null;
   let closeResult = null;
   let spawnError = null;
   let lastWrittenFrame = null;
   let lastWriteTs = 0;
   let heartbeatTimer = null;
+  // Optional audio track: the page tap delivers PCM chunks on a wallclock
+  // timeline; a pacer turns them into a continuous s16le stream on an extra
+  // pipe so ffmpeg can interleave it with the video frames.
+  let audioPipe = null;
+  let audioTimeline = null;
+  let audioPacerTimer = null;
+  const AUDIO_PACER_INTERVAL_MS = 100;
   // CDP screencast only emits frames when the page visually changes, so
   // idle periods (sleeps, waits) would otherwise be missing from the
   // replay: ffmpeg timestamps frames as they arrive on the pipe, and the
@@ -118,12 +125,33 @@ function startRecording({ recordingPath, completionMarkerPath, width, height }) 
     const recW = width % 2 === 0 ? width : width - 1;
     const recH = height % 2 === 0 ? height : height - 1;
     const recFilter = 'scale=' + recW + ':' + recH + ':force_original_aspect_ratio=decrease,pad=' + recW + ':' + recH + ':(ow-iw)/2:(oh-ih)/2,setsar=1';
-    const ffmpegProc = spawn('ffmpeg', [
+    const withAudio = Number.isInteger(audioSampleRate) && audioSampleRate > 0;
+    if (withAudio) {
+      const { createAudioTimeline } = require(path.join(__dirname, 'audio-capture.js'));
+      audioTimeline = createAudioTimeline({ sampleRate: audioSampleRate });
+    }
+    const ffmpegArgs = [
       '-y',
+      '-thread_queue_size', '1024',
       '-use_wallclock_as_timestamps', '1',
       '-f', 'image2pipe',
       '-vcodec', 'mjpeg',
       '-i', '-',
+    ];
+    if (withAudio) {
+      ffmpegArgs.push(
+        '-thread_queue_size', '1024',
+        '-f', 's16le',
+        '-ar', String(audioTimeline.sampleRate),
+        '-ac', '1',
+        '-i', 'pipe:3',
+        '-map', '0:v:0',
+        '-map', '1:a:0',
+        '-c:a', 'aac',
+        '-b:a', '64k',
+      );
+    }
+    ffmpegArgs.push(
       '-c:v', 'libx264',
       '-pix_fmt', 'yuv420p',
       '-preset', 'ultrafast',
@@ -131,7 +159,14 @@ function startRecording({ recordingPath, completionMarkerPath, width, height }) 
       '-movflags', '+faststart',
       '-f', 'mp4',
       temporaryPath,
-    ], { stdio: ['pipe', 'ignore', 'pipe'] });
+    );
+    const ffmpegProc = spawn('ffmpeg', ffmpegArgs, {
+      stdio: withAudio ? ['pipe', 'ignore', 'pipe', 'pipe'] : ['pipe', 'ignore', 'pipe'],
+    });
+    if (withAudio) {
+      audioPipe = ffmpegProc.stdio[3];
+      audioPipe.on('error', () => {});
+    }
     ffmpegProc.on('error', (err) => {
       console.debug('ffmpeg error: ' + err.message);
       spawnError = err;
@@ -160,7 +195,18 @@ function startRecording({ recordingPath, completionMarkerPath, width, height }) 
     }, HEARTBEAT_INTERVAL_MS);
     heartbeatTimer.unref();
 
-    console.debug('Recording enabled: ' + recordingPath);
+    if (withAudio) {
+      audioPacerTimer = setInterval(() => {
+        if (!audioTimeline || !audioTimeline.started() || closeResult !== null || spawnError !== null) return;
+        const pcm = audioTimeline.drain(Date.now());
+        if (pcm && audioPipe && audioPipe.writable) {
+          try { audioPipe.write(pcm); } catch (_) {}
+        }
+      }, AUDIO_PACER_INTERVAL_MS);
+      audioPacerTimer.unref();
+    }
+
+    console.debug('Recording enabled: ' + recordingPath + (withAudio ? ' (with audio)' : ''));
   } catch (recErr) {
     console.debug('Recording skipped: ' + recErr.message);
     return null;
@@ -182,11 +228,23 @@ function startRecording({ recordingPath, completionMarkerPath, width, height }) 
           // the correct time instead of the second frame's arrival.
           if (isFirstFrame) {
             ffmpeg.stdin.write(frameBuffer);
+            // Audio sample 0 must line up with the first video frame: both
+            // inputs are shifted by ffmpeg to start at zero.
+            if (audioTimeline) audioTimeline.start(Date.now());
           }
           lastWrittenFrame = frameBuffer;
           lastWriteTs = Date.now();
         } catch (_) {}
       }
+    },
+
+    hasAudio() {
+      return !!audioTimeline;
+    },
+
+    writeAudio(chunk) {
+      if (!audioTimeline || closeResult !== null || spawnError !== null) return;
+      try { audioTimeline.push(chunk); } catch (_) {}
     },
 
     /**
@@ -219,6 +277,10 @@ function startRecording({ recordingPath, completionMarkerPath, width, height }) 
         clearInterval(heartbeatTimer);
         heartbeatTimer = null;
       }
+      if (audioPacerTimer) {
+        clearInterval(audioPacerTimer);
+        audioPacerTimer = null;
+      }
 
       let finalized = false;
       try {
@@ -230,6 +292,15 @@ function startRecording({ recordingPath, completionMarkerPath, width, height }) 
             try { ffmpeg.stdin.write(lastWrittenFrame); } catch (_) {}
           }
           ffmpeg.stdin.end();
+        }
+        if (audioPipe) {
+          try {
+            if (audioTimeline && audioTimeline.started() && audioPipe.writable) {
+              const tail = audioTimeline.drain(Date.now(), true);
+              if (tail) audioPipe.write(tail);
+            }
+          } catch (_) {}
+          try { audioPipe.end(); } catch (_) {}
         }
         await Promise.race([
           closePromise,

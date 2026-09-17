@@ -32,6 +32,7 @@ final class WorkspaceMcpTools implements McpToolHandler
             'viewport_width' => ['type' => 'integer', 'minimum' => 320, 'maximum' => 3840],
             'viewport_height' => ['type' => 'integer', 'minimum' => 200, 'maximum' => 2160],
             'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
+            'default_user_agent' => ['type' => ['string', 'null'], 'maxLength' => 512, 'description' => 'Default browser user agent for flows in this workspace. Null inherits the instance default.'],
             'icon_type' => ['type' => 'string', 'enum' => ['emoji', 'color']],
             'icon_value' => ['type' => ['string', 'null']],
             'icon_color' => ['type' => ['string', 'null']],
@@ -81,6 +82,7 @@ final class WorkspaceMcpTools implements McpToolHandler
             'viewport_width' => ['sometimes', 'integer', 'min:320', 'max:3840'],
             'viewport_height' => ['sometimes', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
+            'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
             'icon_type' => ['sometimes', Rule::in(['emoji', 'color'])],
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
@@ -115,6 +117,7 @@ final class WorkspaceMcpTools implements McpToolHandler
                 'max_retries_max' => $workspace->max_retries_max,
                 'viewport_width' => $workspace->viewport_width, 'viewport_height' => $workspace->viewport_height,
                 'keyboard_speed' => $workspace->keyboard_speed,
+                'default_user_agent' => $workspace->default_user_agent,
                 'allow_trigger_advertising' => (bool) $workspace->allow_trigger_advertising,
                 'require_two_factor' => $this->features->enabled('two_factor_enforcement_enabled')
                     && (bool) $workspace->require_two_factor,

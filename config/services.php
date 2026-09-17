@@ -64,6 +64,7 @@ return [
 
     'browser' => [
         'disable_web_security' => env('BROWSER_DISABLE_WEB_SECURITY', false),
+        'user_agent' => env('BROWSER_USER_AGENT', ''),
     ],
 
     'browser_stream' => [

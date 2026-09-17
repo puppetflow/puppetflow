@@ -22,6 +22,7 @@ final readonly class WorkspaceRuntimeSettings
         public ?int $viewportWidth,
         public ?int $viewportHeight,
         public ?int $keyboardSpeed,
+        public ?string $defaultUserAgent,
         public ?int $debugLogObjectDepth,
         public ?int $debugLogArrayLimit,
         public ?bool $allowTriggerAdvertising,
@@ -47,6 +48,7 @@ final readonly class WorkspaceRuntimeSettings
             viewportWidth: self::optionalInt($validated, 'viewport_width'),
             viewportHeight: self::optionalInt($validated, 'viewport_height'),
             keyboardSpeed: self::optionalInt($validated, 'keyboard_speed'),
+            defaultUserAgent: self::optionalNullableString($validated, 'default_user_agent'),
             debugLogObjectDepth: self::optionalInt($validated, 'debug_log_object_depth'),
             debugLogArrayLimit: self::optionalInt($validated, 'debug_log_array_limit'),
             allowTriggerAdvertising: self::optionalBool($validated, 'allow_trigger_advertising'),
@@ -125,6 +127,11 @@ final readonly class WorkspaceRuntimeSettings
                 : $maxRetriesMax;
         }
 
+        if (array_key_exists('default_user_agent', $data)) {
+            $userAgent = is_string($data['default_user_agent']) ? trim($data['default_user_agent']) : '';
+            $data['default_user_agent'] = $userAgent === '' ? null : $userAgent;
+        }
+
         if (($data['require_two_factor'] ?? false) === true) {
             $features->abortIfDisabled('two_factor_enforcement_enabled');
         }
@@ -143,6 +150,7 @@ final readonly class WorkspaceRuntimeSettings
      *   viewport_width?: int|null,
      *   viewport_height?: int|null,
      *   keyboard_speed?: int|null,
+     *   default_user_agent?: string|null,
      *   debug_log_object_depth?: int|null,
      *   debug_log_array_limit?: int|null,
      *   allow_trigger_advertising?: bool|null,
@@ -164,6 +172,7 @@ final readonly class WorkspaceRuntimeSettings
             'viewport_width' => $this->viewportWidth,
             'viewport_height' => $this->viewportHeight,
             'keyboard_speed' => $this->keyboardSpeed,
+            'default_user_agent' => $this->defaultUserAgent,
             'debug_log_object_depth' => $this->debugLogObjectDepth,
             'debug_log_array_limit' => $this->debugLogArrayLimit,
             'allow_trigger_advertising' => $this->allowTriggerAdvertising,
@@ -191,6 +200,7 @@ final readonly class WorkspaceRuntimeSettings
             'viewport_width',
             'viewport_height',
             'keyboard_speed',
+            'default_user_agent',
             'debug_log_object_depth',
             'debug_log_array_limit',
             'allow_trigger_advertising',

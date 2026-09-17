@@ -381,6 +381,19 @@ module.exports = async function(appDir, flowId, quiet) {
       ? process.env.RECORDING_COMPLETION_MARKER_PATH
       : null;
     const _recordingLastshotPath = _recordingPath ? _recordingPath.replace(/[^/]+$/, 'lastshot.jpg') : null;
+    // Page audio capture (live view sound + recording audio track)
+    const _audioCaptureEnabled = process.env.FLOW_RUN_AUDIO_CAPTURE !== 'false';
+    let _audioCaptureModule = null;
+    if (_audioCaptureEnabled) {
+      try {
+        _audioCaptureModule = require('${__dirname}/audio-capture.js');
+      } catch (_audioErr) {
+        console.debug('Audio capture unavailable: ' + _audioErr.message);
+      }
+    }
+    const _audioSampleRate = _audioCaptureModule
+      ? _audioCaptureModule.normalizeSampleRate(process.env.FLOW_RUN_AUDIO_SAMPLE_RATE)
+      : 0;
     let _recorder = null;
     if (_recordingPath) {
       try {
@@ -390,6 +403,7 @@ module.exports = async function(appDir, flowId, quiet) {
           completionMarkerPath: _recordingCompletionMarkerPath,
           width: _vpW,
           height: _vpH,
+          audioSampleRate: _audioSampleRate,
         });
       } catch (_recErr) {
         console.debug('Recording skipped: ' + _recErr.message);
@@ -413,6 +427,7 @@ module.exports = async function(appDir, flowId, quiet) {
     let _streamRunEnded = false;
     let _streamLastErrorLogAt = 0;
     let _streamRebindQueue = Promise.resolve();
+    let _audioCapture = null;
 
     if (_needScreencast) {
       try {
@@ -813,6 +828,44 @@ module.exports = async function(appDir, flowId, quiet) {
           return _streamRebindQueue;
         };
 
+        if (_audioCaptureModule) {
+          try {
+            const _audioStreaming = !!(_streamUrl && _streamRunId && _streamToken && _streamTokenExpiresAt);
+            const _audioRecording = !!(_recorder && _recorder.hasAudio());
+            if (_audioStreaming || _audioRecording) {
+              _audioCapture = _audioCaptureModule.createAudioCapture({
+                sampleRate: _audioSampleRate,
+                onChunk: ({ pcm, sampleRate, ts, sourceId, page }) => {
+                  if (_streamRunEnded) return;
+                  if (_audioRecording && _recorder && _recorder.active()) {
+                    _recorder.writeAudio({ pcm, sampleRate, ts, sourceId });
+                  }
+                  if (_audioStreaming && _streamWs && _streamWs.readyState === 1) {
+                    let _audioTabName;
+                    for (const [_name, _candidate] of __namedPages) {
+                      if (_candidate === page) { _audioTabName = _name; break; }
+                    }
+                    _sendStream(JSON.stringify({
+                      type: 'audio-meta',
+                      sampleRate,
+                      channels: 1,
+                      ts,
+                      sourceId,
+                      ...(_audioTabName ? { tabName: _audioTabName } : {}),
+                    }));
+                    _sendStream(pcm, true);
+                  }
+                },
+              });
+              await __registerNamedPageInitializer(page => _audioCapture.install(page));
+              console.debug('Audio capture enabled (' + _audioCapture.sampleRate + ' Hz)');
+            }
+          } catch (_audioSetupErr) {
+            console.debug('Audio capture setup skipped: ' + _audioSetupErr.message);
+            _audioCapture = null;
+          }
+        }
+
         console.debug('Screencast started' + (_streamWs ? ' (streaming + recording)' : ' (recording only)'));
       } catch(_e) {
         console.debug('Screencast setup skipped: ' + _e.message);
@@ -1019,6 +1072,9 @@ module.exports = async function(appDir, flowId, quiet) {
 
       // Finalize recording BEFORE building artifacts so we can check the file
       _streamRunEnded = true;
+      if (_audioCapture) {
+        try { _audioCapture.stop(); } catch (_) {}
+      }
       await __streamOperationQueue.catch(() => {});
       await _streamRebindQueue.catch(() => {});
       if (_recorder && _recorder.active()) {

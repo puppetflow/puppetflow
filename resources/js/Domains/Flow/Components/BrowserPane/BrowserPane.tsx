@@ -5,6 +5,7 @@ import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
 import BrowserChrome from './components/BrowserChrome/BrowserChrome';
 import BrowserTabStrip from './components/BrowserTabStrip/BrowserTabStrip';
 import BrowserViewportState from './components/BrowserViewportState/BrowserViewportState';
+import { useBrowserAudio } from './hooks/useBrowserAudio';
 import { useBrowserStream } from './hooks/useBrowserStream';
 import { useRemoteBrowserInput } from './hooks/useRemoteBrowserInput';
 import * as S from './styled';
@@ -38,11 +39,13 @@ export default function BrowserPane({
 }: BrowserPaneProps) {
     const { settings } = usePage().props as unknown as PageProps;
     const liveViewEnabled = settings.live_view_enabled ?? false;
+    const audio = useBrowserAudio({ runId });
     const stream = useBrowserStream({
         active,
         flowId,
         isRunning,
         liveViewEnabled,
+        onAudioChunk: audio.pushChunk,
         runId,
     });
 
@@ -58,9 +61,16 @@ export default function BrowserPane({
     const showRecording = !showCanvas && !!recordingUrl && !isRunning;
 
     return (
-        <S.BrowserPaneContainer>
+        <S.BrowserPaneContainer
+            onPointerDownCapture={audio.unlock}
+            onKeyDownCapture={audio.unlock}
+        >
             <BrowserChrome
+                audioBlocked={audio.blocked}
+                audioEnabled={audio.enabled}
+                audioPlaying={audio.playing}
                 currentUrl={stream.currentUrl}
+                onToggleAudio={audio.toggle}
                 send={stream.send}
                 setUrlFocused={stream.setUrlFocused}
                 setUrlInput={stream.setUrlInput}
