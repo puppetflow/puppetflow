@@ -3,7 +3,6 @@ import type { FlowRun } from '@/Domains/Flow/types';
 import type { CanvasNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import {
-    formatEntryLabel,
     getEntryByName,
     getNodeCategoryColor,
     getNodeIcon,
@@ -98,31 +97,44 @@ const withoutLoopContext = (value: unknown): unknown => {
     return rest;
 };
 
+/** Catalog entry and visible parameters of a node; cheap, so both the header and the preview data can derive it. */
+export const resolveNodeConfigEntry = (node: CanvasNode) => {
+    const catalogEntry = node.system ? node.entry : getEntryByName(node.entry.name);
+    const entry = !node.system && catalogEntry.category === 'Custom' ? node.entry : catalogEntry;
+    const args = getSignatureArgs(entry.signature);
+    const loopMode = entry.name === LOOP_NODE_NAME
+        ? normalizeScalarParameterValue(node.values.mode).value || 'items'
+        : null;
+    const visibleArgs = entry.name === LOOP_NODE_NAME
+        ? args.filter(arg => getLoopParameterKeysForMode(loopMode ?? 'items').includes(
+            arg.replace(/\?$/, '').replace(/^\.\.\./, ''),
+        ))
+        : args;
+
+    return { entry, loopMode, visibleArgs };
+};
+
 interface UseNodeConfigModalOptions {
     node: CanvasNode;
     previewNodes: Array<{ node: CanvasNode; distance: number }>;
     latestRun: FlowRun | null;
     autocompleteContext: NodalAutocompleteContext;
     isFinallyNode: boolean;
-    readOnly?: boolean;
-    onClose: () => void;
-    onRenameNode: (nodeId: string, label: string) => void;
 }
 
-// Builds and validates the editable node configuration used by NodeConfigModal.
+/**
+ * Builds the Before/After preview data and the effective autocomplete context of a node.
+ * This is the expensive part of the modal: NodeConfigModal feeds it deferred inputs so the
+ * work runs in an interruptible background render instead of blocking the navigation click.
+ */
 export default function useNodeConfigModal({
     node,
     previewNodes,
     latestRun,
     autocompleteContext,
     isFinallyNode,
-    readOnly,
-    onClose,
-    onRenameNode,
 }: UseNodeConfigModalOptions) {
-    const catalogEntry = node.system ? node.entry : getEntryByName(node.entry.name);
-    const entry = !node.system && catalogEntry.category === 'Custom' ? node.entry : catalogEntry;
-    const args = getSignatureArgs(entry.signature);
+    const { entry, loopMode } = resolveNodeConfigEntry(node);
     const rawNodalPreview = latestRun?.internal_meta?.nodal_preview;
     const nodalPreviewData = useMemo(() => expandNodalPreview(rawNodalPreview), [rawNodalPreview]);
     const nodalPreviewNodes = asRecord(nodalPreviewData?.nodes);
@@ -325,9 +337,6 @@ export default function useNodeConfigModal({
         ...Object.fromEntries(previewSources.map(source => [source.id, source.value])),
     }), [nodalPreviewNodes, previewSources]);
     const targetedCapturePreview = asRecord(targetedRunPreview.$capture) ?? currentNodeCapturePreview;
-    const loopMode = entry.name === LOOP_NODE_NAME
-        ? normalizeScalarParameterValue(node.values.mode).value || 'items'
-        : null;
     const effectiveAutocompleteContext = useMemo(
         () => createEffectiveAutocompleteContext({
             autocompleteContext,
@@ -356,33 +365,7 @@ export default function useNodeConfigModal({
             targetedRunPreview,
         ],
     );
-    const defaultNodeLabel = formatEntryLabel(entry);
-    const [labelDraft, setLabelDraft] = useState(node.label?.trim() || defaultNodeLabel);
-    const visibleArgs = entry.name === LOOP_NODE_NAME
-        ? args.filter(arg => getLoopParameterKeysForMode(loopMode ?? 'items').includes(
-            arg.replace(/\?$/, '').replace(/^\.\.\./, ''),
-        ))
-        : args;
-
-    useEffect(() => {
-        setLabelDraft(node.label?.trim() || defaultNodeLabel);
-    }, [defaultNodeLabel, node.id, node.label]);
-
-    const commitLabel = () => {
-        onRenameNode(node.id, labelDraft);
-        setLabelDraft(labelDraft.trim() || defaultNodeLabel);
-    };
-    const handleClose = () => {
-        const currentLabel = node.label?.trim() || defaultNodeLabel;
-        if (!readOnly && labelDraft.trim() !== currentLabel) {
-            onRenameNode(node.id, labelDraft);
-        }
-        onClose();
-    };
-
     return {
-        entry,
-        visibleArgs,
         expressionOutputData,
         effectiveAutocompleteContext,
         previewSources,
@@ -396,9 +379,5 @@ export default function useNodeConfigModal({
         currentNodeExecutionStatus,
         selectedAfterExecutionIndex,
         selectAfterExecution,
-        labelDraft,
-        setLabelDraft,
-        commitLabel,
-        handleClose,
     };
 }

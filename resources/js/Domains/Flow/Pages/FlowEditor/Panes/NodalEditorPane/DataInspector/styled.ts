@@ -1,4 +1,10 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
+
+const spin = keyframes`
+    to {
+        transform: rotate(360deg);
+    }
+`;
 
 export const InspectorPanel = styled.div`
     align-self: stretch;
@@ -29,6 +35,15 @@ export const InspectorEmpty = styled.div`
     text-align: center;
     font-size: 12px;
     color: ${({ theme }) => theme.colors.text.tertiary};
+`;
+
+export const InspectorLoading = styled(InspectorEmpty)`
+    flex-direction: column;
+    gap: 10px;
+
+    svg {
+        animation: ${spin} 0.8s linear infinite;
+    }
 `;
 
 export const InspectorJsonTree = styled.div`

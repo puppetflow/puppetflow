@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { FlowRun } from '@/Domains/Flow/types';
 import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import type { CanvasNode, NodeParameterValue } from '../types';
@@ -9,7 +9,8 @@ import NodeConfigHeader from './components/NodeConfigHeader/NodeConfigHeader';
 import NodeParameters from './components/NodeParameters/NodeParameters';
 import PreviewSection from './components/PreviewSection/PreviewSection';
 import useHydratedSniffValue from './hooks/useHydratedSniffValue';
-import useNodeConfigModal from './hooks/useNodeConfigModal';
+import useNodeConfigModal, { resolveNodeConfigEntry } from './hooks/useNodeConfigModal';
+import useNodeLabelDraft from './hooks/useNodeLabelDraft';
 import * as S from './styled';
 
 // Last settled run loaded with its nodal preview, so reopening the modal on the same run does not
@@ -48,6 +49,8 @@ function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
         if (latestRun.internal_meta) return latestRun;
         return cachedPreviewRun?.id === latestRun.id ? cachedPreviewRun : null;
     });
+    // Run whose preview fetch failed: the static preview is shown instead of spinning forever.
+    const [failedRunId, setFailedRunId] = useState<Id | null>(null);
     // Polling replaces the run object every few seconds; only a new run id, or the run settling
     // (the run detail modal shows runs while they execute), must trigger a preview fetch.
     const latestRunRef = useRef(latestRun);
@@ -72,6 +75,7 @@ function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
         }
 
         setLoadedRun(null);
+        setFailedRunId(null);
         const controller = new AbortController();
         void fetch(
             `/flows/${encodeURIComponent(String(flowId))}/runs/${latestRun.id}?include_nodal_preview=1`,
@@ -88,13 +92,48 @@ function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
             .catch(error => {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
                     setLoadedRun(null);
+                    setFailedRunId(latestRun.id);
                 }
             });
 
         return () => controller.abort();
     }, [flowId, latestRunId, latestRunSettled]);
 
-    return loadedRun?.id === latestRun?.id ? loadedRun : latestRun;
+    const hasLoadedRun = loadedRun?.id === latestRun?.id;
+    const loading = Boolean(
+        flowId && latestRun && !hasLoadedRun && !latestRun.internal_meta && failedRunId !== latestRun.id,
+    );
+
+    return { run: hasLoadedRun ? loadedRun : latestRun, loading };
+}
+
+interface PreviewInputs {
+    node: CanvasNode;
+    previewNodes: Array<{ node: CanvasNode; distance: number }>;
+    latestRun: FlowRun | null;
+    autocompleteContext: NodalAutocompleteContext;
+    isFinallyNode: boolean;
+}
+
+// Advancing to another node runs the expensive preview computation, which is a single synchronous
+// pass React cannot interrupt. Debouncing the node change means a burst of Next/Previous clicks only
+// commits the last target, so intermediate nodes never start that pass and each click stays snappy.
+// Edits on the same node are reflected immediately, so typing keeps its previous responsiveness.
+const NAVIGATION_SETTLE_MS = 180;
+function useNavigationSettledPreviewInputs(inputs: PreviewInputs): PreviewInputs {
+    const [settled, setSettled] = useState(inputs);
+    const settledNodeId = settled.node.id;
+
+    useEffect(() => {
+        if (inputs.node.id === settledNodeId) {
+            setSettled(inputs);
+            return;
+        }
+        const timeout = setTimeout(() => setSettled(inputs), NAVIGATION_SETTLE_MS);
+        return () => clearTimeout(timeout);
+    }, [inputs, settledNodeId]);
+
+    return settled;
 }
 
 export default function NodeConfigModal({
@@ -123,10 +162,24 @@ export default function NodeConfigModal({
         setRunPreviewPreferred(next);
         if (typeof window !== 'undefined') window.localStorage.setItem(RUN_PREVIEW_STORAGE_KEY, String(next));
     };
-    const previewRun = useNodalPreviewRun(flowId, useRunPreview ? latestRun : null);
+    const { run: previewRun, loading: runPreviewLoading } = useNodalPreviewRun(flowId, useRunPreview ? latestRun : null);
+    // Header, parameters and rails follow the edited node immediately (cheap). The preview data
+    // is derived from a deferred copy of the inputs: React renders it in the background and drops
+    // that render when the user navigates again, so rapid Next/Previous clicks never pile up and
+    // each click moves exactly one node.
+    const { entry, visibleArgs } = resolveNodeConfigEntry(node);
+    const previewInputs = useMemo(
+        (): PreviewInputs => ({ node, previewNodes, latestRun: previewRun, autocompleteContext, isFinallyNode }),
+        [autocompleteContext, isFinallyNode, node, previewNodes, previewRun],
+    );
+    // Debounce coalesces rapid Next/Previous clicks; useDeferredValue then keeps the eventual heavy
+    // render (tree building) at low priority so it never blocks closing or a further navigation.
+    const settledPreviewInputs = useNavigationSettledPreviewInputs(previewInputs);
+    const deferredPreviewInputs = useDeferredValue(settledPreviewInputs);
+    // Only navigation shows spinners; edits on the same node keep the previous preview visible
+    // until the recomputation lands, exactly as before.
+    const previewLoading = deferredPreviewInputs.node.id !== node.id || runPreviewLoading;
     const {
-        entry,
-        visibleArgs,
         expressionOutputData,
         effectiveAutocompleteContext,
         previewSources,
@@ -140,16 +193,10 @@ export default function NodeConfigModal({
         currentNodeExecutionStatus,
         selectedAfterExecutionIndex,
         selectAfterExecution,
-        labelDraft,
-        setLabelDraft,
-        commitLabel,
-        handleClose,
-    } = useNodeConfigModal({
+    } = useNodeConfigModal(deferredPreviewInputs);
+    const { labelDraft, setLabelDraft, commitLabel, handleClose } = useNodeLabelDraft({
         node,
-        previewNodes,
-        latestRun: previewRun,
-        autocompleteContext,
-        isFinallyNode,
+        entry,
         readOnly,
         onClose,
         onRenameNode,
@@ -161,10 +208,15 @@ export default function NodeConfigModal({
         after: currentNodeAfterData,
         context: effectiveAutocompleteContext,
     }), [selectedPreviewSource?.value, currentNodeAfterData, effectiveAutocompleteContext]);
-    const hydrated = useHydratedSniffValue(displayed, flowId, previewRun?.id);
+    const hydrated = useHydratedSniffValue(displayed, flowId, deferredPreviewInputs.latestRun?.id);
+    // While the preview lags behind the edited node, expression previews that fail are reported
+    // as loading rather than as errors: the context they evaluate against is not theirs yet.
     const hydratedContext = useMemo(
-        (): NodalAutocompleteContext => ({ ...hydrated.value.context, capturesLoading: hydrated.loading }),
-        [hydrated],
+        (): NodalAutocompleteContext => ({
+            ...hydrated.value.context,
+            capturesLoading: hydrated.loading || previewLoading,
+        }),
+        [hydrated, previewLoading],
     );
     const previewOmitted = previewRun?.internal_meta?.nodal_preview?.omitted;
 
@@ -213,6 +265,7 @@ export default function NodeConfigModal({
                         <S.NodeConfigLayout>
                             <PreviewSection
                                 title="Before"
+                                loading={previewLoading}
                                 value={hydrated.value.before}
                                 copyValue={hydrated.value.before}
                                 rootPath={selectedPreviewSource?.rootPath ?? '$run'}
@@ -240,6 +293,7 @@ export default function NodeConfigModal({
                             />
                             <PreviewSection
                                 title="After"
+                                loading={previewLoading}
                                 value={hydrated.value.after}
                                 copyValue={hydrated.value.after}
                                 rootPath={currentNodePreviewSource.rootPath}
@@ -259,9 +313,11 @@ export default function NodeConfigModal({
                                 <span>
                                     {previewOmitted
                                         ? `Run #${latestRun.id} produced more preview data than the ${formatRunStorage(previewOmitted.limit)} limit; showing a static preview.`
-                                        : useRunPreview
-                                            ? `Using run #${latestRun.id} as preview data.`
-                                            : 'Showing a static preview built from the flow inputs.'}
+                                        : runPreviewLoading
+                                            ? `Loading run #${latestRun.id} preview data…`
+                                            : useRunPreview
+                                                ? `Using run #${latestRun.id} as preview data.`
+                                                : 'Showing a static preview built from the flow inputs.'}
                                 </span>
                                 {!readOnly && (
                                     <S.PreviewSourceToggle type="button" onClick={toggleRunPreview}>
