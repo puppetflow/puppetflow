@@ -1,5 +1,6 @@
 import type { MediaAsset } from '@/Domains/Media/types';
 import { csrfHeaders } from '@/Shared/Utils/csrf';
+import { laravelErrorMessage } from '@/Shared/Utils/laravelValidation';
 import type { MediaUploadAdapter, MediaUploadRequest } from './types';
 import SparkMD5 from 'spark-md5';
 
@@ -31,17 +32,9 @@ async function fileChecksums(file: File, includeMd5: boolean): Promise<{
 }
 
 async function backendError(response: Response, fallback: string): Promise<Error> {
-    const payload = await response.json().catch(() => null) as {
-        message?: unknown;
-        errors?: Record<string, unknown>;
-    } | null;
-    if (payload?.errors) {
-        for (const error of Object.values(payload.errors)) {
-            if (Array.isArray(error) && typeof error[0] === 'string') return new Error(error[0]);
-            if (typeof error === 'string') return new Error(error);
-        }
-    }
-    return new Error(typeof payload?.message === 'string' ? payload.message : fallback);
+    const payload: unknown = await response.json().catch(() => null);
+
+    return new Error(laravelErrorMessage(payload) ?? fallback);
 }
 
 function putObject(

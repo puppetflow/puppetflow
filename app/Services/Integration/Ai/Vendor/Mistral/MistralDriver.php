@@ -87,7 +87,10 @@ class MistralDriver implements AiProviderDriverInterface
                 ->values()
                 ->all();
             $toolCalls = collect($parts)
-                ->filter(fn (mixed $part): bool => is_array($part) && ($part['type'] ?? null) === 'tool_call')
+                ->filter(fn (mixed $part): bool => is_array($part)
+                    && ($part['type'] ?? null) === 'tool_call'
+                    && is_string($part['id'] ?? null)
+                    && is_string($part['name'] ?? null))
                 ->map(fn (array $part): array => [
                     'id' => $part['id'],
                     'type' => 'function',

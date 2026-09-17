@@ -404,7 +404,7 @@ export default function CustomSelect<T extends Id>({
                         </S.SelectActionRow>
                     )}
                     <S.SelectOptions>
-                        {refreshing ? (
+                        {refreshing && options.length === 0 ? (
                             <S.SelectLoading>
                                 <Icon icon="lucide:loader-circle" width={16} height={16} />
                             </S.SelectLoading>

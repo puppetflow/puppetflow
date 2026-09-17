@@ -684,7 +684,7 @@ const RESERVED_IDENTIFIERS = new Set([
     'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
 ]);
 const RUNTIME_IDENTIFIERS = new Set([
-    '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context',
+    '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context', '$json',
     '$loop', '$capture', '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed', '$now', '$today',
     '$if', '$ifEmpty', '$max', '$min', '$sortDates', '$parseDates',
     '$currentDate', '$currentDateMinusOneMonth', '$currentDatePlusOneMonth', '$matchSequence',

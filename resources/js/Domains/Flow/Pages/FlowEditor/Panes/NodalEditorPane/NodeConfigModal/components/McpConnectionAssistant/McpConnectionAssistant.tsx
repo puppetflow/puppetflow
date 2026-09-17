@@ -5,6 +5,7 @@ import Button from '@/Shared/UI/Button/Button';
 import Modal from '@/Shared/UI/Modal/Modal';
 import OptionalDetails from '@/Shared/UI/OptionalDetails/OptionalDetails';
 import { csrfHeaders } from '@/Shared/Utils/csrf';
+import { laravelErrorMessage } from '@/Shared/Utils/laravelValidation';
 import type {
     CanvasNode,
     NodeParameterValue,
@@ -63,13 +64,6 @@ function inferredName(endpoint: string): string {
     } catch {
         return 'MCP Server';
     }
-}
-
-function responseError(payload: {
-    message?: string;
-    errors?: Record<string, string[]>;
-}, fallback: string): string {
-    return Object.values(payload.errors ?? {}).flat()[0] ?? payload.message ?? fallback;
 }
 
 function parseHeaders(raw: string): { name: string; value: string }[] {
@@ -192,7 +186,7 @@ export default function McpConnectionAssistant({
                 errors?: Record<string, string[]>;
             };
             if (!response.ok || !payload.credential) {
-                throw new Error(responseError(payload, 'Unable to load the Stored Credential.'));
+                throw new Error(laravelErrorMessage(payload) ?? 'Unable to load the Stored Credential.');
             }
             if (requestId !== setupLoadRequest.current) return;
             const credential = payload.credential;
@@ -303,7 +297,7 @@ export default function McpConnectionAssistant({
                 errors?: Record<string, string[]>;
             };
             if (!response.ok || !payload.authorization_url) {
-                throw new Error(responseError(payload, 'Unable to start MCP OAuth.'));
+                throw new Error(laravelErrorMessage(payload) ?? 'Unable to start MCP OAuth.');
             }
             if (popup) popup.location.href = payload.authorization_url;
             else window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
@@ -376,7 +370,7 @@ export default function McpConnectionAssistant({
                 errors?: Record<string, string[]>;
             };
             if (!response.ok || !payload.credential || (!editingCredentialId && !payload.variable)) {
-                throw new Error(responseError(payload, 'Unable to save Credentials.'));
+                throw new Error(laravelErrorMessage(payload) ?? 'Unable to save Credentials.');
             }
             const credentialVariableId = payload.variable?.id ?? editingVariableId ?? config.credentialVariableId;
             if (payload.variable) update('credentialId', payload.variable.id);

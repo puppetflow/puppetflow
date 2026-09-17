@@ -1,31 +1,17 @@
 import { csrfHeaders } from '@/Shared/Utils/csrf';
 import type { MediaAsset } from '@/Domains/Media/types';
+import { laravelErrorMessage } from '@/Shared/Utils/laravelValidation';
 import type { MediaUploadAdapter, MediaUploadRequest } from './types';
 
-function firstValidationError(value: unknown): string | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    for (const error of Object.values(value)) {
-        if (typeof error === 'string') return error;
-        if (Array.isArray(error)) {
-            const message = error.find(item => typeof item === 'string');
-            if (typeof message === 'string') return message;
-        }
-    }
-    return null;
-}
-
 function uploadRequestError(request: XMLHttpRequest): Error {
-    let payload: { message?: unknown; errors?: unknown } = {};
+    let payload: unknown = null;
     try {
         payload = JSON.parse(request.responseText);
     } catch {
         // HTTP-specific fallbacks below also cover non-JSON proxy responses.
     }
-    const validationError = firstValidationError(payload.errors);
-    if (validationError) return new Error(validationError);
-    if (typeof payload.message === 'string' && payload.message.trim() !== '') {
-        return new Error(payload.message);
-    }
+    const message = laravelErrorMessage(payload);
+    if (message) return new Error(message);
     if (request.status === 413) return new Error('The upload is larger than the server request limit.');
     if (request.status === 419) return new Error('Your session expired. Refresh the page and upload the file again.');
     if (request.status === 422) return new Error('The server rejected the file. Check its size and upload requirements.');

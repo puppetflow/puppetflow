@@ -474,6 +474,7 @@ final class McpClientService
             return $chunk;
         }
 
+        // Guzzle wraps the SSE body in a dechunk filter, which stream_select() cannot wait on.
         usleep(10000);
 
         return '';

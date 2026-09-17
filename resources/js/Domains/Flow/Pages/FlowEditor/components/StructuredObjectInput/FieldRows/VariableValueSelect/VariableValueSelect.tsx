@@ -76,6 +76,8 @@ export default function VariableValueSelect({
         loadFailed,
         refresh: refreshSuggestions,
     } = variableSuggestions;
+    // Opening refreshes the list in the background; only the first load has nothing to show.
+    const initialLoading = loading && suggestions.length === 0;
     const variableById = useMemo(
         () => new Map(suggestions.map(variable => [String(variable.id), variable])),
         [suggestions],
@@ -188,7 +190,7 @@ export default function VariableValueSelect({
                 $variableType={selectedVariable?.type}
                 onClick={event => toggle(event.currentTarget)}
             >
-                {loading ? (
+                {initialLoading ? (
                     <S.IconSlot $loading>
                         <Icon icon="lucide:loader-circle" width={15} height={15} />
                     </S.IconSlot>
@@ -198,7 +200,7 @@ export default function VariableValueSelect({
                     </S.IconSlot>
                 )}
                 <S.ValueLabel>
-                    {loading
+                    {initialLoading
                         ? 'Loading...'
                         : selectedVariable?.key || 'Select variable...'}
                 </S.ValueLabel>
@@ -274,7 +276,7 @@ export default function VariableValueSelect({
                         )}
                     </S.ActionRow>
                     <S.List>
-                        {loading ? (
+                        {initialLoading ? (
                             <S.Empty>Loading variables...</S.Empty>
                         ) : loadFailed ? (
                             <S.Empty>Unable to load variables.</S.Empty>
