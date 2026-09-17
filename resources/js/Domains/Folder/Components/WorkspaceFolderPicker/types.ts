@@ -1,4 +1,4 @@
-import type { FolderTree } from '@/Domains/Folder/types';
+import type { ExplorerFolderTree as FolderTree } from '@/Shared/Explorer/types';
 
 export type FolderScope = 'owner' | 'workspace' | 'team';
 /** Folder ID, the 'root' sentinel, or null when nothing is selected. */
@@ -18,4 +18,8 @@ export interface WorkspaceFolderPickerProps {
     rootFolderId?: Id | null;
     /** In owner scope, folders created inline are assigned to this user. */
     ownerId?: Id | null;
+    /** In team scope without a physical root folder, root folders are created for this team. */
+    teamId?: Id | null;
+    /** Folder resource endpoint used for inline creation (defaults to flow folders). */
+    createFolderEndpoint?: string;
 }

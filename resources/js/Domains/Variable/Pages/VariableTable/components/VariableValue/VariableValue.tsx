@@ -7,7 +7,7 @@ interface VariableValueProps {
 }
 
 export default function VariableValue({ variable }: VariableValueProps) {
-    if (variable.type === 'secret' || variable.type === 'otp') {
+    if (variable.type === 'secret' || variable.type === 'mcp_credentials' || variable.type === 'otp') {
         return (
             <S.SecretDots title="Secret value">
                 ••••••••

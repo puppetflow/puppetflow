@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\DataTableColumnApiController;
 use App\Http\Controllers\Api\DataTableRowApiController;
 use App\Http\Controllers\Api\FlowApiController;
 use App\Http\Controllers\Api\FlowSearchApiController;
+use App\Http\Controllers\Api\MediaAssetApiController;
+use App\Http\Controllers\Api\MediaFolderApiController;
 use App\Http\Controllers\Api\RunApiController;
 use App\Http\Controllers\Api\TeamApiController;
 use App\Http\Controllers\Api\UserApiController;
@@ -15,6 +17,8 @@ use App\Http\Controllers\Internal\MailboxRunMessageController;
 use App\Http\Controllers\Internal\RunnerSignalController;
 use App\Http\Controllers\Internal\RuntimeAiController;
 use App\Http\Controllers\Internal\RuntimeDataTableController;
+use App\Http\Controllers\Internal\RuntimeMcpController;
+use App\Http\Controllers\Internal\RuntimeMediaController;
 use App\Http\Controllers\Mcp\McpBrokerController;
 use App\Http\Controllers\Mcp\McpServerController;
 use App\Http\Controllers\Trigger\TriggerIncomingController;
@@ -49,6 +53,12 @@ Route::prefix('internal/runner')
         Route::post('ai/execute', [RuntimeAiController::class, 'execute'])
             ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_AI_EXECUTE)
             ->name('ai.execute');
+        Route::post('mcp/tools', [RuntimeMcpController::class, 'tools'])
+            ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_MCP_TOOLS)
+            ->name('mcp.tools');
+        Route::post('mcp/call', [RuntimeMcpController::class, 'call'])
+            ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_MCP_TOOLS)
+            ->name('mcp.call');
         Route::post('data-table/read', [RuntimeDataTableController::class, 'read'])
             ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_DATA_TABLE_READ)
             ->name('data-table.read');
@@ -58,6 +68,9 @@ Route::prefix('internal/runner')
         Route::post('data-table/schema', [RuntimeDataTableController::class, 'schema'])
             ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_DATA_TABLE_SCHEMA)
             ->name('data-table.schema');
+        Route::post('media/download', [RuntimeMediaController::class, 'download'])
+            ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_MEDIA_READ)
+            ->name('media.download');
         Route::post('waiting/declare', [RunnerSignalController::class, 'declareWaiting'])
             ->middleware(AuthenticateRunnerCapability::class.':'.RunnerCapabilityService::SCOPE_WAITING_DECLARE)
             ->name('waiting.declare');
@@ -162,6 +175,32 @@ Route::middleware(\App\Http\Middleware\AuthenticateApiKey::class)
                 Route::delete('{dataTable}/rows/{row}', [DataTableRowApiController::class, 'destroy'])->name('rows.destroy');
             });
 
+        Route::get('workspaces/{workspace}/media', [MediaAssetApiController::class, 'index'])->name('workspaces.media.index');
+        Route::post('workspaces/{workspace}/media', [MediaAssetApiController::class, 'store'])->name('workspaces.media.store');
+        Route::post('workspaces/{workspace}/media/batch-delete', [MediaAssetApiController::class, 'destroyBatch'])->name('workspaces.media.destroy-batch');
+        Route::get('workspaces/{workspace}/media-folders', [MediaFolderApiController::class, 'index'])->name('workspaces.media-folders.index');
+        Route::post('workspaces/{workspace}/media-folders', [MediaFolderApiController::class, 'store'])->name('workspaces.media-folders.store');
+
+        Route::prefix('media')
+            ->name('media.')
+            ->group(function () {
+                Route::get('{media}', [MediaAssetApiController::class, 'show'])->name('show');
+                Route::patch('{media}', [MediaAssetApiController::class, 'update'])->name('update');
+                Route::delete('{media}', [MediaAssetApiController::class, 'destroy'])->name('destroy');
+                Route::get('{media}/content', [MediaAssetApiController::class, 'content'])->name('content');
+                Route::patch('{media}/content', [MediaAssetApiController::class, 'updateContent'])->name('content.update');
+                Route::get('{media}/download', [MediaAssetApiController::class, 'download'])->name('download');
+                Route::get('{media}/thumbnail', [MediaAssetApiController::class, 'thumbnail'])->name('thumbnail');
+            });
+
+        Route::prefix('media-folders')
+            ->name('media-folders.')
+            ->group(function () {
+                Route::get('{folder}', [MediaFolderApiController::class, 'show'])->name('show');
+                Route::patch('{folder}', [MediaFolderApiController::class, 'update'])->name('update');
+                Route::delete('{folder}', [MediaFolderApiController::class, 'destroy'])->name('destroy');
+            });
+
         Route::get('flows', [FlowSearchApiController::class, 'flows'])->name('flows.index');
         Route::get('folders', [FlowSearchApiController::class, 'folders'])->name('folders.index');
         Route::get('runs/search', [FlowSearchApiController::class, 'searchRuns'])->name('runs.search');
@@ -174,6 +213,7 @@ Route::middleware(\App\Http\Middleware\AuthenticateApiKey::class)
             Route::get('runs/search', [FlowSearchApiController::class, 'runs'])->name('runs.search');
             Route::get('runs/{run}', [RunApiController::class, 'show'])->name('runs.show');
             Route::get('runs/{run}/result', [RunApiController::class, 'result'])->name('runs.result');
+            Route::get('runs/{run}/sniff-bodies/{captureId}', [RunApiController::class, 'sniffBody'])->where('captureId', '[a-f0-9]{32}')->name('runs.sniff-body');
             Route::post('runs/{run}/continue', [RunApiController::class, 'continueRun'])->name('runs.continue');
             Route::get('runs/{run}/recording', [RunApiController::class, 'recording'])->name('runs.recording');
             Route::get('runs/{run}/recording/lastshot', [RunApiController::class, 'recordingLastshot'])->name('runs.recording.lastshot');

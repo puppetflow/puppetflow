@@ -107,10 +107,23 @@ export const getPortPosition = (
     side: NodePortSide = port === DEFAULT_INPUT_PORT ? 'input' : 'output',
 ) => {
     const ports = side === 'input' ? getNodeInputPorts(node.entry.name) : getNodeOutputPorts(node.entry.name, node.entry);
+    const definition = ports.find(candidate => candidate.id === port);
+    const position = definition?.position ?? (side === 'input' ? 'left' : 'right');
+    const positionedPorts = ports.filter(candidate => (
+        (candidate.position ?? (candidate.side === 'input' ? 'left' : 'right')) === position
+    ));
+    const offset = getPortOffset(positionedPorts, port);
+
+    if (position === 'top' || position === 'bottom') {
+        return {
+            x: node.x + offset,
+            y: node.y + (position === 'top' ? -NODE_CARD_WIDTH / 2 : NODE_CARD_WIDTH / 2),
+        };
+    }
 
     return {
         x: node.x + (side === 'input' ? -NODE_CARD_WIDTH / 2 : NODE_CARD_WIDTH / 2),
-        y: node.y + NODE_PORT_Y_OFFSET + getPortOffset(ports, port),
+        y: node.y + NODE_PORT_Y_OFFSET + offset,
     };
 };
 
@@ -125,6 +138,25 @@ export const getEdgePath = (start: Point, end: Point) => {
     const control = distance * 0.5;
 
     return `M ${start.x} ${start.y} C ${start.x + control} ${start.y}, ${end.x - control} ${end.y}, ${end.x} ${end.y}`;
+};
+
+export const getBranchEdgePath = (start: Point, end: Point) => {
+    const distance = getPointDistance(start, end);
+    if (distance < 1) return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+
+    const bend = Math.min(40, distance * 0.12);
+    const approach = Math.min(24, distance * 0.15);
+    const startExit = { x: start.x, y: start.y - approach };
+    const endEntry = { x: end.x, y: end.y + approach };
+    const midpointX = (startExit.x + endEntry.x) / 2;
+    const midpointY = (startExit.y + endEntry.y) / 2;
+
+    return [
+        `M ${start.x} ${start.y}`,
+        `L ${startExit.x} ${startExit.y}`,
+        `Q ${midpointX} ${midpointY - bend}, ${endEntry.x} ${endEntry.y}`,
+        `L ${end.x} ${end.y}`,
+    ].join(' ');
 };
 
 export const getPendingEdgePath = (start: Point, end: Point, fromSide: NodePortSide) => {

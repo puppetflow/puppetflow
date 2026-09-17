@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import type { UserVariable } from '@/Domains/Variable/types';
+import { MCP_CREDENTIALS_UI, type UserVariable } from '@/Domains/Variable/types';
 
 export const VaultProviderBadge = styled.span<{ $color: string }>`
     display: inline-flex;
@@ -30,12 +30,14 @@ export const TypeBadge = styled.span<{ $type: UserVariable['type'] }>`
     border-radius: ${({ theme }) => theme.radius.sm};
     background: ${({ $type }) =>
         $type === 'secret' ? '#ec489918'
+        : $type === 'mcp_credentials' ? `${MCP_CREDENTIALS_UI.color}18`
         : ['object', 'array', 'json'].includes($type) ? '#f9731618'
         : $type === 'vault' ? '#8b5cf618'
         : $type === 'otp' ? '#8b5cf618'
         : '#10b98118'};
     color: ${({ $type }) =>
         $type === 'secret' ? '#ec4899'
+        : $type === 'mcp_credentials' ? MCP_CREDENTIALS_UI.color
         : ['object', 'array', 'json'].includes($type) ? '#f97316'
         : $type === 'vault' ? '#8b5cf6'
         : $type === 'otp' ? '#8b5cf6'

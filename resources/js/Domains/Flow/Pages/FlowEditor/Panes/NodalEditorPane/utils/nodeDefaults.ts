@@ -78,17 +78,6 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
     if (entry.name === '$gotoUrl') {
         return {
             tabName: { mode: 'fixed' as const, value: 'Default' },
-            options: {
-                mode: 'object' as const,
-                inputMode: 'form' as const,
-                jsonMode: 'fixed' as const,
-                value: '{"settleDelay":2000}',
-                fields: [{
-                    id: 'goto-settle-delay',
-                    key: 'settleDelay',
-                    value: { mode: 'fixed' as const, value: '2000' },
-                }],
-            },
         };
     }
 
@@ -100,18 +89,13 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
 
     if (entry.name === '$saveCookies' || entry.name === '$loadCookies') {
         return {
-            jarName: { mode: 'fixed' as const, value: 'Default' },
-            options: {
-                mode: 'object' as const,
-                inputMode: 'form' as const,
-                jsonMode: 'fixed' as const,
-                value: '{"persistLocalStorage":true}',
-                fields: [{
-                    id: 'cookie-persist-local-storage',
-                    key: 'persistLocalStorage',
-                    value: { mode: 'fixed' as const, value: 'true' },
-                }],
-            },
+            profile: { mode: 'fixed' as const, value: 'Default' },
+        };
+    }
+
+    if (entry.name === '$clearCookies') {
+        return {
+            profile: { mode: 'fixed' as const, value: 'Default' },
         };
     }
 
@@ -124,17 +108,6 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
     if (entry.name === '$stopwatchStop') {
         return {
             stopwatchName: { mode: 'fixed' as const, value: 'default' },
-            options: {
-                mode: 'object' as const,
-                inputMode: 'form' as const,
-                jsonMode: 'fixed' as const,
-                value: '{"reset":false}',
-                fields: [{
-                    id: 'stopwatch-reset',
-                    key: 'reset',
-                    value: { mode: 'fixed' as const, value: 'false' },
-                }],
-            },
         };
     }
 
@@ -153,17 +126,6 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
                 jsonMode: 'fixed' as const,
                 value: '{}',
                 fields: [],
-            },
-            options: {
-                mode: 'object' as const,
-                inputMode: 'form' as const,
-                jsonMode: 'fixed' as const,
-                value: '{"showUnfilteredInLogs":false}',
-                fields: [{
-                    id: 'sniff-network-show-unfiltered-in-logs',
-                    key: 'showUnfilteredInLogs',
-                    value: { mode: 'fixed' as const, value: 'false' },
-                }],
             },
         };
     }

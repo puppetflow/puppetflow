@@ -4,6 +4,7 @@ namespace App\Services\Flow;
 
 use App\Models\Flow;
 use App\Models\User;
+use App\Models\UserVariable;
 use App\Models\Workspace;
 use App\Services\Mcp\AuthoringResourceProjection;
 use Illuminate\Validation\ValidationException;
@@ -16,6 +17,7 @@ final class NodalResourceReferenceValidator
         'ai-model' => 'ai_models',
         'ai-vision-model' => 'ai_models',
         'data-table' => 'data_tables',
+        'media' => 'media_assets',
     ];
 
     public function __construct(
@@ -75,7 +77,7 @@ final class NodalResourceReferenceValidator
             idsByKind: $idsByKind,
         );
         $ids = collect($resources)->map(
-            fn (array $items) => collect($items)->pluck('id')->filter('is_string')->flip(),
+            fn (array $items) => collect($items)->pluck('id')->filter(fn (mixed $id): bool => is_string($id))->flip(),
         );
         foreach ($nodes as $node) {
             if (! is_array($node) || ($node['deactivated'] ?? false)) {
@@ -139,7 +141,10 @@ final class NodalResourceReferenceValidator
         $path = is_array($field['path'] ?? null)
             ? array_values(array_filter($field['path'], 'is_string'))
             : [];
-        $kind = $nodeName === '$vars' && $path === ['variableId']
+        $kind = (
+            ($nodeName === '$vars' && $path === ['variableId'])
+            || ($nodeName === '$mcpClientTool' && $path === ['credentialId'])
+        )
             ? 'variables'
             : (self::RESOURCE_KIND_BY_INPUT[$input] ?? null);
 
@@ -255,6 +260,14 @@ final class NodalResourceReferenceValidator
         );
         if (! is_array($resource)) {
             return;
+        }
+        if (
+            $nodeName === '$mcpClientTool'
+            && ($resource['type'] ?? null) !== UserVariable::TYPE_MCP_CREDENTIALS
+        ) {
+            throw ValidationException::withMessages([
+                'nodal_graph' => "{$nodeName} requires an MCP Credentials variable.",
+            ]);
         }
         $requiredCapability = match (true) {
             $input === 'ai-vision-model' => 'vision',

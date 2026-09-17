@@ -14,6 +14,7 @@ class ArtifactResponseFactory
     public function __construct(
         private readonly RunArtifactQueryService $artifactQueries,
         private readonly RunArtifactPathResolver $artifactPaths,
+        private readonly SniffBodyStore $sniffBodies,
     ) {}
 
     /** @var array<string, list<string>> */
@@ -80,6 +81,18 @@ class ArtifactResponseFactory
 
         return response()->file($path, [
             'Content-Type' => $mimeType,
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /** Raw body as text: the client parses JSON itself, so PHP never decodes or re-encodes it. */
+    public function makeSniffBody(FlowRun $run, string $captureId): ?Response
+    {
+        $body = $this->sniffBodies->read($run, $captureId);
+
+        return $body === null ? null : response($body, 200, [
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }

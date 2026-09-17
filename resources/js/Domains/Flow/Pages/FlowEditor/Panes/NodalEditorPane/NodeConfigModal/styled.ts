@@ -113,6 +113,42 @@ export const NodeConfigMeta = styled.div`
     color: ${({ theme }) => theme.colors.text.tertiary};
 `;
 
+// Tinted while a run feeds the preview, neutral when the static preview is shown.
+export const PreviewSourceBanner = styled.div<{ $active: boolean }>`
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 6px 8px 6px 12px;
+    border: 1px solid ${({ theme, $active }) => ($active ? `${theme.colors.accent.info}55` : theme.colors.border.default)};
+    border-radius: ${({ theme }) => theme.radius.md};
+    background: ${({ theme, $active }) => ($active ? theme.colors.accent.infoBg : theme.colors.bg.primary)};
+    font-size: 11px;
+    color: ${({ theme, $active }) => ($active ? theme.colors.accent.info : theme.colors.text.secondary)};
+
+    > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+`;
+
+export const PreviewSourceToggle = styled.button`
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border: 1px solid currentColor;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: transparent;
+    font-size: 11px;
+    font-weight: 600;
+    color: inherit;
+    cursor: pointer;
+
+    &:hover {
+        background: ${({ theme }) => theme.colors.bg.secondary};
+    }
+`;
+
 export const NodeConfigDone = styled.button`
     padding: 7px 12px;
     border-radius: ${({ theme }) => theme.radius.md};

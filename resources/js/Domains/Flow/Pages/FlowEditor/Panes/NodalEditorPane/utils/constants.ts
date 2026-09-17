@@ -1,5 +1,9 @@
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
-import type { NodeCategory, NodePortSide } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type {
+    NodalConnectionType,
+    NodeCategory,
+    NodePortSide,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { FALLBACK_HELP_CATEGORY, VISUAL_NODE_CATEGORY_PAGES } from '@/Domains/Flow/Pages/FlowEditor/categories';
 import { HELPER_ICON_BY_NAME } from '@/Domains/Flow/Pages/FlowEditor/utils/helperIcons';
 import { getNodeFlowPortDefinitions } from './flowParameters';
@@ -23,6 +27,8 @@ export const LIMIT_NODE_NAME = 'Limit';
 export const SET_NODE_NAME = 'Set';
 export const SET_OUTPUT_NODE_NAME = '$setOutput';
 export const META_NODE_NAME = '$meta';
+export const MCP_CLIENT_TOOL_NODE_NAME = '$mcpClientTool';
+export const AI_TOOL_PORT = 'ai_tool';
 export const FUNCTION_DECLARATION_NODE_NAME = 'Function';
 export const DEFAULT_INPUT_PORT = 'input';
 export const DEFAULT_OUTPUT_PORT = 'output';
@@ -310,13 +316,13 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
 export const SYSTEM_NODE_ENTRIES: Record<'run' | 'terminate' | 'function', HelpEntryDef> = {
     run: {
         name: 'RUN',
-        signature: 'async function run($page, $input)',
+        signature: 'async function run($page, $input, $context, $client)',
         desc: 'Entry point of the generated flow code.',
         category: 'System',
     },
     terminate: {
         name: 'TERMINATE',
-        signature: 'async function terminate($page, $input, $output)',
+        signature: 'async function terminate($page, $input, $output, $context, $client)',
         desc: 'Runs after the flow, including after failures, when the FINALLY node setting is on.',
         category: 'System',
     },
@@ -417,19 +423,58 @@ export interface NodePortDefinition {
     id: string;
     label: string;
     side: NodePortSide;
+    position?: 'left' | 'right' | 'top' | 'bottom';
+    connectionType?: NodalConnectionType;
 }
 
 export const getNodeInputPorts = (nodeName: string): NodePortDefinition[] => {
-    if (nodeName === STICKY_NOTE_NODE_NAME || nodeName === SYSTEM_NODE_ENTRIES.run.name || nodeName === SYSTEM_NODE_ENTRIES.terminate.name || nodeName === SYSTEM_NODE_ENTRIES.function.name) return [];
-    return [{ id: DEFAULT_INPUT_PORT, label: 'Input', side: 'input' }];
+    if (nodeName === STICKY_NOTE_NODE_NAME || nodeName === SYSTEM_NODE_ENTRIES.run.name || nodeName === SYSTEM_NODE_ENTRIES.terminate.name || nodeName === SYSTEM_NODE_ENTRIES.function.name || nodeName === MCP_CLIENT_TOOL_NODE_NAME) return [];
+    const ports: NodePortDefinition[] = [{
+        id: DEFAULT_INPUT_PORT,
+        label: 'Input',
+        side: 'input',
+        position: 'left',
+        connectionType: 'flow',
+    }];
+    if (nodeName === '$aiMessage' || nodeName === '$aiControl') {
+        ports.push({
+            id: AI_TOOL_PORT,
+            label: 'Tools',
+            side: 'input',
+            position: 'bottom',
+            connectionType: 'ai_tool',
+        });
+    }
+
+    return ports;
 };
 
 export const getNodeOutputPorts = (nodeName: string, entry?: HelpEntryDef): NodePortDefinition[] => {
     if (nodeName === STICKY_NOTE_NODE_NAME) return [];
+    if (nodeName === MCP_CLIENT_TOOL_NODE_NAME) {
+        return [{
+            id: AI_TOOL_PORT,
+            label: 'Tools',
+            side: 'output',
+            position: 'top',
+            connectionType: 'ai_tool',
+        }];
+    }
 
     return getNodeFlowPortDefinitions(entry).map(definition => ({
         id: definition.id,
         label: definition.label,
         side: 'output' as const,
+        position: 'right' as const,
+        connectionType: 'flow' as const,
     }));
 };
+
+export const getNodePortDefinition = (
+    nodeName: string,
+    entry: HelpEntryDef | undefined,
+    portId: string,
+    side: NodePortSide,
+): NodePortDefinition | undefined => (
+    side === 'input' ? getNodeInputPorts(nodeName) : getNodeOutputPorts(nodeName, entry)
+).find(port => port.id === portId);

@@ -106,7 +106,13 @@ class User extends Authenticatable implements OAuthenticatable
         });
 
         static::deleting(function (User $user) {
-            $ownedFlows = $user->ownedFlows()->with('runs.artifacts')->get();
+            $ownedFlows = $user->ownedFlows()
+                ->with([
+                    'runs' => fn ($query) => $query
+                        ->select(['id', 'flow_id', 'status'])
+                        ->with('artifacts'),
+                ])
+                ->get();
             if ($ownedFlows->contains(fn (Flow $flow): bool => $flow->hasActiveRuns())) {
                 throw ValidationException::withMessages([
                     'user' => 'A user who owns a flow with an active or cancellation-requested run cannot be deleted.',
@@ -115,6 +121,7 @@ class User extends Authenticatable implements OAuthenticatable
             $runs = $ownedFlows->flatMap(fn (Flow $flow) => $flow->runs);
 
             $user->dataTables->each->delete();
+            $user->mediaAssets->each->delete();
             $ownedFlows->each->delete();
             DB::afterCommit(function () use ($user, $runs): void {
                 app(ArtifactCleanupService::class)->deleteUserArtifacts($user, $runs);
@@ -186,6 +193,18 @@ class User extends Authenticatable implements OAuthenticatable
     public function dataTables(): HasMany
     {
         return $this->hasMany(DataTable::class);
+    }
+
+    /** @return HasMany<MediaAsset, $this> */
+    public function mediaAssets(): HasMany
+    {
+        return $this->hasMany(MediaAsset::class);
+    }
+
+    /** @return HasMany<MediaFolder, $this> */
+    public function mediaFolders(): HasMany
+    {
+        return $this->hasMany(MediaFolder::class);
     }
 
     /** @return HasMany<ApiKey, $this> */

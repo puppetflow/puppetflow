@@ -59,7 +59,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Ask language models and automate browser decisions with vision.',
         icon: 'lucide:sparkles',
         color: '#8b5cf6',
-        priority: ['$aiMessage', '$aiControl'],
+        priority: ['$aiMessage', '$aiControl', '$mcpClientTool'],
         match: entry => entry.category === 'AI',
     },
     {
@@ -152,7 +152,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Use browser internals, cookies, raw Puppeteer objects, globals, and custom code.',
         icon: 'lucide:binary',
         color: '#6366f1',
-        priority: ['Code', '$httpRequest', '$sniffNetwork', '$stopSniffing', '$bridgeEvaluate', '$injectScriptLibrary', '$saveCookies', '$loadCookies'],
+        priority: ['Code', '$httpRequest', '$sniffNetwork', '$stopSniffing', '$bridgeEvaluate', '$injectScriptLibrary', '$saveCookies', '$loadCookies', '$clearCookies'],
         match: entry => entry.category === 'Advanced' || entry.category === 'Cookies' || ADVANCED_EVAL_HELPER_NAMES.includes(entry.name),
     },
     {

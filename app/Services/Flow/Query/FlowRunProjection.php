@@ -16,8 +16,38 @@ final class FlowRunProjection
         private readonly FeatureFlagService $features,
     ) {}
 
+    /** Lightweight fields used by run lists that hydrate details on demand. */
+    public const LIST_COLUMNS = [
+        'id',
+        'flow_id',
+        'flow_version_id',
+        'triggered_by',
+        'trigger_id',
+        'trigger_type',
+        'status',
+        'error_message',
+        'duration_ms',
+        'screenshots_count',
+        'downloads_count',
+        'has_recording',
+        'recording_size_bytes',
+        'screenshots_size_bytes',
+        'downloads_size_bytes',
+        'sniff_bodies_size_bytes',
+        'flow_data_size_bytes',
+        'console_logs_size_bytes',
+        'storage_size_bytes',
+        'legend',
+        'meta',
+        'resolved_secrets',
+        'running_at',
+        'cancellation_requested_at',
+        'created_at',
+        'updated_at',
+    ];
+
     /** Every run column except `internal_meta`, which is heavy and only served on demand by FlowRunController::show. */
-    private const RUN_COLUMNS = [
+    public const RUN_COLUMNS = [
         'id',
         'flow_id',
         'flow_version_id',
@@ -38,6 +68,7 @@ final class FlowRunProjection
         'recording_size_bytes',
         'screenshots_size_bytes',
         'downloads_size_bytes',
+        'sniff_bodies_size_bytes',
         'flow_data_size_bytes',
         'console_logs_size_bytes',
         'storage_size_bytes',

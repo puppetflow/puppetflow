@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Icon } from '@/Shared/UI/Icon/Icon';
+import FileDropZone from '@/Shared/UI/FileDropZone/FileDropZone';
 import Switch from '@/Shared/UI/Switch/Switch';
 import * as S from './styled';
 
@@ -30,45 +29,20 @@ export default function TextFileImportInput({
     onSourceChange,
     onEditorToggle,
 }: Props) {
-    const [dragging, setDragging] = useState(false);
-
     const readFile = async (file: File) => {
         onSourceChange(await file.text(), file.name);
-    };
-
-    const handleDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
-        event.preventDefault();
-        setDragging(false);
-        const file = event.dataTransfer.files[0];
-        if (file) await readFile(file);
     };
 
     return (
         <>
             {!showEditor && (
-                <S.DropZone
-                    $dragging={dragging}
-                    $hasError={hasFileError}
-                    onDragOver={event => {
-                        event.preventDefault();
-                        setDragging(true);
-                    }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={handleDrop}
-                >
-                    <Icon icon="lucide:upload-cloud" width={24} />
-                    <S.DropTitle>{fileName || title}</S.DropTitle>
-                    <S.DropHint>{hint}</S.DropHint>
-                    <S.HiddenFileInput
-                        type="file"
-                        accept={accept}
-                        onChange={event => {
-                            const file = event.target.files?.[0];
-                            if (file) void readFile(file);
-                            event.target.value = '';
-                        }}
-                    />
-                </S.DropZone>
+                <FileDropZone
+                    title={fileName || title}
+                    hint={hint}
+                    accept={accept}
+                    hasError={hasFileError}
+                    onFiles={([file]) => void readFile(file)}
+                />
             )}
 
             <S.EditorToggle>

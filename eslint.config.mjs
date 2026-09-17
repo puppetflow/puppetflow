@@ -71,6 +71,8 @@ export default tseslint.config(
                 $_watchers: 'readonly',
                 $client: 'readonly',
                 $json: 'readonly',
+                __runContext: 'readonly',
+                __runInput: 'readonly',
                 DateTime: 'readonly',
                 Duration: 'readonly',
                 Interval: 'readonly',

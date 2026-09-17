@@ -15,5 +15,6 @@ final readonly class PuppeteerRunspace
         public array $files,
         public array $sandbox,
         public array $cookieJars,
+        public int $cookieGeneration,
     ) {}
 }

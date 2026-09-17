@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import EditorActions from './EditorActions/EditorActions';
-import SelectInput from './SelectInput/SelectInput';
+import SelectInput, { type SelectInputAction } from './SelectInput/SelectInput';
 import type { ChannelSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
 import SuggestionPicker from './SuggestionPicker';
 import {
@@ -33,6 +33,8 @@ interface FixedInputRendererProps {
     options: NodalSelectOption[];
     allowCustomSelectValue?: boolean;
     customSelectValueLabel?: string;
+    selectAction?: SelectInputAction;
+    selectBrowseAction?: () => Promise<string | null>;
     selectSearchThreshold: number;
     placeholder?: string;
     readOnly?: boolean;
@@ -59,6 +61,8 @@ export default function FixedInputRenderer({
     options,
     allowCustomSelectValue,
     customSelectValueLabel,
+    selectAction,
+    selectBrowseAction,
     selectSearchThreshold,
     placeholder,
     readOnly,
@@ -139,6 +143,8 @@ export default function FixedInputRenderer({
                 allowCustomValue={allowCustomSelectValue}
                 customValueLabel={customSelectValueLabel}
                 readOnly={readOnly}
+                action={selectAction}
+                browseAction={selectBrowseAction}
                 onChange={onChange}
             />
         );

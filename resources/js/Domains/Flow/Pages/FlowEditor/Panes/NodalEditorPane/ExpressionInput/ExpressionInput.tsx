@@ -6,6 +6,7 @@ import type { NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { ScalarNodeParameterValue } from '../types';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
 import ExpressionEditorShell from './ExpressionEditorShell';
+import type { SelectInputAction } from './SelectInput/SelectInput';
 import FixedInputRenderer, {
     type ExpressionInputType,
 } from './FixedInputRenderer';
@@ -28,6 +29,8 @@ interface ExpressionInputProps {
     options?: NodalSelectOption[];
     allowCustomSelectValue?: boolean;
     customSelectValueLabel?: string;
+    selectAction?: SelectInputAction;
+    selectBrowseAction?: () => Promise<string | null>;
     selectSearchThreshold?: number;
     flowId?: Id;
     value: ScalarNodeParameterValue;
@@ -51,6 +54,8 @@ export default function ExpressionInput({
     options = [],
     allowCustomSelectValue,
     customSelectValueLabel,
+    selectAction,
+    selectBrowseAction,
     selectSearchThreshold = DEFAULT_SELECT_SEARCH_THRESHOLD,
     flowId,
     value,
@@ -283,6 +288,8 @@ export default function ExpressionInput({
                     options={options}
                     allowCustomSelectValue={allowCustomSelectValue}
                     customSelectValueLabel={customSelectValueLabel}
+                    selectAction={selectAction}
+                    selectBrowseAction={selectBrowseAction}
                     selectSearchThreshold={selectSearchThreshold}
                     placeholder={placeholder}
                     readOnly={readOnly}

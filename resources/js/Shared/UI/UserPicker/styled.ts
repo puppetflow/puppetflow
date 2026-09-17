@@ -86,10 +86,10 @@ export const Placeholder = styled.span`
     color: ${({ theme }) => theme.colors.text.tertiary};
 `;
 
-export const Dropdown = styled.div`
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
+export const Dropdown = styled.div<{ $portaled?: boolean }>`
+    position: ${({ $portaled }) => $portaled ? 'fixed' : 'absolute'};
+    top: ${({ $portaled }) => $portaled ? 'auto' : 'calc(100% + 4px)'};
+    left: ${({ $portaled }) => $portaled ? 'auto' : '0'};
     min-width: 100%;
     width: max-content;
     max-width: calc(100vw - 24px);

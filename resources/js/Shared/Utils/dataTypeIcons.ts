@@ -12,7 +12,9 @@ export const DATA_TYPE_ICONS = {
     'mailbox-watcher': 'lucide:mail-search',
     'ai-model': 'lucide:sparkles',
     datatable: 'lucide:table',
+    media: 'lucide:images',
     secret: 'lucide:key-round',
+    mcp_credentials: 'lucide:blocks',
     otp: 'lucide:shield-keyhole',
     vault: 'lucide:vault',
 } as const;

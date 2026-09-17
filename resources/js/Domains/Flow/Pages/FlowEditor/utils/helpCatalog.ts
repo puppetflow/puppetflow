@@ -69,6 +69,7 @@ function parseNodalFlowPorts(body: string): NodalFlowPortDef[] {
 
 function toFriendlyLabel(value: string): string {
     if (value.replace(/\?$/, '') === 'structuredSpacing') return 'Structured content indentation';
+    if (value.replace(/\?$/, '') === 'credentialId') return 'Credentials';
 
     return value
         .replace(/\?$/, '')
@@ -173,6 +174,22 @@ const PARAM_SELECT_CHOICES: Record<string, { value: string; label: string }[]> =
         { value: 'json', label: 'JSON' },
         { value: 'schema', label: 'JSON schema' },
     ],
+    serverTransport: [
+        { value: 'httpStreamable', label: 'HTTP Streamable' },
+        { value: 'sse', label: 'Server Sent Events (Deprecated)' },
+    ],
+    authentication: [
+        { value: 'none', label: 'None' },
+        { value: 'bearer', label: 'Bearer Auth' },
+        { value: 'header', label: 'Header Auth' },
+        { value: 'multipleHeaders', label: 'Multiple Header Auth' },
+        { value: 'mcpOAuth2', label: 'MCP OAuth2' },
+    ],
+    include: [
+        { value: 'all', label: 'All tools' },
+        { value: 'selected', label: 'Selected tools' },
+        { value: 'except', label: 'All except selected' },
+    ],
     mode: [
         { value: 'replace', label: 'Replace' },
         { value: 'append', label: 'Append' },
@@ -197,8 +214,8 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
         const tabNameInput = hintTokens.includes('tab-name');
         const stopwatchNameInput = hintTokens.includes('stopwatch-name');
         const sniffProfileInput = hintTokens.includes('sniff-profile');
-        const cookieJarInput = hintTokens.includes('cookie-jar');
-        const valueType = tabNameInput || stopwatchNameInput || sniffProfileInput || cookieJarInput
+        const cookieProfileInput = hintTokens.includes('cookie-profile');
+        const valueType = tabNameInput || stopwatchNameInput || sniffProfileInput || cookieProfileInput
             ? 'string'
             : normalizeNodalParamType(hintTokens.find(token => token !== 'required'));
         const required = hintTokens.includes('required');
@@ -212,8 +229,8 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
             ? 'stopwatch-name'
             : sniffProfileInput
             ? 'sniff-profile'
-            : cookieJarInput
-            ? 'cookie-jar'
+            : cookieProfileInput
+            ? 'cookie-profile'
             : hintTokens.includes('textarea')
             ? 'textarea'
             : valueType === 'boolean'
@@ -240,6 +257,7 @@ function parseNodalParams(body: string): Record<string, NodalParamDef> {
                                         || valueType === 'data-table-values'
                                         || valueType === 'data-table-filters'
                                         || valueType === 'data-table-columns'
+                                        || valueType === 'media'
                                         ? valueType
                                         : undefined;
         const [paramName, ...fieldPath] = path.split('.');
@@ -442,7 +460,7 @@ function normalizeNodalParamType(type: string | undefined): NodalParamDef['value
 
     const normalized = type.toLowerCase();
     if (['int', 'integer', 'float', 'double'].includes(normalized)) return 'number';
-    if (['string', 'number', 'boolean', 'array', 'object', 'custom-object', 'getter-map', 'function-map', 'function', 'code', 'flow', 'channel', 'mailbox-watcher', 'ai-model', 'ai-vision-model', 'data-table', 'data-table-values', 'data-table-filters', 'data-table-columns'].includes(normalized)) {
+    if (['string', 'number', 'boolean', 'array', 'object', 'custom-object', 'getter-map', 'function-map', 'function', 'code', 'flow', 'channel', 'mailbox-watcher', 'ai-model', 'ai-vision-model', 'data-table', 'data-table-values', 'data-table-filters', 'data-table-columns', 'media'].includes(normalized)) {
         return normalized as NodalParamDef['valueType'];
     }
 
@@ -494,6 +512,7 @@ function toTypeScriptType(meta?: NodalParamDef): string {
         || meta.valueType === 'ai-model'
         || meta.valueType === 'ai-vision-model'
         || meta.valueType === 'data-table'
+        || meta.valueType === 'media'
     ) return 'string';
     if (meta.valueType === 'function') return 'Function';
     if (meta.valueType === 'code') return 'any';
@@ -537,7 +556,7 @@ function getParameterDeclaration(entry: HelpEntryDef, arg: string): string {
         return 'filters?: PuppetflowNetworkSniffingFilters';
     }
     if (entry.name === '$sniffNetwork' && paramName === 'options') {
-        return 'options?: { sniffing?: (payload: PuppetflowNetworkSniffingPayload) => void | Promise<void>; timeout?: number; showUnfilteredInLogs?: boolean; }';
+        return 'options?: { sniffing?: (payload: PuppetflowNetworkSniffingPayload) => void | Promise<void>; timeout?: number; limit?: number; showUnfilteredInLogs?: boolean; }';
     }
     const paramMeta = entry.nodalParams?.[paramName];
     const paramType = toTypeScriptType(paramMeta);

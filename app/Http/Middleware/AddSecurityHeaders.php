@@ -11,14 +11,19 @@ class AddSecurityHeaders
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
+        $contentType = strtolower((string) $response->headers->get('Content-Type', ''));
+        $isPdfPreview = $request->routeIs('media.preview')
+            && str_starts_with($contentType, 'application/pdf');
         $response->headers->set(
             'Content-Security-Policy',
-            "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
+            $isPdfPreview
+                ? "frame-ancestors 'self'"
+                : "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
         );
         $response->headers->set('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('X-Frame-Options', $isPdfPreview ? 'SAMEORIGIN' : 'DENY');
 
         if ($request->isSecure() && app()->isProduction()) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000');

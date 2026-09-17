@@ -24,6 +24,7 @@ final class PuppeteerRunspaceBootstrapper
         $files = [];
         /** @var array<string, string> $cookieJars */
         $cookieJars = [];
+        $cookieGeneration = $this->cookieStorage->generation($flow);
         $cookiesHydrated = false;
 
         try {
@@ -42,6 +43,7 @@ final class PuppeteerRunspaceBootstrapper
                     $run->triggered_by,
                     $directories['cookies'],
                     $cookieJars,
+                    $cookieGeneration,
                 );
             }
             $this->cleanupAll($files);
@@ -53,6 +55,7 @@ final class PuppeteerRunspaceBootstrapper
             $files,
             ['dir' => $run->getFlowRunArtifactsBasePath().'/sandbox'],
             $cookieJars,
+            $cookieGeneration,
         );
     }
 
@@ -63,6 +66,7 @@ final class PuppeteerRunspaceBootstrapper
             $run->triggered_by,
             $runspace->directories['cookies'],
             $runspace->cookieJars,
+            $runspace->cookieGeneration,
         );
     }
 

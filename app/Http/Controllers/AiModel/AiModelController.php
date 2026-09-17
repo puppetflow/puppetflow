@@ -186,6 +186,21 @@ class AiModelController extends Controller
         return back()->with('success', 'AI model created.');
     }
 
+    public function show(Request $request, AiModel $aiModel): JsonResponse
+    {
+        $this->features()->abortIfDisabled('ai_enabled');
+        $this->ensureWorkspace($aiModel);
+        $this->features()->abortIfStale($aiModel);
+        /** @var User $user */
+        $user = $request->user();
+        Gate::forUser($user)->authorize(Ability::UPDATE->value, $aiModel);
+
+        $aiModel->load(['user:id,name', 'aiIntegration:id,name,provider', 'team:id,name']);
+        $this->injectOwnerWorkspaceRoles([$aiModel], $aiModel->workspace_id);
+
+        return response()->json(['ai_model' => $aiModel]);
+    }
+
     public function update(Request $request, AiModel $aiModel): RedirectResponse
     {
         $this->features()->abortIfDisabled('ai_enabled');
@@ -369,7 +384,7 @@ class AiModelController extends Controller
                 ->orderBy('name')
                 ->get()
                 ->map(
-                    function (AiModel $model): array {
+                    function (AiModel $model) use ($context, $workspaceId): array {
                         $integration = $model->aiIntegration;
                         abort_unless($integration instanceof Integration, 500, 'AI integration relation is missing.');
 
@@ -381,6 +396,11 @@ class AiModelController extends Controller
                             'capabilities' => $model->capabilities,
                             'scope' => $model->scope,
                             'team_name' => $model->team?->name,
+                            'can_manage' => $this->scopeEvaluator->canManage(
+                                $context,
+                                $workspaceId,
+                                $model->user_id,
+                            ),
                             'ai_integration' => $integration,
                         ];
                     },

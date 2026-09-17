@@ -49,6 +49,7 @@ use Illuminate\Validation\ValidationException;
  * @property bool $manual_run_production_mode
  * @property array<string, mixed>|null $manual_run_score_state
  * @property Carbon|null $manual_run_score_updated_at
+ * @property int $cookie_generation
  */
 class Flow extends Model
 {
@@ -182,6 +183,7 @@ class Flow extends Model
             'keyboard_speed' => 'integer',
             'disable_web_security' => 'boolean',
             'finally_enabled' => 'boolean',
+            'cookie_generation' => 'integer',
             'library_imported_at' => 'datetime',
             'content_updated_at' => 'datetime',
         ];
@@ -244,7 +246,10 @@ class Flow extends Model
                     'flow' => 'A flow with an active or cancellation-requested run cannot be deleted.',
                 ]);
             }
-            $runs = $flow->runs()->with('artifacts')->get();
+            $runs = $flow->runs()
+                ->select(['id', 'flow_id', 'status'])
+                ->with('artifacts')
+                ->get();
             $cleanup = app(ArtifactCleanupService::class);
             $deletionIds = [];
             foreach ($runs as $run) {

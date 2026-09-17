@@ -1,9 +1,27 @@
-import styled, { keyframes } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
 const spin = keyframes`
     to {
         transform: rotate(360deg);
     }
+`;
+
+const pulse = keyframes`
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+`;
+
+export interface RenderStateProps {
+    $error?: boolean;
+    $loading?: boolean;
+}
+
+// Text color of a rendered expression: red on error, pulsing muted while preview data loads.
+export const renderStateText = css<RenderStateProps>`
+    color: ${({ theme, $error, $loading }) => (
+        $error ? theme.colors.accent.error : $loading ? theme.colors.text.tertiary : 'inherit'
+    )};
+    ${({ $loading }) => ($loading ? css`animation: ${pulse} 1.2s ease-in-out infinite;` : '')}
 `;
 
 export const NodeField = styled.div<{ $invalid?: boolean }>`
@@ -302,7 +320,7 @@ export const DropdownActionRow = styled.div`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
 `;
 
-export const DropdownAction = styled.button`
+export const DropdownAction = styled.button<{ $loading?: boolean }>`
     min-width: 0;
     flex: 1;
     width: 100%;
@@ -319,7 +337,7 @@ export const DropdownAction = styled.button`
 
     svg {
         flex-shrink: 0;
-        animation: ${spin} 0.8s linear infinite;
+        ${({ $loading }) => $loading && css`animation: ${spin} 0.8s linear infinite;`}
     }
 
     &:hover:not(:disabled) {

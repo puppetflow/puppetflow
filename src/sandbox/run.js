@@ -967,7 +967,8 @@ module.exports = async function(appDir, flowId, quiet) {
         if (typeof terminate === 'function' && process.env.FLOW_FINALLY_ENABLED !== 'false') _terminate = terminate;
         if (!_runError && typeof run === 'function') {
           console.debug('========================================');
-          _result = await run($page, $json);
+          await __initializeDefaultBrowserStorage();
+          _result = await run($page, __runInput, __runContext, $client);
         }
       })(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
     } catch (_e) {
@@ -994,7 +995,7 @@ module.exports = async function(appDir, flowId, quiet) {
           Object.assign(_result, _outputData);
           if (typeof _result.status === 'undefined') _result.status = _terminateStatus;
           _result = _stripInternalOutputFields(_result);
-          await _terminate($page, $json, _result);
+          await _terminate($page, __runInput, _result, __runContext, $client);
           _result = _stripInternalOutputFields(_result);
         } catch (_tErr) {
           if (!_runError && (!_tErr || _tErr.name !== 'StopRun')) _runError = _tErr;

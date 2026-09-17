@@ -43,6 +43,8 @@ return [
 
     'safe_mode' => filter_var(env('APP_SAFE_MODE', false), FILTER_VALIDATE_BOOL),
 
+    'server_workers' => env('APP_SERVER_WORKERS'),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL

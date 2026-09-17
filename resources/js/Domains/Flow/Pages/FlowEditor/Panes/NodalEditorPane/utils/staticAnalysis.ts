@@ -8,8 +8,8 @@ import {
     DEFAULT_SNIFF_PROFILE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/sniffProfileSuggestions';
 import {
-    collectNamedCookieJarsFromCode,
-    DEFAULT_COOKIE_JAR_NAME,
+    collectNamedCookieProfilesFromCode,
+    DEFAULT_COOKIE_PROFILE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
 import { createPagePreviewData } from '@/Domains/Flow/Pages/FlowEditor/utils/pageAutocomplete';
 import { createNodalOutputPreview } from '@/Domains/Flow/Pages/FlowEditor/utils/outputPreview';
@@ -35,7 +35,7 @@ import {
     SET_OUTPUT_NODE_NAME,
 } from './constants';
 import { getFunctionArgumentNames } from './functionArguments';
-import { analyzeStructuredGraph, structuredBranchKey } from './edges';
+import { analyzeStructuredGraph, isExecutionEdge, structuredBranchKey } from './edges';
 
 export interface NodalAutocompleteContext {
     inputData: Record<string, unknown> | null;
@@ -48,7 +48,9 @@ export interface NodalAutocompleteContext {
     tabNames: string[];
     stopwatchNames: string[];
     sniffProfileNames: string[];
-    cookieJarNames: string[];
+    cookieProfileNames: string[];
+    // True while network capture bodies referenced by the preview data are still being fetched.
+    capturesLoading?: boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -547,22 +549,22 @@ export function collectDeclaredSniffProfileNamesFromGraph(graph: NodalGraph): st
     return [...profileNames];
 }
 
-export function collectDeclaredCookieJarNamesFromGraph(graph: NodalGraph): string[] {
-    const jarNames = new Set([DEFAULT_COOKIE_JAR_NAME]);
+export function collectDeclaredCookieProfileNamesFromGraph(graph: NodalGraph): string[] {
+    const profileNames = new Set([DEFAULT_COOKIE_PROFILE_NAME]);
 
     graph.nodes.forEach(node => {
         if (node.system || node.deactivated) return;
         if (node.name === '$saveCookies') {
-            const jarName = readFixedScalar(node.values?.jarName);
-            if (jarName) jarNames.add(jarName);
+            const profile = readFixedScalar(node.values?.profile ?? node.values?.jarName);
+            if (profile) profileNames.add(profile);
         }
         if (node.name === CODE_NODE_NAME) {
-            collectNamedCookieJarsFromCode(readFixedScalar(node.values?.[CODE_NODE_VALUE_KEY]))
-                .forEach(jarName => jarNames.add(jarName));
+            collectNamedCookieProfilesFromCode(readFixedScalar(node.values?.[CODE_NODE_VALUE_KEY]))
+                .forEach(profile => profileNames.add(profile));
         }
     });
 
-    return [...jarNames];
+    return [...profileNames];
 }
 
 const materializePaths = (paths: Set<string>) => {
@@ -692,7 +694,7 @@ export function analyzeNodalAutocompleteContext(
     const outgoing = new Map<string, NodalGraph['edges']>();
     const incoming = new Map<string, NodalGraph['edges']>();
 
-    graph.edges.forEach(edge => {
+    graph.edges.filter(isExecutionEdge).forEach(edge => {
         outgoing.set(edge.sourceNodeId, [...(outgoing.get(edge.sourceNodeId) ?? []), edge]);
         incoming.set(edge.targetNodeId, [...(incoming.get(edge.targetNodeId) ?? []), edge]);
     });
@@ -786,7 +788,7 @@ export function analyzeNodalAutocompleteContext(
     const tabNames = new Set(collectDeclaredNamedTabsFromGraph(graph));
     const stopwatchNames = new Set(collectDeclaredStopwatchNamesFromGraph(graph));
     const sniffProfileNames = new Set(collectDeclaredSniffProfileNamesFromGraph(graph));
-    const cookieJarNames = new Set(collectDeclaredCookieJarNamesFromGraph(graph));
+    const cookieProfileNames = new Set(collectDeclaredCookieProfileNamesFromGraph(graph));
     const runScopeNodeIds = targetIsFinally
         ? reachableInRunOrder(runNodeId, outgoing).filter(nodeId => !finallyNodeIds.has(nodeId))
         : [];
@@ -973,6 +975,6 @@ export function analyzeNodalAutocompleteContext(
         tabNames: [...tabNames],
         stopwatchNames: [...stopwatchNames],
         sniffProfileNames: [...sniffProfileNames],
-        cookieJarNames: [...cookieJarNames],
+        cookieProfileNames: [...cookieProfileNames],
     };
 }

@@ -112,6 +112,9 @@ const __runInternalOutputPath = process.env.RUN_INTERNAL_OUTPUT_PATH || '';
 const __actionLogsPath = process.env.RUN_ACTION_LOGS_PATH || '';
 const $json = JSON.parse(fs.readFileSync(__runInputPath, 'utf8'));
 $json.$context.meta = {};
+// The run context travels in the input file but flow code receives it as its own argument:
+// run($page, $input, $context, $client). $json keeps the raw file for the runtime itself.
+const { $context: __runContext, ...__runInput } = $json;
 
 /* @help Globals
  * @sig $viewportWidth
@@ -255,20 +258,101 @@ const __runnerOperations = (() => {
       request.end(payload);
     });
   };
+  // Filename advertised by Content-Disposition, reduced to a safe basename.
+  const responseFilename = function(contentDisposition, fallback) {
+    const disposition = String(Array.isArray(contentDisposition) ? contentDisposition[0] : contentDisposition || '');
+    const match = disposition.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i)
+      || disposition.match(/filename\s*=\s*(?:"([^"]*)"|([^;]+))/i);
+    let filename = (match?.[1] || match?.[2] || '').trim().replace(/^"(.*)"$/, '$1');
+    try { filename = decodeURIComponent(filename); } catch {}
+    const safe = [...path.basename(filename.replace(/\\/g, '/'))]
+      .filter(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127)
+      .join('')
+      .trim();
+    return safe && safe !== '.' && safe !== '..' ? safe : fallback;
+  };
+  // POSTs a JSON body and streams the binary response into a private temporary directory.
+  const downloadToTmp = async function(url, body, timeoutMs) {
+    const parsedUrl = new URL(url);
+    const transport = parsedUrl.protocol === 'https:'
+      ? require('https')
+      : require('http');
+    const payload = JSON.stringify(body);
+    const directoryName = 'media-' + crypto.randomBytes(16).toString('hex');
+    const directory = __resolveArtifactPath(paths.tmp, directoryName, 'Media temporary directory');
+
+    return await new Promise((resolve, reject) => {
+      let settled = false;
+      const settle = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        if (callback === reject) {
+          try { fs.rmSync(directory, { recursive: true, force: true }); } catch {}
+        }
+        callback(value);
+      };
+      const request = transport.request(parsedUrl, {
+        method: 'POST',
+        agent: false,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/octet-stream',
+          'Content-Length': Buffer.byteLength(payload),
+          'Connection': 'close',
+        },
+      }, response => {
+        const status = Number(response.statusCode) || 0;
+        response.on('error', error => settle(reject, error));
+        if (status < 200 || status >= 300) {
+          const chunks = [];
+          response.on('data', chunk => chunks.length < 64 && chunks.push(Buffer.from(chunk).subarray(0, 1024)));
+          response.on('end', () => {
+            const detail = Buffer.concat(chunks).toString('utf8').trim();
+            settle(reject, new Error('Runtime API request failed with HTTP ' + status + (detail ? ': ' + detail : '.')));
+          });
+          return;
+        }
+
+        const filename = responseFilename(response.headers['content-disposition'], body.media_id);
+        const target = __resolveArtifactPath(paths.tmp, path.join(directoryName, filename), 'Media temporary file');
+        fs.mkdirSync(directory, { recursive: false, mode: 0o700 });
+        const output = fs.createWriteStream(target, { flags: 'wx', mode: 0o600 });
+        response.on('aborted', () => settle(reject, new Error('Runtime API media response was aborted.')));
+        output.on('error', error => settle(reject, error));
+        output.on('close', () => settle(resolve, { path: target, directory }));
+        response.pipe(output);
+      });
+      const deadline = setTimeout(() => {
+        request.destroy(new Error('Runtime API request timed out after ' + timeoutMs + 'ms.'));
+      }, timeoutMs);
+      request.on('error', error => settle(reject, error));
+      request.end(payload);
+    });
+  };
   const request = async function(endpoint, body, timeoutMs = 10000) {
     if (!baseUrl || !token) {
       throw new Error('Runtime API is not available for this run.');
     }
-    const safeTimeout = Math.max(1000, Math.min(Number(timeoutMs) || 10000, 300000));
+    const safeTimeout = Math.max(1000, Math.min(Number(timeoutMs) || 10000, 900000));
     return await send(baseUrl + endpoint, body, safeTimeout);
   };
 
   return Object.freeze({
     available: Boolean(baseUrl && token && send),
     aiExecute: (body, timeoutMs) => request('/ai/execute', body, timeoutMs),
+    mcpTools: (body, timeoutMs) => request('/mcp/tools', body, timeoutMs),
+    mcpCall: (body, timeoutMs) => request('/mcp/call', body, timeoutMs),
     dataTableRead: body => request('/data-table/read', body, 30000),
     dataTableWrite: body => request('/data-table/write', body, 30000),
     dataTableSchema: body => request('/data-table/schema', body, 30000),
+    mediaDownload: body => {
+      if (!baseUrl || !token) {
+        throw new Error('Runtime API is not available for this run.');
+      }
+      return downloadToTmp(baseUrl + '/media/download', body, 300000);
+    },
     mailboxClaim: body => request('/mailbox/claim', body),
     mailboxRenew: body => request('/mailbox/renew', body),
     waitingDeclare: body => request('/waiting/declare', body),
@@ -504,37 +588,38 @@ const $setViewport = async function(width, height) {
 $setViewport();
 
 /* @help Cookies
- * @sig $saveCookies(jarName?, options?)
+ * @sig $saveCookies(profile?, options?)
  * @aliases save browser session, persist login, store cookies
  * @desc Save browser cookies and localStorage by origin. Default jar name: "Default".
  * @nodal-desc Save cookies and localStorage for reuse in later runs.
  * @nodal-output void
  * @opt persistLocalStorage: true
- * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to save. Use a simple label like "main" or leave empty for "Default".
+ * @nodal-param profile [cookie-profile]: Browser storage profile to save. Use a simple label like "main" or leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Save localStorage with cookies. Enabled by default.
  */
-const __resolveCookieJarName = function(jarName) {
-  return typeof jarName === 'string' && jarName.trim() ? jarName.trim() : 'Default';
+const __resolveCookieProfileName = function(profile) {
+  return typeof profile === 'string' && profile.trim() ? profile.trim() : 'Default';
 };
-const __resolveCookieHelperArguments = function(jarName, options) {
-  if (jarName && typeof jarName === 'object' && !Array.isArray(jarName)) {
-    options = jarName;
-    jarName = undefined;
+const __defaultCookieProfileName = 'Default';
+const __resolveCookieHelperArguments = function(profile, options) {
+  if (profile && typeof profile === 'object' && !Array.isArray(profile)) {
+    options = profile;
+    profile = undefined;
   }
   const resolvedOptions = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
   return {
-    jarName: __resolveCookieJarName(jarName),
+    profile: __resolveCookieProfileName(profile),
     persistLocalStorage: resolvedOptions.persistLocalStorage !== false,
   };
 };
-let __activeBrowserStorageJarName = null;
+let __activeBrowserStorageProfile = null;
 let __activeBrowserStoragePersistLocalStorage = true;
 let __localStorageByOrigin = {};
 const __localStorageRestoreScriptByPage = new WeakMap();
 
-const __cookieJarPath = function(jarName, helperName) {
-  return __resolveArtifactPath(paths.cookies, __resolveCookieJarName(jarName) + '.json', helperName + ' path');
+const __cookieProfilePath = function(profile, helperName) {
+  return __resolveArtifactPath(paths.cookies, __resolveCookieProfileName(profile) + '.json', helperName + ' path');
 };
 
 const __normalizeLocalStorageByOrigin = function(value) {
@@ -546,13 +631,13 @@ const __normalizeLocalStorageByOrigin = function(value) {
   }));
 };
 
-const __readCookieJar = async function(jarName, helperName) {
+const __readCookieProfile = async function(profile, helperName) {
   let content;
   try {
-    content = await fs.promises.readFile(__cookieJarPath(jarName, helperName), 'utf8');
+    content = await fs.promises.readFile(__cookieProfilePath(profile, helperName), 'utf8');
   } catch (error) {
-    if (jarName !== 'Default' || !error || error.code !== 'ENOENT') throw error;
-    content = await fs.promises.readFile(__cookieJarPath('default', helperName), 'utf8');
+    if (profile !== 'Default' || !error || error.code !== 'ENOENT') throw error;
+    content = await fs.promises.readFile(__cookieProfilePath('default', helperName), 'utf8');
   }
   const raw = JSON.parse(content);
   if (Array.isArray(raw)) {
@@ -590,7 +675,7 @@ const __capturePageLocalStorage = async function(page) {
 };
 
 const __installLocalStorageRestore = async function(page) {
-  if (!page || !__activeBrowserStorageJarName) return;
+  if (!page || !__activeBrowserStorageProfile) return;
   const previous = __localStorageRestoreScriptByPage.get(page);
   if (previous) {
     await page.removeScriptToEvaluateOnNewDocument(previous).catch(() => {});
@@ -612,12 +697,13 @@ const __installLocalStorageRestore = async function(page) {
 };
 
 const __captureBrowserStorage = async function(
-  jarName = __activeBrowserStorageJarName,
+  profile = __activeBrowserStorageProfile,
   persistLocalStorage = __activeBrowserStoragePersistLocalStorage,
 ) {
-  if (!jarName) return false;
-  const resolvedJarName = __resolveCookieJarName(jarName);
-  if (persistLocalStorage) {
+  if (!profile) return false;
+  const resolvedProfile = __resolveCookieProfileName(profile);
+  const captureDefaultShadow = resolvedProfile !== __defaultCookieProfileName;
+  if (persistLocalStorage || captureDefaultShadow) {
     for (const page of await $browser.pages()) {
       const captured = await __capturePageLocalStorage(page);
       if (captured && typeof captured.origin === 'string') {
@@ -626,68 +712,139 @@ const __captureBrowserStorage = async function(
     }
   }
   const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  fs.writeFileSync(__cookieJarPath(resolvedJarName, '$saveCookies'), JSON.stringify({
+  const browserStorage = JSON.stringify({
     version: 1,
     cookies,
     localStorage: persistLocalStorage ? __localStorageByOrigin : {},
-  }, null, 2), { mode: 0o600 });
+  }, null, 2);
+  fs.writeFileSync(__cookieProfilePath(resolvedProfile, '$saveCookies'), browserStorage, { mode: 0o600 });
+  if (captureDefaultShadow) {
+    fs.writeFileSync(__cookieProfilePath(__defaultCookieProfileName, '$saveCookies'), JSON.stringify({
+      version: 1,
+      cookies,
+      localStorage: __localStorageByOrigin,
+    }, null, 2), { mode: 0o600 });
+  }
   return true;
 };
 
-const __internalSaveCookies = async function(jarName) {
-  const resolvedJarName = __resolveCookieJarName(jarName);
-  const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  fs.writeFileSync(__cookieJarPath(resolvedJarName, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
+const __captureDefaultBrowserStorage = async function() {
+  return __captureBrowserStorage(__defaultCookieProfileName, true);
 };
-const $saveCookies = async function(jarName, options) {
-  const resolved = __resolveCookieHelperArguments(jarName, options);
-  __activeBrowserStorageJarName = resolved.jarName;
+const __shadowSaveDefaultBrowserStorage = async function() {
+  try {
+    return await __captureDefaultBrowserStorage();
+  } catch (error) {
+    console.error(
+      'Cannot shadow-save the Default browser storage profile:',
+      error && error.message ? error.message : error,
+    );
+    return false;
+  }
+};
+
+const __internalSaveCookies = async function(profile) {
+  const resolvedProfile = __resolveCookieProfileName(profile);
+  const cookies = (await $client.send('Network.getAllCookies')).cookies;
+  fs.writeFileSync(__cookieProfilePath(resolvedProfile, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
+};
+const $saveCookies = async function(profile, options) {
+  const resolved = __resolveCookieHelperArguments(profile, options);
+  __activeBrowserStorageProfile = resolved.profile;
   __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
   if (!resolved.persistLocalStorage) __localStorageByOrigin = {};
-  __emitAction('cookies', resolved.jarName);
-  console.debug('Saving browser storage to:', resolved.jarName);
-  await __captureBrowserStorage(resolved.jarName, resolved.persistLocalStorage);
+  __emitAction('cookies', resolved.profile);
+  console.debug('Saving browser storage to:', resolved.profile);
+  await __captureBrowserStorage(resolved.profile, resolved.persistLocalStorage);
 };
 
 /* @help Cookies
- * @sig $loadCookies(jarName?, options?)
+ * @sig $loadCookies(profile?, options?)
  * @aliases restore browser session, restore login, reuse cookies
  * @desc Load cookies and restore localStorage before page scripts run. Returns false on error, true on success.
  * @nodal-desc Restore previously saved cookies and localStorage.
  * @nodal-output boolean
  * @opt persistLocalStorage: true
- * @nodal-param jarName [cookie-jar]: Name of the browser storage jar to load. Leave empty for "Default".
+ * @nodal-param profile [cookie-profile]: Browser storage profile to load. Leave empty for "Default".
  * @nodal-param options: Browser storage options.
  * @nodal-param options.persistLocalStorage [boolean]: Restore and continue persisting localStorage. Enabled by default.
  */
-const __internalLoadCookies = async function(jarName) {
-  const resolvedJarName = __resolveCookieJarName(jarName);
+const __internalLoadCookies = async function(profile) {
+  const resolvedProfile = __resolveCookieProfileName(profile);
   try {
-    const jar = await __readCookieJar(resolvedJarName, '$loadCookies');
-    await __restoreCookies(jar.cookies);
-    return jar;
+    const storedProfile = await __readCookieProfile(resolvedProfile, '$loadCookies');
+    await __restoreCookies(storedProfile.cookies);
+    return storedProfile;
   } catch {
     return false;
   }
 };
-const $loadCookies = async function(jarName, options) {
-  const resolved = __resolveCookieHelperArguments(jarName, options);
-  __activeBrowserStorageJarName = resolved.jarName;
+const $loadCookies = async function(profile, options) {
+  const resolved = __resolveCookieHelperArguments(profile, options);
+  __activeBrowserStorageProfile = resolved.profile;
   __activeBrowserStoragePersistLocalStorage = resolved.persistLocalStorage;
-  __emitAction('cookies', resolved.jarName);
-  console.debug('Loading browser storage from store:', resolved.jarName);
+  __emitAction('cookies', resolved.profile);
+  console.debug('Loading browser storage from store:', resolved.profile);
   __localStorageByOrigin = {};
-  const jar = await __internalLoadCookies(resolved.jarName);
-  if (!jar) {
-    console.error('Cannot load browser storage from store:', resolved.jarName);
+  const storedProfile = await __internalLoadCookies(resolved.profile);
+  if (!storedProfile) {
+    console.error('Cannot load browser storage from store:', resolved.profile);
   } else {
-    __localStorageByOrigin = resolved.persistLocalStorage ? jar.localStorage : {};
-    console.debug('Successfully loaded browser storage from store:', resolved.jarName);
+    __localStorageByOrigin = resolved.persistLocalStorage ? storedProfile.localStorage : {};
+    console.debug('Successfully loaded browser storage from store:', resolved.profile);
   }
   for (const page of await $browser.pages()) {
     await __installLocalStorageRestore(page);
   }
-  return Boolean(jar);
+  return Boolean(storedProfile);
+};
+
+const __initializeDefaultBrowserStorage = async function() {
+  __activeBrowserStorageProfile = __defaultCookieProfileName;
+  __activeBrowserStoragePersistLocalStorage = true;
+  __localStorageByOrigin = {};
+  const storedProfile = await __internalLoadCookies(__defaultCookieProfileName);
+  if (storedProfile) __localStorageByOrigin = storedProfile.localStorage;
+  for (const page of await $browser.pages()) {
+    await __installLocalStorageRestore(page);
+  }
+  return Boolean(storedProfile);
+};
+
+/* @help Cookies
+ * @sig $clearCookies(profile?)
+ * @aliases clear browser session, delete cookies, reset cookies
+ * @desc Delete the selected stored profile. Also clear current browser cookies and storage when clearing Default or the active profile.
+ * @nodal-desc Delete a saved cookie profile and clear it from the current browser when active.
+ * @nodal-output void
+ * @nodal-param profile [cookie-profile]: Saved browser storage profile to delete. Leave empty for "Default".
+ */
+const $clearCookies = async function(profile) {
+  const resolvedProfile = __resolveCookieProfileName(profile);
+  const clearsCurrentBrowserStorage = resolvedProfile === __defaultCookieProfileName
+    || resolvedProfile === __activeBrowserStorageProfile;
+  __emitAction('cookies', resolvedProfile);
+  console.debug('Clearing browser storage profile:', resolvedProfile);
+
+  await fs.promises.unlink(__cookieProfilePath(resolvedProfile, '$clearCookies')).catch(error => {
+    if (!error || error.code !== 'ENOENT') throw error;
+  });
+  if (!clearsCurrentBrowserStorage) return;
+
+  await $client.send('Network.clearBrowserCookies');
+  for (const page of await $browser.pages()) {
+    await page.evaluate(() => {
+      try { window.localStorage.clear(); } catch (_) {}
+      try { window.sessionStorage.clear(); } catch (_) {}
+    }).catch(() => {});
+  }
+  __localStorageByOrigin = {};
+  __activeBrowserStorageProfile = __defaultCookieProfileName;
+  __activeBrowserStoragePersistLocalStorage = true;
+  for (const page of await $browser.pages()) {
+    await __installLocalStorageRestore(page);
+  }
+  await __captureDefaultBrowserStorage();
 };
 
 /* @help Navigation
@@ -1456,17 +1613,16 @@ const $generateResponse = function(responseStatus, responseMessage, responseData
     console.log(responseMessage);
   }
   console.debug('========================================');
-  const { $context, ...inputData } = $json;
   const _resp = {
     "status": responseStatus,
     "message": responseMessage,
     ..._outputData,
     ...responseData,
   };
-  _resp.$context = $context;
+  _resp.$context = __runContext;
   const _envTrue = (v) => v === '1' || v === 'true';
   if (_envTrue(process.env.INCLUDE_INPUT_IN_OUTPUT)) {
-    _resp.$input = inputData;
+    _resp.$input = __runInput;
   }
   return _resp;
 };
@@ -2103,10 +2259,10 @@ const __networkSniffingTabName = function(page) {
     .find(([, candidate]) => candidate === page)?.[0] || null;
 };
 
+// Resolved secrets are redacted by the host on the process output, so the query string can be shown.
 const __networkSniffingLogUrl = function(value) {
   try {
     const url = new URL(value);
-    if (url.search) url.search = '?[redacted]';
     url.hash = '';
     return url.toString();
   } catch (_) {
@@ -2200,6 +2356,43 @@ const __networkSniffingResponsePayload = function(response, body) {
   };
 };
 
+const __networkSniffingPreviewBodies = new WeakMap();
+const __networkSniffingPreviewBody = function(body) {
+  return body && typeof body === 'object'
+    ? __networkSniffingPreviewBodies.get(body)
+    : undefined;
+};
+
+// Previews keep the run metadata small: the response body is spilled to a temporary file the
+// host imports into the database once the run ends, and preview serializers swap it for a
+// reference the UI hydrates on demand. Flow code keeps the full body.
+const __networkSniffingSpillDir = path.join(paths.tmp, 'sniff-bodies');
+const __networkSniffingSpillBody = function(payload) {
+  const body = payload?.response?.body;
+  if (!body || typeof body.content !== 'string' || __networkSniffingPreviewBodies.has(body)) return;
+
+  const previewBody = {
+    content: null,
+    contentJson: null,
+    encoding: body.encoding,
+    bytes: body.bytes,
+    truncated: body.truncated,
+    unavailable: body.unavailable,
+  };
+  const captureId = crypto.randomBytes(16).toString('hex');
+  const targetPath = path.join(__networkSniffingSpillDir, captureId + '.body');
+  try {
+    fs.mkdirSync(__networkSniffingSpillDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(targetPath + '.part', body.content, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(targetPath + '.part', targetPath);
+    previewBody.reference = { captureId, contentJsonAvailable: body.contentJson !== null };
+  } catch (_) {
+    try { fs.unlinkSync(targetPath + '.part'); } catch (_) {}
+    previewBody.unavailable = true;
+  }
+  __networkSniffingPreviewBodies.set(body, previewBody);
+};
+
 const __queueNetworkSniffingRecord = function(profile, record) {
   profile.queue = profile.queue
     .catch(() => {})
@@ -2261,6 +2454,27 @@ const __completeNetworkSniffingRecord = async function(profile, pageState, recor
     error: details.error || null,
     durationMs: Math.max(0, finishedAt - record.startedAt),
   });
+  // Once the limit is reached and the last matched request has completed, the profile stops itself.
+  if (
+    __networkSniffingLimitReached(profile)
+    && Array.from(profile.pages.values()).every(state => state.pending.size === 0)
+  ) {
+    __stopNetworkSniffingProfileInBackground(profile, 'limit');
+  }
+};
+
+const __networkSniffingLimitReached = function(profile) {
+  return profile.limit > 0 && profile.nextIndex >= profile.limit;
+};
+
+const __stopNetworkSniffingProfileInBackground = function(profile, reason) {
+  __stopNetworkSniffingProfile(profile.name, reason, true).catch(error => {
+    if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
+    console.error(
+      'Sniff Network ' + profile.name + ' ' + reason + ' cleanup failed:',
+      error && error.message ? error.message : error,
+    );
+  });
 };
 
 const __attachNetworkSniffingProfileToPage = async function(profile, page) {
@@ -2290,11 +2504,11 @@ const __attachNetworkSniffingProfileToPage = async function(profile, page) {
       const hasFilters = Object.values(profile.filters).some(Boolean);
       if (matchesFilters || profile.showUnfilteredInLogs) {
         console.log(
-          'Sniff Network ' + profile.name + ' ' + (hasFilters && matchesFilters ? ' (hit)' : '(miss)'),
+          'Sniff Network ' + profile.name + (hasFilters && matchesFilters ? ' (hit)' : ' (miss)'),
           __networkSniffingLogUrl(params.request.url),
         );
       }
-      if (!matchesFilters) return;
+      if (!matchesFilters || __networkSniffingLimitReached(profile)) return;
 
       let resolve;
       const completion = new Promise(done => { resolve = done; });
@@ -2371,11 +2585,17 @@ await __registerNamedPageInitializer(async page => {
   );
 });
 
+// Summaries of profiles that stopped on their own (limit, timeout), so a later $stopSniffing
+// returns the result instead of failing the flow.
+const __networkSniffingStoppedSummaries = new Map();
+
 const __stopNetworkSniffingProfile = async function(profileName, reason, suppressMissing = false) {
   const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$stopSniffing');
   const profile = __networkSniffingProfiles.get(normalizedName);
   if (!profile) {
     if (suppressMissing) return null;
+    const stopped = __networkSniffingStoppedSummaries.get(normalizedName);
+    if (stopped) return stopped;
     throw new Error('$stopSniffing: sniffing profile "' + normalizedName + '" is not active.');
   }
   if (profile.stopPromise) return profile.stopPromise;
@@ -2403,8 +2623,11 @@ const __stopNetworkSniffingProfile = async function(profileName, reason, suppres
       stoppedAt: Date.now(),
       draining: false,
     };
-    console.debug('Sniff Network ' + profile.name + ' stopped: ' + profile.captured + ' request(s)');
+    console.debug(
+      'Sniff Network ' + profile.name + ' stopped (' + reason + '): ' + profile.captured + ' request(s)',
+    );
     if (profile.firstError) throw profile.firstError;
+    __networkSniffingStoppedSummaries.set(profile.name, summary);
     return summary;
   })().finally(() => {
     if (__networkSniffingProfiles.get(profile.name) === profile) {
@@ -2433,8 +2656,8 @@ const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
  * @aliases capture network, monitor requests, inspect traffic
  * @desc Start a named asynchronous network capture. Matching request and response pairs are passed to options.sniffing in request arrival order while the main flow continues immediately.
  * @nodal-desc Capture matching browser requests and responses in a named profile while the main flow continues.
- * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number, captures:array<object> }
- * @opt timeout: 60000, showUnfilteredInLogs: false
+ * @nodal-output object { profile:string, timeout:number, limit:number, maxBodyBytes:number, startedAt:number, captures:array<object> }
+ * @opt timeout: 60000, limit: 0, showUnfilteredInLogs: false
  * @nodal-param profileName [sniff-profile]: Name of the sniffing profile to create. Defaults to Default.
  * @nodal-param filters [object]: Optional filters combined with AND logic.
  * @nodal-param filters.url [string]: Complete URL pattern. Use wildcards by default, or wrap the value in # characters for a regular expression.
@@ -2446,6 +2669,7 @@ const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
  * @nodal-param options [object]: Sniffing callback and lifetime options.
  * @nodal-param options.sniffing [flow]: Flow executed once for every captured pair. The payload contains request, response, error and durationMs. Response status and body details are grouped under response.status and response.body.
  * @nodal-param options.timeout [number]: Maximum capture lifetime in milliseconds. Defaults to 60000. Set to 0 to disable the timeout.
+ * @nodal-param options.limit [number]: Maximum number of matching requests to capture. Once reached, the profile stops after the pending responses complete. Defaults to 0 (unlimited).
  * @nodal-param options.showUnfilteredInLogs [boolean]: Log requests that do not match the filters. Defaults to false.
  */
 const $sniffNetwork = async function(profileName = 'Default', filters = {}, options = {}) {
@@ -2467,11 +2691,16 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
   if (!Number.isFinite(timeout) || timeout < 0) {
     throw new TypeError('$sniffNetwork: options.timeout must be a non-negative finite number.');
   }
+  const limit = options.limit === undefined || options.limit === null ? 0 : Number(options.limit);
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new TypeError('$sniffNetwork: options.limit must be a non-negative integer.');
+  }
 
   const profile = {
     name: normalizedName,
     filters: __normalizeNetworkSniffingFilters(filters),
     callback: options.sniffing || null,
+    limit,
     showUnfilteredInLogs: options.showUnfilteredInLogs === true,
     pages: new Map(),
     queue: Promise.resolve(),
@@ -2484,6 +2713,7 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
     timeoutHandle: null,
   };
   __networkSniffingProfiles.set(profile.name, profile);
+  __networkSniffingStoppedSummaries.delete(profile.name);
   try {
     await Promise.all(
       Array.from(__namedPages.values())
@@ -2498,20 +2728,16 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
   }
 
   if (timeout > 0) {
-    profile.timeoutHandle = setTimeout(() => {
-      __stopNetworkSniffingProfile(profile.name, 'timeout', true).catch(error => {
-        if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
-        console.error(
-          'Sniff Network ' + profile.name + ' timeout cleanup failed:',
-          error && error.message ? error.message : error,
-        );
-      });
-    }, timeout);
+    profile.timeoutHandle = setTimeout(
+      () => __stopNetworkSniffingProfileInBackground(profile, 'timeout'),
+      timeout,
+    );
   }
   console.debug('Sniff Network ' + profile.name + ' started');
   return {
     profile: profile.name,
     timeout,
+    limit,
     maxBodyBytes: __networkSniffingMaxBodyBytes,
     startedAt: profile.startedAt,
   };
@@ -2523,22 +2749,13 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
  * @desc Stop a named network capture, complete pending request records, drain its callback queue and return a summary.
  * @nodal-desc Stop and drain an active named network sniffing profile.
  * @nodal-output object { profile:string, reason:string, captured:number, startedAt:number, stoppedAt:number, draining:boolean }
- * @nodal-param profileName [sniff-profile]: Existing sniffing profile to stop. Defaults to Default.
+ * @nodal-param profileName [sniff-profile]: Existing sniffing profile to stop. Defaults to Default. A profile that already stopped by itself (limit or timeout) returns its summary instead of failing.
  */
 const $stopSniffing = async function(profileName = 'Default') {
   const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$stopSniffing');
-  if (__networkSniffingCallbackActive) {
-    const profile = __networkSniffingProfiles.get(normalizedName);
-    if (!profile) {
-      throw new Error('$stopSniffing: sniffing profile "' + normalizedName + '" is not active.');
-    }
-    void __stopNetworkSniffingProfile(normalizedName, 'manual').catch(error => {
-      if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
-      console.error(
-        'Sniff Network ' + normalizedName + ' deferred cleanup failed:',
-        error && error.message ? error.message : error,
-      );
-    });
+  const profile = __networkSniffingProfiles.get(normalizedName);
+  if (__networkSniffingCallbackActive && profile) {
+    __stopNetworkSniffingProfileInBackground(profile, 'manual');
     return {
       profile: normalizedName,
       reason: 'manual',
@@ -2953,11 +3170,11 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
 /* @help Interaction
  * @sig $upload(fileInputSelectorOrHandle, uploadFilename, options?)
  * @aliases attach file, upload file, choose file
- * @desc Upload a file from the downloads directory to a file input element. Accepts a CSS selector string or an ElementHandle.
- * @nodal-desc Upload a downloaded file into a file input on the page.
+ * @desc Upload a file from the run downloads or an authorized 12-character Media Library ID (`media_...`) to a file input. Media files stay staged until the run ends so delayed form submissions can still read them. Accepts a CSS selector string or an ElementHandle.
+ * @nodal-desc Upload a downloaded file or an authorized Media Library item into a file input on the page.
  * @opt timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param fileInputSelectorOrHandle [string, selector]: CSS selector or ElementHandle for the file input.
- * @nodal-param uploadFilename: File path or downloads filename to upload.
+ * @nodal-param uploadFilename [media]: Media Library item, media ID, or a custom file name from the run downloads.
  * @nodal-param options: File input selection options.
  * @nodal-param options.timeout [number]: Maximum time to wait for the file input, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the file input cannot be found.
@@ -2969,17 +3186,26 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
     throw new Error('$upload: filename is required (got ' + typeof uploadFilename + ')');
   }
   __emitAction('upload', uploadFilename);
-  const filePath = $getDownloadsPathFile(uploadFilename);
-  if (!fs.existsSync(filePath)) {
-    throw new Error('$upload: file not found: ' + filePath);
-  }
+  const isMediaId = /^media_[A-Za-z0-9]{12}$/.test(uploadFilename);
   const isHandle = typeof fileInputSelectorOrHandle === 'object' && fileInputSelectorOrHandle !== null;
   const {
     timeout = 30000,
     continueOnError = false,
     visibleOnly = false,
     index = 0,
-  } = options || {};
+  } = options;
+  // Media assets are staged in a private temporary directory for the duration of the upload.
+  const stagedMedia = isMediaId
+    ? await __runnerOperations.mediaDownload({ media_id: uploadFilename })
+    : null;
+  if (stagedMedia) {
+    // Chromium may read the selected file only when the form is submitted.
+    _pendingCleanup.push(stagedMedia.directory);
+  }
+  const filePath = stagedMedia ? stagedMedia.path : $getDownloadsPathFile(uploadFilename);
+  if (!fs.existsSync(filePath)) {
+    throw new Error('$upload: file not found: ' + filePath);
+  }
   const selection = await __internalSelect(fileInputSelectorOrHandle, {
     timeout,
     continueOnError,
@@ -4776,7 +5002,8 @@ const $breakpoint = async function(label, context = {}) {
   const contextVars = {
     $page,
     $browser,
-    $input: $json,
+    $input: __runInput,
+    $context: __runContext,
     $client,
     $sleep,
     $fillInput,
@@ -4922,6 +5149,195 @@ const __aiTextContent = function(text) {
 };
 
 /* @help AI
+ * @sig $mcpClientTool(credentialId, include?, tools?, options?)
+ * @aliases mcp client, mcp tools, model context protocol
+ * @desc Configure a stored MCP credential as a toolkit for an AI node.
+ * @nodal-desc Connect tools from a remote MCP server to an AI node.
+ * @nodal-output object
+ * @availability both
+ * @opt timeout: 60000
+ * @nodal-param credentialId [string, required]: Stored MCP credentials containing the endpoint, transport, and authentication.
+ * @nodal-param include [string]: Include all tools, selected tools, or all tools except selected tools.
+ * @nodal-param tools [array]: Tool names selected or excluded according to include.
+ * @nodal-param options [object]: Configure the MCP request timeout.
+ * @nodal-param options.timeout [number]: Connection, discovery, and tool execution timeout in milliseconds.
+ */
+const $mcpClientTool = function(
+  credentialId = '',
+  include = 'all',
+  tools = [],
+  options = {},
+) {
+  const credentialValue = String(credentialId || '');
+  let credentialHash = 2166136261;
+  for (let index = 0; index < credentialValue.length; index++) {
+    credentialHash = Math.imul(credentialHash ^ credentialValue.charCodeAt(index), 16777619);
+  }
+  return {
+    nodeId: typeof options.nodeId === 'string' && options.nodeId
+      ? options.nodeId
+      : 'mcp_' + (credentialHash >>> 0).toString(36),
+    credentialId: credentialValue,
+    tools: {
+      mode: ['selected', 'except'].includes(include) ? include : 'all',
+      names: include === 'all' || !Array.isArray(tools) ? [] : tools.map(String),
+    },
+    timeout: Math.max(1, Math.min(Number(options.timeout) || 60000, 900000)),
+  };
+};
+
+const __aiMcpResultText = function(result) {
+  const content = result && Array.isArray(result.content) ? result.content : [];
+  const parts = content
+    .map(item => item && typeof item.text === 'string' ? item.text : JSON.stringify(item))
+    .filter(Boolean);
+  if (result && result.structuredContent && typeof result.structuredContent === 'object') {
+    parts.push(JSON.stringify(result.structuredContent));
+  }
+  return (parts.join('\n') || JSON.stringify(result ?? null)).slice(0, 100000);
+};
+
+const __aiMcpToolLogName = function(tool) {
+  const name = String(tool && tool.sourceName ? tool.sourceName : 'unknown');
+  const credential = tool && typeof tool.credentialName === 'string' ? tool.credentialName.trim() : '';
+  return credential ? credential + ' / ' + name : name;
+};
+
+const __aiLoadMcpTools = async function(servers, deadline) {
+  const registry = new Map();
+  for (const server of servers) {
+    if (!server || typeof server !== 'object') continue;
+    const remaining = deadline - Date.now();
+    if (remaining < 1000) throw new Error('AI tool discovery timed out.');
+    const response = await __runnerOperations.mcpTools(server, Math.min(remaining, Number(server.timeout) || 60000));
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || ('MCP tool discovery failed with HTTP ' + response.status + '.'));
+    for (const tool of Array.isArray(payload.tools) ? payload.tools : []) {
+      if (!tool || typeof tool.name !== 'string' || typeof tool.sourceName !== 'string') continue;
+      if (registry.has(tool.name)) throw new Error('Duplicate MCP tool name: ' + tool.name + '.');
+      registry.set(tool.name, { server, tool });
+      if (registry.size > 256) throw new Error('An AI node cannot expose more than 256 MCP tools.');
+    }
+  }
+  return registry;
+};
+
+const __aiRequestWithMcp = async function(aiModelId, capability, messages, options = {}) {
+  const servers = Array.isArray(options.mcpServers) ? options.mcpServers : [];
+  if (servers.length === 0) return __aiRequest(aiModelId, capability, messages, options);
+  const timeout = Math.max(1000, Math.min(Number(options.timeout) || 120000, 900000));
+  const startedAt = Date.now();
+  console.debug('Discovering MCP tools from ' + servers.length + ' server' + (servers.length === 1 ? '' : 's') + '...');
+  const registry = await __aiLoadMcpTools(servers, startedAt + timeout);
+  console.debug(registry.size + ' MCP tool' + (registry.size === 1 ? '' : 's') + ' ready.');
+  if (registry.size === 0) return __aiRequest(aiModelId, capability, messages, options);
+  const requestOptions = { ...options };
+  delete requestOptions.mcpServers;
+  const maxToolCalls = Math.max(1, Math.min(Number(options.maxToolCalls) || 20, 100));
+  const conversation = messages.length > 29
+    ? [messages[0], ...messages.slice(-28)]
+    : [...messages];
+  const baseMessageCount = conversation.length;
+  let toolCallCount = 0;
+
+  while (true) {
+    const remaining = timeout - (Date.now() - startedAt);
+    if (remaining < 1000) throw new Error('AI tool execution timed out.');
+    const response = await __aiRequest(aiModelId, capability, conversation, {
+      ...requestOptions,
+      timeout: remaining,
+      tools: [...registry.values()].map(({ tool }) => ({
+        name: tool.name,
+        description: typeof tool.description === 'string' ? tool.description : '',
+        inputSchema: tool.inputSchema && typeof tool.inputSchema === 'object'
+          ? tool.inputSchema
+          : { type: 'object', properties: {} },
+      })),
+    });
+    const calls = (Array.isArray(response.toolCalls) ? response.toolCalls : []).map(call => {
+      const fallbackArguments = call && call.arguments && typeof call.arguments === 'object' && !Array.isArray(call.arguments)
+        ? call.arguments
+        : {};
+      let argumentsJson = call && typeof call.argumentsJson === 'string'
+        ? call.argumentsJson
+        : JSON.stringify(fallbackArguments);
+      let args = fallbackArguments;
+      try {
+        const parsed = JSON.parse(argumentsJson);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed;
+        else argumentsJson = JSON.stringify(fallbackArguments);
+      } catch {
+        argumentsJson = JSON.stringify(fallbackArguments);
+      }
+      return {
+        ...call,
+        id: String(call && call.id ? call.id : crypto.randomUUID()),
+        arguments: args,
+        argumentsJson,
+      };
+    });
+    if (calls.length === 0) return response;
+    const callLimit = typeof response.text === 'string' && response.text ? 19 : 20;
+    if (calls.length > callLimit) throw new Error('AI returned too many MCP tool calls in one response.');
+    if (toolCallCount + calls.length > maxToolCalls) throw new Error('AI exceeded the MCP tool call limit.');
+
+    conversation.push({
+      role: 'assistant',
+      content: [
+        ...(typeof response.text === 'string' && response.text
+          ? [{ type: 'text', text: response.text }]
+          : []),
+        ...calls.map(call => ({
+          type: 'tool_call',
+          id: call.id,
+          name: String(call.name || ''),
+          arguments: call.arguments,
+          arguments_json: call.argumentsJson,
+        })),
+      ],
+    });
+    for (const call of calls) {
+      const registration = registry.get(call.name);
+      if (!registration) throw new Error('AI requested an unavailable MCP tool: ' + String(call.name) + '.');
+      const serverTimeout = Math.min(
+        timeout - (Date.now() - startedAt),
+        Number(registration.server.timeout) || 60000,
+      );
+      if (serverTimeout < 1000) throw new Error('AI tool execution timed out.');
+      const toolLogName = __aiMcpToolLogName(registration.tool);
+      console.debug('Calling MCP tool: ' + toolLogName);
+      const toolResponse = await __runnerOperations.mcpCall({
+        ...registration.server,
+        tool: registration.tool.sourceName,
+        arguments_json: call.argumentsJson,
+      }, serverTimeout);
+      const toolPayload = await toolResponse.json().catch(() => ({}));
+      console.debug('MCP tool returned: ' + toolLogName);
+      if (!toolResponse.ok && [401, 403, 404].includes(toolResponse.status)) {
+        throw new Error(toolPayload.message || ('MCP tool call failed with HTTP ' + toolResponse.status + '.'));
+      }
+      conversation.push({
+        role: 'tool',
+        content: [{
+          type: 'tool_result',
+          tool_call_id: call.id,
+          name: String(call.name || ''),
+          text: toolResponse.ok
+            ? __aiMcpResultText(toolPayload.result)
+            : String(toolPayload.message || ('MCP tool call failed with HTTP ' + toolResponse.status + '.')).slice(0, 100000),
+        }],
+      });
+      toolCallCount++;
+    }
+    while (conversation.length > 50) {
+      const nextRound = conversation.findIndex((message, index) => index > baseMessageCount && message.role === 'assistant');
+      if (nextRound < 0) break;
+      conversation.splice(baseMessageCount, nextRound - baseMessageCount);
+    }
+  }
+};
+
+/* @help AI
  * @sig $aiMessage(aiModelId, message, options?)
  * @aliases ask ai, generate text, chat with ai
  * @desc Send text messages through a configured AI model.
@@ -4936,6 +5352,7 @@ const __aiTextContent = function(text) {
  * @nodal-param options.temperature [number]: Sampling temperature supported by the selected provider.
  * @nodal-param options.top_p [number]: Nucleus sampling probability supported by the selected provider.
  * @nodal-param options.max_tokens [number]: Maximum number of output tokens.
+ * @nodal-param options.maxToolCalls [number]: Maximum MCP tool calls for this message.
  * @nodal-param options.timeout [number]: Maximum request duration in milliseconds.
  * @nodal-param options.outputMode [string]: Return plain text, JSON, or JSON constrained by a schema.
  * @nodal-param options.schema [object]: JSON Schema used when output mode is JSON schema.
@@ -4964,8 +5381,17 @@ const $aiMessage = async function(aiModelId, message, options = {}) {
       schema: options.schema,
     };
   }
-  const response = await __aiRequest(aiModelId, 'text', messages, requestOptions);
-  console.debug('AI Message provider:', response.provider || 'unknown', 'model:', response.model || 'unknown', 'prompt:', String(message));
+  console.debug('AI Message request model:', String(aiModelId), 'prompt:', String(message));
+  console.debug('AI Message waiting for model response...');
+  const response = await __aiRequestWithMcp(aiModelId, 'text', messages, requestOptions);
+  console.debug(
+    'AI Message response provider:',
+    response.provider || 'unknown',
+    'model:',
+    response.model || 'unknown',
+    'text:',
+    typeof response.text === 'string' ? response.text : '',
+  );
   return response;
 };
 
@@ -5569,7 +5995,8 @@ Use browser.* only after a previous puppetflow.* result has status "error". The 
     : 'Puppeteer fallback is disabled. Never call browser.*.';
 
   return `You control a browser through two restricted JavaScript facades.
-Return only JSON with this shape: {"code":"await puppetflow.click({text:\\"Save\\"});","status":"success","message":"short reasoning"}.
+Remote MCP tools may also be available through native tool calling. Call them when they are needed, then use their results in the next decision.
+When you are not calling a tool, return only JSON with this shape: {"code":"await puppetflow.click({text:\\"Save\\"});","status":"success","message":"short reasoning"}.
 
 Primary Puppetflow browser framework:
 - puppetflow.goto({url, waitUntil?, timeout?})
@@ -5633,6 +6060,7 @@ const __aiControlResponseFormat = {
  * @nodal-param options.maxTokens [number]: Maximum output tokens available for each decision.
  * @nodal-param options.temperature [number]: Sampling temperature used for each decision.
  * @nodal-param options.allowPuppeteerFallback [boolean]: Allow restricted Puppeteer actions after Puppetflow helpers fail.
+ * @nodal-param options.maxToolCalls [number]: Maximum MCP tool calls across each AI decision.
  */
 const $aiControl = async function(aiModelId, prompt, options = {}) {
   const sequenceId = crypto.randomUUID();
@@ -5669,7 +6097,7 @@ const $aiControl = async function(aiModelId, prompt, options = {}) {
 
     const remaining = Math.max(5000, timeout - (Date.now() - startedAt));
     console.log('AI Control waiting for model response: ' + String(iteration).padStart(2, '0') + '/' + String(maxIterations).padStart(2, '0') + ' ...');
-    const response = await __aiRequest(aiModelId, 'vision', [{
+    const response = await __aiRequestWithMcp(aiModelId, 'vision', [{
       role: 'user',
       content: [
         {
@@ -5687,6 +6115,8 @@ const $aiControl = async function(aiModelId, prompt, options = {}) {
       ...(options.temperature == null ? {} : { temperature: options.temperature }),
       timeout: remaining,
       response_format: __aiControlResponseFormat,
+      ...(Array.isArray(options.mcpServers) ? { mcpServers: options.mcpServers } : {}),
+      maxToolCalls: Math.max(1, Math.min(Number(options.maxToolCalls) || 20, 100)),
     });
     if (typeof response.provider === 'string' && response.provider) {
       parentArgs.provider = response.provider;

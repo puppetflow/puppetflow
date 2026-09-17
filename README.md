@@ -26,12 +26,14 @@ Puppetflow is a self-hosted browser automation platform for writing, running, sc
 - Run workflows manually, on a schedule, or through integrations
 - Watch browser sessions live and take control when needed
 - Organize flows and reusable snippets in workspaces
+- Store, tag, organize, and edit text files in a scoped Media Library, then reuse them in flow inputs or `$upload`
 - Manage variables, secrets, and browser profiles
 - Inspect run history, logs, and execution results
 - Connect repositories and external vaults like 1Password
 - Integrate with messaging tools and mailboxes
 - Deploy on your own infrastructure with Docker
 - Extend Puppetflow with reusable flows and snippets
+- Automate Media Library files and folders through the authenticated REST API
 
 ## 🔗 n8n integration
 

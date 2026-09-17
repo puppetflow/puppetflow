@@ -6,6 +6,7 @@ import {
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/site';
 import { HELP_ENTRIES } from './helpCatalog';
 import { getHelpCategoryColor, getHelpIcon } from './helpToolbox';
+import type { ReferenceDisplay } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/referenceDisplays';
 
 export interface CodeGizmo {
     kind: 'helper' | 'selector';
@@ -19,6 +20,7 @@ export interface CodeGizmo {
     argumentStart?: number;
     argumentEnd?: number;
     targetUrl?: string;
+    resources?: ReferenceDisplay[];
 }
 
 const HELP_ENTRY_BY_NAME = new Map<string, HelpEntryDef>();
@@ -324,8 +326,57 @@ const getSelectorGizmos = (code: string): CodeGizmo[] => {
     }
 };
 
-export const getCodeGizmos = (code: string): CodeGizmo[] => {
+const RESOURCE_NAMESPACE_BY_HELPER: Record<string, 'channels' | 'aiModels'> = {
+    $notify: 'channels',
+    $waitHumanValidation: 'channels',
+    $aiMessage: 'aiModels',
+    $aiControl: 'aiModels',
+};
+
+const getResourceDisplaysByLine = (
+    code: string,
+    references: ReadonlyMap<string, ReferenceDisplay>,
+) => {
+    const resourcesByLine = new Map<number, ReferenceDisplay[]>();
+    try {
+        const ast = parse(code, {
+            ecmaVersion: 'latest',
+            sourceType: 'script',
+            locations: true,
+            allowAwaitOutsideFunction: true,
+        }) as unknown as SyntaxNode;
+        walkSyntax(ast, node => {
+            if (node.type !== 'CallExpression') return;
+            const callee = node.callee as SyntaxNode | undefined;
+            const args = node.arguments as SyntaxNode[] | undefined;
+            const name = callee?.type === 'Identifier' ? callee.name : null;
+            if (typeof name !== 'string' || !args?.[0]) return;
+            const namespace = RESOURCE_NAMESPACE_BY_HELPER[name];
+            const resourceId = namespace ? getStaticString(args[0]) : null;
+            const lineNumber = node.loc?.start.line;
+            if (!namespace || !resourceId || !lineNumber) return;
+
+            const display = references.get(`${namespace}.${resourceId}`);
+            if (!display?.resourceKind || display.resourceId == null) return;
+            const current = resourcesByLine.get(lineNumber) ?? [];
+            const identity = `${display.resourceKind}:${display.resourceId}`;
+            if (!current.some(resource => `${resource.resourceKind}:${resource.resourceId}` === identity)) {
+                resourcesByLine.set(lineNumber, [...current, display]);
+            }
+        });
+    } catch {
+        return resourcesByLine;
+    }
+    return resourcesByLine;
+};
+
+export const getCodeGizmos = (
+    code: string,
+    references: ReadonlyMap<string, ReferenceDisplay> = new Map(),
+): CodeGizmo[] => {
     const gotoSites = new Map(getGotoCodeSites(code).map(site => [site.lineNumber, site]));
+    const resourcesByLine = getResourceDisplaysByLine(code, references);
+    const decoratedResourceLines = new Set<number>();
 
     const helperGizmos: CodeGizmo[] = getHelperCallsByLine(code).map(({ lineNumber, name }) => {
         const entry = HELP_ENTRY_BY_NAME.get(name) ?? {
@@ -335,6 +386,10 @@ export const getCodeGizmos = (code: string): CodeGizmo[] => {
             category: 'Snippets',
         };
         const gotoSite = name === '$gotoUrl' ? gotoSites.get(lineNumber) : undefined;
+        const resources = decoratedResourceLines.has(lineNumber)
+            ? undefined
+            : resourcesByLine.get(lineNumber);
+        if (resources?.length) decoratedResourceLines.add(lineNumber);
 
         return {
             kind: 'helper' as const,
@@ -343,6 +398,7 @@ export const getCodeGizmos = (code: string): CodeGizmo[] => {
             description: entry.desc,
             icon: getHelpIcon(entry),
             color: getHelpCategoryColor(entry),
+            ...(resources?.length ? { resources } : {}),
             ...(gotoSite ? {
                 faviconUrl: gotoSite.faviconUrl,
                 siteHostname: new URL(gotoSite.url).hostname,

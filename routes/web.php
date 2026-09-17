@@ -43,7 +43,10 @@ use App\Http\Controllers\Licensing\LicenseLauncherController;
 use App\Http\Controllers\Mailbox\MailboxController;
 use App\Http\Controllers\Mailbox\MailboxEmailController;
 use App\Http\Controllers\Mcp\McpBrokerController;
+use App\Http\Controllers\Mcp\McpCredentialController;
 use App\Http\Controllers\Mcp\McpOAuthController;
+use App\Http\Controllers\Media\MediaAssetController;
+use App\Http\Controllers\Media\MediaFolderController;
 use App\Http\Controllers\NotificationChannel\NotificationChannelController;
 use App\Http\Controllers\Snippet\SnippetController;
 use App\Http\Controllers\Snippet\SnippetVersionController;
@@ -155,6 +158,28 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::delete('data-tables/{dataTable}/rows/{rowId}', [DataTableRowController::class, 'destroy'])->name('data-tables.rows.destroy');
     Route::get('flows/{flow}/data-table-resources', DataTableResourceController::class)->name('flows.data-table-resources');
 
+    // Media library
+    Route::get('media-library', [MediaAssetController::class, 'index'])->name('media.index');
+    Route::get('media-library/suggestions', [MediaAssetController::class, 'suggestions'])->name('media.suggestions');
+    Route::get('media-library/picker', [MediaAssetController::class, 'picker'])->name('media.picker');
+    Route::post('media-library/files', [MediaAssetController::class, 'store'])->name('media.store');
+    Route::post('media-library/uploads', [MediaAssetController::class, 'initiateUpload'])->name('media.uploads.initiate');
+    Route::post('media-library/uploads/{reservation}/complete', [MediaAssetController::class, 'completeUpload'])->name('media.uploads.complete');
+    Route::delete('media-library/uploads/{reservation}', [MediaAssetController::class, 'cancelUpload'])->name('media.uploads.cancel');
+    Route::post('media-library/batch-delete', [MediaAssetController::class, 'destroyBatch'])->name('media.destroyBatch');
+    Route::patch('media-library/media/{mediaAsset}/move', [MediaAssetController::class, 'move'])->name('media.move');
+    Route::patch('media-library/media/{mediaAsset}', [MediaAssetController::class, 'update'])->name('media.update');
+    Route::get('media-library/media/{mediaAsset}/content', [MediaAssetController::class, 'content'])->name('media.content');
+    Route::patch('media-library/media/{mediaAsset}/content', [MediaAssetController::class, 'updateContent'])->name('media.content.update');
+    Route::get('media-library/media/{mediaAsset}/download', [MediaAssetController::class, 'download'])->name('media.download');
+    Route::get('media-library/media/{mediaAsset}/preview', [MediaAssetController::class, 'preview'])->name('media.preview');
+    Route::get('media-library/media/{mediaAsset}/thumbnail', [MediaAssetController::class, 'thumbnail'])->name('media.thumbnail');
+    Route::delete('media-library/media/{mediaAsset}', [MediaAssetController::class, 'destroy'])->name('media.destroy');
+    Route::post('media-library/folders', [MediaFolderController::class, 'store'])->name('media-folders.store');
+    Route::match(['put', 'patch'], 'media-library/folders/{mediaFolder}', [MediaFolderController::class, 'update'])->name('media-folders.update');
+    Route::patch('media-library/folders/{mediaFolder}/move', [MediaFolderController::class, 'move'])->name('media-folders.move');
+    Route::delete('media-library/folders/{mediaFolder}', [MediaFolderController::class, 'destroy'])->name('media-folders.destroy');
+
     // Flows
     Route::get('library/items', [LibraryController::class, 'index'])->name('library.items');
     Route::post('library/blueprints/{namespace}/import', [LibraryController::class, 'import'])->name('library.blueprints.import');
@@ -187,6 +212,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::post('flows/{flow}/run', [FlowRunController::class, 'store'])->name('flows.run');
     Route::get('flows/{flow}/runs', [FlowRunController::class, 'index'])->name('flows.runs.index');
     Route::get('flows/{flow}/runs/{run}', [FlowRunController::class, 'show'])->name('flows.runs.show');
+    Route::get('flows/{flow}/runs/{run}/sniff-bodies/{captureId}', [FlowRunController::class, 'sniffBody'])->where('captureId', '[a-f0-9]{32}')->name('flows.runs.sniffBody');
     Route::get('flows/{flow}/runs/{run}/artifacts/{type}', [FlowRunController::class, 'artifacts'])->name('flows.runs.artifacts');
     Route::get('flows/{flow}/runs/{run}/artifacts/{type}/{filename}', [FlowRunController::class, 'downloadArtifact'])->where('filename', '.*')->name('flows.runs.artifacts.download');
     Route::get('flows/{flow}/runs/{run}/recording', [FlowRunController::class, 'recording'])->name('flows.runs.recording');
@@ -227,10 +253,11 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::post('variables', [UserVariableController::class, 'store'])->name('variables.store');
     Route::post('variables/import', [UserVariableController::class, 'import'])->name('variables.import');
     Route::delete('variables/bulk-delete', [UserVariableController::class, 'destroyBatch'])->name('variables.bulk-delete');
+    Route::get('variables/suggestions', [UserVariableController::class, 'suggestions'])->name('variables.suggestions');
+    Route::get('variables/{variable}', [UserVariableController::class, 'show'])->name('variables.show');
     Route::put('variables/{variable}', [UserVariableController::class, 'update'])->name('variables.update');
     Route::get('variables/{variable}/usages', [UserVariableController::class, 'usages'])->name('variables.usages');
     Route::delete('variables/{variable}', [UserVariableController::class, 'destroy'])->name('variables.destroy');
-    Route::get('variables/suggestions', [UserVariableController::class, 'suggestions'])->name('variables.suggestions');
 
     // AI Models
     Route::get('ai-models', [AiModelController::class, 'index'])->name('ai-models.index');
@@ -241,9 +268,21 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
         ->name('ai-models.discover');
     Route::post('ai-models', [AiModelController::class, 'store'])->name('ai-models.store');
     Route::delete('ai-models/bulk-delete', [AiModelController::class, 'destroyBatch'])->name('ai-models.bulk-delete');
+    Route::get('ai-models/{aiModel}', [AiModelController::class, 'show'])->name('ai-models.show');
     Route::put('ai-models/{aiModel}', [AiModelController::class, 'update'])->name('ai-models.update');
     Route::delete('ai-models/{aiModel}', [AiModelController::class, 'destroy'])->name('ai-models.destroy');
     Route::get('ai-models/{aiModel}/usages', [AiModelController::class, 'usages'])->name('ai-models.usages');
+
+    Route::get('mcp-credentials', [McpCredentialController::class, 'index'])->name('mcp-credentials.index');
+    Route::get('mcp-credentials/from-variable', [McpCredentialController::class, 'showFromVariable'])->name('mcp-credentials.from-variable');
+    Route::put('mcp-credentials/from-variable/{variable}', [McpCredentialController::class, 'updateFromVariable'])->name('mcp-credentials.update-from-variable');
+    Route::post('mcp-credentials', [McpCredentialController::class, 'store'])->name('mcp-credentials.store');
+    Route::post('mcp-tools/discover', [McpCredentialController::class, 'discoverTools'])->name('mcp-tools.discover');
+    Route::put('mcp-credentials/{mcpCredential}', [McpCredentialController::class, 'update'])->name('mcp-credentials.update');
+    Route::delete('mcp-credentials/{mcpCredential}', [McpCredentialController::class, 'destroy'])->name('mcp-credentials.destroy');
+    Route::post('mcp-credentials/{mcpCredential}/oauth', [McpCredentialController::class, 'beginOAuth'])->name('mcp-credentials.oauth.begin');
+    Route::post('mcp-oauth/authorize', [McpCredentialController::class, 'beginOAuthFromVariable'])->name('mcp-oauth.authorize');
+    Route::get('mcp-credentials/oauth/callback', [McpCredentialController::class, 'completeOAuth'])->name('mcp-credentials.oauth.callback');
 
     // Folders
     Route::post('folders', [FolderController::class, 'store'])->name('folders.store');
@@ -257,6 +296,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::get('channels/setup-status', [NotificationChannelController::class, 'setupStatus'])->name('channels.setup-status');
     Route::post('channels', [NotificationChannelController::class, 'store'])->name('channels.store');
     Route::delete('channels/bulk-delete', [NotificationChannelController::class, 'destroyBatch'])->name('channels.bulk-delete');
+    Route::get('channels/{channel}', [NotificationChannelController::class, 'show'])->name('channels.show');
     Route::put('channels/{channel}', [NotificationChannelController::class, 'update'])->name('channels.update');
     Route::delete('channels/{channel}', [NotificationChannelController::class, 'destroy'])->name('channels.destroy');
     Route::get('channels/{channel}/usages', [NotificationChannelController::class, 'usages'])->name('channels.usages');

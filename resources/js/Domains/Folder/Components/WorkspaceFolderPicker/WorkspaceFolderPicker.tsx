@@ -20,6 +20,8 @@ export default function WorkspaceFolderPicker({
     scope,
     rootFolderId,
     ownerId,
+    teamId,
+    createFolderEndpoint,
 }: WorkspaceFolderPickerProps) {
     const picker = useFolderPicker({
         workspaceTree,
@@ -27,6 +29,8 @@ export default function WorkspaceFolderPicker({
         rootLabel,
         scope,
         ownerId,
+        teamId,
+        createFolderEndpoint,
         onConfirm,
     });
 

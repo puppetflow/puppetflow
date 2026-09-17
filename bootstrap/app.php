@@ -8,6 +8,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Env;
 use Inertia\Inertia;
@@ -93,6 +94,15 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return back()->with('error', $e->getMessage());
+        });
+
+        $exceptions->renderable(function (PostTooLargeException $e, Request $request) {
+            $message = 'The upload request exceeds the PHP post_max_size limit of '.ini_get('post_max_size').'.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 413);
+            }
+
+            return back()->with('error', $message);
         });
 
         $exceptions->respond(function (Response $response, \Throwable $exception, Request $request) {

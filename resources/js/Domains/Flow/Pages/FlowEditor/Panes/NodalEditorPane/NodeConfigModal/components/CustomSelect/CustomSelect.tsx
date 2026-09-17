@@ -17,10 +17,13 @@ import * as S from './styled';
 export interface CustomSelectOption<T extends Id = string> {
     value: T;
     label: string;
+    editable?: boolean;
     detail?: string;
     detailBadge?: string;
     detailIcon?: string;
     icon?: string;
+    /** Image rendered instead of the icon (thumbnails). */
+    iconUrl?: string | null;
     iconText?: string;
     iconColor?: string;
     group?: string;
@@ -48,17 +51,33 @@ interface CustomSelectProps<T extends Id> {
     headerSlot?: ReactNode;
     footerHint?: ReactNode;
     actionSlot?: CustomSelectAction<T>;
+    browseAction?: () => Promise<T | null>;
     onRefresh?: () => void | Promise<void>;
     loading?: boolean;
     refreshing?: boolean;
     dropdownMinWidth?: number;
     onClear?: () => void;
+    onEditOption?: (option: CustomSelectOption<T>) => void | Promise<void>;
     onChange: (value: T) => void;
 }
 
 const SELECT_DROPDOWN_MAX_HEIGHT = 260;
 const SELECT_DROPDOWN_MIN_WIDTH = 240;
 const SELECT_DROPDOWN_GAP = 5;
+
+function OptionIcon({ option }: { option: Pick<CustomSelectOption<Id>, 'icon' | 'iconUrl' | 'iconText' | 'iconColor'> }) {
+    if (!option.iconUrl && !option.icon && !option.iconText) return null;
+
+    return (
+        <S.SelectIconSlot>
+            {option.iconUrl
+                ? <S.SelectImageIcon src={option.iconUrl} alt="" loading="lazy" />
+                : option.icon
+                    ? <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
+                    : <S.SelectTextIcon aria-hidden>{option.iconText}</S.SelectTextIcon>}
+        </S.SelectIconSlot>
+    );
+}
 
 export default function CustomSelect<T extends Id>({
     value,
@@ -74,17 +93,20 @@ export default function CustomSelect<T extends Id>({
     headerSlot,
     footerHint,
     actionSlot,
+    browseAction,
     onRefresh,
     loading,
     refreshing,
     dropdownMinWidth,
     onClear,
+    onEditOption,
     onChange,
 }: CustomSelectProps<T>) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
     const [actionLoading, setActionLoading] = useState(false);
+    const [browseLoading, setBrowseLoading] = useState(false);
     const actionRunningRef = useRef(false);
     const triggerRef = useRef<HTMLButtonElement | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -133,6 +155,7 @@ export default function CustomSelect<T extends Id>({
         updateDropdownPosition();
         setOpen(true);
         setActiveIndex(Math.max(0, filteredOptions.findIndex(option => option.value === value)));
+        void onRefresh?.();
         if (showSearch) {
             window.requestAnimationFrame(() => searchInputRef.current?.focus());
         }
@@ -164,6 +187,7 @@ export default function CustomSelect<T extends Id>({
             if (createdValue) {
                 onChange(createdValue);
                 close();
+                window.requestAnimationFrame(() => triggerRef.current?.focus());
                 return;
             }
 
@@ -171,6 +195,19 @@ export default function CustomSelect<T extends Id>({
         } finally {
             actionRunningRef.current = false;
             setActionLoading(false);
+        }
+    };
+
+    const handleBrowse = async () => {
+        if (!browseAction || browseLoading) return;
+        close();
+        setBrowseLoading(true);
+        try {
+            const pickedValue = await browseAction();
+            if (pickedValue) onChange(pickedValue);
+        } finally {
+            setBrowseLoading(false);
+            window.requestAnimationFrame(() => triggerRef.current?.focus());
         }
     };
 
@@ -231,15 +268,11 @@ export default function CustomSelect<T extends Id>({
                 onKeyDown={handleKeyDown}
                 onClick={() => {
                     if (disabled || loading) return;
-                    setOpen(current => {
-                        const nextOpen = !current;
-                        if (nextOpen) updateDropdownPosition();
-                        if (nextOpen && showSearch) {
-                            window.requestAnimationFrame(() => searchInputRef.current?.focus());
-                        }
-                        if (!nextOpen) setQuery('');
-                        return nextOpen;
-                    });
+                    if (open) {
+                        close();
+                        return;
+                    }
+                    openSelect();
                 }}
             >
                 <S.SelectValue>
@@ -250,12 +283,8 @@ export default function CustomSelect<T extends Id>({
                             </S.SelectLoadingIcon>
                             <S.SelectValueLabel>Loading...</S.SelectValueLabel>
                         </>
-                    ) : selectedOption?.icon || selectedOption?.iconText ? (
-                        <S.SelectIconSlot>
-                            {selectedOption.icon
-                                ? <Icon icon={selectedOption.icon} width={15} height={15} style={{ color: selectedOption.iconColor }} />
-                                : <S.SelectTextIcon aria-hidden>{selectedOption.iconText}</S.SelectTextIcon>}
-                        </S.SelectIconSlot>
+                    ) : selectedOption ? (
+                        <OptionIcon option={selectedOption} />
                     ) : null}
                     {!loading && (
                         <S.SelectValueLabel>{selectedOption?.label ?? placeholder}</S.SelectValueLabel>
@@ -317,11 +346,12 @@ export default function CustomSelect<T extends Id>({
                             )}
                         </S.SelectDropdownHeader>
                     )}
-                    {(actionSlot || (onClear && value && !clearInHeader)) && (
+                    {(actionSlot || refreshInActionRow || (onClear && value && !clearInHeader)) && (
                         <S.SelectActionRow>
                             {actionSlot && (
                                 <S.SelectAction
                                     type="button"
+                                    $loading={actionLoading}
                                     disabled={actionLoading}
                                     onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
                                     onClick={() => void handleAction()}
@@ -359,6 +389,20 @@ export default function CustomSelect<T extends Id>({
                             )}
                         </S.SelectActionRow>
                     )}
+                    {browseAction && (
+                        <S.SelectActionRow>
+                            <S.SelectAction
+                                type="button"
+                                $loading={browseLoading}
+                                disabled={browseLoading}
+                                onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+                                onClick={() => void handleBrowse()}
+                            >
+                                <Icon icon={browseLoading ? 'lucide:loader-circle' : 'lucide:folder-search'} width={13} />
+                                Browse library
+                            </S.SelectAction>
+                        </S.SelectActionRow>
+                    )}
                     <S.SelectOptions>
                         {refreshing ? (
                             <S.SelectLoading>
@@ -375,51 +419,69 @@ export default function CustomSelect<T extends Id>({
                                         {option.groupLabel ?? option.group}
                                     </S.SelectOptionGroup>
                                 )}
-                                <S.SelectOption
-                                    ref={(element: HTMLButtonElement | null) => {
-                                        optionRefs.current[optionIndex] = element;
-                                    }}
-                                    type="button"
+                                <S.SelectOptionRow
                                     $active={optionIndex === activeIndex}
-                                    $selected={option.value === value}
-                                    aria-selected={option.value === value}
-                                    onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+                                    $editable={Boolean(option.editable && onEditOption)}
                                     onMouseEnter={() => setActiveIndex(optionIndex)}
-                                    onClick={() => {
-                                        selectOption(option);
-                                    }}
                                 >
-                                    {!option.detailBadge && (
+                                    <S.SelectOption
+                                        ref={(element: HTMLButtonElement | null) => {
+                                            optionRefs.current[optionIndex] = element;
+                                        }}
+                                        type="button"
+                                        $selected={option.value === value}
+                                        aria-selected={option.value === value}
+                                        onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+                                        onClick={() => {
+                                            selectOption(option);
+                                        }}
+                                    >
                                         <S.SelectOptionMain>
-                                            {(option.icon || option.iconText) && (
-                                                <S.SelectIconSlot>
-                                                    {option.icon
-                                                        ? <Icon icon={option.icon} width={15} height={15} style={{ color: option.iconColor }} />
-                                                        : <S.SelectTextIcon aria-hidden>{option.iconText}</S.SelectTextIcon>}
-                                                </S.SelectIconSlot>
-                                            )}
+                                            <OptionIcon option={option} />
                                             <strong>{option.label}</strong>
                                         </S.SelectOptionMain>
+                                        {option.detail ? (
+                                            <S.SelectOptionDetail
+                                                data-option-detail
+                                                $inline={Boolean(option.detailBadge)}
+                                            >
+                                                {option.detailBadge && (
+                                                    <S.SelectOptionBadge>{option.detailBadge}</S.SelectOptionBadge>
+                                                )}
+                                                {option.detailIcon && (
+                                                    <Icon icon={option.detailIcon} width={11} height={11} />
+                                                )}
+                                                <S.SelectOptionDetailText>{option.detail}</S.SelectOptionDetailText>
+                                            </S.SelectOptionDetail>
+                                        ) : showOptionValue && option.value !== option.label ? (
+                                            <S.SelectOptionDetail data-option-detail>{option.value}</S.SelectOptionDetail>
+                                        ) : null}
+                                        {option.value === value && (
+                                            <S.SelectCheck>
+                                                <Icon icon="lucide:check" width={13} height={13} />
+                                            </S.SelectCheck>
+                                        )}
+                                    </S.SelectOption>
+                                    {option.editable && onEditOption && (
+                                        <S.SelectOptionEdit
+                                            type="button"
+                                            $selected={option.value === value}
+                                            title={`Edit ${option.label}`}
+                                            aria-label={`Edit ${option.label}`}
+                                            onMouseDown={(event: MouseEvent<HTMLButtonElement>) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                            }}
+                                            onClick={event => {
+                                                event.stopPropagation();
+                                                close();
+                                                void onEditOption(option);
+                                            }}
+                                        >
+                                            <Icon icon="lucide:pencil" width={13} height={13} />
+                                        </S.SelectOptionEdit>
                                     )}
-                                    {option.detail ? (
-                                        <S.SelectOptionDetail $inline={Boolean(option.detailBadge)}>
-                                            {option.detailBadge && (
-                                                <S.SelectOptionBadge>{option.detailBadge}</S.SelectOptionBadge>
-                                            )}
-                                            {option.detailIcon && (
-                                                <Icon icon={option.detailIcon} width={11} height={11} />
-                                            )}
-                                            <S.SelectOptionDetailText>{option.detail}</S.SelectOptionDetailText>
-                                        </S.SelectOptionDetail>
-                                    ) : showOptionValue && option.value !== option.label ? (
-                                        <S.SelectOptionDetail>{option.value}</S.SelectOptionDetail>
-                                    ) : null}
-                                    {option.value === value && (
-                                        <S.SelectCheck>
-                                            <Icon icon="lucide:check" width={13} height={13} />
-                                        </S.SelectCheck>
-                                    )}
-                                </S.SelectOption>
+                                </S.SelectOptionRow>
                             </Fragment>
                         )) : (
                             <S.SelectEmpty>No option found.</S.SelectEmpty>

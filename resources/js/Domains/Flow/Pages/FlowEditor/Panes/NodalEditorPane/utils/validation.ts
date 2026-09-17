@@ -51,6 +51,7 @@ export interface NodeValidationResources {
             capabilities: Record<string, boolean>;
             scope: string;
             team_name: string | null;
+            can_manage: boolean;
             ai_integration: {
                 id: Id;
                 name: string;
@@ -76,7 +77,10 @@ export function getNodeParameterDisplayLabel(entry: HelpEntryDef, key: string): 
     if ((entry.name === '$aiControl' || entry.name === '$aiMessage') && key === 'aiModelId') {
         return 'AI Model';
     }
-    if ((entry.name === '$saveCookies' || entry.name === '$loadCookies') && key === 'jarName') {
+    if (
+        (entry.name === '$saveCookies' || entry.name === '$loadCookies' || entry.name === '$clearCookies')
+        && key === 'profile'
+    ) {
         return 'Profile';
     }
     return meta.label ?? key;
@@ -596,6 +600,25 @@ export function getMissingRequiredParameters(
 
     if (entry.name === '$loginRemember') {
         issues.push(...getLoggedMarkerConditionIssues(values.options));
+    }
+
+    if (entry.name === '$mcpClientTool') {
+        const include = normalizeScalarParameterValue(values.include).value || 'all';
+        const selectedTools = normalizeScalarParameterValue(values.tools);
+        if (
+            include !== 'all'
+            && selectedTools.mode === 'fixed'
+            && (() => {
+                try {
+                    const parsed = JSON.parse(selectedTools.value);
+                    return !Array.isArray(parsed) || parsed.length === 0;
+                } catch {
+                    return true;
+                }
+            })()
+        ) {
+            issues.push({ path: 'tools', label: 'Tools', message: 'Select at least one MCP tool.' });
+        }
     }
 
     if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {

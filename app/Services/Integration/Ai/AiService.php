@@ -50,11 +50,9 @@ class AiService
         ?Integration $existing = null,
         bool $verifyRemote = true,
     ): array {
-        $existingConfig = $existing instanceof Integration ? ($existing->config ?? []) : [];
-        $merged = array_merge($existingConfig, $config);
-        if (($config['api_key'] ?? null) === '' && $existing instanceof Integration) {
-            $merged['api_key'] = $existing->config['api_key'] ?? null;
-        }
+        $merged = $existing instanceof Integration
+            ? $existing->mergeConfigPreservingBlank($config)
+            : $config;
 
         $apiKey = $merged['api_key'] ?? null;
         if (! is_string($apiKey) || trim($apiKey) === '') {
@@ -98,6 +96,26 @@ class AiService
                 'ai_model_id' => "This AI model does not support {$capability} input.",
             ]);
         }
+        if (
+            is_array($options['tools'] ?? null)
+            && $options['tools'] !== []
+            && ! $this->supportsTools($provider, $aiModel->ai_model_id, $capabilities)
+        ) {
+            throw ValidationException::withMessages([
+                'ai_model_id' => 'This AI model does not support tool calls.',
+            ]);
+        }
+        if (is_array($options['tools'] ?? null)) {
+            $options['tools'] = array_map(function (mixed $tool): mixed {
+                if (! is_array($tool)) {
+                    return $tool;
+                }
+
+                $tool['inputSchema'] = $this->normalizeInputSchema($tool['inputSchema'] ?? null);
+
+                return $tool;
+            }, $options['tools']);
+        }
 
         $result = $this->driver($provider)->message(
             $apiKey,
@@ -108,5 +126,88 @@ class AiService
         $result['provider'] = $provider->value;
 
         return $result;
+    }
+
+    /** @param array<string, mixed> $capabilities */
+    private function supportsTools(
+        IntegrationAiProviderEnum $provider,
+        string $model,
+        array $capabilities,
+    ): bool {
+        $configured = $capabilities['tools'] ?? null;
+        if (is_bool($configured)) {
+            return $configured;
+        }
+
+        return $provider === IntegrationAiProviderEnum::ANTHROPIC
+            || ($provider === IntegrationAiProviderEnum::GEMINI
+                && str_starts_with(strtolower($model), 'gemini-'));
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeInputSchema(mixed $schema): array
+    {
+        if (! is_array($schema) || $schema === []) {
+            return ['type' => 'object', 'properties' => new \stdClass];
+        }
+
+        $schema['type'] = 'object';
+        $schema['properties'] = $this->normalizeSchemaMap($schema['properties'] ?? null);
+        $normalized = $this->normalizeSchemaNode($schema);
+
+        return is_array($normalized) ? $normalized : ['type' => 'object', 'properties' => new \stdClass];
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>|\stdClass
+     */
+    private function normalizeSchemaNode(array $schema): array|\stdClass
+    {
+        if ($schema === []) {
+            return new \stdClass;
+        }
+
+        if (array_key_exists('properties', $schema)) {
+            $schema['properties'] = $this->normalizeSchemaMap($schema['properties']);
+        }
+        foreach (['allOf', 'anyOf', 'oneOf', 'prefixItems'] as $keyword) {
+            if (is_array($schema[$keyword] ?? null)) {
+                $schema[$keyword] = array_map(
+                    fn (mixed $child): mixed => $this->normalizeUnknownSchema($child),
+                    $schema[$keyword],
+                );
+            }
+        }
+        foreach (['items', 'additionalProperties', 'unevaluatedProperties', 'contains', 'not', 'if', 'then', 'else', 'propertyNames'] as $keyword) {
+            if (is_array($schema[$keyword] ?? null)) {
+                $schema[$keyword] = $this->normalizeUnknownSchema($schema[$keyword]);
+            }
+        }
+
+        return $schema;
+    }
+
+    /** @return array<string, mixed>|\stdClass */
+    private function normalizeSchemaMap(mixed $schemas): array|\stdClass
+    {
+        if (! is_array($schemas) || $schemas === []) {
+            return new \stdClass;
+        }
+
+        return array_map(
+            fn (mixed $schema): mixed => $this->normalizeUnknownSchema($schema),
+            $schemas,
+        );
+    }
+
+    private function normalizeUnknownSchema(mixed $schema): mixed
+    {
+        if (! is_array($schema)) {
+            return $schema;
+        }
+
+        /** @var array<string, mixed> $schema */
+        return $this->normalizeSchemaNode($schema);
     }
 }

@@ -8,6 +8,7 @@ export type ChannelSuggestion = {
     scope: string;
     team_name: string | null;
     destination: string;
+    can_manage: boolean;
 };
 let cachedChannelSuggestions: ChannelSuggestion[] | null = null;
 let channelSuggestionsRequest: Promise<ChannelSuggestion[]> | null = null;

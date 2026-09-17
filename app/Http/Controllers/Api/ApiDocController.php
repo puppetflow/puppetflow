@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Contracts\BrandingProvider;
 use App\Http\Controllers\Controller;
+use App\Services\FeatureFlags\FeatureFlagService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -30,7 +31,7 @@ class ApiDocController extends Controller
             'openapi' => '3.0.3',
             'info' => [
                 'title' => app(BrandingProvider::class)->current()['name'].' API',
-                'description' => 'Manage Data Tables and users, trigger flows, list runs, fetch results, and download artifacts. Authenticate with a Bearer API key generated from your profile.',
+                'description' => 'Manage Data Tables, the Media Library and users, trigger flows, list runs, fetch results, and download artifacts. Authenticate with a Bearer API key generated from your profile.',
                 'version' => '1.0.0',
             ],
             'servers' => [
@@ -49,6 +50,21 @@ class ApiDocController extends Controller
                         'type' => 'object',
                         'properties' => [
                             'error' => ['type' => 'string'],
+                            'message' => ['type' => 'string'],
+                            'errors' => [
+                                'type' => 'object',
+                                'additionalProperties' => [
+                                    'type' => 'array',
+                                    'items' => ['type' => 'string'],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'MessageResponse' => [
+                        'type' => 'object',
+                        'required' => ['message'],
+                        'properties' => [
+                            'message' => ['type' => 'string'],
                         ],
                     ],
                     'TriggerResponse' => [
@@ -439,6 +455,7 @@ class ApiDocController extends Controller
                     ],
                     ...$this->workspaceMemberSchemas(),
                     ...$this->dataTableSchemas(),
+                    ...$this->mediaSchemas(),
                 ],
                 'parameters' => [
                     'id' => [
@@ -459,7 +476,7 @@ class ApiDocController extends Controller
                         'name' => 'workspace',
                         'in' => 'path',
                         'required' => true,
-                        'description' => 'Workspace ID or lookup key where supported, including workspace detail and Data Table endpoints.',
+                        'description' => 'Workspace ID or lookup key where supported, including workspace detail, Data Table and Media endpoints.',
                         'schema' => ['type' => 'string'],
                     ],
                     'user' => [
@@ -484,6 +501,7 @@ class ApiDocController extends Controller
                         'schema' => ['type' => 'string'],
                     ],
                     ...$this->dataTableParameters(),
+                    ...$this->mediaParameters(),
                 ],
             ],
             'security' => [
@@ -938,6 +956,7 @@ class ApiDocController extends Controller
                     ],
                 ],
                 ...$this->dataTablePaths(),
+                ...$this->mediaPaths(),
                 '/flows' => [
                     'get' => [
                         'tags' => ['Flows'],
@@ -1089,7 +1108,7 @@ class ApiDocController extends Controller
                     'post' => [
                         'tags' => ['Flows'],
                         'summary' => 'Trigger a flow',
-                        'description' => 'Dispatches a new run for the given flow and returns immediately. Pass optional JSON input in the request body. Poll `GET /runs/{run_id}` to check completion.',
+                        'description' => 'Dispatches a new run for the given flow and returns immediately. Pass optional JSON input in the request body. Resource references such as `${mediaAssets.media_A1b2C3d4E5f6}` resolve with the flow actor’s permissions at run time. Poll `GET /runs/{run_id}` to check completion.',
                         'operationId' => 'triggerFlow',
                         'parameters' => [
                             ['$ref' => '#/components/parameters/id'],
@@ -1101,7 +1120,10 @@ class ApiDocController extends Controller
                                     'schema' => [
                                         'type' => 'object',
                                         'additionalProperties' => true,
-                                        'example' => ['key' => 'value'],
+                                        'example' => [
+                                            'key' => 'value',
+                                            'uploadMedia' => '${mediaAssets.media_A1b2C3d4E5f6}',
+                                        ],
                                     ],
                                 ],
                             ],
@@ -1420,10 +1442,10 @@ class ApiDocController extends Controller
         $workspace = ['$ref' => '#/components/parameters/workspace'];
         $member = ['$ref' => '#/components/parameters/member'];
         $errors = [
-            '401' => $this->dataTableJsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
-            '403' => $this->dataTableJsonResponse('Forbidden.', '#/components/schemas/Error'),
-            '404' => $this->dataTableJsonResponse('Workspace or member not found.', '#/components/schemas/Error'),
-            '422' => $this->dataTableJsonResponse('Validation failed.', '#/components/schemas/Error'),
+            '401' => $this->jsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
+            '403' => $this->jsonResponse('Forbidden.', '#/components/schemas/Error'),
+            '404' => $this->jsonResponse('Workspace or member not found.', '#/components/schemas/Error'),
+            '422' => $this->jsonResponse('Validation failed.', '#/components/schemas/Error'),
         ];
         $membershipPayload = [
             'type' => 'object',
@@ -1436,9 +1458,9 @@ class ApiDocController extends Controller
             'tags' => ['Members'],
             'summary' => 'Update a workspace member',
             'description' => 'Updates the member role within this workspace.',
-            'requestBody' => $this->dataTableRequestBodySchema($membershipPayload),
+            'requestBody' => $this->jsonRequestBodySchema($membershipPayload),
             'responses' => [
-                '200' => $this->dataTableJsonResponse('Updated workspace member.', '#/components/schemas/WorkspaceMember'),
+                '200' => $this->jsonResponse('Updated workspace member.', '#/components/schemas/WorkspaceMember'),
                 ...$errors,
             ],
         ];
@@ -1455,7 +1477,7 @@ class ApiDocController extends Controller
                         ['name' => 'limit', 'in' => 'query', 'schema' => ['type' => 'integer', 'default' => 50, 'maximum' => 100]],
                     ],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Workspace members.', null, [
+                        '200' => $this->jsonResponse('Workspace members.', null, [
                             'type' => 'array',
                             'items' => ['$ref' => '#/components/schemas/WorkspaceMember'],
                         ]),
@@ -1468,7 +1490,7 @@ class ApiDocController extends Controller
                     'description' => 'Attaches an existing account or emails an invitation when the account does not exist.',
                     'operationId' => 'addWorkspaceMember',
                     'parameters' => [$workspace],
-                    'requestBody' => $this->dataTableRequestBodySchema([
+                    'requestBody' => $this->jsonRequestBodySchema([
                         'type' => 'object',
                         'required' => ['email', 'role'],
                         'properties' => [
@@ -1477,8 +1499,8 @@ class ApiDocController extends Controller
                         ],
                     ]),
                     'responses' => [
-                        '201' => $this->dataTableJsonResponse('Existing account attached.', '#/components/schemas/WorkspaceMember'),
-                        '202' => $this->dataTableJsonResponse('Invitation sent.', '#/components/schemas/WorkspaceInvitation'),
+                        '201' => $this->jsonResponse('Existing account attached.', '#/components/schemas/WorkspaceMember'),
+                        '202' => $this->jsonResponse('Invitation sent.', '#/components/schemas/WorkspaceInvitation'),
                         ...$errors,
                     ],
                 ],
@@ -1490,7 +1512,7 @@ class ApiDocController extends Controller
                     'operationId' => 'getWorkspaceMember',
                     'parameters' => [$workspace, $member],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Workspace member.', '#/components/schemas/WorkspaceMember'),
+                        '200' => $this->jsonResponse('Workspace member.', '#/components/schemas/WorkspaceMember'),
                         ...$errors,
                     ],
                 ],
@@ -1502,7 +1524,7 @@ class ApiDocController extends Controller
                     'operationId' => 'removeWorkspaceMember',
                     'parameters' => [$workspace, $member],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Workspace member removed.'),
+                        '200' => $this->jsonResponse('Workspace member removed.'),
                         ...$errors,
                     ],
                 ],
@@ -1692,18 +1714,18 @@ class ApiDocController extends Controller
         $column = ['$ref' => '#/components/parameters/dataTableColumn'];
         $row = ['$ref' => '#/components/parameters/dataTableRow'];
         $standardErrors = [
-            '401' => $this->dataTableJsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
-            '403' => $this->dataTableJsonResponse('The API key user cannot mutate this resource.', '#/components/schemas/Error'),
-            '404' => $this->dataTableJsonResponse('Workspace or Data Table resource not found.', '#/components/schemas/Error'),
-            '422' => $this->dataTableJsonResponse('Validation failed.', '#/components/schemas/Error'),
+            '401' => $this->jsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
+            '403' => $this->jsonResponse('The API key user cannot mutate this resource.', '#/components/schemas/Error'),
+            '404' => $this->jsonResponse('Workspace or Data Table resource not found.', '#/components/schemas/Error'),
+            '422' => $this->jsonResponse('Validation failed.', '#/components/schemas/Error'),
         ];
         $tableUpdate = [
             'tags' => ['Data Tables'],
             'summary' => 'Update a Data Table',
             'description' => 'Updates metadata, owner, team, or visibility. Omitted fields are unchanged.',
-            'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTablePayload'),
+            'requestBody' => $this->jsonRequestBody('#/components/schemas/DataTablePayload'),
             'responses' => [
-                '200' => $this->dataTableJsonResponse('Updated Data Table.', '#/components/schemas/DataTable'),
+                '200' => $this->jsonResponse('Updated Data Table.', '#/components/schemas/DataTable'),
                 ...$standardErrors,
             ],
         ];
@@ -1711,16 +1733,16 @@ class ApiDocController extends Controller
             'tags' => ['Data Tables'],
             'summary' => 'Update a Data Table column',
             'description' => 'Renames or repositions a column. Column types are immutable.',
-            'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTableColumnUpdatePayload'),
+            'requestBody' => $this->jsonRequestBody('#/components/schemas/DataTableColumnUpdatePayload'),
             'responses' => [
-                '200' => $this->dataTableJsonResponse('Updated column.', '#/components/schemas/DataTableColumn'),
+                '200' => $this->jsonResponse('Updated column.', '#/components/schemas/DataTableColumn'),
                 ...$standardErrors,
             ],
         ];
         $rowUpdate = [
             'tags' => ['Data Tables'],
             'summary' => 'Update a Data Table row',
-            'requestBody' => $this->dataTableRequestBodySchema([
+            'requestBody' => $this->jsonRequestBodySchema([
                 'type' => 'object',
                 'required' => ['values'],
                 'properties' => [
@@ -1728,7 +1750,7 @@ class ApiDocController extends Controller
                 ],
             ]),
             'responses' => [
-                '200' => $this->dataTableJsonResponse('Updated row.', '#/components/schemas/DataTableRow'),
+                '200' => $this->jsonResponse('Updated row.', '#/components/schemas/DataTableRow'),
                 ...$standardErrors,
             ],
         ];
@@ -1749,7 +1771,7 @@ class ApiDocController extends Controller
                         ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1]],
                     ],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Paginated Data Tables.', '#/components/schemas/DataTablesPage'),
+                        '200' => $this->jsonResponse('Paginated Data Tables.', '#/components/schemas/DataTablesPage'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1758,9 +1780,9 @@ class ApiDocController extends Controller
                     'summary' => 'Create a Data Table',
                     'operationId' => 'createDataTable',
                     'parameters' => [$workspace],
-                    'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTableCreatePayload'),
+                    'requestBody' => $this->jsonRequestBody('#/components/schemas/DataTableCreatePayload'),
                     'responses' => [
-                        '201' => $this->dataTableJsonResponse('Created Data Table.', '#/components/schemas/DataTable'),
+                        '201' => $this->jsonResponse('Created Data Table.', '#/components/schemas/DataTable'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1772,7 +1794,7 @@ class ApiDocController extends Controller
                     'operationId' => 'getDataTable',
                     'parameters' => [$table],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Data Table with its columns.', '#/components/schemas/DataTable'),
+                        '200' => $this->jsonResponse('Data Table with its columns.', '#/components/schemas/DataTable'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1784,7 +1806,7 @@ class ApiDocController extends Controller
                     'operationId' => 'deleteDataTable',
                     'parameters' => [$table],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Data Table deleted.'),
+                        '200' => $this->jsonResponse('Data Table deleted.'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1796,7 +1818,7 @@ class ApiDocController extends Controller
                     'operationId' => 'listDataTableColumns',
                     'parameters' => [$table],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Ordered columns.', null, [
+                        '200' => $this->jsonResponse('Ordered columns.', null, [
                             'type' => 'array',
                             'items' => ['$ref' => '#/components/schemas/DataTableColumn'],
                         ]),
@@ -1808,9 +1830,9 @@ class ApiDocController extends Controller
                     'summary' => 'Create a Data Table column',
                     'operationId' => 'createDataTableColumn',
                     'parameters' => [$table],
-                    'requestBody' => $this->dataTableRequestBody('#/components/schemas/DataTableColumnPayload'),
+                    'requestBody' => $this->jsonRequestBody('#/components/schemas/DataTableColumnPayload'),
                     'responses' => [
-                        '201' => $this->dataTableJsonResponse('Created column.', '#/components/schemas/DataTableColumn'),
+                        '201' => $this->jsonResponse('Created column.', '#/components/schemas/DataTableColumn'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1821,7 +1843,7 @@ class ApiDocController extends Controller
                     'summary' => 'Reorder all Data Table columns',
                     'operationId' => 'reorderDataTableColumns',
                     'parameters' => [$table],
-                    'requestBody' => $this->dataTableRequestBodySchema([
+                    'requestBody' => $this->jsonRequestBodySchema([
                         'type' => 'object',
                         'required' => ['ids'],
                         'properties' => [
@@ -1829,7 +1851,7 @@ class ApiDocController extends Controller
                         ],
                     ]),
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Reordered columns.', null, [
+                        '200' => $this->jsonResponse('Reordered columns.', null, [
                             'type' => 'array',
                             'items' => ['$ref' => '#/components/schemas/DataTableColumn'],
                         ]),
@@ -1844,7 +1866,7 @@ class ApiDocController extends Controller
                     'operationId' => 'getDataTableColumn',
                     'parameters' => [$table, $column],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Data Table column.', '#/components/schemas/DataTableColumn'),
+                        '200' => $this->jsonResponse('Data Table column.', '#/components/schemas/DataTableColumn'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1856,7 +1878,7 @@ class ApiDocController extends Controller
                     'operationId' => 'deleteDataTableColumn',
                     'parameters' => [$table, $column],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Column deleted.'),
+                        '200' => $this->jsonResponse('Column deleted.'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1877,7 +1899,7 @@ class ApiDocController extends Controller
                         ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1]],
                     ],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Paginated rows.', '#/components/schemas/DataTableRowsPage'),
+                        '200' => $this->jsonResponse('Paginated rows.', '#/components/schemas/DataTableRowsPage'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1888,7 +1910,7 @@ class ApiDocController extends Controller
                     'parameters' => [$table],
                     'requestBody' => $this->dataTableRowValuesRequestBody(),
                     'responses' => [
-                        '201' => $this->dataTableJsonResponse('Inserted row.', '#/components/schemas/DataTableRow'),
+                        '201' => $this->jsonResponse('Inserted row.', '#/components/schemas/DataTableRow'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1900,7 +1922,7 @@ class ApiDocController extends Controller
                     'parameters' => [$table],
                     'requestBody' => $this->dataTableFilteredMutationRequestBody(includeUpdateAll: true),
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Affected rows.', '#/components/schemas/DataTableAffectedRows'),
+                        '200' => $this->jsonResponse('Affected rows.', '#/components/schemas/DataTableAffectedRows'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1912,7 +1934,7 @@ class ApiDocController extends Controller
                     'parameters' => [$table],
                     'requestBody' => $this->dataTableFilteredMutationRequestBody(includeIds: true),
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Deleted rows.', '#/components/schemas/DataTableAffectedRows'),
+                        '200' => $this->jsonResponse('Deleted rows.', '#/components/schemas/DataTableAffectedRows'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1923,7 +1945,7 @@ class ApiDocController extends Controller
                     'summary' => 'Insert Data Table rows in bulk',
                     'operationId' => 'insertDataTableRowsBulk',
                     'parameters' => [$table],
-                    'requestBody' => $this->dataTableRequestBodySchema([
+                    'requestBody' => $this->jsonRequestBodySchema([
                         'type' => 'object',
                         'required' => ['rows'],
                         'properties' => [
@@ -1936,7 +1958,7 @@ class ApiDocController extends Controller
                         ],
                     ]),
                     'responses' => [
-                        '201' => $this->dataTableJsonResponse('Rows inserted.'),
+                        '201' => $this->jsonResponse('Rows inserted.'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1950,7 +1972,7 @@ class ApiDocController extends Controller
                     'parameters' => [$table],
                     'requestBody' => $this->dataTableFilteredMutationRequestBody(requireFilters: true),
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Affected rows.', '#/components/schemas/DataTableAffectedRows'),
+                        '200' => $this->jsonResponse('Affected rows.', '#/components/schemas/DataTableAffectedRows'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1962,7 +1984,7 @@ class ApiDocController extends Controller
                     'operationId' => 'getDataTableRow',
                     'parameters' => [$table, $row],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Data Table row.', '#/components/schemas/DataTableRow'),
+                        '200' => $this->jsonResponse('Data Table row.', '#/components/schemas/DataTableRow'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1974,7 +1996,7 @@ class ApiDocController extends Controller
                     'operationId' => 'deleteDataTableRow',
                     'parameters' => [$table, $row],
                     'responses' => [
-                        '200' => $this->dataTableJsonResponse('Row deleted.'),
+                        '200' => $this->jsonResponse('Row deleted.'),
                         ...$standardErrors,
                     ],
                 ],
@@ -1983,16 +2005,443 @@ class ApiDocController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function dataTableRequestBody(string $schemaRef): array
+    private function mediaSchemas(): array
     {
-        return $this->dataTableRequestBodySchema(['$ref' => $schemaRef]);
+        $maxUploadBytes = config()->integer('puppetflow.media.max_upload_bytes', 50 * 1024 * 1024);
+        $maxUploadMb = (int) ceil($maxUploadBytes / 1024 / 1024);
+        $maxUploadFiles = config()->integer('puppetflow.media.max_upload_files');
+        $visibility = [
+            'type' => 'string',
+            'enum' => app(FeatureFlagService::class)->allowedScopes(),
+            'description' => 'Access scope. The enum only contains scopes enabled for this instance.',
+        ];
+        $page = fn (string $ref): array => [
+            'type' => 'object',
+            'properties' => [
+                'current_page' => ['type' => 'integer'],
+                'data' => ['type' => 'array', 'items' => ['$ref' => $ref]],
+                'per_page' => ['type' => 'integer'],
+                'total' => ['type' => 'integer'],
+                'last_page' => ['type' => 'integer'],
+            ],
+        ];
+
+        return [
+            'Media' => [
+                'type' => 'object',
+                'required' => ['id', 'workspace_id', 'user_id', 'name', 'original_filename', 'mime_type', 'size_bytes', 'visibility', 'download_url'],
+                'properties' => [
+                    'id' => ['type' => 'string', 'example' => 'media_k8Zt3xQ9mA2f'],
+                    'workspace_id' => ['type' => 'string'],
+                    'user_id' => ['type' => 'string'],
+                    'user_name' => ['type' => 'string', 'nullable' => true],
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'team_name' => ['type' => 'string', 'nullable' => true],
+                    'folder_id' => ['type' => 'string', 'nullable' => true],
+                    'name' => ['type' => 'string'],
+                    'original_filename' => ['type' => 'string'],
+                    'extension' => ['type' => 'string', 'nullable' => true],
+                    'mime_type' => ['type' => 'string', 'example' => 'image/png'],
+                    'size_bytes' => ['type' => 'integer', 'description' => 'Stored file size counted against the instance storage quota.'],
+                    'visibility' => $visibility,
+                    'description' => ['type' => 'string', 'nullable' => true],
+                    'alt_text' => ['type' => 'string', 'nullable' => true],
+                    'tags' => [
+                        'type' => 'array',
+                        'description' => 'Unique labels attached to the media item. The Media Library reuses these values as tag suggestions.',
+                        'items' => ['type' => 'string'],
+                        'example' => ['invoice', 'approved'],
+                    ],
+                    'thumbnail_url' => ['type' => 'string', 'format' => 'uri', 'nullable' => true, 'description' => 'Authenticated image preview or generated video frame endpoint.'],
+                    'download_url' => ['type' => 'string', 'format' => 'uri', 'description' => 'Authenticated API download endpoint.'],
+                    'can_manage' => ['type' => 'boolean'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                ],
+            ],
+            'MediaUploadPayload' => [
+                'type' => 'object',
+                'required' => ['files'],
+                'description' => 'Multipart body. Use folder_id alone for a folder target, or team_id / visibility / user_id for a scope root. Defaults to your personal root.',
+                'properties' => [
+                    'files' => [
+                        'type' => 'array',
+                        'minItems' => 1,
+                        'maxItems' => $maxUploadFiles,
+                        'description' => "One to {$maxUploadFiles} files, up to {$maxUploadMb} MB per file.",
+                        'items' => ['type' => 'string', 'format' => 'binary'],
+                    ],
+                    'folder_id' => ['type' => 'string', 'nullable' => true],
+                    'visibility' => $visibility,
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'user_id' => ['type' => 'string'],
+                ],
+            ],
+            'MediaUpdatePayload' => [
+                'type' => 'object',
+                'description' => 'Omitted fields are unchanged. Use folder_id alone for a folder move, or visibility / team_id / user_id for a scope-root move. Scope and ownership changes require the corresponding rights.',
+                'properties' => [
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                    'description' => ['type' => 'string', 'maxLength' => 5000, 'nullable' => true],
+                    'alt_text' => ['type' => 'string', 'maxLength' => 500, 'nullable' => true],
+                    'tags' => [
+                        'type' => 'array',
+                        'description' => 'Replaces the complete tag list. Values must be unique, with at most 50 tags.',
+                        'maxItems' => 50,
+                        'uniqueItems' => true,
+                        'items' => ['type' => 'string', 'maxLength' => 100],
+                    ],
+                    'visibility' => $visibility,
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'user_id' => ['type' => 'string'],
+                    'folder_id' => ['type' => 'string', 'nullable' => true],
+                ],
+            ],
+            'MediaTextContent' => [
+                'type' => 'object',
+                'required' => ['content'],
+                'properties' => [
+                    'content' => ['type' => 'string', 'description' => 'Complete UTF-8 content of a recognized text, source code, or structured data media file.'],
+                ],
+            ],
+            'MediaBatchDeletePayload' => [
+                'type' => 'object',
+                'anyOf' => [
+                    ['required' => ['ids']],
+                    ['required' => ['folder_ids']],
+                ],
+                'properties' => [
+                    'ids' => ['type' => 'array', 'minItems' => 1, 'maxItems' => 200, 'items' => ['type' => 'string']],
+                    'folder_ids' => ['type' => 'array', 'minItems' => 1, 'maxItems' => 200, 'items' => ['type' => 'string']],
+                ],
+            ],
+            'MediaPage' => $page('#/components/schemas/Media'),
+            'MediaFolder' => [
+                'type' => 'object',
+                'required' => ['id', 'workspace_id', 'user_id', 'name', 'visibility'],
+                'properties' => [
+                    'id' => ['type' => 'string', 'example' => 'mfld_k8Zt3xQ9mA2f'],
+                    'workspace_id' => ['type' => 'string'],
+                    'user_id' => ['type' => 'string'],
+                    'user_name' => ['type' => 'string', 'nullable' => true],
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'team_name' => ['type' => 'string', 'nullable' => true],
+                    'parent_id' => ['type' => 'string', 'nullable' => true],
+                    'name' => ['type' => 'string'],
+                    'visibility' => $visibility,
+                    'sort_order' => ['type' => 'integer'],
+                    'children_count' => ['type' => 'integer'],
+                    'assets_count' => ['type' => 'integer'],
+                    'can_manage' => ['type' => 'boolean'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                ],
+            ],
+            'MediaFolderCreatePayload' => [
+                'type' => 'object',
+                'required' => ['name'],
+                'description' => 'Use parent_id alone for a parent folder, or team_id / visibility / user_id for a scope root. Defaults to your personal root.',
+                'properties' => [
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                    'parent_id' => ['type' => 'string', 'nullable' => true],
+                    'visibility' => $visibility,
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'user_id' => ['type' => 'string'],
+                ],
+            ],
+            'MediaFolderUpdatePayload' => [
+                'type' => 'object',
+                'description' => 'Omitted fields are unchanged. Use parent_id to move under a folder, or visibility / team_id / user_id to move to a scope root and re-assign its content. These location forms cannot be combined.',
+                'properties' => [
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                    'sort_order' => ['type' => 'integer', 'minimum' => 0],
+                    'parent_id' => ['type' => 'string', 'nullable' => true],
+                    'visibility' => $visibility,
+                    'team_id' => ['type' => 'string', 'nullable' => true],
+                    'user_id' => ['type' => 'string'],
+                ],
+            ],
+            'MediaFoldersPage' => $page('#/components/schemas/MediaFolder'),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mediaParameters(): array
+    {
+        return [
+            'media' => [
+                'name' => 'media',
+                'in' => 'path',
+                'required' => true,
+                'description' => 'Media ID.',
+                'schema' => ['type' => 'string'],
+            ],
+            'mediaFolder' => [
+                'name' => 'folder',
+                'in' => 'path',
+                'required' => true,
+                'description' => 'Media folder ID.',
+                'schema' => ['type' => 'string'],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mediaPaths(): array
+    {
+        $workspace = ['$ref' => '#/components/parameters/workspace'];
+        $media = ['$ref' => '#/components/parameters/media'];
+        $folder = ['$ref' => '#/components/parameters/mediaFolder'];
+        $visibilityQuery = [
+            'name' => 'visibility',
+            'in' => 'query',
+            'schema' => [
+                'type' => 'string',
+                'enum' => app(FeatureFlagService::class)->allowedScopes(),
+            ],
+        ];
+        $pagination = [
+            ['name' => 'per_page', 'in' => 'query', 'schema' => ['type' => 'integer', 'default' => 50, 'maximum' => 100]],
+            ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1]],
+        ];
+        $standardErrors = [
+            '401' => $this->jsonResponse('API key missing or invalid.', '#/components/schemas/Error'),
+            '403' => $this->jsonResponse('The API key user cannot mutate this resource.', '#/components/schemas/Error'),
+            '404' => $this->jsonResponse('Workspace, media or folder not found.', '#/components/schemas/Error'),
+            '422' => $this->jsonResponse('Validation failed.', '#/components/schemas/Error'),
+        ];
+        $mediaUpdate = [
+            'tags' => ['Media Library'],
+            'summary' => 'Update a media',
+            'description' => 'Updates metadata, including the complete tag list, and optionally changes the owner, visibility, team or folder.',
+            'requestBody' => $this->jsonRequestBody('#/components/schemas/MediaUpdatePayload'),
+            'responses' => [
+                '200' => $this->jsonResponse('Updated media.', '#/components/schemas/Media'),
+                ...$standardErrors,
+            ],
+        ];
+        $folderUpdate = [
+            'tags' => ['Media Library'],
+            'summary' => 'Update a media folder',
+            'description' => 'Renames, reorders or moves a folder.',
+            'requestBody' => $this->jsonRequestBody('#/components/schemas/MediaFolderUpdatePayload'),
+            'responses' => [
+                '200' => $this->jsonResponse('Updated folder.', '#/components/schemas/MediaFolder'),
+                ...$standardErrors,
+            ],
+        ];
+
+        return [
+            '/workspaces/{workspace}/media' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'List media',
+                    'description' => 'Returns visible media in a workspace. Pass an empty folder_id to list the roots only.',
+                    'operationId' => 'listMedia',
+                    'parameters' => [
+                        $workspace,
+                        ['name' => 'search', 'in' => 'query', 'description' => 'Matches the name or original file name.', 'schema' => ['type' => 'string']],
+                        ['name' => 'folder_id', 'in' => 'query', 'schema' => ['type' => 'string', 'nullable' => true]],
+                        $visibilityQuery,
+                        ['name' => 'team_id', 'in' => 'query', 'schema' => ['type' => 'string']],
+                        ['name' => 'mime_type', 'in' => 'query', 'description' => 'Prefix match, e.g. image/ or application/pdf.', 'schema' => ['type' => 'string']],
+                        ['name' => 'tag', 'in' => 'query', 'description' => 'Exact tag match.', 'schema' => ['type' => 'string', 'maxLength' => 100]],
+                        ...$pagination,
+                    ],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Paginated media.', '#/components/schemas/MediaPage'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'post' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Upload media',
+                    'description' => 'Uploads files in one multipart request through the API server, up to the configured batch limit. Every file is rolled back when one upload fails. The web application may instead use direct presigned uploads when S3 or R2 is configured. Returned `media_*` IDs can be used as `${mediaAssets.media_*}` flow-input references or passed directly to `$upload(selector, mediaId)`.',
+                    'operationId' => 'uploadMedia',
+                    'parameters' => [$workspace],
+                    'requestBody' => [
+                        'required' => true,
+                        'content' => ['multipart/form-data' => ['schema' => ['$ref' => '#/components/schemas/MediaUploadPayload']]],
+                    ],
+                    'responses' => [
+                        '201' => $this->jsonResponse('Created media.', null, [
+                            'type' => 'object',
+                            'properties' => ['media' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Media']]],
+                        ]),
+                        '413' => ['description' => 'The multipart request exceeds the configured ingress limit. The proxy may return a plain or HTML error body.'],
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/workspaces/{workspace}/media/batch-delete' => [
+                'post' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Delete several media and folders',
+                    'operationId' => 'batchDeleteMedia',
+                    'parameters' => [$workspace],
+                    'requestBody' => $this->jsonRequestBody('#/components/schemas/MediaBatchDeletePayload'),
+                    'responses' => [
+                        '200' => $this->jsonResponse('Number of deleted items.', null, [
+                            'type' => 'object',
+                            'properties' => ['deleted' => ['type' => 'integer']],
+                        ]),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/media/{media}' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Get a media',
+                    'operationId' => 'getMedia',
+                    'parameters' => [$media],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Media.', '#/components/schemas/Media'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => ['operationId' => 'updateMedia', 'parameters' => [$media], ...$mediaUpdate],
+                'delete' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Delete a media',
+                    'operationId' => 'deleteMedia',
+                    'parameters' => [$media],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Media deleted.', '#/components/schemas/MessageResponse'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/media/{media}/content' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Get text media content',
+                    'description' => 'Returns the complete UTF-8 content of a recognized text, source code, or structured data media file, including JSON, YAML, TOML, and XML.',
+                    'operationId' => 'getMediaTextContent',
+                    'parameters' => [$media],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Text media content.', '#/components/schemas/MediaTextContent'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Update text media content',
+                    'description' => 'Atomically replaces a recognized UTF-8 text, source code, or structured data media file while preserving its Media Library ID, storage quota accounting, and configured local or remote storage.',
+                    'operationId' => 'updateMediaTextContent',
+                    'parameters' => [$media],
+                    'requestBody' => $this->jsonRequestBody('#/components/schemas/MediaTextContent'),
+                    'responses' => [
+                        '200' => $this->jsonResponse('Updated media.', '#/components/schemas/Media'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/media/{media}/download' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Download a media file',
+                    'description' => 'Streams the binary as an attachment. Pass inline=1 to get a Content-Disposition: inline response for browser-safe types (415 otherwise).',
+                    'operationId' => 'downloadMedia',
+                    'parameters' => [
+                        $media,
+                        ['name' => 'inline', 'in' => 'query', 'schema' => ['type' => 'boolean', 'default' => false]],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'File content.',
+                            'content' => ['*/*' => ['schema' => ['type' => 'string', 'format' => 'binary']]],
+                        ],
+                        '415' => $this->jsonResponse('The file type cannot be previewed inline.', '#/components/schemas/Error'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/media/{media}/thumbnail' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Download a video thumbnail',
+                    'description' => 'Streams the generated JPEG frame for a video. Returns 404 when no frame could be generated.',
+                    'operationId' => 'downloadMediaThumbnail',
+                    'parameters' => [$media],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'JPEG thumbnail.',
+                            'content' => ['image/jpeg' => ['schema' => ['type' => 'string', 'format' => 'binary']]],
+                        ],
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/workspaces/{workspace}/media-folders' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'List media folders',
+                    'description' => 'Returns visible folders in a workspace. Pass an empty parent_id to list the roots only.',
+                    'operationId' => 'listMediaFolders',
+                    'parameters' => [
+                        $workspace,
+                        ['name' => 'search', 'in' => 'query', 'schema' => ['type' => 'string']],
+                        ['name' => 'parent_id', 'in' => 'query', 'schema' => ['type' => 'string', 'nullable' => true]],
+                        $visibilityQuery,
+                        ['name' => 'team_id', 'in' => 'query', 'schema' => ['type' => 'string']],
+                        ...$pagination,
+                    ],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Paginated folders.', '#/components/schemas/MediaFoldersPage'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'post' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Create a media folder',
+                    'operationId' => 'createMediaFolder',
+                    'parameters' => [$workspace],
+                    'requestBody' => $this->jsonRequestBody('#/components/schemas/MediaFolderCreatePayload'),
+                    'responses' => [
+                        '201' => $this->jsonResponse('Created folder.', '#/components/schemas/MediaFolder'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+            '/media-folders/{folder}' => [
+                'get' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Get a media folder',
+                    'operationId' => 'getMediaFolder',
+                    'parameters' => [$folder],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Media folder.', '#/components/schemas/MediaFolder'),
+                        ...$standardErrors,
+                    ],
+                ],
+                'patch' => ['operationId' => 'updateMediaFolder', 'parameters' => [$folder], ...$folderUpdate],
+                'delete' => [
+                    'tags' => ['Media Library'],
+                    'summary' => 'Delete a media folder',
+                    'description' => 'Deletes the folder with its sub-folders and files.',
+                    'operationId' => 'deleteMediaFolder',
+                    'parameters' => [$folder],
+                    'responses' => [
+                        '200' => $this->jsonResponse('Folder deleted.', '#/components/schemas/MessageResponse'),
+                        ...$standardErrors,
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function jsonRequestBody(string $schemaRef): array
+    {
+        return $this->jsonRequestBodySchema(['$ref' => $schemaRef]);
     }
 
     /**
      * @param  array<string, mixed>  $schema
      * @return array{required: true, content: array{'application/json': array{schema: array<string, mixed>}}}
      */
-    private function dataTableRequestBodySchema(array $schema): array
+    private function jsonRequestBodySchema(array $schema): array
     {
         return [
             'required' => true,
@@ -2005,7 +2454,7 @@ class ApiDocController extends Controller
     /** @return array<string, mixed> */
     private function dataTableRowValuesRequestBody(): array
     {
-        return $this->dataTableRequestBodySchema([
+        return $this->jsonRequestBodySchema([
             'type' => 'object',
             'required' => ['values'],
             'properties' => [
@@ -2044,7 +2493,7 @@ class ApiDocController extends Controller
             unset($properties['values']);
         }
 
-        return $this->dataTableRequestBodySchema([
+        return $this->jsonRequestBodySchema([
             'type' => 'object',
             'required' => $requireFilters ? ['filters', 'values'] : ($includeIds ? [] : ['values']),
             'properties' => $properties,
@@ -2055,7 +2504,7 @@ class ApiDocController extends Controller
      * @param  array<string, mixed>|null  $schema
      * @return array<string, mixed>
      */
-    private function dataTableJsonResponse(
+    private function jsonResponse(
         string $description,
         ?string $schemaRef = null,
         ?array $schema = null,

@@ -49,6 +49,7 @@ export default function FlowCard({
         event.dataTransfer.setData('application/x-drag-id', String(flow.id));
         event.dataTransfer.setData('application/x-drag-visibility', flow.visibility);
         event.dataTransfer.setData('application/x-drag-team-id', flow.team_id === null ? '' : String(flow.team_id));
+        event.dataTransfer.setData('application/x-drag-owner-id', flow.owner_id === null ? '' : String(flow.owner_id));
         event.dataTransfer.effectAllowed = 'move';
     };
 

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import AvatarSelectionToggle from '@/Shared/UI/AvatarSelectionToggle/AvatarSelectionToggle';
 import TableCellContent from '@/Shared/UI/TableCellContent/TableCellContent';
-import type { UserVariable } from '@/Domains/Variable/types';
+import { MCP_CREDENTIALS_UI, type UserVariable } from '@/Domains/Variable/types';
 import ProviderBadge from '@/Domains/Variable/Pages/VariableTable/components/ProviderBadge/ProviderBadge';
 import VariableValue from '@/Domains/Variable/Pages/VariableTable/components/VariableValue/VariableValue';
 import * as S from './styled';
@@ -59,8 +59,13 @@ export default function VariableRow({
                                     label={`${selected ? 'Deselect' : 'Select'} ${variable.key}`}
                                     size={24}
                                 >
-                                    <S.VariableIcon>
-                                        <Icon icon={variable.type === 'secret' ? 'lucide:key-round' : 'lucide:braces'} width={13} />
+                                    <S.VariableIcon $type={variable.type}>
+                                        <Icon
+                                            icon={variable.type === 'mcp_credentials'
+                                                ? MCP_CREDENTIALS_UI.icon
+                                                : variable.type === 'secret' ? 'lucide:key-round' : 'lucide:braces'}
+                                            width={13}
+                                        />
                                     </S.VariableIcon>
                                 </AvatarSelectionToggle>
                             )}

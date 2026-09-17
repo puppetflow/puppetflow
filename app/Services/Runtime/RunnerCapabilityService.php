@@ -21,11 +21,15 @@ class RunnerCapabilityService
 
     public const SCOPE_AI_EXECUTE = 'ai.execute';
 
+    public const SCOPE_MCP_TOOLS = 'mcp.tools';
+
     public const SCOPE_DATA_TABLE_READ = 'data-table.read';
 
     public const SCOPE_DATA_TABLE_WRITE = 'data-table.write';
 
     public const SCOPE_DATA_TABLE_SCHEMA = 'data-table.schema';
+
+    public const SCOPE_MEDIA_READ = 'media.read';
 
     public const SCOPE_WAITING_DECLARE = 'waiting.declare';
 
@@ -120,7 +124,9 @@ class RunnerCapabilityService
             return null;
         }
 
-        $run = FlowRun::query()->find((int) $claims['run_id']);
+        $run = FlowRun::query()
+            ->select(['id', 'flow_id', 'triggered_by', 'status'])
+            ->find((int) $claims['run_id']);
 
         return $run instanceof FlowRun ? ['run' => $run, 'claims' => $claims] : null;
     }

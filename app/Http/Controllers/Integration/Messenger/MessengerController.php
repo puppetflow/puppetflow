@@ -59,10 +59,7 @@ class MessengerController extends Controller
             $this->ensureCategory($integration, IntegrationCategoryEnum::MESSENGER);
 
             if (! empty($validated['config'])) {
-                $integration->config = array_merge(
-                    $integration->config ?? [],
-                    $validated['config'],
-                );
+                $integration->config = $integration->mergeConfigPreservingBlank($validated['config']);
             }
         } else {
             $providerValue = $validated['provider'] ?? null;

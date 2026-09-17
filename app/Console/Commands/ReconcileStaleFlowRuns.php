@@ -23,9 +23,9 @@ class ReconcileStaleFlowRuns extends Command
         $recovered = 0;
 
         FlowRun::query()
+            ->select('id')
             ->where('status', 'running')
             ->whereNotNull('running_at')
-            ->with(['flow.workspace'])
             ->orderBy('running_at')
             ->orderBy('id')
             ->limit($chunk)

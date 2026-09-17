@@ -1,4 +1,4 @@
-import type { FolderTree } from '@/Domains/Folder/types';
+import type { ExplorerFolderTree as FolderTree } from '@/Shared/Explorer/types';
 
 export function insertIntoTree(
     tree: FolderTree[],

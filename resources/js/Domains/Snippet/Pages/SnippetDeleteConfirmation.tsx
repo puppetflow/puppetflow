@@ -59,7 +59,7 @@ export default function SnippetDeleteConfirmation({ label, id, usages }: Props) 
                     <UsageList
                         items={snippetUsages}
                         getKey={usage => usage.id!}
-                        renderIcon={() => <>•</>}
+                        renderIcon={() => <>-</>}
                         renderLabel={usage => `${usage.label} ($$${usage.id})`}
                         variant="inline"
                     />

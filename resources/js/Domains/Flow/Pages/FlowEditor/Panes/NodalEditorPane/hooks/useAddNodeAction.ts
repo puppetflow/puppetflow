@@ -2,10 +2,12 @@ import type React from 'react';
 import { useCallback } from 'react';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import {
+    AI_TOOL_PORT,
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
     FUNCTION_DECLARATION_NODE_NAME,
     getNodeOutputPorts,
+    getNodePortDefinition,
     SYSTEM_NODE_ENTRIES,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
@@ -189,19 +191,32 @@ export function useAddNodeAction({
                 ? pendingConnectionTarget.fromPort
                 : newNodeOutputPort;
             const targetPort = pendingConnectionTarget.fromSide === 'output'
-                ? DEFAULT_INPUT_PORT
+                ? (pendingConnectionTarget.fromPort === AI_TOOL_PORT ? AI_TOOL_PORT : DEFAULT_INPUT_PORT)
                 : pendingConnectionTarget.fromPort;
-            preparedEdges = connectEdgeWithStructuredJoins(
-                [...nodes, newNode],
-                edges,
-                {
+            const sourceNode = sourceNodeId === newNodeId ? newNode : connectionNode;
+            const targetNode = targetNodeId === newNodeId ? newNode : connectionNode;
+            const sourceDefinition = sourceNode
+                ? getNodePortDefinition(sourceNode.entry.name, sourceNode.entry, sourcePort, 'output')
+                : undefined;
+            const targetDefinition = targetNode
+                ? getNodePortDefinition(targetNode.entry.name, targetNode.entry, targetPort, 'input')
+                : undefined;
+            if (
+                !sourceDefinition
+                || !targetDefinition
+                || (sourceDefinition.connectionType ?? 'flow') !== (targetDefinition.connectionType ?? 'flow')
+            ) return;
+            const connection = {
                     id: `${sourceNodeId}:${sourcePort}->${targetNodeId}:${targetPort}`,
                     sourceNodeId,
                     targetNodeId,
                     sourcePort,
                     targetPort,
-                },
-            );
+                    connectionType: sourceDefinition.connectionType ?? 'flow',
+            } satisfies CanvasEdge;
+            preparedEdges = sourceDefinition.connectionType === 'ai_tool'
+                ? [...edges, connection]
+                : connectEdgeWithStructuredJoins([...nodes, newNode], edges, connection);
         }
         if ((pendingEdgeInsertion || pendingConnectionTarget) && preparedEdges === edges) return;
 

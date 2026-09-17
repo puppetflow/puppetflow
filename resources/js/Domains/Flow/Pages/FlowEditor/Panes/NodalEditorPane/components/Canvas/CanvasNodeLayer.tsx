@@ -11,6 +11,8 @@ import {
     collectDeclaredStopwatchNamesFromGraph,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import { CODE_NODE_NAME, CODE_NODE_VALUE_KEY } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import { useEditableResourceDisplays } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/referenceDisplays';
+import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 import type {
     CanvasEdge,
     CanvasNode,
@@ -76,6 +78,8 @@ export default function CanvasNodeLayer({
     onUpdateStickyNote,
     onRun,
 }: CanvasNodeLayerProps) {
+    const quickRequirement = useQuickRequirementCreation();
+    const resourceReferences = useEditableResourceDisplays(quickRequirement.available);
     const selectionPreviewNodeIds = useMemo(() => {
         if (!selectionBox) return new Set<string>();
 
@@ -153,6 +157,7 @@ export default function CanvasNodeLayer({
                     runError={runProgress?.errorNodeId === node.id}
                     readOnly={readOnly}
                     openMenu={openNodeMenuId === node.id}
+                    resourceReferences={resourceReferences}
                     onPointerDown={onNodePointerDown}
                     onDoubleClick={onNodeDoubleClick}
                     onPortPointerDown={onPortPointerDown}
@@ -160,6 +165,7 @@ export default function CanvasNodeLayer({
                     onToggleDeactivation={node => onToggleNodeDeactivation([node.id])}
                     onDelete={onDeleteNodes}
                     onToggleMenu={onToggleNodeMenu}
+                    onEditResource={quickRequirement.edit}
                     onRun={onRun}
                 />
             ))}

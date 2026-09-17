@@ -16,17 +16,16 @@ const $generateResponse = function(responseStatus, responseMessage, responseData
     console.log(responseMessage);
   }
   console.debug('========================================');
-  const { $context, ...inputData } = $json;
   const _resp = {
     "status": responseStatus,
     "message": responseMessage,
     ..._outputData,
     ...responseData,
   };
-  _resp.$context = $context;
+  _resp.$context = __runContext;
   const _envTrue = (v) => v === '1' || v === 'true';
   if (_envTrue(process.env.INCLUDE_INPUT_IN_OUTPUT)) {
-    _resp.$input = inputData;
+    _resp.$input = __runInput;
   }
   return _resp;
 };

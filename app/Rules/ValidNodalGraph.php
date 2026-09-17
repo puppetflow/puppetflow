@@ -70,6 +70,7 @@ class ValidNodalGraph implements ValidationRule
 
         $catalog = collect(app(NodalCatalogService::class)->entries($this->context))->keyBy('name');
         $nodeIds = [];
+        $nodeNames = [];
         $nodeLabels = [];
         $nodeScopes = [];
         $nodeSticky = [];
@@ -105,6 +106,7 @@ class ValidNodalGraph implements ValidationRule
                 return;
             }
             $nodeIds[$id] = true;
+            $nodeNames[$id] = $name;
             $nodeLabels[$id] = $nodeLabel;
             $deactivated = $node['deactivated'] ?? false;
             if (array_key_exists('deactivated', $node) && ! is_bool($node['deactivated'])) {
@@ -267,6 +269,9 @@ class ValidNodalGraph implements ValidationRule
                     is_array($catalogEntry['flowParameters'] ?? null) ? $catalogEntry['flowParameters'] : [],
                     fn (mixed $definition): bool => is_array($definition) && ($definition['required'] ?? false),
                 ));
+                if ($name === '$mcpClientTool') {
+                    $nodeOutputPorts[$id] = ['ai_tool'];
+                }
             } elseif (! $isSticky) {
                 $nodeOutputPorts[$id] = ['output'];
             }
@@ -377,6 +382,7 @@ class ValidNodalGraph implements ValidationRule
         $edgeIds = [];
         $connectedOutputPorts = [];
         $adjacency = [];
+        $auxiliaryTargets = [];
         foreach ($edges as $index => $edge) {
             if (! is_array($edge)) {
                 $fail("The nodal graph edge at index {$index} must be an object.");
@@ -414,6 +420,31 @@ class ValidNodalGraph implements ValidationRule
                 }
             }
             $sourcePort = $edge['sourcePort'] ?? 'output';
+            $targetPort = $edge['targetPort'] ?? 'input';
+            $connectionType = $edge['connectionType'] ?? (
+                $sourcePort === 'ai_tool' || $targetPort === 'ai_tool' ? 'ai_tool' : 'flow'
+            );
+            if (! in_array($connectionType, ['flow', 'ai_tool'], true)) {
+                $fail("The connection from {$sourceLabel} to {$targetLabel} has an invalid type.");
+
+                return;
+            }
+            if ($connectionType === 'ai_tool') {
+                if (
+                    $sourcePort !== 'ai_tool'
+                    || $targetPort !== 'ai_tool'
+                    || ($nodeNames[$source] ?? null) !== '$mcpClientTool'
+                    || ! in_array($nodeNames[$target] ?? null, ['$aiMessage', '$aiControl'], true)
+                ) {
+                    $fail("The tool connection from {$sourceLabel} to {$targetLabel} is incompatible.");
+
+                    return;
+                }
+                $auxiliaryTargets[$source][] = $target;
+                $connectedOutputPorts[$source][$sourcePort] = true;
+
+                continue;
+            }
             if (
                 ($this->strictStructure || str_starts_with($sourcePort, 'flow-'))
                 && isset($nodeOutputPorts[$source])
@@ -479,6 +510,13 @@ class ValidNodalGraph implements ValidationRule
                     continue;
                 }
                 $scope = is_string($nodeScopes[$nodeId] ?? null) ? $nodeScopes[$nodeId] : '';
+                if (($nodeNames[$nodeId] ?? null) === '$mcpClientTool') {
+                    $connectedToReachableAgent = collect($auxiliaryTargets[$nodeId] ?? [])
+                        ->contains(fn (string $targetId): bool => isset($reachableByScope[$scope][$targetId]));
+                    if ($connectedToReachableAgent) {
+                        continue;
+                    }
+                }
                 if (! isset($reachableByScope[$scope][$nodeId])) {
                     $fail("The {$nodeLabels[$nodeId]} node is not connected to its graph entry.");
 

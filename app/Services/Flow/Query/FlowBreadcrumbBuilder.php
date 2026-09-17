@@ -4,9 +4,12 @@ namespace App\Services\Flow\Query;
 
 use App\Models\Flow;
 use App\Models\Folder;
+use App\Services\Explorer\BreadcrumbChainBuilder;
 
 final class FlowBreadcrumbBuilder
 {
+    public function __construct(private readonly BreadcrumbChainBuilder $chains) {}
+
     /** @return list<array<string, mixed>> */
     public function folders(?Folder $folder): array
     {
@@ -16,21 +19,14 @@ final class FlowBreadcrumbBuilder
     /** @return list<array<string, mixed>> */
     private function folderChain(?Folder $folder): array
     {
-        $breadcrumbs = [];
-        $current = $folder;
-        while ($current) {
-            array_unshift($breadcrumbs, [
-                'id' => $current->id,
-                'name' => $current->name,
-                'team_id' => $current->team_id,
-                'is_shared' => (bool) $current->is_shared,
-                'parent_id' => $current->parent_id,
-                'owner_id' => $current->owner_id,
-            ]);
-            $current = $current->parent;
-        }
-
-        return $breadcrumbs;
+        return $this->chains->chain($folder, static fn (Folder $current): array => [
+            'id' => $current->id,
+            'name' => $current->name,
+            'team_id' => $current->team_id,
+            'is_shared' => (bool) $current->is_shared,
+            'parent_id' => $current->parent_id,
+            'owner_id' => $current->owner_id,
+        ]);
     }
 
     /** @return list<array<string, mixed>> */

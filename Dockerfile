@@ -24,6 +24,11 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-enable redis
 
 COPY --from=composer/composer:2-bin /composer /usr/local/bin/composer
+COPY docker/php.ini /usr/local/etc/php/conf.d/puppetflow.ini
+# Entrypoints recalculate the request limit as 20 files plus one MiB of multipart headroom.
+ENV APP_MEMORY_LIMIT=512M \
+    MEDIA_MAX_UPLOAD_BYTES=52428800 \
+    MEDIA_MAX_REQUEST_BYTES=1049624576
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -96,8 +101,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Configure nginx for non-root operation
 RUN rm -f /etc/nginx/sites-enabled/default && \
     sed -i '/^user /d' /etc/nginx/nginx.conf && \
-    sed -i 's|pid /run/nginx.pid|pid /tmp/nginx.pid|' /etc/nginx/nginx.conf
-COPY docker/nginx.conf /etc/nginx/conf.d/puppetflow.conf
+    sed -i 's|pid /run/nginx.pid|pid /tmp/nginx.pid|' /etc/nginx/nginx.conf && \
+    sed -i 's|include /etc/nginx/conf.d/\*.conf;|include /tmp/nginx/*.conf;|' /etc/nginx/nginx.conf
+COPY docker/nginx.conf /etc/nginx/templates/puppetflow.conf.template
 
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/php-fpm-pool.conf /usr/local/etc/php-fpm.d/zzz-puppetflow.conf

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\FeatureFlags\RunCycleService;
+use App\Services\Media\MediaUploadTransport;
 use App\Services\Storage\UploadStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
         $featureFlags = app(FeatureFlagService::class);
         $branding = app(BrandingProvider::class);
+        $mediaUploads = app(MediaUploadTransport::class);
 
         return [
             ...parent::share($request),
@@ -103,6 +105,12 @@ class HandleInertiaRequests extends Middleware
                 'grabber_firefox_store_url' => config('puppetflow.grabber_firefox_store_url', ''),
                 'documentation_url' => config('puppetflow.documentation_url', 'https://docs.puppetflow.com'),
                 'queues_counter' => config('puppetflow.queues_counter', 1),
+                'media_upload' => [
+                    'transport' => $mediaUploads->current(),
+                    'checksum_algorithm' => $mediaUploads->checksumAlgorithm(),
+                    'max_file_bytes' => config()->integer('puppetflow.media.max_upload_bytes'),
+                    'max_files' => config()->integer('puppetflow.media.max_upload_files'),
+                ],
                 ...$featureFlags->frontendSettings(),
             ],
             'workspace_quota' => function () use ($user, $featureFlags) {

@@ -118,6 +118,16 @@ final class FlowRunProductionService
         try {
             DB::transaction(function () use ($run): void {
                 $persistedRun = FlowRun::query()
+                    ->select([
+                        'id',
+                        'flow_id',
+                        'trigger_type',
+                        'status',
+                        'action_logs',
+                        'code_snapshot',
+                        'running_at',
+                        'manual_run_score_audit',
+                    ])
                     ->whereKey($run->getKey())
                     ->lockForUpdate()
                     ->first();

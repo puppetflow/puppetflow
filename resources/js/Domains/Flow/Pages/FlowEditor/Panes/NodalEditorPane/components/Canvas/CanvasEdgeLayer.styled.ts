@@ -11,11 +11,12 @@ export const EdgeLayer = styled.svg`
     z-index: 1;
 `;
 
-export const EdgePath = styled.path<{ $active?: boolean; $runPassed?: boolean }>`
+export const EdgePath = styled.path<{ $active?: boolean; $runPassed?: boolean; $tool?: boolean }>`
     fill: none;
     stroke: ${({ $active, $runPassed, theme }) => ($active || $runPassed) ? '#22c55e' : theme.colors.border.light};
     stroke-width: ${({ $active, $runPassed }) => ($active || $runPassed) ? 4 : 2};
     stroke-linecap: round;
+    stroke-dasharray: ${({ $tool }) => $tool ? '6 5' : 'none'};
     filter: ${({ $active, $runPassed }) => ($active || $runPassed) ? 'drop-shadow(0 0 6px rgba(34, 197, 94, 0.45))' : 'none'};
     transition:
         stroke ${({ theme }) => theme.transition.fast},

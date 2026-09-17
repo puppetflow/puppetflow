@@ -21,6 +21,10 @@ export interface NodalSelectOption {
     value: string;
     label: string;
     detail?: string;
+    icon?: string;
+    iconColor?: string;
+    /** Image rendered instead of the icon (thumbnails). */
+    iconUrl?: string | null;
 }
 
 export interface NodalParamDef {
@@ -29,10 +33,10 @@ export interface NodalParamDef {
     picker?: 'selector';
     placeholder?: string;
     defaultValue?: string;
-    valueType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'function' | 'code' | 'flow' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns';
+    valueType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'function' | 'code' | 'flow' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns' | 'media';
     required?: boolean;
     validationRequired?: boolean;
-    input?: 'text' | 'textarea' | 'code' | 'select' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'logged-marker-condition' | 'boolean' | 'number' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'tab-name' | 'stopwatch-name' | 'sniff-profile' | 'cookie-jar' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns';
+    input?: 'text' | 'textarea' | 'code' | 'select' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'logged-marker-condition' | 'boolean' | 'number' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'tab-name' | 'stopwatch-name' | 'sniff-profile' | 'cookie-profile' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns' | 'media';
     options?: NodalSelectOption[];
     objectFields?: Record<string, NodalParamDef>;
     requiredOneOf?: string[][];
@@ -112,7 +116,7 @@ export interface FlowEditorProps {
 export const DEFAULT_CODE = `// Puppeteer flow code
 // Available helpers: $gotoUrl, $gotoTab, $fillInput, $screenshot, $clickElement, etc.
 
-async function run($page, $input) {
+async function run($page, $input, $context, $client) {
     await $gotoUrl('https://example.com', 'Default');
     await $screenshot('initial');
     await $waitHumanValidation();
@@ -127,11 +131,11 @@ async function run($page, $input) {
     });
 }
 
-async function terminate($page, $input, $output) {
+async function terminate($page, $input, $output, $context, $client) {
     // Always executed after run(), even on error
     // $output.status is 'success' or 'error'
     // $output is the full output object (includes $output() keys and $generateResponse data)
-    // $page is the Puppeteer page, when still available
+    // $context holds the run metadata (run_id, flow_id, meta); $page is the Puppeteer page, when still available
 }
 `;
 

@@ -3,11 +3,12 @@ import type { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { registerAiModelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/aiModelSuggestions';
 import { registerChannelCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/channelSuggestions';
-import { registerCookieJarCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
+import { registerCookieProfileCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/cookieJarSuggestions';
 import { registerDataTableCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
 import { registerCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/monacoBase';
 import { registerInputCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/inputCompletions';
 import { registerMailboxWatcherCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
+import { registerMediaAssetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/mediaAssetSuggestions';
 import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import { registerSnippetCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
 import { registerSniffProfileCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/sniffProfileSuggestions';
@@ -38,6 +39,7 @@ export function useMonacoCompletions({
         aiModel?: Disposable;
         channel?: Disposable;
         dataTable?: Disposable;
+        media?: Disposable;
         vars?: Disposable;
         watcher?: Disposable;
         input?: Disposable;
@@ -45,7 +47,7 @@ export function useMonacoCompletions({
         tabName?: Disposable;
         stopwatchName?: Disposable;
         sniffProfile?: Disposable;
-        cookieJar?: Disposable;
+        cookieProfile?: Disposable;
         referenceLabels?: Disposable;
     }>({});
 
@@ -68,6 +70,7 @@ export function useMonacoCompletions({
         disposablesRef.current.aiModel?.dispose();
         disposablesRef.current.channel?.dispose();
         disposablesRef.current.dataTable?.dispose();
+        disposablesRef.current.media?.dispose();
         disposablesRef.current.vars?.dispose();
         disposablesRef.current.watcher?.dispose();
         disposablesRef.current.input?.dispose();
@@ -75,11 +78,12 @@ export function useMonacoCompletions({
         disposablesRef.current.tabName?.dispose();
         disposablesRef.current.stopwatchName?.dispose();
         disposablesRef.current.sniffProfile?.dispose();
-        disposablesRef.current.cookieJar?.dispose();
+        disposablesRef.current.cookieProfile?.dispose();
         disposablesRef.current.referenceLabels?.dispose();
         disposablesRef.current.aiModel = registerAiModelCompletions(monaco, modelUri);
         disposablesRef.current.channel = registerChannelCompletions(monaco, modelUri);
         disposablesRef.current.dataTable = registerDataTableCompletions(monaco, flowId, modelUri);
+        disposablesRef.current.media = registerMediaAssetCompletions(monaco, modelUri);
         disposablesRef.current.vars = registerVarsCompletions(monaco, modelUri);
         disposablesRef.current.watcher = registerMailboxWatcherCompletions(monaco, flowId, modelUri);
         disposablesRef.current.input = registerInputCompletions(monaco, defaultInputs, modelUri);
@@ -87,7 +91,7 @@ export function useMonacoCompletions({
         disposablesRef.current.tabName = registerTabNameCompletions(monaco, modelUri);
         disposablesRef.current.stopwatchName = registerStopwatchNameCompletions(monaco, modelUri);
         disposablesRef.current.sniffProfile = registerSniffProfileCompletions(monaco, modelUri);
-        disposablesRef.current.cookieJar = registerCookieJarCompletions(monaco, modelUri);
+        disposablesRef.current.cookieProfile = registerCookieProfileCompletions(monaco, modelUri);
         disposablesRef.current.referenceLabels = registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
 
         editorInstance.addCommand(

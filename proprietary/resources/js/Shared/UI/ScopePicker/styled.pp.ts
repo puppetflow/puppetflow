@@ -75,11 +75,11 @@ export const TriggerArrow = styled.span<{ $open?: boolean }>`
     transform: ${({ $open }) => $open ? 'rotate(180deg)' : 'none'};
 `;
 
-export const Panel = styled.div`
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
+export const Panel = styled.div<{ $portaled?: boolean }>`
+    position: ${({ $portaled }) => $portaled ? 'fixed' : 'absolute'};
+    top: ${({ $portaled }) => $portaled ? 'auto' : 'calc(100% + 4px)'};
+    left: ${({ $portaled }) => $portaled ? 'auto' : '0'};
+    right: ${({ $portaled }) => $portaled ? 'auto' : '0'};
     display: flex;
     flex-direction: column;
     gap: 4px;

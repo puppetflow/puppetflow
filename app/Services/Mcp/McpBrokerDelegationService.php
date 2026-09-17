@@ -39,17 +39,15 @@ class McpBrokerDelegationService
         $workspace = $this->eligibleWorkspaceQuery($user)->whereKey($workspaceId)->firstOrFail();
         $plainCode = 'mcp_ac_'.Str::random(64);
 
-        DB::transaction(function () use ($plainCode, $user, $workspace, $redirectUri, $codeChallenge): void {
-            McpBrokerAuthorizationCode::query()->where('expires_at', '<=', now())->delete();
-            McpBrokerAuthorizationCode::create([
-                'code_hash' => hash('sha256', $plainCode),
-                'user_id' => $user->id,
-                'workspace_id' => $workspace->id,
-                'redirect_uri' => $redirectUri,
-                'code_challenge' => $codeChallenge,
-                'expires_at' => now()->addSeconds(self::AUTHORIZATION_CODE_TTL_SECONDS),
-            ]);
-        });
+        McpBrokerAuthorizationCode::query()->where('expires_at', '<=', now())->delete();
+        McpBrokerAuthorizationCode::create([
+            'code_hash' => hash('sha256', $plainCode),
+            'user_id' => $user->id,
+            'workspace_id' => $workspace->id,
+            'redirect_uri' => $redirectUri,
+            'code_challenge' => $codeChallenge,
+            'expires_at' => now()->addSeconds(self::AUTHORIZATION_CODE_TTL_SECONDS),
+        ]);
 
         return $plainCode;
     }
@@ -58,10 +56,9 @@ class McpBrokerDelegationService
     public function exchange(string $plainCode, string $codeVerifier): ?array
     {
         $this->ensureAvailable();
+        McpBrokerAuthorizationCode::query()->where('expires_at', '<=', now())->delete();
 
         return DB::transaction(function () use ($plainCode, $codeVerifier): ?array {
-            McpBrokerAuthorizationCode::query()->where('expires_at', '<=', now())->delete();
-
             $authorization = McpBrokerAuthorizationCode::query()
                 ->where('code_hash', hash('sha256', $plainCode))
                 ->lockForUpdate()
@@ -120,23 +117,20 @@ class McpBrokerDelegationService
 
     public function revokeAccessToken(string $plainToken): bool
     {
-        return DB::transaction(function () use ($plainToken): bool {
-            $token = McpAccessToken::query()
-                ->where('token_hash', hash('sha256', $plainToken))
-                ->where('broker_created', true)
-                ->lockForUpdate()
-                ->first();
+        $token = McpAccessToken::query()
+            ->where('token_hash', hash('sha256', $plainToken))
+            ->where('broker_created', true)
+            ->first();
 
-            if (! $token) {
-                return false;
-            }
+        if (! $token) {
+            return false;
+        }
 
-            if ($token->revoked_at === null) {
-                $token->update(['revoked_at' => now()]);
-            }
+        if ($token->revoked_at === null) {
+            $token->update(['revoked_at' => now()]);
+        }
 
-            return true;
-        }, 3);
+        return true;
     }
 
     public function ensureAvailable(): void

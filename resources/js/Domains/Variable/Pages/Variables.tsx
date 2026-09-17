@@ -9,7 +9,7 @@ import Button from '@/Shared/UI/Button/Button';
 import BulkDeleteConfirmation from '@/Shared/UI/BulkDeleteConfirmation/BulkDeleteConfirmation';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import { useCurrentWorkspace } from '@/App/Hooks/usePageProps';
-import type { UserVariable } from '@/Domains/Variable/types';
+import { MCP_CREDENTIALS_UI, type UserVariable } from '@/Domains/Variable/types';
 import type { PaginatedData } from '@/Shared/Types/pagination';
 import type { Integration } from '@/Domains/Integration/types';
 import type { PageProps } from '@/App/types';
@@ -76,8 +76,17 @@ export default function Variables({ variables, editingVariable, groups, teams, f
                     items={selectedVariables.map(variable => ({
                         id: variable.id,
                         title: variable.key,
-                        subtitle: `${variable.type} - ${variable.scope}`,
-                        icon: <Icon icon={variable.type === 'secret' ? 'lucide:key-round' : 'lucide:braces'} width={22} height={22} />,
+                        subtitle: `${variable.type === 'mcp_credentials' ? MCP_CREDENTIALS_UI.label : variable.type} - ${variable.scope}`,
+                        icon: (
+                            <Icon
+                                icon={variable.type === 'mcp_credentials'
+                                    ? MCP_CREDENTIALS_UI.icon
+                                    : variable.type === 'secret' ? 'lucide:key-round' : 'lucide:braces'}
+                                width={22}
+                                height={22}
+                                style={variable.type === 'mcp_credentials' ? { color: MCP_CREDENTIALS_UI.color } : undefined}
+                            />
+                        ),
                     }))}
                 />
             ),

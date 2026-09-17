@@ -1,4 +1,5 @@
 import type { OnMount } from '@monaco-editor/react';
+import { MCP_CREDENTIALS_UI } from '@/Domains/Variable/types';
 import { DATA_TYPE_ICONS } from '@/Shared/Utils/dataTypeIcons';
 import { matchesCompletionModelUri, idCompletionItem, type CompletionModel, type CompletionPosition } from './completionCore';
 
@@ -10,11 +11,15 @@ export type VariableSuggestion = {
     team_name?: string | null;
     provider?: string | null;
     preview_value?: unknown;
+    can_manage?: boolean;
 };
 
 export function getVariableSuggestionIcon(variable: Pick<VariableSuggestion, 'type' | 'provider'>) {
     if (variable.provider === 'onepassword') {
         return { icon: 'simple-icons:1password', color: '#0572ec' };
+    }
+    if (variable.type === 'mcp_credentials') {
+        return { icon: MCP_CREDENTIALS_UI.icon, color: MCP_CREDENTIALS_UI.color };
     }
 
     const icon = variable.type === 'json' || variable.type === 'json_path'

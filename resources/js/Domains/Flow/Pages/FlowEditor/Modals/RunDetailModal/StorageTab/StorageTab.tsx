@@ -14,6 +14,7 @@ export default function StorageTab({ run }: StorageTabProps) {
         ['Recording', run.recording_size_bytes],
         ['Screenshots', run.screenshots_size_bytes],
         ['Downloads', run.downloads_size_bytes],
+        ['Network captures', run.sniff_bodies_size_bytes],
         ['Flow data', run.flow_data_size_bytes],
         ['Console logs', run.console_logs_size_bytes],
     ] as const;

@@ -97,6 +97,12 @@ final class RunMcpTools implements McpToolHandler
             $query->where('flow_id', $flow->id);
         }
         $this->search->applyFilters($query, $filters);
+        if (! empty($arguments['include_logs'])) {
+            $query->addSelect(['console_logs', 'action_logs']);
+        }
+        if (! empty($arguments['include_code'])) {
+            $query->addSelect('code_snapshot');
+        }
         $runs = $query->limit($limit)->get();
         $this->prepareRuns($runs, $arguments);
 
@@ -112,6 +118,12 @@ final class RunMcpTools implements McpToolHandler
         $query = $this->search->visibleRunsQuery($context->user, $context->workspace->id)->where('flow_id', $flow->id);
         if (! empty($arguments['status'])) {
             $query->where('status', $arguments['status']);
+        }
+        if (! empty($arguments['include_logs'])) {
+            $query->addSelect(['console_logs', 'action_logs']);
+        }
+        if (! empty($arguments['include_code'])) {
+            $query->addSelect('code_snapshot');
         }
         $runs = $query->limit(max(1, min(McpToolArguments::integer($arguments, 'limit', 20), 100)))->get();
         $this->prepareRuns($runs, $arguments);

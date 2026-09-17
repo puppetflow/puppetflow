@@ -4,6 +4,8 @@ import { Icon } from '@/Shared/UI/Icon/Icon';
 import { useClickOutside } from '@/Shared/Hooks/useClickOutside';
 import { getVisibilityMeta } from '@/Shared/Utils/visibility';
 import QuickCreateVariableModal from '@/Domains/Variable/Pages/VariableFormModal/QuickCreateVariableModal';
+import { MCP_CREDENTIALS_UI } from '@/Domains/Variable/types';
+import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 import {
     getVariableSuggestionIcon,
     type VariableSuggestion,
@@ -11,11 +13,17 @@ import {
 import type { VariableSuggestionsState } from '../hooks/useVariableSuggestions';
 import * as S from './styled';
 
+function variableTypeLabel(type: string): string {
+    return type === 'mcp_credentials' ? MCP_CREDENTIALS_UI.label : type;
+}
+
 interface VariableValueSelectProps {
     value: string;
     readOnly: boolean;
     variableSuggestions: VariableSuggestionsState;
     onOpen?: () => void;
+    createLabel?: string;
+    onCreate?: () => void;
     onChange: (value: string) => void;
 }
 
@@ -43,8 +51,11 @@ export default function VariableValueSelect({
     readOnly,
     variableSuggestions,
     onOpen,
+    createLabel = 'Add variable',
+    onCreate,
     onChange,
 }: VariableValueSelectProps) {
+    const quickRequirementCreation = useQuickRequirementCreation();
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -149,7 +160,7 @@ export default function VariableValueSelect({
         setOpen(true);
         updateDropdownPosition(trigger);
         setSearch('');
-        if (suggestions.length === 0) refresh();
+        refresh();
     };
 
     const selectVariable = (nextValue: string) => {
@@ -243,11 +254,12 @@ export default function VariableValueSelect({
                             type="button"
                             onClick={() => {
                                 close();
-                                setQuickCreateOpen(true);
+                                if (onCreate) onCreate();
+                                else setQuickCreateOpen(true);
                             }}
                         >
                             <Icon icon="lucide:plus" width={13} height={13} />
-                            Add variable
+                            {createLabel}
                         </S.CreateButton>
                         {value && (
                             <S.ClearButton
@@ -269,25 +281,44 @@ export default function VariableValueSelect({
                         ) : filteredSuggestions.length > 0 ? filteredSuggestions.map(variable => {
                             const visibility = getVisibilityMeta(variable.scope, variable.team_name);
                             return (
-                                <S.Item
+                                <S.ItemRow
                                     key={variable.id}
-                                    type="button"
                                     $active={String(variable.id) === value}
-                                    onClick={() => selectVariable(String(variable.id))}
+                                    $editable={Boolean(variable.can_manage)}
                                 >
-                                    <S.ItemMain>
-                                        <VariableTypeIcon variable={variable} />
-                                        <strong>{variable.key}</strong>
-                                    </S.ItemMain>
-                                    <span>
-                                        {visibility && (
-                                            <Icon icon={visibility.icon} width={11} height={11} />
-                                        )}
-                                        {visibility
-                                            ? `${visibility.label} - ${variable.type}`
-                                            : variable.type}
-                                    </span>
-                                </S.Item>
+                                    <S.Item
+                                        type="button"
+                                        onClick={() => selectVariable(String(variable.id))}
+                                    >
+                                        <S.ItemMain>
+                                            <VariableTypeIcon variable={variable} />
+                                            <strong>{variable.key}</strong>
+                                        </S.ItemMain>
+                                        <S.ItemDetail data-item-detail>
+                                            {visibility && (
+                                                <Icon icon={visibility.icon} width={11} height={11} />
+                                            )}
+                                            {visibility
+                                                ? `${visibility.label} - ${variableTypeLabel(variable.type)}`
+                                                : variableTypeLabel(variable.type)}
+                                        </S.ItemDetail>
+                                    </S.Item>
+                                    {variable.can_manage && (
+                                        <S.ItemEdit
+                                            type="button"
+                                            title={`Edit ${variable.key}`}
+                                            aria-label={`Edit ${variable.key}`}
+                                            onClick={() => {
+                                                close();
+                                                void quickRequirementCreation.edit('variable', variable.id)
+                                                    .then(() => refreshSuggestions())
+                                                    .catch(() => undefined);
+                                            }}
+                                        >
+                                            <Icon icon="lucide:pencil" width={13} height={13} />
+                                        </S.ItemEdit>
+                                    )}
+                                </S.ItemRow>
                             );
                         }) : (
                             <S.Empty>No variable found.</S.Empty>
@@ -296,11 +327,13 @@ export default function VariableValueSelect({
                 </S.Panel>,
                 document.body,
             )}
-            <QuickCreateVariableModal
-                isOpen={quickCreateOpen}
-                onClose={() => setQuickCreateOpen(false)}
-                onCreated={handleVariableCreated}
-            />
+            {!onCreate && (
+                <QuickCreateVariableModal
+                    isOpen={quickCreateOpen}
+                    onClose={() => setQuickCreateOpen(false)}
+                    onCreated={handleVariableCreated}
+                />
+            )}
         </S.Wrapper>
     );
 }

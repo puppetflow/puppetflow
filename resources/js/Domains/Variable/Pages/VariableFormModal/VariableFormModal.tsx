@@ -6,6 +6,7 @@ import type { UserVariable } from '@/Domains/Variable/types';
 import OwnershipScope from './components/OwnershipScope/OwnershipScope';
 import TypeProviderSelection from './components/TypeProviderSelection/TypeProviderSelection';
 import ValueEditor from './components/ValueEditor/ValueEditor';
+import McpCredentialFields from './components/ValueEditor/McpCredentialFields';
 import GroupCombobox from './GroupCombobox';
 import type { ConfirmVariableAction } from './types';
 import { useVariableForm } from './useVariableForm';
@@ -54,15 +55,24 @@ export default function VariableFormModal({
                     editing={editing}
                     integrations={variableForm.vaultIntegrations}
                     isOpen={isOpen}
+                    mcpEnabled={variableForm.mcpEnabled}
                     onTypeChange={variableForm.handleTypeChange}
                     onVaultChange={variableForm.handleVaultChange}
                 />
-                <ValueEditor
-                    type={form.data.type}
-                    value={form.data.value}
-                    error={form.errors.value}
-                    onChange={value => form.setData('value', value)}
-                />
+                {form.data.type === 'mcp_credentials' ? (
+                    <McpCredentialFields
+                        data={form.data}
+                        errors={form.errors}
+                        onChange={(key, value) => form.setData(previous => ({ ...previous, [key]: value }))}
+                    />
+                ) : (
+                    <ValueEditor
+                        type={form.data.type}
+                        value={form.data.value}
+                        error={form.errors.value}
+                        onChange={value => form.setData('value', value)}
+                    />
+                )}
                 <GroupCombobox
                     value={form.data.group}
                     onChange={value => form.setData('group', value)}
@@ -81,9 +91,10 @@ export default function VariableFormModal({
                     onOwnerChange={variableForm.setOwnerId}
                     onOwnerRoleChange={variableForm.setTargetUserRole}
                 />
+                {form.errors.scope && <S.ErrorText>{form.errors.scope}</S.ErrorText>}
                 <S.Actions>
-                    <Button type="submit" disabled={form.processing}>
-                        {form.processing ? 'Saving...' : editing ? 'Update' : 'Create'}
+                    <Button type="submit" disabled={variableForm.submitting}>
+                        {variableForm.submitting ? 'Saving...' : editing ? 'Update' : 'Create'}
                     </Button>
                 </S.Actions>
             </S.ModalForm>

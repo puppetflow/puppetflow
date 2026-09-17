@@ -1,6 +1,6 @@
-# The Puppetflow Source Available License (PSAL) version 1.2
+# The Puppetflow Source Available License (PSAL) version 1.3
 
-Effective date: August 24, 2026
+Effective date: September 6, 2026
 
 Copyright (c) 2026-present Jessym Reziga (Puppetflow), sole proprietorship registered with the Lyon Trade and Companies Register under identification number 789 571 437.
 
@@ -30,7 +30,7 @@ Subject to the limitations below, you are hereby granted a non-exclusive, worldw
 
 "Internal business purposes" means operating the Software for your own organization, including making it available to your employees and contractors, but not providing it, or any service whose value derives in whole or substantial part from it, to third parties.
 
-Employees and contractors acting on the Customer's behalf may exercise these rights on the Customer's instances without a separate license, and acquire no independent rights of their own. Commercial scenarios involving clients, such as consulting, hosting, and resale, are governed by the Puppetflow Terms of Service.
+Employees and contractors acting on the Customer's behalf may exercise these rights on the Customer's instances without a separate license, and acquire no independent rights of their own. Commercial scenarios involving clients, such as consulting, hosting, and resale, are governed by the Commercial partners section below and the Puppetflow Terms of Service.
 
 ## Limitations
 
@@ -42,6 +42,16 @@ Unless an applicable Enterprise order or separate written agreement with Puppetf
 4. bypass, disable, tamper with, remove, or work around any license verification, entitlement enforcement, usage limit, or other technical restriction in the Software;
 5. remove, obscure, or alter any copyright, trademark, license, or attribution notices in the Software; or
 6. use the Software beyond the rights expressly granted in this license.
+
+## Commercial partners
+
+Any person or organization seeking to provide the Software to third parties as a hosted, managed, outsourcing, time-sharing, software-as-a-service, resale, white-label, or similar commercial offering is a prospective "Commercial Partner". This designation is descriptive only and grants no license, partnership, agency, endorsement, or other right.
+
+Before developing, marketing, selling, or making such an offering available, the prospective Commercial Partner must submit a written request to hello@puppetflow.com that identifies its legal name, registered address, billing contact, intended use, proposed commercial model, territories, customer types, and the public URL or planned presentation of the offering.
+
+Puppetflow may approve or reject the request in its sole discretion. No commercial hosting, resale, or similar right is granted unless Puppetflow gives prior written approval in an applicable Enterprise order or separate written agreement. Any approval is limited to the scope, term, instances, customers, territories, branding, fees, and other conditions expressly stated in that approval.
+
+Unless and until approval is granted, items 1 and 2 above remain fully applicable. An unapproved offering is unlicensed and constitutes a material breach. Approval does not permit distribution, sublicensing, trademark use, or any representation that Puppetflow operates or endorses the offering unless the written approval expressly permits it.
 
 Puppetflow and/or its licensors retain all right, title, and interest in and to the Software. You retain any rights you may hold in your original contributions to modifications or patches, but you receive no ownership rights in the underlying Software. To the extent a modification or patch is a derivative work of the Software, it may only be used, copied, modified, displayed, distributed, or otherwise exploited in accordance with this license or, where applicable, the Puppetflow Proprietary License. Nothing in this paragraph is intended to operate as an assignment of your independently owned intellectual property rights to Puppetflow.
 

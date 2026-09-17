@@ -65,7 +65,7 @@ export default function VariableDeleteConfirmation({ variableKey, usages }: Prop
             {variableUsages.length > 0 && (
                 <>
                     {'\n'}Referenced by {variableUsages.length} variable(s):{'\n'}
-                    {variableUsages.map(usage => `• ${usage.label}`).join('\n')}
+                    {variableUsages.map(usage => `- ${usage.label}`).join('\n')}
                 </>
             )}
             {'\n\n'}These references will break after deletion.

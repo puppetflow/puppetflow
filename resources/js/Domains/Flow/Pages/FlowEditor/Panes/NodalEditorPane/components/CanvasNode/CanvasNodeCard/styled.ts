@@ -17,10 +17,18 @@ export const CanvasNode = styled.div<{ $selected?: boolean; $invalid?: boolean }
     }
 `;
 
-export const NodeValidationBadge = styled.div`
+export const NodeBadgeStack = styled.div`
     position: absolute;
     top: -6px;
     right: calc(50% - 45px);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    z-index: 9;
+    pointer-events: auto;
+`;
+
+export const NodeValidationBadge = styled.div`
     width: 20px;
     height: 20px;
     display: inline-flex;
@@ -31,14 +39,11 @@ export const NodeValidationBadge = styled.div`
     color: white;
     background: #ef4444;
     box-shadow: 0 0 0 2px #ef444433, ${({ theme }) => theme.shadow.sm};
-    z-index: 9;
-    pointer-events: auto;
+    flex: 0 0 auto;
 `;
 
 export const NodeSiteBadge = styled.a`
-    position: absolute;
-    top: -6px;
-    right: calc(50% - 45px);
+    position: relative;
     width: 22px;
     height: 22px;
     display: inline-flex;
@@ -50,8 +55,7 @@ export const NodeSiteBadge = styled.a`
     color: ${({ theme }) => theme.colors.text.tertiary};
     background: ${({ theme }) => theme.colors.bg.secondary};
     box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.border.default}, ${({ theme }) => theme.shadow.sm};
-    z-index: 9;
-    pointer-events: auto;
+    flex: 0 0 auto;
     cursor: pointer;
 
     img {
@@ -64,10 +68,10 @@ export const NodeSiteBadge = styled.a`
     }
 `;
 
-export const NodeHoverActions = styled.div`
+export const NodeHoverActions = styled.div<{ $bottom?: boolean }>`
     position: absolute;
     left: 50%;
-    top: -22px;
+    ${({ $bottom }) => $bottom ? 'bottom: -22px;' : 'top: -22px;'}
     display: flex;
     align-items: center;
     gap: 2px;
@@ -242,11 +246,46 @@ export const NodeHint = styled.div`
     pointer-events: none;
 `;
 
-export const NodeHandle = styled.div<{ $right?: boolean; $side?: 'input' | 'output'; $index?: number; $count?: number }>`
+export const ToolHandleShape = styled.svg<{ $position?: 'left' | 'right' | 'top' | 'bottom' }>`
     position: absolute;
-    top: ${({ $index = 0, $count = 1 }) => 36 + ($index - ($count - 1) / 2) * 20}px;
-    ${({ $right, $side }) => ($right || $side === 'output' ? 'right: calc(50% - 44px);' : 'left: calc(50% - 44px);')}
-    transform: translateY(-50%);
+    inset: 0;
+    width: 16px;
+    height: 16px;
+    overflow: visible;
+    pointer-events: none;
+    transform: ${({ $position }) => $position === 'bottom' ? 'rotate(180deg)' : 'none'};
+
+    path {
+        fill: ${({ theme }) => theme.colors.bg.primary};
+        stroke: ${({ theme }) => theme.colors.border.light};
+        stroke-width: 1.5;
+        stroke-linejoin: round;
+        transition: fill ${({ theme }) => theme.transition.fast};
+    }
+`;
+
+export const NodeHandle = styled.div<{
+    $right?: boolean;
+    $side?: 'input' | 'output';
+    $position?: 'left' | 'right' | 'top' | 'bottom';
+    $tool?: boolean;
+    $index?: number;
+    $count?: number;
+}>`
+    position: absolute;
+    ${({ $position, $index = 0, $count = 1 }) => (
+        $position === 'top' || $position === 'bottom'
+            ? `top: ${$position === 'top' ? 0 : 72}px; left: ${50 + ($index - ($count - 1) / 2) * 20}%;`
+            : `top: ${36 + ($index - ($count - 1) / 2) * 20}px;`
+    )}
+    ${({ $position, $right, $side }) => (
+        $position === 'top' || $position === 'bottom'
+            ? ''
+            : ($right || $side === 'output' ? 'right: calc(50% - 44px);' : 'left: calc(50% - 44px);')
+    )}
+    transform: ${({ $position }) => (
+        $position === 'top' || $position === 'bottom' ? 'translate(-50%, -50%)' : 'translateY(-50%)'
+    )};
     width: 16px;
     height: 16px;
     border-radius: 50%;
@@ -257,17 +296,40 @@ export const NodeHandle = styled.div<{ $right?: boolean; $side?: 'input' | 'outp
     z-index: 2;
     transition: transform ${({ theme }) => theme.transition.fast}, background ${({ theme }) => theme.transition.fast};
 
+    ${({ $tool }) => $tool ? `
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: -8px;
+        }
+    ` : ''}
+
     &:hover {
-        transform: translateY(-50%) scale(1.25);
-        background: ${({ theme }) => theme.colors.text.tertiary};
+        transform: ${({ $position }) => (
+            $position === 'top' || $position === 'bottom'
+                ? 'translate(-50%, -50%) scale(1.25)'
+                : 'translateY(-50%) scale(1.25)'
+        )};
+        background: ${({ $tool, theme }) => $tool ? 'transparent' : theme.colors.text.tertiary};
+
+        ${ToolHandleShape} path {
+            fill: ${({ theme }) => theme.colors.text.tertiary};
+        }
     }
 `;
 
-export const NodeHandleLabel = styled.span`
+export const NodeHandleLabel = styled.span<{ $position?: 'left' | 'right' | 'top' | 'bottom' }>`
     position: absolute;
-    left: 20px;
-    top: 50%;
-    transform: translateY(-50%);
+    ${({ $position }) => ($position === 'top'
+        ? 'left: 20px; top: 50%; transform: translateY(-50%);'
+        : $position === 'bottom'
+            ? 'left: 20px; top: 50%; transform: translateY(-50%);'
+            : 'left: 20px; top: 50%; transform: translateY(-50%);')}
     padding: 2px 5px;
     border-radius: ${({ theme }) => theme.radius.sm};
     color: ${({ theme }) => theme.colors.text.tertiary};

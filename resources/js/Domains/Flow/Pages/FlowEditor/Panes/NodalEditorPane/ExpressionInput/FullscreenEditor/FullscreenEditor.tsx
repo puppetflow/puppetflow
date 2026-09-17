@@ -3,6 +3,7 @@ import { Icon } from '@/Shared/UI/Icon/Icon';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import DataInspector from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/DataInspector';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { RenderedExpression } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import ExpressionPreview from '../ExpressionPreview/ExpressionPreview';
 import { CODE_INPUT_EDITOR_OPTIONS, EXPRESSION_FULLSCREEN_EDITOR_OPTIONS, PLAIN_FIXED_INPUT_EDITOR_OPTIONS } from '../utils';
@@ -16,7 +17,7 @@ interface FullscreenEditorProps {
     autocompleteContext: NodalAutocompleteContext;
     theme: string;
     readOnly?: boolean;
-    renderedExpression: { ok: true; value: unknown } | { ok: false; error: string };
+    renderedExpression: RenderedExpression;
     onClose: () => void;
     onMount: OnMount;
     onChange: (value: string) => void;
@@ -123,7 +124,10 @@ export default function FullscreenEditor({
                                 <strong>Result</strong>
                                 <span>Rendered expression</span>
                             </S.ExpressionRenderHeader>
-                            <S.ExpressionRenderBody $error={!renderedExpression.ok}>
+                            <S.ExpressionRenderBody
+                                $error={!renderedExpression.ok && !renderedExpression.loading}
+                                $loading={!renderedExpression.ok && renderedExpression.loading}
+                            >
                                 {renderedExpression.ok ? (
                                     <ExpressionPreview value={renderedExpression.value} />
                                 ) : (

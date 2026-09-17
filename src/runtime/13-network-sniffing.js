@@ -99,10 +99,10 @@ const __networkSniffingTabName = function(page) {
     .find(([, candidate]) => candidate === page)?.[0] || null;
 };
 
+// Resolved secrets are redacted by the host on the process output, so the query string can be shown.
 const __networkSniffingLogUrl = function(value) {
   try {
     const url = new URL(value);
-    if (url.search) url.search = '?[redacted]';
     url.hash = '';
     return url.toString();
   } catch (_) {
@@ -196,6 +196,43 @@ const __networkSniffingResponsePayload = function(response, body) {
   };
 };
 
+const __networkSniffingPreviewBodies = new WeakMap();
+const __networkSniffingPreviewBody = function(body) {
+  return body && typeof body === 'object'
+    ? __networkSniffingPreviewBodies.get(body)
+    : undefined;
+};
+
+// Previews keep the run metadata small: the response body is spilled to a temporary file the
+// host imports into the database once the run ends, and preview serializers swap it for a
+// reference the UI hydrates on demand. Flow code keeps the full body.
+const __networkSniffingSpillDir = path.join(paths.tmp, 'sniff-bodies');
+const __networkSniffingSpillBody = function(payload) {
+  const body = payload?.response?.body;
+  if (!body || typeof body.content !== 'string' || __networkSniffingPreviewBodies.has(body)) return;
+
+  const previewBody = {
+    content: null,
+    contentJson: null,
+    encoding: body.encoding,
+    bytes: body.bytes,
+    truncated: body.truncated,
+    unavailable: body.unavailable,
+  };
+  const captureId = crypto.randomBytes(16).toString('hex');
+  const targetPath = path.join(__networkSniffingSpillDir, captureId + '.body');
+  try {
+    fs.mkdirSync(__networkSniffingSpillDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(targetPath + '.part', body.content, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(targetPath + '.part', targetPath);
+    previewBody.reference = { captureId, contentJsonAvailable: body.contentJson !== null };
+  } catch (_) {
+    try { fs.unlinkSync(targetPath + '.part'); } catch (_) {}
+    previewBody.unavailable = true;
+  }
+  __networkSniffingPreviewBodies.set(body, previewBody);
+};
+
 const __queueNetworkSniffingRecord = function(profile, record) {
   profile.queue = profile.queue
     .catch(() => {})
@@ -257,6 +294,27 @@ const __completeNetworkSniffingRecord = async function(profile, pageState, recor
     error: details.error || null,
     durationMs: Math.max(0, finishedAt - record.startedAt),
   });
+  // Once the limit is reached and the last matched request has completed, the profile stops itself.
+  if (
+    __networkSniffingLimitReached(profile)
+    && Array.from(profile.pages.values()).every(state => state.pending.size === 0)
+  ) {
+    __stopNetworkSniffingProfileInBackground(profile, 'limit');
+  }
+};
+
+const __networkSniffingLimitReached = function(profile) {
+  return profile.limit > 0 && profile.nextIndex >= profile.limit;
+};
+
+const __stopNetworkSniffingProfileInBackground = function(profile, reason) {
+  __stopNetworkSniffingProfile(profile.name, reason, true).catch(error => {
+    if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
+    console.error(
+      'Sniff Network ' + profile.name + ' ' + reason + ' cleanup failed:',
+      error && error.message ? error.message : error,
+    );
+  });
 };
 
 const __attachNetworkSniffingProfileToPage = async function(profile, page) {
@@ -286,11 +344,11 @@ const __attachNetworkSniffingProfileToPage = async function(profile, page) {
       const hasFilters = Object.values(profile.filters).some(Boolean);
       if (matchesFilters || profile.showUnfilteredInLogs) {
         console.log(
-          'Sniff Network ' + profile.name + ' ' + (hasFilters && matchesFilters ? ' (hit)' : '(miss)'),
+          'Sniff Network ' + profile.name + (hasFilters && matchesFilters ? ' (hit)' : ' (miss)'),
           __networkSniffingLogUrl(params.request.url),
         );
       }
-      if (!matchesFilters) return;
+      if (!matchesFilters || __networkSniffingLimitReached(profile)) return;
 
       let resolve;
       const completion = new Promise(done => { resolve = done; });
@@ -367,11 +425,17 @@ await __registerNamedPageInitializer(async page => {
   );
 });
 
+// Summaries of profiles that stopped on their own (limit, timeout), so a later $stopSniffing
+// returns the result instead of failing the flow.
+const __networkSniffingStoppedSummaries = new Map();
+
 const __stopNetworkSniffingProfile = async function(profileName, reason, suppressMissing = false) {
   const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$stopSniffing');
   const profile = __networkSniffingProfiles.get(normalizedName);
   if (!profile) {
     if (suppressMissing) return null;
+    const stopped = __networkSniffingStoppedSummaries.get(normalizedName);
+    if (stopped) return stopped;
     throw new Error('$stopSniffing: sniffing profile "' + normalizedName + '" is not active.');
   }
   if (profile.stopPromise) return profile.stopPromise;
@@ -399,8 +463,11 @@ const __stopNetworkSniffingProfile = async function(profileName, reason, suppres
       stoppedAt: Date.now(),
       draining: false,
     };
-    console.debug('Sniff Network ' + profile.name + ' stopped: ' + profile.captured + ' request(s)');
+    console.debug(
+      'Sniff Network ' + profile.name + ' stopped (' + reason + '): ' + profile.captured + ' request(s)',
+    );
     if (profile.firstError) throw profile.firstError;
+    __networkSniffingStoppedSummaries.set(profile.name, summary);
     return summary;
   })().finally(() => {
     if (__networkSniffingProfiles.get(profile.name) === profile) {
@@ -429,8 +496,8 @@ const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
  * @aliases capture network, monitor requests, inspect traffic
  * @desc Start a named asynchronous network capture. Matching request and response pairs are passed to options.sniffing in request arrival order while the main flow continues immediately.
  * @nodal-desc Capture matching browser requests and responses in a named profile while the main flow continues.
- * @nodal-output object { profile:string, timeout:number, maxBodyBytes:number, startedAt:number, captures:array<object> }
- * @opt timeout: 60000, showUnfilteredInLogs: false
+ * @nodal-output object { profile:string, timeout:number, limit:number, maxBodyBytes:number, startedAt:number, captures:array<object> }
+ * @opt timeout: 60000, limit: 0, showUnfilteredInLogs: false
  * @nodal-param profileName [sniff-profile]: Name of the sniffing profile to create. Defaults to Default.
  * @nodal-param filters [object]: Optional filters combined with AND logic.
  * @nodal-param filters.url [string]: Complete URL pattern. Use wildcards by default, or wrap the value in # characters for a regular expression.
@@ -442,6 +509,7 @@ const __stopAllNetworkSniffing = async function(reason = 'flow-ended') {
  * @nodal-param options [object]: Sniffing callback and lifetime options.
  * @nodal-param options.sniffing [flow]: Flow executed once for every captured pair. The payload contains request, response, error and durationMs. Response status and body details are grouped under response.status and response.body.
  * @nodal-param options.timeout [number]: Maximum capture lifetime in milliseconds. Defaults to 60000. Set to 0 to disable the timeout.
+ * @nodal-param options.limit [number]: Maximum number of matching requests to capture. Once reached, the profile stops after the pending responses complete. Defaults to 0 (unlimited).
  * @nodal-param options.showUnfilteredInLogs [boolean]: Log requests that do not match the filters. Defaults to false.
  */
 const $sniffNetwork = async function(profileName = 'Default', filters = {}, options = {}) {
@@ -463,11 +531,16 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
   if (!Number.isFinite(timeout) || timeout < 0) {
     throw new TypeError('$sniffNetwork: options.timeout must be a non-negative finite number.');
   }
+  const limit = options.limit === undefined || options.limit === null ? 0 : Number(options.limit);
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new TypeError('$sniffNetwork: options.limit must be a non-negative integer.');
+  }
 
   const profile = {
     name: normalizedName,
     filters: __normalizeNetworkSniffingFilters(filters),
     callback: options.sniffing || null,
+    limit,
     showUnfilteredInLogs: options.showUnfilteredInLogs === true,
     pages: new Map(),
     queue: Promise.resolve(),
@@ -480,6 +553,7 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
     timeoutHandle: null,
   };
   __networkSniffingProfiles.set(profile.name, profile);
+  __networkSniffingStoppedSummaries.delete(profile.name);
   try {
     await Promise.all(
       Array.from(__namedPages.values())
@@ -494,20 +568,16 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
   }
 
   if (timeout > 0) {
-    profile.timeoutHandle = setTimeout(() => {
-      __stopNetworkSniffingProfile(profile.name, 'timeout', true).catch(error => {
-        if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
-        console.error(
-          'Sniff Network ' + profile.name + ' timeout cleanup failed:',
-          error && error.message ? error.message : error,
-        );
-      });
-    }, timeout);
+    profile.timeoutHandle = setTimeout(
+      () => __stopNetworkSniffingProfileInBackground(profile, 'timeout'),
+      timeout,
+    );
   }
   console.debug('Sniff Network ' + profile.name + ' started');
   return {
     profile: profile.name,
     timeout,
+    limit,
     maxBodyBytes: __networkSniffingMaxBodyBytes,
     startedAt: profile.startedAt,
   };
@@ -519,22 +589,13 @@ const $sniffNetwork = async function(profileName = 'Default', filters = {}, opti
  * @desc Stop a named network capture, complete pending request records, drain its callback queue and return a summary.
  * @nodal-desc Stop and drain an active named network sniffing profile.
  * @nodal-output object { profile:string, reason:string, captured:number, startedAt:number, stoppedAt:number, draining:boolean }
- * @nodal-param profileName [sniff-profile]: Existing sniffing profile to stop. Defaults to Default.
+ * @nodal-param profileName [sniff-profile]: Existing sniffing profile to stop. Defaults to Default. A profile that already stopped by itself (limit or timeout) returns its summary instead of failing.
  */
 const $stopSniffing = async function(profileName = 'Default') {
   const normalizedName = __normalizeNetworkSniffingProfileName(profileName, '$stopSniffing');
-  if (__networkSniffingCallbackActive) {
-    const profile = __networkSniffingProfiles.get(normalizedName);
-    if (!profile) {
-      throw new Error('$stopSniffing: sniffing profile "' + normalizedName + '" is not active.');
-    }
-    void __stopNetworkSniffingProfile(normalizedName, 'manual').catch(error => {
-      if (!__networkSniffingFirstError) __networkSniffingFirstError = error;
-      console.error(
-        'Sniff Network ' + normalizedName + ' deferred cleanup failed:',
-        error && error.message ? error.message : error,
-      );
-    });
+  const profile = __networkSniffingProfiles.get(normalizedName);
+  if (__networkSniffingCallbackActive && profile) {
+    __stopNetworkSniffingProfileInBackground(profile, 'manual');
     return {
       profile: normalizedName,
       reason: 'manual',

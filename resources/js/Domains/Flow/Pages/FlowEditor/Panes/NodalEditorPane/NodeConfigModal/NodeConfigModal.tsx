@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FlowRun } from '@/Domains/Flow/types';
+import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import type { CanvasNode, NodeParameterValue } from '../types';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
 import { EMPTY_OUTPUT_PORT_SET } from '../utils/node';
@@ -7,11 +8,21 @@ import ConnectedNodesRail from './components/ConnectedNodesRail/ConnectedNodesRa
 import NodeConfigHeader from './components/NodeConfigHeader/NodeConfigHeader';
 import NodeParameters from './components/NodeParameters/NodeParameters';
 import PreviewSection from './components/PreviewSection/PreviewSection';
+import useHydratedSniffValue from './hooks/useHydratedSniffValue';
 import useNodeConfigModal from './hooks/useNodeConfigModal';
 import * as S from './styled';
 
-// Last run loaded with its nodal preview, so reopening the modal on the same run does not refetch it.
+// Last settled run loaded with its nodal preview, so reopening the modal on the same run does not
+// refetch it. Active runs are never cached: their preview only exists once they finish.
 let cachedPreviewRun: FlowRun | null = null;
+const isSettled = (run: FlowRun) => run.status !== 'pending' && run.status !== 'running';
+
+// Whether Before/After show the latest run's data or the static preview built from the flow
+// inputs; remembered across nodes and sessions so editing inputs does not require re-toggling.
+const RUN_PREVIEW_STORAGE_KEY = 'puppetflow:node-config:use-run-preview';
+const readRunPreviewPreference = () => (
+    typeof window === 'undefined' || window.localStorage.getItem(RUN_PREVIEW_STORAGE_KEY) !== 'false'
+);
 
 interface NodeConfigModalProps {
     node: CanvasNode;
@@ -37,14 +48,21 @@ function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
         if (latestRun.internal_meta) return latestRun;
         return cachedPreviewRun?.id === latestRun.id ? cachedPreviewRun : null;
     });
+    // Polling replaces the run object every few seconds; only a new run id, or the run settling
+    // (the run detail modal shows runs while they execute), must trigger a preview fetch.
+    const latestRunRef = useRef(latestRun);
+    latestRunRef.current = latestRun;
+    const latestRunId = latestRun?.id;
+    const latestRunSettled = latestRun ? isSettled(latestRun) : false;
 
     useEffect(() => {
+        const latestRun = latestRunRef.current;
         if (!flowId || !latestRun) {
             setLoadedRun(null);
             return;
         }
         if (latestRun.internal_meta) {
-            cachedPreviewRun = latestRun;
+            if (isSettled(latestRun)) cachedPreviewRun = latestRun;
             setLoadedRun(latestRun);
             return;
         }
@@ -64,7 +82,7 @@ function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
                 return response.json() as Promise<FlowRun>;
             })
             .then(run => {
-                cachedPreviewRun = run;
+                if (isSettled(run)) cachedPreviewRun = run;
                 setLoadedRun(run);
             })
             .catch(error => {
@@ -74,7 +92,7 @@ function useNodalPreviewRun(flowId: Id | undefined, latestRun: FlowRun | null) {
             });
 
         return () => controller.abort();
-    }, [flowId, latestRun]);
+    }, [flowId, latestRunId, latestRunSettled]);
 
     return loadedRun?.id === latestRun?.id ? loadedRun : latestRun;
 }
@@ -97,7 +115,15 @@ export default function NodeConfigModal({
     onNavigateNode,
 }: NodeConfigModalProps) {
     const pointerStartedOnBackdropRef = useRef(false);
-    const previewRun = useNodalPreviewRun(flowId, latestRun);
+    const [runPreviewPreferred, setRunPreviewPreferred] = useState(readRunPreviewPreference);
+    // Read-only viewers (run details, locked flows) cannot edit inputs, so they always show the run.
+    const useRunPreview = readOnly || runPreviewPreferred;
+    const toggleRunPreview = () => {
+        const next = !useRunPreview;
+        setRunPreviewPreferred(next);
+        if (typeof window !== 'undefined') window.localStorage.setItem(RUN_PREVIEW_STORAGE_KEY, String(next));
+    };
+    const previewRun = useNodalPreviewRun(flowId, useRunPreview ? latestRun : null);
     const {
         entry,
         visibleArgs,
@@ -128,6 +154,19 @@ export default function NodeConfigModal({
         onClose,
         onRenameNode,
     });
+    // Network capture bodies are stored apart from the run and fetched per capture, so only
+    // the displayed values are hydrated (not every execution kept in the run).
+    const displayed = useMemo(() => ({
+        before: selectedPreviewSource?.value,
+        after: currentNodeAfterData,
+        context: effectiveAutocompleteContext,
+    }), [selectedPreviewSource?.value, currentNodeAfterData, effectiveAutocompleteContext]);
+    const hydrated = useHydratedSniffValue(displayed, flowId, previewRun?.id);
+    const hydratedContext = useMemo(
+        (): NodalAutocompleteContext => ({ ...hydrated.value.context, capturesLoading: hydrated.loading }),
+        [hydrated],
+    );
+    const previewOmitted = previewRun?.internal_meta?.nodal_preview?.omitted;
 
     return (
         <S.NodeConfigBackdrop
@@ -174,8 +213,8 @@ export default function NodeConfigModal({
                         <S.NodeConfigLayout>
                             <PreviewSection
                                 title="Before"
-                                value={selectedPreviewSource?.value}
-                                copyValue={selectedPreviewSource?.value}
+                                value={hydrated.value.before}
+                                copyValue={hydrated.value.before}
                                 rootPath={selectedPreviewSource?.rootPath ?? '$run'}
                                 sources={previewSources}
                                 selectedSourceId={selectedPreviewSourceId}
@@ -192,7 +231,7 @@ export default function NodeConfigModal({
                                 entry={entry}
                                 args={visibleArgs}
                                 expressionOutputData={expressionOutputData}
-                                autocompleteContext={effectiveAutocompleteContext}
+                                autocompleteContext={hydratedContext}
                                 connectedOutputPorts={connectedOutputPorts}
                                 currentSiteUrl={currentSiteUrl}
                                 flowId={flowId}
@@ -201,8 +240,8 @@ export default function NodeConfigModal({
                             />
                             <PreviewSection
                                 title="After"
-                                value={currentNodeAfterData}
-                                copyValue={currentNodeAfterData}
+                                value={hydrated.value.after}
+                                copyValue={hydrated.value.after}
                                 rootPath={currentNodePreviewSource.rootPath}
                                 draggable={false}
                                 executions={currentNodeExecutions}
@@ -215,11 +254,24 @@ export default function NodeConfigModal({
                         </S.NodeConfigLayout>
                     </S.NodeConfigBody>
                     <S.NodeConfigFooter>
-                        <S.NodeConfigMeta>
-                            {latestRun
-                                ? `Using run #${latestRun.id} as preview data.`
-                                : 'Showing a static preview. Run the flow to capture runtime values.'}
-                        </S.NodeConfigMeta>
+                        {latestRun ? (
+                            <S.PreviewSourceBanner $active={useRunPreview}>
+                                <span>
+                                    {previewOmitted
+                                        ? `Run #${latestRun.id} produced more preview data than the ${formatRunStorage(previewOmitted.limit)} limit; showing a static preview.`
+                                        : useRunPreview
+                                            ? `Using run #${latestRun.id} as preview data.`
+                                            : 'Showing a static preview built from the flow inputs.'}
+                                </span>
+                                {!readOnly && (
+                                    <S.PreviewSourceToggle type="button" onClick={toggleRunPreview}>
+                                        {useRunPreview ? 'Use static preview' : `Use run #${latestRun.id}`}
+                                    </S.PreviewSourceToggle>
+                                )}
+                            </S.PreviewSourceBanner>
+                        ) : (
+                            <S.NodeConfigMeta>Showing a static preview. Run the flow to capture runtime values.</S.NodeConfigMeta>
+                        )}
                         <S.NodeConfigDone type="button" onClick={handleClose}>Done</S.NodeConfigDone>
                     </S.NodeConfigFooter>
                 </S.NodeConfigPanel>

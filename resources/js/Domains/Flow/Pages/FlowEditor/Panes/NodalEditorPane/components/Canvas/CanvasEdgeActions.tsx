@@ -7,6 +7,7 @@ import {
     getEdgeMidpoint,
     getPortPosition,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/geometry';
+import { isExecutionEdge } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import type {
     CanvasEdge,
     CanvasNode,
@@ -50,24 +51,26 @@ export default function CanvasEdgeActions({
                         onPointerDown={event => event.stopPropagation()}
                     >
                         <S.EdgeActionGroup>
-                            <S.EdgeActionButton
-                                type="button"
-                                title="Insert node here"
-                                onClick={event => {
-                                    event.stopPropagation();
-                                    onInsertNode({
-                                        edgeId: edge.id,
-                                        sourceNodeId: edge.sourceNodeId,
-                                        targetNodeId: edge.targetNodeId,
-                                        sourcePort: edge.sourcePort ?? DEFAULT_OUTPUT_PORT,
-                                        targetPort: edge.targetPort ?? DEFAULT_INPUT_PORT,
-                                        x: midpoint.x,
-                                        y: midpoint.y,
-                                    });
-                                }}
-                            >
-                                <Icon icon="lucide:plus" width={12} height={12} />
-                            </S.EdgeActionButton>
+                            {isExecutionEdge(edge) && (
+                                <S.EdgeActionButton
+                                    type="button"
+                                    title="Insert node here"
+                                    onClick={event => {
+                                        event.stopPropagation();
+                                        onInsertNode({
+                                            edgeId: edge.id,
+                                            sourceNodeId: edge.sourceNodeId,
+                                            targetNodeId: edge.targetNodeId,
+                                            sourcePort: edge.sourcePort ?? DEFAULT_OUTPUT_PORT,
+                                            targetPort: edge.targetPort ?? DEFAULT_INPUT_PORT,
+                                            x: midpoint.x,
+                                            y: midpoint.y,
+                                        });
+                                    }}
+                                >
+                                    <Icon icon="lucide:plus" width={12} height={12} />
+                                </S.EdgeActionButton>
+                            )}
                             <S.EdgeActionButton
                                 type="button"
                                 $danger

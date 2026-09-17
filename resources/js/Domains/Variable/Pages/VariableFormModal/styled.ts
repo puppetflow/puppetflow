@@ -10,3 +10,8 @@ export const Actions = styled.div`
     display: flex;
     justify-content: flex-end;
 `;
+
+export const ErrorText = styled.div`
+    color: ${({ theme }) => theme.colors.accent.error};
+    font-size: 12px;
+`;

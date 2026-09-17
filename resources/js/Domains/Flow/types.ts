@@ -191,6 +191,7 @@ export interface FlowRun {
     recording_size_bytes: number;
     screenshots_size_bytes: number;
     downloads_size_bytes: number;
+    sniff_bodies_size_bytes: number;
     flow_data_size_bytes: number;
     console_logs_size_bytes: number;
     storage_size_bytes: number;
@@ -199,6 +200,8 @@ export interface FlowRun {
     meta: Record<string, unknown> | null;
     internal_meta?: {
         nodal_preview?: {
+            // Present when the runtime preview exceeded the server byte ceiling and was dropped.
+            omitted?: { reason: 'size'; limit: number };
             nodes?: Record<string, unknown>;
             executions?: Record<string, unknown[]>;
             executionMeta?: Record<string, {

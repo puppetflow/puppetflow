@@ -56,7 +56,18 @@ class MistralDriver implements AiProviderDriverInterface
     public function message(string $apiKey, string $model, array $messages, array $options = []): array
     {
         $normalized = collect($messages)->map(function (array $message): array {
-            $content = collect(is_array($message['content'] ?? null) ? $message['content'] : [])
+            $parts = is_array($message['content'] ?? null) ? $message['content'] : [];
+            $toolResult = collect($parts)->first(fn (mixed $part): bool => (
+                is_array($part) && ($part['type'] ?? null) === 'tool_result'
+            ));
+            if (is_array($toolResult) && is_string($toolResult['tool_call_id'] ?? null)) {
+                return [
+                    'role' => 'tool',
+                    'tool_call_id' => $toolResult['tool_call_id'],
+                    'content' => is_string($toolResult['text'] ?? null) ? $toolResult['text'] : '',
+                ];
+            }
+            $content = collect($parts)
                 ->map(function (mixed $part): ?array {
                     if (! is_array($part)) {
                         return null;
@@ -75,12 +86,31 @@ class MistralDriver implements AiProviderDriverInterface
                 ->filter()
                 ->values()
                 ->all();
+            $toolCalls = collect($parts)
+                ->filter(fn (mixed $part): bool => is_array($part) && ($part['type'] ?? null) === 'tool_call')
+                ->map(fn (array $part): array => [
+                    'id' => $part['id'],
+                    'type' => 'function',
+                    'function' => [
+                        'name' => $part['name'],
+                        'arguments' => is_string($part['arguments_json'] ?? null)
+                            ? $part['arguments_json']
+                            : json_encode(
+                                is_array($part['arguments'] ?? null) && $part['arguments'] !== []
+                                    ? $part['arguments']
+                                    : new \stdClass,
+                            ),
+                    ],
+                ])
+                ->values()
+                ->all();
 
             return [
                 'role' => in_array($message['role'] ?? null, ['user', 'assistant', 'system'], true)
                     ? $message['role']
                     : 'user',
                 'content' => $content,
+                ...($toolCalls !== [] ? ['tool_calls' => $toolCalls] : []),
             ];
         })->values()->all();
 
@@ -113,6 +143,18 @@ class MistralDriver implements AiProviderDriverInterface
         } elseif (($responseFormat['type'] ?? null) === 'json_object') {
             $payload['response_format'] = ['type' => 'json_object'];
         }
+        if (is_array($options['tools'] ?? null) && $options['tools'] !== []) {
+            $payload['tools'] = collect($options['tools'])->filter(fn (mixed $tool): bool => is_array($tool))->map(fn (mixed $tool): array => [
+                'type' => 'function',
+                'function' => [
+                    'name' => is_string($tool['name'] ?? null) ? $tool['name'] : 'tool',
+                    'description' => is_string($tool['description'] ?? null) ? $tool['description'] : '',
+                    'parameters' => is_array($tool['inputSchema'] ?? null)
+                        ? $tool['inputSchema']
+                        : ['type' => 'object', 'properties' => new \stdClass],
+                ],
+            ])->values()->all();
+        }
 
         $response = $this->request($apiKey)->post('https://api.mistral.ai/v1/chat/completions', $payload);
         $this->ensureSuccess($response);
@@ -123,9 +165,25 @@ class MistralDriver implements AiProviderDriverInterface
         $message = is_array($choice['message'] ?? null) ? $choice['message'] : [];
         $content = $message['content'] ?? '';
         $text = is_string($content) ? $content : '';
+        $toolCalls = collect(is_array($message['tool_calls'] ?? null) ? $message['tool_calls'] : [])
+            ->filter(fn (mixed $call): bool => is_array($call) && is_array($call['function'] ?? null))
+            ->map(fn (array $call): array => [
+                'id' => is_string($call['id'] ?? null) ? $call['id'] : '',
+                'name' => is_string($call['function']['name'] ?? null) ? $call['function']['name'] : '',
+                'arguments' => is_string($call['function']['arguments'] ?? null)
+                    ? (json_decode($call['function']['arguments'], true) ?: [])
+                    : [],
+                'argumentsJson' => is_string($call['function']['arguments'] ?? null)
+                    ? $call['function']['arguments']
+                    : '{}',
+            ])
+            ->filter(fn (array $call): bool => $call['id'] !== '' && $call['name'] !== '')
+            ->values()
+            ->all();
 
         return [
             'text' => $text,
+            'toolCalls' => $toolCalls,
             'content' => is_array($content) ? $content : [['type' => 'text', 'text' => $text]],
             'usage' => is_array($raw['usage'] ?? null) ? $raw['usage'] : [],
             'model' => $raw['model'] ?? $model,

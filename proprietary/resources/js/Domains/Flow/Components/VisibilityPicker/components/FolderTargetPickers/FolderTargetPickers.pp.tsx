@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { useTheme } from 'styled-components';
 import WorkspaceFolderPicker from '@/Domains/Folder/Components/WorkspaceFolderPicker/WorkspaceFolderPicker';
-import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
+import type { ExplorerFolderTree as FolderTree, ExplorerTeamTree as TeamTree } from '@/Shared/Explorer/types';
 import type {
     FolderTarget,
     VisibilityPickerValue,
@@ -18,6 +18,7 @@ interface Props {
     teamTrees: TeamTree[];
     ownerId?: Id | null;
     ownerChanged: boolean;
+    folderEndpoint?: string;
     onChange: (value: VisibilityPickerValue) => void;
 }
 
@@ -28,6 +29,7 @@ export default function FolderTargetPickers({
     teamTrees,
     ownerId = null,
     ownerChanged,
+    folderEndpoint,
     onChange,
 }: Props) {
     const theme = useTheme();
@@ -203,6 +205,7 @@ export default function FolderTargetPickers({
                     rootIcon="lucide:home"
                     scope="owner"
                     ownerId={ownerId}
+                    createFolderEndpoint={folderEndpoint}
                 />
             )}
             {pickerTarget === 'workspace' && (
@@ -216,6 +219,7 @@ export default function FolderTargetPickers({
                     rootLabel="Workspace"
                     rootIcon="lucide:building-2"
                     scope="workspace"
+                    createFolderEndpoint={folderEndpoint}
                 />
             )}
             {pickerTarget === 'team' && selectedTeam && (
@@ -230,6 +234,8 @@ export default function FolderTargetPickers({
                     rootIcon="lucide:users"
                     scope="team"
                     rootFolderId={selectedTeam.root_folder_id}
+                    teamId={selectedTeam.id}
+                    createFolderEndpoint={folderEndpoint}
                 />
             )}
         </>

@@ -48,6 +48,7 @@ export default function AiModelSelect({
                 return {
                     value: String(model.id),
                     label: model.name,
+                    editable: model.can_manage,
                     detail: visibility ? `${visibility.label} - ${model.ai_model_id}` : model.ai_model_id,
                     detailIcon: visibility?.icon,
                     icon: provider?.icon,
@@ -87,6 +88,10 @@ export default function AiModelSelect({
             onRefresh={refresh}
             refreshing={refreshing}
             onClear={() => onChange('')}
+            onEditOption={async option => {
+                await quickRequirementCreation.edit('ai-model', option.value);
+                await refresh();
+            }}
             onChange={onChange}
         />
     );

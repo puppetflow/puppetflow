@@ -21,6 +21,8 @@ export default function VisibilityPicker({
     ownerChanged = false,
     disabled,
     disabledHint,
+    folderEndpoint,
+    resourceLabel,
 }: VisibilityPickerProps) {
     const { settings } = usePageProps();
     const workspaceSharingEnabled =
@@ -51,6 +53,7 @@ export default function VisibilityPicker({
                 showDisabledFeatures={settings?.promote_disabled_features ?? false}
                 disabledFeatureMessage={settings?.disabled_feature_message ?? ''}
                 disabled={disabled}
+                resourceLabel={resourceLabel}
                 onChange={(visibility) =>
                     onChange({ ...value, visibility })
                 }
@@ -62,6 +65,7 @@ export default function VisibilityPicker({
                 teamTrees={teamTrees}
                 ownerId={ownerId}
                 ownerChanged={ownerChanged}
+                folderEndpoint={folderEndpoint}
                 onChange={onChange}
             />
         </S.PickerWrapper>

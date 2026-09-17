@@ -226,7 +226,26 @@ export const List = styled.div`
     gap: 2px;
 `;
 
-export const Item = styled.button<{ $active?: boolean }>`
+export const ItemRow = styled.div<{ $active?: boolean; $editable?: boolean }>`
+    position: relative;
+    width: 100%;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme, $active }) => $active ? theme.colors.bg.hover : 'transparent'};
+
+    &:hover,
+    &:focus-within {
+        background: ${({ theme }) => theme.colors.bg.hover};
+    }
+
+    ${({ $editable }) => $editable && `
+        &:hover [data-item-detail],
+        &:focus-within [data-item-detail] {
+            visibility: hidden;
+        }
+    `}
+`;
+
+export const Item = styled.button`
     width: 100%;
     display: flex;
     align-items: center;
@@ -236,13 +255,9 @@ export const Item = styled.button<{ $active?: boolean }>`
     border: 0;
     border-radius: ${({ theme }) => theme.radius.sm};
     color: ${({ theme }) => theme.colors.text.secondary};
-    background: ${({ theme, $active }) => $active ? theme.colors.bg.hover : 'transparent'};
+    background: transparent;
     cursor: pointer;
     text-align: left;
-
-    &:hover {
-        background: ${({ theme }) => theme.colors.bg.hover};
-    }
 
     strong {
         min-width: 0;
@@ -254,17 +269,50 @@ export const Item = styled.button<{ $active?: boolean }>`
         font-weight: 600;
     }
 
-    span {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        color: ${({ theme }) => theme.colors.text.tertiary};
-        font-size: 10px;
+`;
 
-        svg {
-            flex-shrink: 0;
-        }
+export const ItemDetail = styled.span`
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    font-size: 10px;
+
+    svg {
+        flex-shrink: 0;
+    }
+`;
+
+export const ItemEdit = styled.button`
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    background: ${({ theme }) => theme.colors.bg.primary};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.border.default};
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: opacity ${({ theme }) => theme.transition.fast};
+
+    ${ItemRow}:hover &,
+    ${ItemRow}:focus-within & {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    &:hover,
+    &:focus-visible {
+        color: ${({ theme }) => theme.colors.text.primary};
+        background: ${({ theme }) => theme.colors.bg.hover};
     }
 `;
 

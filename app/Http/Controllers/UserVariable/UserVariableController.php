@@ -21,6 +21,7 @@ use App\Models\Flow;
 use App\Models\FlowTrigger;
 use App\Models\FlowUserInput;
 use App\Models\Integration;
+use App\Models\McpCredential;
 use App\Models\User;
 use App\Models\UserVariable;
 use App\Models\WorkspaceTeam;
@@ -89,7 +90,7 @@ class UserVariableController extends Controller
             $variable->setAttribute('can_manage', $user->can(Ability::UPDATE->value, $variable));
             $variable->setAttribute('can_use', $user->can(Ability::USE->value, $variable));
 
-            if (in_array($variable->type, ['secret', 'vault', 'otp'], true)) {
+            if (in_array($variable->type, ['secret', UserVariable::TYPE_MCP_CREDENTIALS, 'vault', 'otp'], true)) {
                 $variable->setAttribute('value', '');
             }
         }
@@ -107,7 +108,7 @@ class UserVariableController extends Controller
                 $this->injectOwnerWorkspaceRoles([$candidate], $workspaceId);
                 $candidate->setAttribute('can_manage', true);
                 $candidate->setAttribute('can_use', $user->can(Ability::USE->value, $candidate));
-                if (in_array($candidate->type, ['secret', 'vault', 'otp'], true)) {
+                if (in_array($candidate->type, ['secret', UserVariable::TYPE_MCP_CREDENTIALS, 'vault', 'otp'], true)) {
                     $candidate->setAttribute('value', '');
                 }
                 $editingVariable = $candidate;
@@ -154,6 +155,24 @@ class UserVariableController extends Controller
             'isWorkspaceAdmin' => $isAdmin,
             'vaultIntegrations' => $vaultIntegrations,
         ]);
+    }
+
+    public function show(Request $request, UserVariable $variable): JsonResponse
+    {
+        $this->features()->abortIfDisabled('variables_enabled');
+        $this->features()->abortIfStale($variable);
+        $this->authorizeVariableManagement($request, $variable);
+
+        $variable->load(['user:id,name', 'vaultIntegration:id,name,provider', 'team:id,name']);
+        $this->injectOwnerWorkspaceRoles([$variable], $variable->workspace_id);
+        $variable->setAttribute('can_manage', true);
+        $variable->setAttribute('can_use', $this->user($request)->can(Ability::USE->value, $variable));
+
+        if (in_array($variable->type, ['secret', UserVariable::TYPE_MCP_CREDENTIALS, 'vault', 'otp'], true)) {
+            $variable->setAttribute('value', '');
+        }
+
+        return response()->json(['variable' => $variable]);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -355,12 +374,17 @@ class UserVariableController extends Controller
         $this->features()->abortIfDisabled('variables_enabled');
         $this->features()->abortIfStale($variable);
         $this->authorizeVariableManagement($request, $variable);
+        if ($variable->type === UserVariable::TYPE_MCP_CREDENTIALS) {
+            throw ValidationException::withMessages([
+                'type' => 'MCP Credentials must be updated through their dedicated form.',
+            ]);
+        }
 
         /** @var array{key?: string, value?: string|null, type?: string, group?: string|null, scope?: string, team_id?: string|null, user_id?: string|null, vault_provider?: string|null, vault_integration_id?: string|null, vault_vault_id?: string|null, vault_vault_name?: string|null, vault_item_id?: string|null, vault_item_name?: string|null, vault_field_label?: string|null, vault_field_type?: string|null} $validated */
         $validated = $request->validate([
             'key' => 'sometimes|string|max:255',
             'value' => 'sometimes|nullable|string',
-            'type' => 'sometimes|in:text,secret,object,array,json,vault,otp',
+            'type' => 'sometimes|in:text,secret,mcp_credentials,object,array,json,vault,otp',
             'group' => 'nullable|string|max:100',
             'scope' => 'sometimes|in:'.implode(',', $this->features()->allowedScopes('user')),
             'team_id' => 'nullable|string',
@@ -374,6 +398,14 @@ class UserVariableController extends Controller
             'vault_field_type' => 'nullable|string',
             'user_id' => 'nullable|string|exists:users,id',
         ]);
+        if (
+            isset($validated['type'])
+            && ($validated['type'] === UserVariable::TYPE_MCP_CREDENTIALS) !== ($variable->type === UserVariable::TYPE_MCP_CREDENTIALS)
+        ) {
+            throw ValidationException::withMessages([
+                'type' => 'MCP credential variables can only be managed from an MCP Client Tool.',
+            ]);
+        }
         if (array_key_exists('team_id', $validated)) {
             $validated['team_id'] = $this->resolveWorkspaceTeamId($validated['team_id'], $variable->workspace_id);
         }
@@ -405,7 +437,7 @@ class UserVariableController extends Controller
 
         $type = $validated['type'] ?? $variable->type;
         if (
-            in_array($type, ['secret', 'otp'], true)
+            in_array($type, ['secret', UserVariable::TYPE_MCP_CREDENTIALS, 'otp'], true)
             && array_key_exists('value', $validated)
             && $validated['value'] === ''
         ) {
@@ -630,8 +662,23 @@ class UserVariableController extends Controller
     public function destroy(Request $request, UserVariable $variable): RedirectResponse
     {
         $this->authorizeVariableManagement($request, $variable);
+        $credential = $this->mcpCredentialForVariable($variable);
+        $deleteCredential = $credential
+            && ! in_array(
+                $credential->id,
+                $this->remainingMcpCredentialIds($variable->workspace_id, [$variable->id]),
+                true,
+            );
+        if ($deleteCredential) {
+            Gate::authorize(Ability::DELETE->value, $credential);
+        }
 
-        $variable->delete();
+        DB::transaction(function () use ($variable, $credential, $deleteCredential): void {
+            $variable->delete();
+            if ($deleteCredential) {
+                $credential->delete();
+            }
+        });
 
         return back()->with('success', 'Variable deleted.');
     }
@@ -656,8 +703,23 @@ class UserVariableController extends Controller
         foreach ($variables as $variable) {
             $this->authorizeVariableManagement($request, $variable);
         }
+        $remainingCredentialIds = $this->remainingMcpCredentialIds($workspaceId, $ids);
+        $credentials = $variables
+            ->map(fn (UserVariable $variable): ?McpCredential => $this->mcpCredentialForVariable($variable))
+            ->filter()
+            ->unique('id')
+            ->reject(fn (McpCredential $credential): bool => in_array(
+                $credential->id,
+                $remainingCredentialIds,
+                true,
+            ))
+            ->values();
+        $credentials->each(fn (McpCredential $credential) => Gate::authorize(Ability::DELETE->value, $credential));
 
-        DB::transaction(fn () => $variables->each->delete(), 3);
+        DB::transaction(function () use ($variables, $credentials): void {
+            $variables->each->delete();
+            $credentials->each->delete();
+        }, 3);
         $count = $variables->count();
 
         return back()->with('success', $count === 1 ? 'Variable deleted.' : "{$count} variables deleted.");
@@ -670,7 +732,8 @@ class UserVariableController extends Controller
         }
 
         $workspaceId = $this->currentWorkspaceId();
-        $context = $this->authorizationContexts->for($this->user($request), $workspaceId);
+        $user = $this->user($request);
+        $context = $this->authorizationContexts->for($user, $workspaceId);
 
         $variablesQuery = UserVariable::query()->where('stale', false);
         $this->sharedVisibility->applyUse($variablesQuery, $context);
@@ -689,6 +752,11 @@ class UserVariableController extends Controller
                 'scope' => $var->scope,
                 'team_name' => $var->team?->name,
                 'provider' => $var->vault_provider,
+                'can_manage' => $this->scopeEvaluator->canManage(
+                    $context,
+                    $workspaceId,
+                    $var->user_id,
+                ),
             ];
             if (in_array($var->type, ['text', 'object', 'array', 'json'], true)) {
                 $suggestion['preview_value'] = in_array($var->type, ['object', 'array', 'json'], true)
@@ -707,6 +775,7 @@ class UserVariableController extends Controller
                         $var->scope,
                         $var->team?->name,
                         $var->vault_provider,
+                        $suggestion['can_manage'],
                         $suggestions,
                     );
                 }
@@ -714,6 +783,36 @@ class UserVariableController extends Controller
         }
 
         return response()->json($suggestions);
+    }
+
+    private function mcpCredentialForVariable(UserVariable $variable): ?McpCredential
+    {
+        if ($variable->type !== UserVariable::TYPE_MCP_CREDENTIALS) {
+            return null;
+        }
+
+        return McpCredential::query()
+            ->whereKey($variable->value)
+            ->where('workspace_id', $variable->workspace_id)
+            ->first();
+    }
+
+    /**
+     * @param  list<string>  $excludedVariableIds
+     * @return list<string>
+     */
+    private function remainingMcpCredentialIds(string $workspaceId, array $excludedVariableIds): array
+    {
+        return array_values(UserVariable::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('type', UserVariable::TYPE_MCP_CREDENTIALS)
+            ->whereNotIn('id', $excludedVariableIds)
+            ->get()
+            ->map(fn (UserVariable $variable): string => $variable->value)
+            ->filter(fn (string $credentialId): bool => $credentialId !== '')
+            ->unique()
+            ->values()
+            ->all());
     }
 
     private function ensureVaultIntegrationAvailable(string $workspaceId, string $integrationId): void
@@ -781,10 +880,10 @@ class UserVariableController extends Controller
         string $scope,
         ?string $teamName,
         ?string $provider,
+        bool $canManage,
         array &$suggestions,
         int $depth = 0,
-    ): void
-    {
+    ): void {
         if ($depth > 5) {
             return;
         }
@@ -800,6 +899,7 @@ class UserVariableController extends Controller
                 'team_name' => $teamName,
                 'provider' => $provider,
                 'preview_value' => $v,
+                'can_manage' => $canManage,
             ];
 
             if (is_array($v) && ! array_is_list($v)) {
@@ -810,6 +910,7 @@ class UserVariableController extends Controller
                     $scope,
                     $teamName,
                     $provider,
+                    $canManage,
                     $suggestions,
                     $depth + 1,
                 );

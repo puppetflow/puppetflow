@@ -22,6 +22,49 @@ import {
 import { createNodalOutputPreview } from '@/Domains/Flow/Pages/FlowEditor/utils/outputPreview';
 import { asRecord, withoutContext } from './values';
 
+type NodalPreview = NonNullable<NonNullable<FlowRun['internal_meta']>['nodal_preview']>;
+
+const SHARED_SNAPSHOT_KEYS = ['$input', '$context'] as const;
+
+/**
+ * Reverses the runtime compaction: snapshots omit `$input`/`$context` when identical to the RUN
+ * snapshot, and executions only carry the fields that differ from the node's final snapshot
+ * (`$absent` lists the fields that snapshot has and the execution did not).
+ */
+export const expandNodalPreview = (preview: NodalPreview | undefined): NodalPreview | undefined => {
+    const nodes = asRecord(preview?.nodes);
+    if (!preview || !nodes) return preview;
+
+    const run = asRecord(nodes.RUN);
+    const withShared = (snapshot: unknown) => {
+        const state = asRecord(snapshot);
+        if (!state || !run) return snapshot;
+        const missing = SHARED_SNAPSHOT_KEYS.filter(key => !(key in state) && key in run);
+        return missing.length === 0 ? snapshot : { ...Object.fromEntries(missing.map(key => [key, run[key]])), ...state };
+    };
+    const expandExecution = (execution: unknown, base: Record<string, unknown> | null) => {
+        const diff = asRecord(execution);
+        if (!diff || !base) return withShared(execution);
+        const { $absent, ...changes } = diff;
+        const absent = new Set(Array.isArray($absent) ? $absent : []);
+        return withShared({
+            ...Object.fromEntries(Object.entries(base).filter(([key]) => !absent.has(key))),
+            ...changes,
+        });
+    };
+
+    return {
+        ...preview,
+        nodes: Object.fromEntries(Object.entries(nodes).map(([nodeId, snapshot]) => [nodeId, withShared(snapshot)])),
+        executions: preview.executions && Object.fromEntries(
+            Object.entries(preview.executions).map(([nodeId, executions]) => [
+                nodeId,
+                executions.map(execution => expandExecution(execution, asRecord(nodes[nodeId]))),
+            ]),
+        ),
+    };
+};
+
 export interface PreviewScope {
     inputData: unknown;
     outputData: unknown;

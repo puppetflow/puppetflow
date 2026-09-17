@@ -204,7 +204,7 @@ class IntegrationController extends Controller
                 $integration,
             );
         } elseif (isset($validated['config'])) {
-            $validated['config'] = array_merge($integration->config ?? [], $validated['config']);
+            $validated['config'] = $integration->mergeConfigPreservingBlank($validated['config']);
         }
 
         $ownerId = $this->resolveOwnerId($validated, $integration->workspace_id, $integration->user_id);

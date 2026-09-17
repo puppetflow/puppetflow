@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { MCP_CREDENTIALS_UI, type UserVariable } from '@/Domains/Variable/types';
 
 export const Cell = styled.td<{ $indent?: number }>`
     padding: 10px 14px;
@@ -35,15 +36,19 @@ export const KeyContainer = styled.div`
     gap: 6px;
 `;
 
-export const VariableIcon = styled.span`
+export const VariableIcon = styled.span<{ $type: UserVariable['type'] }>`
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: ${({ theme }) => theme.colors.bg.tertiary};
-    color: ${({ theme }) => theme.colors.text.secondary};
+    background: ${({ $type, theme }) => $type === 'mcp_credentials'
+        ? `${MCP_CREDENTIALS_UI.color}18`
+        : theme.colors.bg.tertiary};
+    color: ${({ $type, theme }) => $type === 'mcp_credentials'
+        ? MCP_CREDENTIALS_UI.color
+        : theme.colors.text.secondary};
 `;
 
 export const RuntimeRestriction = styled.span`

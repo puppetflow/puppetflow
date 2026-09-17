@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Icon } from '@/Shared/UI/Icon/Icon';
 import Modal from '@/Shared/UI/Modal/Modal';
 import { TextArea } from '@/Shared/UI/Input/Input';
 import Button from '@/Shared/UI/Button/Button';
@@ -102,6 +101,7 @@ export default function LibraryUseItemModal({
                                     teams={teams}
                                     ownerLabel={isFlow ? 'Owner' : 'Personal'}
                                     ownerScope="owner"
+                                    portal
                                     onChange={value => setForm(current => ({
                                         ...current,
                                         scope: value.scope as LibraryUseFormData['scope'],
@@ -113,6 +113,7 @@ export default function LibraryUseItemModal({
                                     value={form.owner_id}
                                     onChange={value => update('owner_id', value)}
                                     placeholder="Myself (default)"
+                                    portal
                                 />
                             </S.DestinationFields>
 
@@ -128,8 +129,7 @@ export default function LibraryUseItemModal({
                                 loading={submitting}
                                 disabled={isFlow ? !form.name.trim() : !form.label.trim()}
                             >
-                                <Icon icon="lucide:download" width={14} />
-                                Use
+                                Confirm
                             </Button>
                         </S.Footer>
                     </S.FormPanel>

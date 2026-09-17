@@ -1,5 +1,5 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
-import type { UserVariable } from '@/Domains/Variable/types';
+import { MCP_CREDENTIALS_UI, type UserVariable } from '@/Domains/Variable/types';
 import * as S from './styled';
 
 const VAULT_PROVIDERS: Record<string, { label: string; icon: string; color: string }> = {
@@ -30,6 +30,8 @@ export default function ProviderBadge({ variable }: ProviderBadgeProps) {
             <Icon
                 icon={variable.type === 'otp'
                     ? 'lucide:timer'
+                    : variable.type === 'mcp_credentials'
+                        ? MCP_CREDENTIALS_UI.icon
                     : variable.type === 'secret'
                         ? 'lucide:eye-off'
                         : variable.type === 'object' || variable.type === 'json'
@@ -41,6 +43,8 @@ export default function ProviderBadge({ variable }: ProviderBadgeProps) {
             />
             {variable.type === 'otp'
                 ? 'OTP'
+                : variable.type === 'mcp_credentials'
+                    ? MCP_CREDENTIALS_UI.label
                 : variable.type === 'json'
                     ? (variable.value.trim().startsWith('[') ? 'array' : 'object')
                     : variable.type}

@@ -26,6 +26,13 @@ import {
     getNodeParameterDisplayLabel,
     type NodeValidationIssue,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
+import {
+    addMediaAction,
+    browseMediaAction,
+    mediaAssetOption,
+    useMediaAssetSuggestions,
+} from '@/Domains/Flow/Pages/FlowEditor/utils/mediaAssetSuggestions';
+import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 import ExpressionInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/ExpressionInput/ExpressionInput';
 import { getExpressionInputType, isObjectInput } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/utils/objectParameters';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
@@ -33,7 +40,11 @@ import IfConditionBuilder from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEdito
 import ObjectParameterInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/ObjectParameterInput/ObjectParameterInput';
 import GetterMapInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/GetterMapInput/GetterMapInput';
 import AiModelSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/AiModelSelect/AiModelSelect';
+import McpConnectionAssistant from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/McpConnectionAssistant/McpConnectionAssistant';
+import McpToolsSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/McpToolsSelect/McpToolsSelect';
 import DataTableStructuredInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/DataTableStructuredInput/DataTableStructuredInput';
+import VariableValueSelect from '@/Domains/Flow/Pages/FlowEditor/components/StructuredObjectInput/FieldRows/VariableValueSelect/VariableValueSelect';
+import { useVariableSuggestions } from '@/Domains/Flow/Pages/FlowEditor/components/StructuredObjectInput/FieldRows/hooks/useVariableSuggestions';
 import {
     useNodeValidationResources,
     useRefreshNodeValidationResources,
@@ -84,12 +95,26 @@ export default function NodeParameterField({
     const validationResources = useNodeValidationResources();
     const refreshValidationResources = useRefreshNodeValidationResources();
     const cleanArg = arg.replace(/\?$/, '').replace(/^\.\.\./, '');
+    const credentialVariables = useVariableSuggestions(
+        entry.name === '$mcpClientTool'
+        && cleanArg === 'credentialId',
+    );
+    const mcpCredentialVariables = {
+        ...credentialVariables,
+        suggestions: credentialVariables.suggestions.filter(variable => variable.type === 'mcp_credentials'),
+    };
+    const [credentialSetupRequest, setCredentialSetupRequest] = useState(0);
     const fieldLabel = getNodeParameterDisplayLabel(entry, cleanArg);
     const isTabName = meta.input === 'tab-name';
     const isStopwatchName = meta.input === 'stopwatch-name';
     const isSniffProfile = meta.input === 'sniff-profile';
-    const isCookieJar = meta.input === 'cookie-jar';
-    const selectOptions = isTabName
+    const isCookieProfile = meta.input === 'cookie-profile';
+    const isMedia = meta.input === 'media';
+    const mediaAssets = useMediaAssetSuggestions(isMedia);
+    const quickCreation = useQuickRequirementCreation();
+    const selectOptions = isMedia
+        ? mediaAssets.map(mediaAssetOption)
+        : isTabName
         ? autocompleteContext.tabNames.map(tabName => ({ value: tabName, label: tabName }))
         : isStopwatchName
         ? autocompleteContext.stopwatchNames.map(stopwatchName => ({
@@ -101,10 +126,10 @@ export default function NodeParameterField({
             value: profileName,
             label: profileName,
         }))
-        : isCookieJar
-        ? autocompleteContext.cookieJarNames.map(jarName => ({
-            value: jarName,
-            label: jarName,
+        : isCookieProfile
+        ? autocompleteContext.cookieProfileNames.map(profile => ({
+            value: profile,
+            label: profile,
         }))
         : meta.options;
     const scalarValue = normalizeScalarParameterValue(node.values[cleanArg]);
@@ -162,6 +187,10 @@ export default function NodeParameterField({
     }, []);
 
     if (meta.valueType === 'flow') return null;
+    if (entry.name === '$mcpClientTool') {
+        const include = normalizeScalarParameterValue(node.values.include).value || 'all';
+        if (cleanArg === 'tools' && include === 'all') return null;
+    }
 
     if (meta.input === 'data-table') {
         const value = normalizeScalarParameterValue(node.values[cleanArg]);
@@ -367,6 +396,77 @@ export default function NodeParameterField({
         );
     }
 
+    if (entry.name === '$mcpClientTool' && cleanArg === 'credentialId') {
+        const value = normalizeScalarParameterValue(node.values[cleanArg]);
+        const canEditCredential = mcpCredentialVariables.suggestions
+            .find(variable => String(variable.id) === value.value)
+            ?.can_manage ?? false;
+        return (
+            <ExpressionInput
+                label={fieldLabel}
+                hint={hint}
+                value={value}
+                outputData={expressionOutputData}
+                autocompleteContext={autocompleteContext}
+                flowId={flowId}
+                readOnly={readOnly}
+                invalid={Boolean(missingRequiredIssue)}
+                errorMessage={missingRequiredIssue?.message}
+                fixedInput={(
+                    <S.CredentialField>
+                        <VariableValueSelect
+                            value={value.value}
+                            readOnly={Boolean(readOnly)}
+                            variableSuggestions={mcpCredentialVariables}
+                            createLabel="Add Credential"
+                            onCreate={() => setCredentialSetupRequest(current => current + 1)}
+                            onChange={nextValue => onUpdateValue(
+                                node.id,
+                                cleanArg,
+                                { mode: 'fixed', value: nextValue },
+                            )}
+                        />
+                        <McpConnectionAssistant
+                            node={node}
+                            readOnly={readOnly}
+                            onUpdateValue={onUpdateValue}
+                            onCredentialsChanged={credentialVariables.refresh}
+                            setupRequest={credentialSetupRequest}
+                            canEditCredential={canEditCredential}
+                        />
+                    </S.CredentialField>
+                )}
+                onChange={nextValue => onUpdateValue(node.id, cleanArg, nextValue)}
+            />
+        );
+    }
+
+    if (entry.name === '$mcpClientTool' && cleanArg === 'tools') {
+        const value = normalizeScalarParameterValue(node.values[cleanArg]);
+        return (
+            <ExpressionInput
+                label={fieldLabel}
+                hint={hint}
+                value={value}
+                outputData={expressionOutputData}
+                autocompleteContext={autocompleteContext}
+                flowId={flowId}
+                readOnly={readOnly}
+                invalid={Boolean(missingRequiredIssue)}
+                errorMessage={missingRequiredIssue?.message}
+                fixedInput={(
+                    <McpToolsSelect
+                        node={node}
+                        value={value}
+                        readOnly={readOnly}
+                        onChange={nextValue => onUpdateValue(node.id, cleanArg, nextValue)}
+                    />
+                )}
+                onChange={nextValue => onUpdateValue(node.id, cleanArg, nextValue)}
+            />
+        );
+    }
+
     if (meta.input === 'getter-map' || meta.valueType === 'getter-map') {
         return (
             <GetterMapInput
@@ -469,8 +569,10 @@ export default function NodeParameterField({
                     ? 'Select a stopwatch...'
                     : isSniffProfile
                         ? 'Select a sniffing profile...'
-                        : isCookieJar
+                        : isCookieProfile
                             ? 'Select a profile...'
+                            : isMedia
+                                ? 'Select a media or enter a file name...'
                     : meta.placeholder}
             inputType={getExpressionInputType(meta)}
             options={selectOptions}
@@ -478,15 +580,20 @@ export default function NodeParameterField({
                 (isTabName && entry.name === '$gotoUrl')
                 || (isStopwatchName && entry.name === '$stopwatchStart')
                 || (isSniffProfile && entry.name === '$sniffNetwork')
-                || isCookieJar
+                || isCookieProfile
+                || isMedia
             }
             customSelectValueLabel={isStopwatchName
                 ? 'stopwatch name'
                 : isSniffProfile
                     ? 'sniffing profile name'
-                    : isCookieJar
+                    : isCookieProfile
                         ? 'profile name'
+                        : isMedia
+                            ? 'file name'
                     : undefined}
+            selectAction={isMedia ? addMediaAction(quickCreation.create) : undefined}
+            selectBrowseAction={isMedia ? browseMediaAction(quickCreation.create) : undefined}
             value={scalarValue}
             outputData={expressionOutputData}
             autocompleteContext={autocompleteContext}

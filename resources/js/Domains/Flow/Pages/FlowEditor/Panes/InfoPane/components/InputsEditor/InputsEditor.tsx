@@ -3,6 +3,7 @@ import { router } from '@inertiajs/react';
 import type { FormDataConvertible } from '@inertiajs/core';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Button from '@/Shared/UI/Button/Button';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
 import { useBeforeUnloadProtection } from '@/Shared/Hooks/useBeforeUnloadProtection';
 import { SectionTitle } from '@/Domains/Flow/Pages/FlowEditor/shared/paneLayout.styled';
@@ -136,7 +137,12 @@ export default function InputsEditor({ flow, canEdit, saveRef }: InputsEditorPro
                     value={defaultInputs}
                     onChange={handleDefaultInputsChange}
                     label="Input data"
-                    jsonHint={<>Type {'${vars.'}, {'${channels.'}, {'${mailboxWatchers.'}, {'${aiModels.'} or {'${dataTables.'} to insert a reference (autocompleted).</>}
+                    jsonHint={(
+                        <>
+                            Type {'${vars.'}, {'${channels.'}, {'${mailboxWatchers.'}, {'${aiModels.'}, {'${dataTables.'} or {'${mediaAssets.'} to insert a reference. For example, {'${mediaAssets.media_A1b2C3d4E5f6}'} resolves to its media ID and can be passed to $upload.{' '}
+                            <DocHelpLink path="/guide/media" label="Open Media Library guide" />
+                        </>
+                    )}
                     expandableTitle="Flow Inputs"
                     modeStorageKey="flow-inputs"
                     readOnly={!canEdit}

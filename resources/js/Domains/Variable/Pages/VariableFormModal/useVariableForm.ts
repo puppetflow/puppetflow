@@ -23,6 +23,17 @@ const EMPTY_FORM: VariableFormData = {
     vault_item_name: '',
     vault_field_label: '',
     vault_field_type: '',
+    mcp_endpoint: '',
+    mcp_transport: 'httpStreamable',
+    mcp_authentication: 'mcpOAuth2',
+    mcp_original_authentication: '',
+    mcp_token: '',
+    mcp_header_name: 'Authorization',
+    mcp_header_value: '',
+    mcp_headers: '',
+    mcp_client_id: '',
+    mcp_client_secret: '',
+    mcp_scopes: '',
 };
 
 function dataForVariable(variable: UserVariable): VariableFormData {
@@ -49,6 +60,17 @@ function dataForVariable(variable: UserVariable): VariableFormData {
         vault_item_name: variable.vault_item_name || '',
         vault_field_label: variable.vault_field_label || '',
         vault_field_type: variable.vault_field_type || '',
+        mcp_endpoint: '',
+        mcp_transport: 'httpStreamable',
+        mcp_authentication: 'mcpOAuth2',
+        mcp_original_authentication: '',
+        mcp_token: '',
+        mcp_header_name: 'Authorization',
+        mcp_header_value: '',
+        mcp_headers: '',
+        mcp_client_id: '',
+        mcp_client_secret: '',
+        mcp_scopes: '',
     };
 }
 
@@ -70,6 +92,8 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
     const [targetUserRole, setTargetUserRole] = useState<string>();
     const [teamId, setTeamId] = useState<Id | null>(null);
     const [jsonSubmitting, setJsonSubmitting] = useState(false);
+    const [mcpLoading, setMcpLoading] = useState(false);
+    const [mcpLoadFailed, setMcpLoadFailed] = useState(false);
     const form = useForm<VariableFormData>(EMPTY_FORM);
     const formRef = useRef(form);
     formRef.current = form;
@@ -91,6 +115,57 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
         }
         currentForm.clearErrors();
         setJsonSubmitting(false);
+        setMcpLoading(false);
+        setMcpLoadFailed(false);
+
+        if (editing?.type !== 'mcp_credentials') return;
+        setMcpLoading(true);
+        const controller = new AbortController();
+        const query = new URLSearchParams({ credential_variable_id: String(editing.id) });
+        void fetch(`/mcp-credentials/from-variable?${query.toString()}`, { signal: controller.signal })
+            .then(async response => {
+                const payload = await response.json().catch(() => ({})) as {
+                    credential?: {
+                        authentication: VariableFormData['mcp_authentication'];
+                        config: {
+                            endpoint?: string;
+                            transport?: VariableFormData['mcp_transport'];
+                            name?: string;
+                            headers?: { name: string }[];
+                            client_id?: string;
+                            scopes?: string;
+                        };
+                    };
+                    message?: string;
+                };
+                if (!response.ok || !payload.credential) {
+                    throw new Error(payload.message || 'Unable to load MCP Credentials.');
+                }
+                const credential = payload.credential;
+                currentForm.setData(previous => ({
+                    ...previous,
+                    mcp_endpoint: credential.config.endpoint ?? '',
+                    mcp_transport: credential.config.transport ?? 'httpStreamable',
+                    mcp_authentication: credential.authentication,
+                    mcp_original_authentication: credential.authentication,
+                    mcp_header_name: credential.config.name || 'Authorization',
+                    mcp_headers: (credential.config.headers ?? []).map(header => `${header.name}:`).join('\n'),
+                    mcp_client_id: credential.config.client_id ?? '',
+                    mcp_scopes: credential.config.scopes ?? '',
+                }));
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                setMcpLoadFailed(true);
+                currentForm.setError('mcp_authentication', error instanceof Error
+                    ? error.message
+                    : 'Unable to load MCP Credentials.');
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setMcpLoading(false);
+            });
+
+        return () => controller.abort();
     }, [editing, isOpen]);
 
     const ownershipDisabled = editing ? !canEditOwnership({
@@ -159,6 +234,63 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
         ...(ownerId ? { user_id: ownerId } : {}),
     });
 
+    const mcpRequestData = () => {
+        const headers = form.data.mcp_headers
+            .split('\n')
+            .map(line => {
+                const separator = line.indexOf(':');
+                return separator < 0
+                    ? { name: line.trim(), value: '' }
+                    : { name: line.slice(0, separator).trim(), value: line.slice(separator + 1).trim() };
+            })
+            .filter(header => header.name !== '');
+        const authenticationConfig = form.data.mcp_authentication === 'bearer'
+            ? { token: form.data.mcp_token }
+            : form.data.mcp_authentication === 'header'
+                ? { name: form.data.mcp_header_name, value: form.data.mcp_header_value }
+                : form.data.mcp_authentication === 'multipleHeaders'
+                    ? { headers }
+                    : {
+                        client_id: form.data.mcp_client_id || null,
+                        client_secret: form.data.mcp_client_secret,
+                        scopes: form.data.mcp_scopes,
+                    };
+        const config = {
+            endpoint: form.data.mcp_endpoint.trim(),
+            transport: form.data.mcp_transport,
+            ...authenticationConfig,
+        };
+
+        return {
+            name: form.data.key,
+            variable_key: form.data.key,
+            variable_group: form.data.group || null,
+            authentication: form.data.mcp_authentication,
+            config,
+            scope: form.data.scope,
+            team_id: form.data.scope === 'team' ? teamId : null,
+            ...(ownerId ? { user_id: ownerId } : {}),
+            is_active: true,
+        };
+    };
+
+    const mcpErrorField = (key: string): keyof VariableFormData => {
+        if (key === 'variable_key' || key === 'name') return 'key';
+        if (key === 'variable_group') return 'group';
+        if (key === 'scope' || key === 'team_id' || key === 'user_id') return 'scope';
+        if (key === 'authentication') return 'mcp_authentication';
+        if (key === 'config.endpoint') return 'mcp_endpoint';
+        if (key === 'config.transport') return 'mcp_transport';
+        if (key === 'config.token') return 'mcp_token';
+        if (key === 'config.name') return 'mcp_header_name';
+        if (key === 'config.value') return 'mcp_header_value';
+        if (key.startsWith('config.headers')) return 'mcp_headers';
+        if (key === 'config.client_id') return 'mcp_client_id';
+        if (key === 'config.client_secret') return 'mcp_client_secret';
+        if (key === 'config.scopes') return 'mcp_scopes';
+        return key as keyof VariableFormData;
+    };
+
     const handleErrors = (errors: Record<string, string>) => {
         Object.entries(errors).forEach(([key, value]) => form.setError(key as keyof VariableFormData, value));
     };
@@ -200,6 +332,51 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
         }
     };
 
+    const submitMcp = async () => {
+        setJsonSubmitting(true);
+        form.clearErrors();
+
+        try {
+            const response = await fetch(
+                editing
+                    ? `/mcp-credentials/from-variable/${encodeURIComponent(String(editing.id))}`
+                    : '/mcp-credentials',
+                {
+                    method: editing ? 'PUT' : 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        ...csrfHeaders(),
+                    },
+                    body: JSON.stringify(mcpRequestData()),
+                },
+            );
+            const payload = await response.json().catch(() => ({})) as {
+                variable?: VariableSuggestion;
+                message?: string;
+                errors?: Record<string, string | string[]>;
+            };
+            if (!response.ok || !payload.variable) {
+                Object.entries(payload.errors ?? {}).forEach(([key, error]) => {
+                    const message = Array.isArray(error) ? error[0] : error;
+                    if (message) form.setError(mcpErrorField(key), message);
+                });
+                if (!payload.errors && payload.message) form.setError('key', payload.message);
+                return;
+            }
+
+            if (onCreated) {
+                onCreated(payload.variable);
+            } else {
+                router.reload({ onFinish: onClose });
+            }
+        } catch {
+            form.setError('key', 'Unable to save MCP Credentials.');
+        } finally {
+            setJsonSubmitting(false);
+        }
+    };
+
     const submitUpdate = () => {
         if (!editing) return;
         router.put(`/variables/${editing.id}`, requestData(), {
@@ -236,6 +413,7 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
+        if (form.data.type === 'mcp_credentials' && (mcpLoading || mcpLoadFailed)) return;
 
         if (form.data.type === 'object' || form.data.type === 'array') {
             try {
@@ -251,6 +429,11 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
         }
 
         if (!await confirmOwnershipTransfer()) return;
+
+        if (form.data.type === 'mcp_credentials') {
+            await submitMcp();
+            return;
+        }
 
         if (editing) {
             submitUpdate();
@@ -280,7 +463,8 @@ export function useVariableForm({ editing, isOpen, onClose, confirm, onCreated }
         teamId,
         setTeamId,
         ownershipDisabled,
-        submitting: form.processing || jsonSubmitting,
+        submitting: form.processing || jsonSubmitting || mcpLoading || mcpLoadFailed,
+        mcpEnabled: pageProps.settings.mcp_enabled,
         vaultIntegrations,
     };
 }

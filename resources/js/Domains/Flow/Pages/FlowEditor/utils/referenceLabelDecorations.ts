@@ -6,6 +6,7 @@ import { fetchDataTableSuggestions } from './dataTableSuggestions';
 import { fetchMailboxWatcherSuggestions } from './mailboxWatcherSuggestions';
 import { fetchSnippetSuggestions, invalidateSnippetCache } from './snippetSuggestions';
 import { fetchVariableSuggestions } from './variableSuggestions';
+import { fetchMediaAssetSuggestions } from './mediaAssetSuggestions';
 
 type Monaco = Parameters<OnMount>[1];
 
@@ -27,10 +28,11 @@ async function buildLabelMap(flowId: Id | null, force: boolean): Promise<Map<str
         fetchSnippetSuggestions(),
         flowId ? fetchMailboxWatcherSuggestions(flowId, force) : Promise.resolve([]),
         flowId ? fetchDataTableSuggestions(flowId, force) : Promise.resolve([]),
+        fetchMediaAssetSuggestions(force),
     ] as const);
 
     const map = new Map<string, string>();
-    const [variables, channels, aiModels, snippets, watchers, dataTables] = results;
+    const [variables, channels, aiModels, snippets, watchers, dataTables, mediaAssets] = results;
 
     if (variables.status === 'fulfilled') {
         for (const variable of variables.value) {
@@ -51,6 +53,9 @@ async function buildLabelMap(flowId: Id | null, force: boolean): Promise<Map<str
     }
     if (dataTables.status === 'fulfilled') {
         for (const table of dataTables.value) map.set(String(table.id), table.name);
+    }
+    if (mediaAssets.status === 'fulfilled') {
+        for (const asset of mediaAssets.value) map.set(String(asset.id), asset.name);
     }
 
     return map;

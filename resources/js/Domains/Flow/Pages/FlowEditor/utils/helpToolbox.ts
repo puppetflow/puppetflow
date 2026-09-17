@@ -94,6 +94,7 @@ export const formatHelpLabel = (name: string) => {
     if (name === '$setOutput') return 'Set Output';
     if (name === '$aiMessage') return 'AI Message';
     if (name === '$aiControl') return 'AI Control';
+    if (name === '$mcpClientTool') return 'MCP Client Tool';
     if (name === '$httpRequest') return 'HTTP Request';
 
     const cleanName = name

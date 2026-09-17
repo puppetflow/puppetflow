@@ -22,6 +22,7 @@ class MailboxRunQueueService
     {
         DB::transaction(function () use ($run, $watchers): void {
             $activeRun = FlowRun::query()
+                ->select(['id', 'status'])
                 ->whereKey($run->getKey())
                 ->whereIn('status', ['pending', 'running'])
                 ->sharedLock()
@@ -61,7 +62,11 @@ class MailboxRunQueueService
         array $emailPayload,
     ): bool {
         return DB::transaction(function () use ($run, $email, $watcher, $emailPayload): bool {
-            $activeRun = FlowRun::query()->whereKey($run->id)->sharedLock()->first();
+            $activeRun = FlowRun::query()
+                ->select(['id', 'flow_id', 'status'])
+                ->whereKey($run->id)
+                ->sharedLock()
+                ->first();
             if (! $activeRun instanceof FlowRun || $activeRun->getAttribute('status') !== 'running') {
                 return false;
             }
@@ -122,7 +127,11 @@ class MailboxRunQueueService
     public function claim(FlowRun $run, string $watcherName): ?array
     {
         return DB::transaction(function () use ($run, $watcherName): ?array {
-            $activeRun = FlowRun::query()->whereKey($run->getKey())->sharedLock()->first();
+            $activeRun = FlowRun::query()
+                ->select(['id', 'status'])
+                ->whereKey($run->getKey())
+                ->sharedLock()
+                ->first();
             if (! $activeRun instanceof FlowRun || $activeRun->getAttribute('status') !== 'running') {
                 return null;
             }
@@ -135,19 +144,6 @@ class MailboxRunQueueService
             }
 
             $now = now();
-            MailboxRunMessage::query()
-                ->where('flow_run_id', $run->id)
-                ->whereIn('status', [
-                    MailboxRunMessage::STATUS_PENDING,
-                    MailboxRunMessage::STATUS_CLAIMED,
-                ])
-                ->where('expires_at', '<=', $now)
-                ->update([
-                    'status' => MailboxRunMessage::STATUS_EXPIRED,
-                    'expired_at' => $now,
-                    'claim_token_hash' => null,
-                    'lease_expires_at' => null,
-                ]);
             $claimQuery = MailboxRunMessage::query()
                 ->where('flow_run_id', $run->id)
                 ->where('watcher_name', $watcherName)
@@ -196,7 +192,11 @@ class MailboxRunQueueService
     public function renewLease(FlowRun $run, int $messageId, string $claimToken): ?\DateTimeInterface
     {
         return DB::transaction(function () use ($run, $messageId, $claimToken): ?\DateTimeInterface {
-            $activeRun = FlowRun::query()->whereKey($run->getKey())->sharedLock()->first();
+            $activeRun = FlowRun::query()
+                ->select(['id', 'status'])
+                ->whereKey($run->getKey())
+                ->sharedLock()
+                ->first();
             if (! $activeRun instanceof FlowRun || $activeRun->getAttribute('status') !== 'running') {
                 return null;
             }
@@ -247,7 +247,11 @@ class MailboxRunQueueService
         }
 
         DB::transaction(function () use ($run, $claims): void {
-            $persistedRun = FlowRun::query()->whereKey($run->getKey())->lockForUpdate()->first();
+            $persistedRun = FlowRun::query()
+                ->select(['id', 'status'])
+                ->whereKey($run->getKey())
+                ->lockForUpdate()
+                ->first();
             if (
                 ! $persistedRun instanceof FlowRun
                 || in_array($persistedRun->getAttribute('status'), ['pending', 'running'], true)

@@ -4,6 +4,7 @@
  * License. See LICENSE_PROPRIETARY.md.
  */
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { usePageProps } from '@/App/Hooks/usePageProps';
 import { useSearchablePopover } from '@/Shared/Hooks/useSearchablePopover';
@@ -28,6 +29,7 @@ interface Props {
     ownerScope?: string;
     disabled?: boolean;
     disabledHint?: string;
+    portal?: boolean;
 }
 
 const SCOPE_ICONS: Record<string, string> = {
@@ -37,7 +39,7 @@ const SCOPE_ICONS: Record<string, string> = {
     team: 'lucide:users-round',
 };
 
-export default function ScopePicker({ label, value, onChange, teams: teamsProp, ownerLabel = 'Owner', ownerScope = 'user', disabled, disabledHint }: Props) {
+export default function ScopePicker({ label, value, onChange, teams: teamsProp, ownerLabel = 'Owner', ownerScope = 'user', disabled, disabledHint, portal = false }: Props) {
     const { settings } = usePageProps();
     const workspaceSharingEnabled = settings?.workspace_sharing_enabled ?? false;
     const teamsEnabled = settings?.teams_enabled ?? false;
@@ -53,7 +55,9 @@ export default function ScopePicker({ label, value, onChange, teams: teamsProp, 
         : value;
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
+    const [panelRect, setPanelRect] = useState<DOMRect | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useSearchablePopover({
@@ -61,7 +65,7 @@ export default function ScopePicker({ label, value, onChange, teams: teamsProp, 
         onDismiss: () => setOpen(false),
         reset: () => setSearch(''),
         focusRef: inputRef,
-        containerRefs: [containerRef],
+        containerRefs: [containerRef, panelRef],
         eventType: 'mousedown',
     });
 
@@ -72,6 +76,23 @@ export default function ScopePicker({ label, value, onChange, teams: teamsProp, 
     useEffect(() => {
         setAvailableTeams(teamsProp);
     }, [teamsProp]);
+
+    useEffect(() => {
+        if (!open || !portal) return;
+
+        const updatePanelRect = () => {
+            setPanelRect(containerRef.current?.getBoundingClientRect() ?? null);
+        };
+
+        updatePanelRect();
+        window.addEventListener('resize', updatePanelRect);
+        window.addEventListener('scroll', updatePanelRect, true);
+
+        return () => {
+            window.removeEventListener('resize', updatePanelRect);
+            window.removeEventListener('scroll', updatePanelRect, true);
+        };
+    }, [open, portal]);
 
     const refreshTeams = useCallback(async () => {
         setRefreshing(true);
@@ -113,10 +134,119 @@ export default function ScopePicker({ label, value, onChange, teams: teamsProp, 
         && showDisabledFeatures
         && (!search.trim() || 'team'.includes(search.toLowerCase()));
 
+    const panel = (
+        <S.Panel
+            ref={panelRef}
+            $portaled={portal}
+            style={portal ? {
+                top: (panelRect?.bottom ?? 0) + 4,
+                left: panelRect?.left ?? 0,
+                width: panelRect?.width,
+            } : undefined}
+        >
+            <S.SearchWrapper>
+                <S.SearchInput
+                    ref={inputRef}
+                    value={search}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                    placeholder="Search scope..."
+                />
+                {teamsEnabled && (
+                    <S.RefreshButton
+                        type="button"
+                        title="Refresh teams"
+                        aria-label="Refresh teams"
+                        disabled={refreshing}
+                        $loading={refreshing}
+                        onMouseDown={event => event.preventDefault()}
+                        onClick={() => void refreshTeams()}
+                    >
+                        <Icon icon="lucide:refresh-cw" width={13} height={13} />
+                    </S.RefreshButton>
+                )}
+            </S.SearchWrapper>
+            {refreshing ? (
+                <S.Loading>
+                    <Icon icon="lucide:loader-circle" width={16} height={16} />
+                </S.Loading>
+            ) : <S.List>
+                {matchesOwner && (
+                    <S.Option
+                        type="button"
+                        $selected={effectiveValue.scope === ownerScope}
+                        onClick={() => { onChange({ scope: ownerScope, team_id: null }); setOpen(false); }}
+                    >
+                        <Icon icon={SCOPE_ICONS[ownerScope] || SCOPE_ICONS.user} width={14} />
+                        <S.OptionLabel>{ownerLabel}</S.OptionLabel>
+                        {effectiveValue.scope === ownerScope && <Icon icon="lucide:check" width={14} />}
+                    </S.Option>
+                )}
+                {matchesWorkspace && (
+                    <S.Option
+                        type="button"
+                        $selected={effectiveValue.scope === 'workspace'}
+                        $disabled={!workspaceSharingEnabled}
+                        disabled={!workspaceSharingEnabled}
+                        onClick={() => { onChange({ scope: 'workspace', team_id: null }); setOpen(false); }}
+                    >
+                        <Icon icon="lucide:building-2" width={14} />
+                        <S.OptionLabel>Workspace (all members)</S.OptionLabel>
+                        {effectiveValue.scope === 'workspace' && <Icon icon="lucide:check" width={14} />}
+                    </S.Option>
+                )}
+                {matchesUnavailableTeam && (
+                    <S.Option
+                        type="button"
+                        $selected={false}
+                        $disabled
+                        disabled
+                    >
+                        <Icon icon="lucide:users-round" width={14} />
+                        <S.OptionLabel>Team</S.OptionLabel>
+                    </S.Option>
+                )}
+                {filteredTeams.length > 0 && (
+                    <>
+                        <S.Separator />
+                        <S.SectionLabel>Teams</S.SectionLabel>
+                        <S.TeamList>
+                        {filteredTeams.map(t => (
+                            <S.Option
+                                key={t.id}
+                                type="button"
+                                $selected={effectiveValue.scope === 'team' && effectiveValue.team_id === t.id}
+                                onClick={() => { onChange({ scope: 'team', team_id: t.id }); setOpen(false); }}
+                            >
+                                <Icon icon="lucide:users-round" width={14} />
+                                <S.OptionLabel>{t.name}</S.OptionLabel>
+                                {effectiveValue.scope === 'team' && effectiveValue.team_id === t.id && <Icon icon="lucide:check" width={14} />}
+                            </S.Option>
+                        ))}
+                        </S.TeamList>
+                    </>
+                )}
+                {!matchesOwner && !matchesWorkspace && !matchesUnavailableTeam && filteredTeams.length === 0 && (
+                    <S.Empty>No results</S.Empty>
+                )}
+            </S.List>}
+        </S.Panel>
+    );
+
     return (
         <S.Wrapper ref={containerRef}>
             {label && <S.Label>{label}</S.Label>}
-            <S.Trigger type="button" disabled={disabled} $open={open} $disabled={disabled} onClick={() => setOpen(o => !o)}>
+            <S.Trigger
+                type="button"
+                disabled={disabled}
+                $open={open}
+                $disabled={disabled}
+                onClick={() => {
+                    if (!open && portal) {
+                        setPanelRect(containerRef.current?.getBoundingClientRect() ?? null);
+                    }
+                    setOpen(current => !current);
+                }}
+            >
                 <Icon icon={displayIcon} width={14} />
                 <S.TriggerLabel>{displayLabel}</S.TriggerLabel>
                 <S.TriggerArrow $open={open}>
@@ -124,95 +254,9 @@ export default function ScopePicker({ label, value, onChange, teams: teamsProp, 
                 </S.TriggerArrow>
             </S.Trigger>
             {disabled && disabledHint && <S.DisabledHint>{disabledHint}</S.DisabledHint>}
-            {open && !disabled && (
-                <S.Panel>
-                    <S.SearchWrapper>
-                        <S.SearchInput
-                            ref={inputRef}
-                            value={search}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-                            placeholder="Search scope..."
-                        />
-                        {teamsEnabled && (
-                            <S.RefreshButton
-                                type="button"
-                                title="Refresh teams"
-                                aria-label="Refresh teams"
-                                disabled={refreshing}
-                                $loading={refreshing}
-                                onMouseDown={event => event.preventDefault()}
-                                onClick={() => void refreshTeams()}
-                            >
-                                <Icon icon="lucide:refresh-cw" width={13} height={13} />
-                            </S.RefreshButton>
-                        )}
-                    </S.SearchWrapper>
-                    {refreshing ? (
-                        <S.Loading>
-                            <Icon icon="lucide:loader-circle" width={16} height={16} />
-                        </S.Loading>
-                    ) : <S.List>
-                        {matchesOwner && (
-                            <S.Option
-                                type="button"
-                                $selected={effectiveValue.scope === ownerScope}
-                                onClick={() => { onChange({ scope: ownerScope, team_id: null }); setOpen(false); }}
-                            >
-                                <Icon icon={SCOPE_ICONS[ownerScope] || SCOPE_ICONS.user} width={14} />
-                                <S.OptionLabel>{ownerLabel}</S.OptionLabel>
-                                {effectiveValue.scope === ownerScope && <Icon icon="lucide:check" width={14} />}
-                            </S.Option>
-                        )}
-                        {matchesWorkspace && (
-                            <S.Option
-                                type="button"
-                                $selected={effectiveValue.scope === 'workspace'}
-                                $disabled={!workspaceSharingEnabled}
-                                disabled={!workspaceSharingEnabled}
-                                onClick={() => { onChange({ scope: 'workspace', team_id: null }); setOpen(false); }}
-                            >
-                                <Icon icon="lucide:building-2" width={14} />
-                                <S.OptionLabel>Workspace (all members)</S.OptionLabel>
-                                {effectiveValue.scope === 'workspace' && <Icon icon="lucide:check" width={14} />}
-                            </S.Option>
-                        )}
-                        {matchesUnavailableTeam && (
-                            <S.Option
-                                type="button"
-                                $selected={false}
-                                $disabled
-                                disabled
-                            >
-                                <Icon icon="lucide:users-round" width={14} />
-                                <S.OptionLabel>Team</S.OptionLabel>
-                            </S.Option>
-                        )}
-                        {filteredTeams.length > 0 && (
-                            <>
-                                <S.Separator />
-                                <S.SectionLabel>Teams</S.SectionLabel>
-                                <S.TeamList>
-                                {filteredTeams.map(t => (
-                                    <S.Option
-                                        key={t.id}
-                                        type="button"
-                                        $selected={effectiveValue.scope === 'team' && effectiveValue.team_id === t.id}
-                                        onClick={() => { onChange({ scope: 'team', team_id: t.id }); setOpen(false); }}
-                                    >
-                                        <Icon icon="lucide:users-round" width={14} />
-                                        <S.OptionLabel>{t.name}</S.OptionLabel>
-                                        {effectiveValue.scope === 'team' && effectiveValue.team_id === t.id && <Icon icon="lucide:check" width={14} />}
-                                    </S.Option>
-                                ))}
-                                </S.TeamList>
-                            </>
-                        )}
-                        {!matchesOwner && !matchesWorkspace && !matchesUnavailableTeam && filteredTeams.length === 0 && (
-                            <S.Empty>No results</S.Empty>
-                        )}
-                    </S.List>}
-                </S.Panel>
-            )}
+            {open && !disabled && (!portal || panelRect) && (portal
+                ? createPortal(panel, document.body)
+                : panel)}
         </S.Wrapper>
     );
 }

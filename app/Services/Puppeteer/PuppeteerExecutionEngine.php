@@ -6,6 +6,7 @@ use App\Contracts\FlowExecutionEngine;
 use App\Models\Flow;
 use App\Models\FlowRun;
 use App\Services\Storage\RunArtifactStorage;
+use App\Services\Storage\SniffBodyStore;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Log;
 
@@ -18,6 +19,7 @@ final class PuppeteerExecutionEngine implements FlowExecutionEngine
         private readonly RuntimeOutputReader $outputs,
         private readonly RuntimeSecretManager $secrets,
         private readonly RunArtifactStorage $artifactStorage,
+        private readonly SniffBodyStore $sniffBodies,
     ) {}
 
     public function execute(
@@ -49,6 +51,7 @@ final class PuppeteerExecutionEngine implements FlowExecutionEngine
                     $runspace->files,
                     $this->runspaces->bootstrapSandbox($run->getFlowRunArtifactsBasePath()),
                     $runspace->cookieJars,
+                    $runspace->cookieGeneration,
                 );
                 $env = $this->environments->build(
                     $flow,
@@ -76,6 +79,17 @@ final class PuppeteerExecutionEngine implements FlowExecutionEngine
                 if ($runspace !== null) {
                     try {
                         $this->secrets->merge($run, $runspace->files['runtime_secrets']);
+                        // Same pod, right after the process: the spilled files still exist and secrets are
+                        // merged so redaction is complete. Losing bodies must never fail the run itself.
+                        try {
+                            $this->sniffBodies->ingest(
+                                $run,
+                                $runspace->directories['tmp'].'/sniff-bodies',
+                                $this->outputs->peekInternalOutput($runspace->files['internal_output']),
+                            );
+                        } catch (\Throwable $exception) {
+                            report($exception);
+                        }
                         $mailboxClaims = $this->outputs->mailboxClaims($runspace->files['mailbox_claims']);
                         $this->runspaces->persistCookies($flow, $run, $runspace);
                     } finally {
@@ -89,7 +103,7 @@ final class PuppeteerExecutionEngine implements FlowExecutionEngine
                         $actionLogs = $this->outputs->actionLogs($runspace->files['action_logs']);
                         if ($process === null) {
                             $partialOutput = $this->outputs->output($runspace->files['output']);
-                            $internalOutput = $this->outputs->output($runspace->files['internal_output']);
+                            $internalOutput = $this->outputs->internalOutput($runspace->files['internal_output']);
                             $this->runspaces->cleanupAll($runspace->files);
                         }
                     }
@@ -109,12 +123,12 @@ final class PuppeteerExecutionEngine implements FlowExecutionEngine
             ]);
             if ($process->failed()) {
                 $partialOutput = $this->outputs->output($runspace->files['output']);
-                $internalOutput = $this->outputs->output($runspace->files['internal_output']);
+                $internalOutput = $this->outputs->internalOutput($runspace->files['internal_output']);
                 $this->outputs->throwProcessFailure($process, $runspace->files, $tag, $run);
             }
 
             $output = $this->outputs->successfulOutput($flow, $run, $process, $runspace->files);
-            $internalOutput = $this->outputs->output($runspace->files['internal_output']);
+            $internalOutput = $this->outputs->internalOutput($runspace->files['internal_output']);
 
             return new FlowExecutionResult(
                 output: $output,
