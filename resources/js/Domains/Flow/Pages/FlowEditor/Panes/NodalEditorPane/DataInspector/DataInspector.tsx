@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useToast } from '@/App/Hooks/useToast';
+import { Icon } from '@/Shared/UI/Icon/Icon';
 import InspectorSchemaTree from './components/InspectorSchemaTree/InspectorSchemaTree';
 import InspectorToolbar, { type InspectorTab } from './components/InspectorToolbar/InspectorToolbar';
 import InspectorTreeNode from './components/InspectorTreeNode/InspectorTreeNode';
@@ -31,6 +32,8 @@ interface DataInspectorProps {
     copyValue?: unknown;
     rootPath: string;
     emptyText: string;
+    /** Shows a spinner instead of the data while the value for the displayed node is being prepared. */
+    loading?: boolean;
     tabStorageKey?: string;
     flowId?: Id;
     sourceControl?: ReactNode;
@@ -44,6 +47,7 @@ export default function DataInspector({
     copyValue,
     rootPath,
     emptyText,
+    loading = false,
     tabStorageKey,
     flowId,
     sourceControl,
@@ -92,7 +96,7 @@ export default function DataInspector({
             { icon: source.icon, iconColor: source.iconColor },
         ]) ?? [],
     ), [schemaSources]);
-    const hasValue = displayValue !== undefined;
+    const hasValue = !loading && displayValue !== undefined;
     const changeTab = (nextTab: InspectorTab) => {
         setTab(nextTab);
         if (tabStorageKey && typeof window !== 'undefined') {
@@ -145,7 +149,12 @@ export default function DataInspector({
                 onToggleSystemVariables={toggleSystemVariables}
             />
             <S.InspectorBody>
-                {!hasValue ? (
+                {loading ? (
+                    <S.InspectorLoading aria-busy aria-live="polite">
+                        <Icon icon="lucide:loader-circle" width={20} height={20} />
+                        <span>Loading {title.toLowerCase()} data…</span>
+                    </S.InspectorLoading>
+                ) : !hasValue ? (
                     <S.InspectorEmpty>{emptyText}</S.InspectorEmpty>
                 ) : tab === 'json' ? (
                     <S.InspectorJsonTree>

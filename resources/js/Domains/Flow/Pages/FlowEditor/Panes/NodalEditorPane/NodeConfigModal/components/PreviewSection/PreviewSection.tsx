@@ -38,6 +38,8 @@ interface PreviewSectionProps {
     copyValue: unknown;
     rootPath: string;
     emptyText: string;
+    /** The displayed node's data is still being prepared: show a spinner instead of stale values. */
+    loading?: boolean;
     flowId?: Id;
     sources?: PreviewSource[];
     selectedSourceId?: string;
@@ -57,8 +59,24 @@ export default function PreviewSection({
     executionStatus,
     selectedExecutionIndex = 0,
     onSelectExecution,
+    loading = false,
+    value,
+    copyValue,
     ...props
 }: PreviewSectionProps) {
+    if (loading) {
+        return (
+            <S.Pane>
+                <DataInspector
+                    {...props}
+                    value={undefined}
+                    loading
+                    tabStorageKey={`puppetflow:node-config:${props.title.toLowerCase()}:inspector-tab`}
+                />
+            </S.Pane>
+        );
+    }
+
     const droppedExecutions = executionStatus?.dropped ?? executions[0]?.dropped ?? 0;
     const dropReason = executionStatus?.dropReason ?? executions[0]?.dropReason ?? 'history';
     const executionFooterHint = droppedExecutions > 0
@@ -121,6 +139,8 @@ export default function PreviewSection({
         <S.Pane>
             <DataInspector
                 {...props}
+                value={value}
+                copyValue={copyValue}
                 sourceControl={sourceControl}
                 schemaSources={sources?.map(source => ({
                     id: source.id,
