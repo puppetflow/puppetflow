@@ -54,23 +54,27 @@ export const ParentFolderName = styled.span`
     color: ${({ theme }) => theme.colors.text.secondary};
 `;
 
-export const FlowsGrid = styled.div`
+const gridColumns = (count: number) => css`
+    grid-template-columns: repeat(${count}, minmax(0, 1fr));
+`;
+
+export const FlowsGrid = styled.div<{ $columns: number }>`
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    ${({ $columns }) => gridColumns($columns)}
     grid-auto-rows: 1fr;
     align-items: stretch;
     gap: 12px;
 
     @media (max-width: 1200px) {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        ${({ $columns }) => gridColumns(Math.min($columns, 4))}
     }
 
     @media (max-width: 900px) {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        ${({ $columns }) => gridColumns(Math.min($columns, 3))}
     }
 
     @media (max-width: 720px) {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        ${({ $columns }) => gridColumns(Math.min($columns, 2))}
     }
 
     @media (max-width: 620px) {

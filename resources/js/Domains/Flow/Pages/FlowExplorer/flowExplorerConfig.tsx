@@ -30,6 +30,7 @@ export const flowExplorerConfig: ExplorerConfig<Flow> = {
         moveItem: id => `/flows/${id}/move`,
         batchDelete: '/flows/batch-delete',
     },
+    gridColumns: 3,
     canManageItem: isOwnerOrAdmin,
     renderItemCard: props => <FlowExplorerCard {...props} />,
     renderItemIcon: flow => <FlowIcon flow={flow} size={16} radius="xs" />,

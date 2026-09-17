@@ -163,7 +163,7 @@ export default function ExplorerResults<TItem extends ExplorerItem>({ selection,
             {items.data.length > 0 ? (
                 <>
                     {viewMode === 'grid'
-                        ? <S.FlowsGrid>{itemCards}</S.FlowsGrid>
+                        ? <S.FlowsGrid $columns={config.gridColumns ?? 5}>{itemCards}</S.FlowsGrid>
                         : <S.FlowsList>{itemCards}</S.FlowsList>}
 
                     {items.last_page > 1 && (
