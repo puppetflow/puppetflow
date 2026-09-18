@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 
 export const DangerZone = styled.div`
-    margin-top: 20px;
     padding: 14px;
     border: 1px solid ${({ theme }) => theme.colors.accent.error}40;
     border-radius: ${({ theme }) => theme.radius.md};

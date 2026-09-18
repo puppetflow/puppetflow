@@ -14,6 +14,7 @@ use App\Services\Flow\ArtifactCleanupService;
 use App\Services\Storage\RunArtifactPathResolver;
 use App\Services\Storage\StoragePathSharder;
 use App\Services\Storage\UploadStorage;
+use App\Support\Flow\BrowserLanguage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -117,6 +118,7 @@ class Flow extends Model
         'viewport_height',
         'keyboard_speed',
         'user_agent',
+        'language',
         'disable_web_security',
         'finally_enabled',
         'last_run_result',
@@ -376,6 +378,18 @@ class Flow extends Model
         }
 
         return $this->workspace?->getEffectiveDefaultUserAgent() ?? Workspace::instanceDefaultUserAgent();
+    }
+
+    /**
+     * Browser language as comma-separated BCP 47 tags.
+     * Precedence: flow, then workspace default, then instance default (BROWSER_LANGUAGE).
+     * Returns null when the runtime should fall back to the Pinokio or Chromium default.
+     */
+    public function getEffectiveLanguage(): ?string
+    {
+        return BrowserLanguage::normalize($this->language)
+            ?? $this->workspace?->getEffectiveDefaultLanguage()
+            ?? Workspace::instanceDefaultLanguage();
     }
 
     public function getEffectiveRetentionLimit(): int

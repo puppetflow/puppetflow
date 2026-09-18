@@ -5,6 +5,7 @@ namespace App\Http\Requests\Flow;
 use App\Enums\Authorization\Ability;
 use App\Http\Requests\Flow\Concerns\PreservesDefaultInputsEmptyStrings;
 use App\Models\Flow;
+use App\Support\Flow\BrowserLanguage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -68,6 +69,7 @@ class UpdateFlowRequest extends FormRequest
             'viewport_height' => ['sometimes', 'nullable', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:10000'],
             'user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
+            'language' => BrowserLanguage::rules(),
             'disable_web_security' => ['sometimes', 'boolean'],
             'finally_enabled' => ['sometimes', 'boolean'],
             'default_inputs' => ['sometimes', 'nullable', 'array'],

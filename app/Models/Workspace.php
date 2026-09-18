@@ -12,6 +12,7 @@ use App\Models\Concerns\HasStringId;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Storage\StoragePathSharder;
 use App\Services\Storage\UploadStorage;
+use App\Support\Flow\BrowserLanguage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -31,6 +32,7 @@ use Illuminate\Support\Str;
  * @property int $debug_log_array_limit
  * @property bool $require_two_factor
  * @property string|null $default_user_agent
+ * @property string|null $default_language
  */
 class Workspace extends Model
 {
@@ -44,7 +46,7 @@ class Workspace extends Model
         'runs_retention_default', 'runs_retention_max',
         'default_flow_timeout_seconds', 'max_flow_timeout_seconds',
         'max_retries_default', 'max_retries_max',
-        'viewport_width', 'viewport_height', 'keyboard_speed', 'default_user_agent',
+        'viewport_width', 'viewport_height', 'keyboard_speed', 'default_user_agent', 'default_language',
         'debug_log_object_depth', 'debug_log_array_limit',
         'allow_trigger_advertising',
         'require_two_factor',
@@ -209,6 +211,23 @@ class Workspace extends Model
         $value = is_string($this->default_user_agent) ? trim($this->default_user_agent) : '';
 
         return $value !== '' ? $value : self::instanceDefaultUserAgent();
+    }
+
+    /**
+     * Instance-wide default browser language, configured through BROWSER_LANGUAGE.
+     * Returns null when the runtime should fall back to the Pinokio or Chromium default.
+     */
+    public static function instanceDefaultLanguage(): ?string
+    {
+        return BrowserLanguage::normalize(config('services.browser.language', ''));
+    }
+
+    /**
+     * Precedence: workspace default, then instance default (BROWSER_LANGUAGE).
+     */
+    public function getEffectiveDefaultLanguage(): ?string
+    {
+        return BrowserLanguage::normalize($this->default_language) ?? self::instanceDefaultLanguage();
     }
 
     public function getEffectiveMaxFlowTimeoutSeconds(): int

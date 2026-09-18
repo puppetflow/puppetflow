@@ -65,6 +65,7 @@ export default tseslint.config(
                 $browser: 'readonly',
                 $page: 'readonly',
                 $puppeteer: 'readonly',
+                _browserLanguagePrimary: 'readonly',
                 _recordingStartTs: 'readonly',
                 // Shared across fragments (defined in 01-bootstrap / 02-globals)
                 $_appUrl: 'readonly',

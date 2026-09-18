@@ -17,7 +17,6 @@ export default function ArtifactsSection({ form, recordingEnabled, isNodalFlow }
                 Artifacts
                 <DocHelpLink path="/guide/artifacts" label="Open artifacts documentation" />
             </S.SettingsSectionLabel>
-
             <Switch
                 id="export_artifacts_screenshots"
                 checked={form.data.export_artifacts_screenshots}

@@ -1,12 +1,5 @@
 import { css } from 'styled-components';
 
-export const settingsFormStyles = css`
-    display: flex;
-    padding-top: 16px;
-    flex-direction: column;
-    gap: 12px;
-`;
-
 export const settingsSeparatorStyles = css`
     border: none;
     border-top: 1px solid ${({ theme }) => theme.colors.border.default};

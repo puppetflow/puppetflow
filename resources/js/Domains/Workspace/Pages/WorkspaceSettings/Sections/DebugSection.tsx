@@ -3,18 +3,21 @@ import { useForm } from '@inertiajs/react';
 import Button from '@/Shared/UI/Button/Button';
 import Input from '@/Shared/UI/Input/Input';
 import type { Workspace } from '@/Domains/Workspace/types';
+import { useDirtyReport } from '@/Shared/Hooks/useDirtyReport';
 import * as S from './DebugSection.styled';
 
 interface Props {
     workspace: Workspace;
     readOnly?: boolean;
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function DebugSection({ workspace, readOnly }: Props) {
+export default function DebugSection({ workspace, readOnly, onDirtyChange }: Props) {
     const form = useForm({
         debug_log_object_depth: workspace.debug_log_object_depth ?? 8,
         debug_log_array_limit: workspace.debug_log_array_limit ?? 100,
     });
+    useDirtyReport(form.isDirty, onDirtyChange);
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();

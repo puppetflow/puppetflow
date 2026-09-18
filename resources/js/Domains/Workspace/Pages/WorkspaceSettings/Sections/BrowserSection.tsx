@@ -4,6 +4,9 @@ import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import Input from '@/Shared/UI/Input/Input';
 import Button from '@/Shared/UI/Button/Button';
 import UserAgentInput from '@/Shared/UI/UserAgentInput/UserAgentInput';
+import LanguageSelect from '@/Shared/UI/LanguageSelect/LanguageSelect';
+import { formatBrowserLanguage } from '@/Shared/Utils/browserLanguages';
+import { useDirtyReport } from '@/Shared/Hooks/useDirtyReport';
 import type { PageProps } from '@/App/types';
 import type { Workspace } from '@/Domains/Workspace/types';
 import * as S from './BrowserSection.styled';
@@ -11,17 +14,21 @@ import * as S from './BrowserSection.styled';
 interface Props {
     workspace: Workspace;
     readOnly?: boolean;
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function BrowserSection({ workspace, readOnly }: Props) {
+export default function BrowserSection({ workspace, readOnly, onDirtyChange }: Props) {
     const { settings } = usePage<InertiaPageProps & PageProps>().props;
     const instanceUserAgent = settings.default_user_agent ?? '';
+    const instanceLanguage = formatBrowserLanguage(settings.default_language);
     const form = useForm({
         viewport_width: workspace.viewport_width ?? 1280,
         viewport_height: workspace.viewport_height ?? 720,
         keyboard_speed: workspace.keyboard_speed ?? 100,
         default_user_agent: workspace.default_user_agent ?? '',
+        default_language: workspace.default_language ?? '',
     });
+    useDirtyReport(form.isDirty, onDirtyChange);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -73,8 +80,19 @@ export default function BrowserSection({ workspace, readOnly }: Props) {
                 disabled={readOnly}
             />
             <S.FieldHint>
-                Default browser user agent for all flows in this workspace. Leave empty to inherit the instance default
-                (BROWSER_USER_AGENT). Can be overridden per flow.
+                Default browser user agent for all flows in this workspace. Can be overridden per flow.
+            </S.FieldHint>
+            <LanguageSelect
+                label="Default browser language"
+                inheritLabel={instanceLanguage ? `Inherit (${instanceLanguage})` : 'Inherit (runtime default)'}
+                inheritedValue={settings.default_language}
+                value={form.data.default_language}
+                onChange={value => form.setData('default_language', value)}
+                error={form.errors.default_language}
+                disabled={readOnly}
+            />
+            <S.FieldHint>
+                Language the browser asks websites for (Accept-Language and navigator.language) in all flows of this workspace. Can be overridden per flow. Some websites ignore it and pick a language from the IP address or the account instead; use a proxy in the target country for those.
             </S.FieldHint>
             {!readOnly && (
                 <S.FormActions>

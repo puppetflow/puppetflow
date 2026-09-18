@@ -4,15 +4,17 @@ import Button from '@/Shared/UI/Button/Button';
 import type { PageProps } from '@/App/types';
 import type { Workspace } from '@/Domains/Workspace/types';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
+import { useDirtyReport } from '@/Shared/Hooks/useDirtyReport';
 import PerformanceFields, { type PerformanceFormData } from './PerformanceFields';
 import * as S from './PerformanceSection.styled';
 
 interface Props {
     workspace: Workspace;
     readOnly?: boolean;
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function PerformanceSection({ workspace, readOnly }: Props) {
+export default function PerformanceSection({ workspace, readOnly, onDirtyChange }: Props) {
     const { settings } = usePage<InertiaPageProps & PageProps>().props;
     const globalMaxTimeout = settings.maximum_timeout_seconds ?? settings.max_flow_timeout_seconds ?? 0;
     const globalMaxRetries = settings.maximum_retries_limit ?? 5;
@@ -38,6 +40,7 @@ export default function PerformanceSection({ workspace, readOnly }: Props) {
         max_retries_default: initialMaxRetriesDefault,
         max_retries_max: initialMaxRetriesMax,
     });
+    useDirtyReport(form.isDirty, onDirtyChange);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

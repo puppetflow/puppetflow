@@ -68,6 +68,8 @@ export function useSettingsLimits(flow: Flow) {
         wsKeyboardSpeed: currentWorkspace?.keyboard_speed ?? 100,
         // Inherited value shown as placeholder: workspace default, then instance default (BROWSER_USER_AGENT).
         wsUserAgent: currentWorkspace?.default_user_agent || settings.default_user_agent || '',
+        // Inherited browser language: workspace default, then instance default (BROWSER_LANGUAGE).
+        wsLanguage: currentWorkspace?.default_language || settings.default_language || '',
     };
 }
 

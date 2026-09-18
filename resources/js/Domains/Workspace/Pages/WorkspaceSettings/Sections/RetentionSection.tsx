@@ -5,15 +5,17 @@ import Button from '@/Shared/UI/Button/Button';
 import type { PageProps } from '@/App/types';
 import type { Workspace } from '@/Domains/Workspace/types';
 import { capDefault } from '@/Shared/Utils/limits';
+import { useDirtyReport } from '@/Shared/Hooks/useDirtyReport';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import * as S from './RetentionSection.styled';
 
 interface Props {
     workspace: Workspace;
     readOnly?: boolean;
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function RetentionSection({ workspace, readOnly }: Props) {
+export default function RetentionSection({ workspace, readOnly, onDirtyChange }: Props) {
     const { settings } = usePage<InertiaPageProps & PageProps>().props;
     const globalMax = settings.maximum_retention_limit ?? 0;
     const rawMax = workspace.runs_retention_max ?? 0;
@@ -27,6 +29,7 @@ export default function RetentionSection({ workspace, readOnly }: Props) {
             : initialDefault,
         runs_retention_max: initialMax,
     });
+    useDirtyReport(form.isDirty, onDirtyChange);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

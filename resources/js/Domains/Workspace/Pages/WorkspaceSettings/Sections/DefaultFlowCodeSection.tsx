@@ -20,15 +20,17 @@ import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEdit
 import { DEFAULT_CODE } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { CodeGizmo } from '@/Domains/Flow/Pages/FlowEditor/utils/codeGizmos';
 import { useHelpEntryInsertion } from '@/Domains/Flow/Pages/FlowEditor/hooks/useHelpEntryInsertion';
+import { useDirtyReport } from '@/Shared/Hooks/useDirtyReport';
 import type { Workspace } from '@/Domains/Workspace/types';
 import * as S from './DefaultFlowCodeSection.styled';
 
 interface Props {
     workspace: Workspace;
     readOnly?: boolean;
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
+export default function DefaultFlowCodeSection({ workspace, readOnly, onDirtyChange }: Props) {
     const { resolved: resolvedTheme } = useThemeMode();
     const { toast } = useToast();
     const { grabSelector } = useGrabber();
@@ -49,6 +51,7 @@ export default function DefaultFlowCodeSection({ workspace, readOnly }: Props) {
     const codeDirty = code !== savedCode;
     const graphDirty = JSON.stringify(graph) !== JSON.stringify(savedGraph);
     const dirty = typeDirty || (flowType === 'nodal' ? graphDirty : codeDirty);
+    useDirtyReport(dirty, onDirtyChange);
     const usingBuiltInDefault = flowType === 'nodal'
         ? JSON.stringify(graph) === JSON.stringify(builtInGraph)
         : code === DEFAULT_CODE;

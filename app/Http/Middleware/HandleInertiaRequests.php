@@ -102,6 +102,7 @@ class HandleInertiaRequests extends Middleware
                 'server_timezone' => config('app.timezone', 'UTC'),
                 'max_flow_timeout_seconds' => config('puppetflow.max_flow_timeout_seconds', 0),
                 'default_user_agent' => Workspace::instanceDefaultUserAgent() ?? '',
+                'default_language' => Workspace::instanceDefaultLanguage() ?? '',
                 'grabber_chrome_store_url' => config('puppetflow.grabber_chrome_store_url', ''),
                 'grabber_firefox_store_url' => config('puppetflow.grabber_firefox_store_url', ''),
                 'documentation_url' => config('puppetflow.documentation_url', 'https://docs.puppetflow.com'),

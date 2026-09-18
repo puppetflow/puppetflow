@@ -395,6 +395,16 @@ await __registerNamedPageInitializer(async page => {
     behavior: 'allow',
     downloadPath: __downloadingPath,
   });
+  // Align the JavaScript Intl locale with the requested browser language. Without
+  // this, Intl stays on the locale pack bundled with Chromium (en-US) even when
+  // Accept-Language is already forced through --accept-lang.
+  if (typeof _browserLanguagePrimary === 'string' && _browserLanguagePrimary) {
+    try {
+      await client.send('Emulation.setLocaleOverride', { locale: _browserLanguagePrimary });
+    } catch (error) {
+      console.debug('Emulation.setLocaleOverride failed: ' + (error && error.message ? error.message : error));
+    }
+  }
   try {
     await page.evaluateOnNewDocument(__installPageRunProgressNoops);
     await page.evaluate(__installPageRunProgressNoops);
@@ -549,7 +559,7 @@ const $now = DateTime.now();
  */
 const $today = DateTime.now().startOf('day');
 
-/* global $viewportWidth:writable, $viewportHeight:writable */
+/* global $viewportWidth:writable, $viewportHeight:writable, _fakeUserAgent */
 
 const __retryOnContextDestroyed = async function(fn, retries = 2, delayMs = 300) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -586,6 +596,7 @@ const $setViewport = async function(width, height) {
   $json.$viewportHeight = vHeight;
 };
 $setViewport();
+console.debug('User agent:', _fakeUserAgent);
 
 /* @help Cookies
  * @sig $saveCookies(profile?, options?)

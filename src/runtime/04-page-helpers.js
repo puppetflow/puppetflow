@@ -1,4 +1,4 @@
-/* global $viewportWidth:writable, $viewportHeight:writable */
+/* global $viewportWidth:writable, $viewportHeight:writable, _fakeUserAgent */
 
 const __retryOnContextDestroyed = async function(fn, retries = 2, delayMs = 300) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -35,4 +35,5 @@ const $setViewport = async function(width, height) {
   $json.$viewportHeight = vHeight;
 };
 $setViewport();
+console.debug('User agent:', _fakeUserAgent);
 

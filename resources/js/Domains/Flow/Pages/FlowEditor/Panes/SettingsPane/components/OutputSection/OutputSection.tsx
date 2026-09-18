@@ -10,9 +10,6 @@ interface OutputSectionProps {
 export default function OutputSection({ form, isNodalFlow }: OutputSectionProps) {
     return (
         <>
-            <S.SettingsSeparator />
-            <S.SettingsSectionLabel>Output</S.SettingsSectionLabel>
-
             <Switch
                 id="include_raw_output"
                 checked={form.data.include_raw_output}

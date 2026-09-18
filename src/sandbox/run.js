@@ -86,6 +86,7 @@ module.exports = async function(appDir, flowId, quiet) {
         proxyServer: _proxyServerArg?.slice('--proxy-server='.length),
         proxyBypassList: _proxyBypassListArg?.slice('--proxy-bypass-list='.length),
         disableWebSecurity: _disableWebSecurity,
+        acceptLanguage: _browserLanguage || undefined,
       };
       const _qp = { launch: JSON.stringify(_gatewayLaunch), stealth: 'true' };
       ${PINOKIO_TOKEN ? `_qp.token = ${JSON.stringify(PINOKIO_TOKEN)};` : ''}
@@ -200,6 +201,14 @@ module.exports = async function(appDir, flowId, quiet) {
     const _vpH = parseInt(process.env.VIEWPORT_HEIGHT) || 720;
     const _chromeUserDataDir = ${JSON.stringify(chromeUserDataDir)};
     const _disableWebSecurity = process.env.BROWSER_DISABLE_WEB_SECURITY === 'true';
+    // Comma-separated BCP 47 tags resolved by the backend (flow > workspace > instance).
+    // Empty means the browser keeps its own default (Pinokio LANGUAGE or Chromium).
+    const _browserLanguageTags = String(process.env.BROWSER_LANGUAGE || '')
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/.test(tag));
+    const _browserLanguage = _browserLanguageTags.join(',');
+    const _browserLanguagePrimary = _browserLanguageTags[0] || '';
     const _browserArgs = [
       '--window-size=' + _vpW + ',' + _vpH,
       ${browserProxyServer ? JSON.stringify(`--proxy-server=${browserProxyServer}`) + ',' : ''}
@@ -209,6 +218,12 @@ module.exports = async function(appDir, flowId, quiet) {
     ];
     if (_disableWebSecurity) {
       _browserArgs.push('--disable-web-security');
+    }
+    if (_browserLanguage) {
+      // --lang needs the matching locale pack; --accept-lang drives navigator.language
+      // and the Accept-Language header regardless, so both are set for native launches.
+      _browserArgs.push('--lang=' + _browserLanguagePrimary);
+      _browserArgs.push('--accept-lang=' + _browserLanguage);
     }
     const launchOptions = {
       headless: ${headlessMode},
