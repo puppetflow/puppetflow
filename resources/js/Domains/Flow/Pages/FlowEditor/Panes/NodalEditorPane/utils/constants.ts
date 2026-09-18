@@ -7,6 +7,7 @@ import type {
 import { FALLBACK_HELP_CATEGORY, VISUAL_NODE_CATEGORY_PAGES } from '@/Domains/Flow/Pages/FlowEditor/categories';
 import { HELPER_ICON_BY_NAME } from '@/Domains/Flow/Pages/FlowEditor/utils/helperIcons';
 import { getNodeFlowPortDefinitions } from './flowParameters';
+import { CANVAS_GRID_SIZE } from './grid';
 
 export const CODE_NODE_NAME = 'Code';
 export const STICKY_NOTE_NODE_NAME = '__sticky_note';
@@ -48,6 +49,16 @@ export const NODE_TILE_SIZE = 72;
 export const NODE_LABEL_MIN_HEIGHT = 32;
 export const NODE_TILE_LABEL_GAP = 8;
 export const NODE_PORT_Y_OFFSET = -(NODE_LABEL_MIN_HEIGHT + NODE_TILE_LABEL_GAP) / 2;
+
+// Vertical distance between a side handle and the tile center. Handles are
+// spread by two grid steps so every offset is a whole number of steps whatever
+// the count (2 handles: -1/+1 step, 3 handles: -2/0/+2), letting a node on the
+// grid face any handle of its neighbour exactly, by hand or via auto layout.
+export const NODE_PORT_SPACING = CANVAS_GRID_SIZE * 2;
+
+export const getPortHandleOffset = (index: number, count: number): number => (
+    (index - (count - 1) / 2) * NODE_PORT_SPACING
+);
 
 export const CODE_NODE_ENTRY: HelpEntryDef = {
     name: CODE_NODE_NAME,

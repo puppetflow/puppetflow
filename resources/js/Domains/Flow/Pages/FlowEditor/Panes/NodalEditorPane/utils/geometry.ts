@@ -1,4 +1,4 @@
-import { NODE_CARD_WIDTH, NODE_PORT_Y_OFFSET } from './constants';
+import { NODE_CARD_WIDTH, NODE_PORT_Y_OFFSET, getPortHandleOffset } from './constants';
 import { DEFAULT_INPUT_PORT, DEFAULT_OUTPUT_PORT, getNodeInputPorts, getNodeOutputPorts } from './constants';
 import type { CanvasNode, NodePortKind, NodePortSide, Point } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 
@@ -8,7 +8,23 @@ const BACKWARD_EDGE_CORNER_RADIUS = 16;
 
 const getPortOffset = (ports: { id: string }[], portId: string) => {
     const index = Math.max(0, ports.findIndex(port => port.id === portId));
-    return (index - (ports.length - 1) / 2) * 20;
+    return getPortHandleOffset(index, ports.length);
+};
+
+// Vertical distance between the node center line and a left/right handle,
+// excluding NODE_PORT_Y_OFFSET which is shared by every side handle. Returns 0
+// for unknown ports and for top/bottom handles.
+export const getSidePortVerticalOffset = (node: CanvasNode, port: NodePortKind, side: NodePortSide): number => {
+    const ports = side === 'input' ? getNodeInputPorts(node.entry.name) : getNodeOutputPorts(node.entry.name, node.entry);
+    const definition = ports.find(candidate => candidate.id === port);
+    const position = definition?.position ?? (side === 'input' ? 'left' : 'right');
+    if (!definition || position === 'top' || position === 'bottom') return 0;
+
+    const positionedPorts = ports.filter(candidate => (
+        (candidate.position ?? (candidate.side === 'input' ? 'left' : 'right')) === position
+    ));
+
+    return getPortOffset(positionedPorts, port);
 };
 
 const isBackwardEdge = (start: Point, end: Point) => end.x <= start.x;

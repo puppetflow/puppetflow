@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { getPortHandleOffset } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 
 export const CanvasNode = styled.div<{ $selected?: boolean; $invalid?: boolean }>`
     position: absolute;
@@ -276,7 +277,7 @@ export const NodeHandle = styled.div<{
     ${({ $position, $index = 0, $count = 1 }) => (
         $position === 'top' || $position === 'bottom'
             ? `top: ${$position === 'top' ? 0 : 72}px; left: ${50 + ($index - ($count - 1) / 2) * 20}%;`
-            : `top: ${36 + ($index - ($count - 1) / 2) * 20}px;`
+            : `top: ${36 + getPortHandleOffset($index, $count)}px;`
     )}
     ${({ $position, $right, $side }) => (
         $position === 'top' || $position === 'bottom'

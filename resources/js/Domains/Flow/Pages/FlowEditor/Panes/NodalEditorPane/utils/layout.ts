@@ -1,17 +1,14 @@
 import type { CanvasEdge, CanvasNode, Point } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import { getNodeOutputPorts } from './constants';
-import { edgeSourcePort } from './edges';
+import { edgeSourcePort, edgeTargetPort } from './edges';
+import { getSidePortVerticalOffset } from './geometry';
 import { CANVAS_GRID_SIZE, snapCanvasPosition } from './grid';
 
 const SYSTEM_X = 0;
-const RUN_Y = -5 * CANVAS_GRID_SIZE;
-const TERMINATE_Y = 7 * CANVAS_GRID_SIZE;
-const FIRST_COLUMN_X = 8 * CANVAS_GRID_SIZE;
-const HORIZONTAL_GAP = 8 * CANVAS_GRID_SIZE;
-const VERTICAL_GAP = 9 * CANVAS_GRID_SIZE;
-// Keeps handle-based ordering subordinate to the parent node position: the max
-// spread stays well below VERTICAL_GAP so it only breaks ties between siblings.
-const PORT_ORDER_OFFSET = CANVAS_GRID_SIZE;
+const RUN_Y = -10 * CANVAS_GRID_SIZE;
+const TERMINATE_Y = 14 * CANVAS_GRID_SIZE;
+const FIRST_COLUMN_X = 16 * CANVAS_GRID_SIZE;
+const HORIZONTAL_GAP = 16 * CANVAS_GRID_SIZE;
+const VERTICAL_GAP = 18 * CANVAS_GRID_SIZE;
 
 export const SYSTEM_RUN_POSITION = { x: SYSTEM_X, y: RUN_Y };
 export const SYSTEM_TERMINATE_POSITION = { x: SYSTEM_X, y: TERMINATE_Y };
@@ -21,16 +18,52 @@ export const getNodesCenter = (nodes: CanvasNode[]): Point => ({
     y: (Math.min(...nodes.map(node => node.y)) + Math.max(...nodes.map(node => node.y))) / 2,
 });
 
-const groupNodesByDepth = (nodes: CanvasNode[], depthById: Map<string, number>) => {
-    const columns = new Map<number, CanvasNode[]>();
+// An original edge feeding a column item, with the number of columns it crosses.
+type LayoutParent = {
+    edge: CanvasEdge;
+    span: number;
+};
 
-    nodes.forEach(node => {
-        const depth = depthById.get(node.id);
-        if (depth === undefined) return;
-        columns.set(depth, [...(columns.get(depth) ?? []), node]);
+// A column slot. Real nodes carry their CanvasNode; virtual items only reserve a
+// slot for an edge that spans several columns so the nodes of the crossed
+// columns move out of the edge's way instead of sitting on its path.
+type LayoutItem = {
+    id: string;
+    sortKey: string;
+    node?: CanvasNode;
+    parents: LayoutParent[];
+    // Previous virtual item of the same long edge, so the reserved lane stays
+    // straight across every crossed column.
+    chainFromId?: string;
+};
+
+type LayoutColumns = Map<number, LayoutItem[]>;
+
+// Resolves overlaps in a column while keeping the given order: items are
+// placed as close as possible to their desired y and conflicting neighbours
+// are spread by `gap` around their common mean, so a pair fighting for the
+// same line ends up centered on it instead of being pushed downward. This is
+// an isotonic regression (pool adjacent violators) on y_i - i * gap.
+const spreadPositions = (desired: number[], gap: number): number[] => {
+    const blocks: Array<{ sum: number; count: number; start: number }> = [];
+
+    desired.forEach((value, index) => {
+        let block = { sum: value - index * gap, count: 1, start: index };
+
+        while (blocks.length > 0) {
+            const previous = blocks[blocks.length - 1];
+            if (previous.sum / previous.count <= block.sum / block.count) break;
+            blocks.pop();
+            block = { sum: previous.sum + block.sum, count: previous.count + block.count, start: previous.start };
+        }
+
+        blocks.push(block);
     });
 
-    return columns;
+    return blocks.flatMap(block => Array.from(
+        { length: block.count },
+        (_, offset) => Math.round(block.sum / block.count + (block.start + offset) * gap),
+    ));
 };
 
 export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNode[] => {
@@ -38,37 +71,125 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
     const nodeById = new Map(nodes.map(node => [node.id, node]));
     const outgoing = new Map<string, string[]>();
     const incoming = new Map<string, string[]>();
-    const incomingEdges = new Map<string, CanvasEdge[]>();
 
     edges.forEach(edge => {
         outgoing.set(edge.sourceNodeId, [...(outgoing.get(edge.sourceNodeId) ?? []), edge.targetNodeId]);
         incoming.set(edge.targetNodeId, [...(incoming.get(edge.targetNodeId) ?? []), edge.sourceNodeId]);
-        incomingEdges.set(edge.targetNodeId, [...(incomingEdges.get(edge.targetNodeId) ?? []), edge]);
     });
 
-    const sourcePortOffset = (edge: CanvasEdge): number => {
+    // Groups nodes per depth and reserves a virtual item in every column crossed
+    // by an edge spanning more than one column. Items keep the original edges
+    // feeding them so their position can be derived from the real handles.
+    const buildLayoutColumns = (columnNodes: CanvasNode[], depthById: Map<string, number>): LayoutColumns => {
+        const columns: LayoutColumns = new Map();
+        const itemsById = new Map<string, LayoutItem>();
+        const pushItem = (depth: number, item: LayoutItem) => {
+            columns.set(depth, [...(columns.get(depth) ?? []), item]);
+            itemsById.set(item.id, item);
+        };
+
+        columnNodes.forEach(node => {
+            const depth = depthById.get(node.id);
+            if (depth === undefined) return;
+            pushItem(depth, { id: node.id, sortKey: node.entry.name, node, parents: [] });
+        });
+
+        edges.forEach(edge => {
+            const target = itemsById.get(edge.targetNodeId);
+            if (!target) return;
+
+            const sourceDepth = depthById.get(edge.sourceNodeId);
+            const targetDepth = depthById.get(edge.targetNodeId) ?? 0;
+            const span = sourceDepth === undefined ? 1 : targetDepth - sourceDepth;
+            const parent = { edge, span };
+            target.parents.push(parent);
+
+            if (sourceDepth === undefined) return;
+            for (let depth = sourceDepth + 1; depth < targetDepth; depth += 1) {
+                pushItem(depth, {
+                    id: `${edge.id}@${depth}`,
+                    sortKey: '',
+                    parents: [parent],
+                    chainFromId: depth > sourceDepth + 1 ? `${edge.id}@${depth - 1}` : undefined,
+                });
+            }
+        });
+
+        return columns;
+    };
+
+    const outputHandleOffset = (edge: CanvasEdge): number => {
         const sourceNode = nodeById.get(edge.sourceNodeId);
         if (!sourceNode || sourceNode.system) return 0;
-
-        const outputPorts = getNodeOutputPorts(sourceNode.entry.name, sourceNode.entry);
-        if (outputPorts.length <= 1) return 0;
-
-        const portIndex = outputPorts.findIndex(port => port.id === edgeSourcePort(edge));
-        if (portIndex < 0) return 0;
-
-        return (portIndex - (outputPorts.length - 1) / 2) * PORT_ORDER_OFFSET;
+        return getSidePortVerticalOffset(sourceNode, edgeSourcePort(edge), 'output');
     };
 
-    const effectiveSourceY = (nodeId: string, fallbackY: number, arrangedYFor: (sourceNodeId: string) => number | undefined): number => {
-        const parentEdges = incomingEdges.get(nodeId) ?? [];
-        if (parentEdges.length === 0) return fallbackY;
+    const inputHandleOffset = (item: LayoutItem, edge: CanvasEdge): number => (
+        item.node ? getSidePortVerticalOffset(item.node, edgeTargetPort(edge), 'input') : 0
+    );
 
-        const total = parentEdges.reduce((sum, edge) => (
-            sum + (arrangedYFor(edge.sourceNodeId) ?? fallbackY) + sourcePortOffset(edge)
+    // The y at which the item's input handle sits exactly in front of its
+    // parents' output handles, so the edge between them is a straight line.
+    // Edges crossing several columns win over short ones: the long straight
+    // line is the main path and the detour bends toward it, not the opposite.
+    const desiredY = (item: LayoutItem, anchorY: number, arrangedYById: Map<string, number>): number => {
+        const chainedY = item.chainFromId ? arrangedYById.get(item.chainFromId) : undefined;
+        if (chainedY !== undefined) return chainedY;
+        if (item.parents.length === 0) return anchorY;
+
+        const longParents = item.parents.filter(parent => parent.span > 1);
+        const parents = longParents.length > 0 ? longParents : item.parents;
+        const total = parents.reduce((sum, { edge }) => (
+            sum + (arrangedYById.get(edge.sourceNodeId) ?? anchorY) + outputHandleOffset(edge) - inputHandleOffset(item, edge)
         ), 0);
 
-        return total / parentEdges.length;
+        return total / parents.length;
     };
+
+    // Places every column around anchorY. Virtual items get a y like real nodes
+    // (kept in arrangedYById) so the next column can align on them, but only
+    // real nodes are written to arrangedNodes. Returns the vertical extent.
+    const arrangeLayoutColumns = (
+        columns: LayoutColumns,
+        anchorY: number,
+        xForDepth: (depth: number) => number,
+        arrangedNodes: Map<string, CanvasNode>,
+        arrangedYById: Map<string, number>,
+    ) => {
+        let top = anchorY;
+        let bottom = anchorY;
+
+        [...columns.entries()]
+            .sort(([a], [b]) => a - b)
+            .forEach(([depth, columnItems]) => {
+                const desiredById = new Map(columnItems.map(item => [item.id, desiredY(item, anchorY, arrangedYById)]));
+                const sortedItems = [...columnItems].sort((a, b) => (
+                    (desiredById.get(a.id) ?? anchorY) - (desiredById.get(b.id) ?? anchorY)
+                    || a.sortKey.localeCompare(b.sortKey)
+                ));
+                const positions = spreadPositions(sortedItems.map(item => desiredById.get(item.id) ?? anchorY), VERTICAL_GAP);
+
+                sortedItems.forEach((item, index) => {
+                    // Handles sit on grid steps (see getPortHandleOffset), so a
+                    // straight edge target is already on the grid; snapping only
+                    // rounds the means produced by spreading or multi-parent nodes.
+                    const y = snapCanvasPosition(positions[index]);
+                    arrangedYById.set(item.id, y);
+                    top = Math.min(top, y);
+                    bottom = Math.max(bottom, y);
+                    if (item.node) {
+                        arrangedNodes.set(item.id, { ...item.node, x: snapCanvasPosition(xForDepth(depth)), y });
+                    }
+                });
+            });
+
+        return { top, bottom };
+    };
+
+    const maxColumnHeight = (columns: LayoutColumns): number => Math.max(
+        0,
+        ...[...columns.values()].map(columnItems => (columnItems.length - 1) * VERTICAL_GAP),
+    );
 
     const runNode = nodes.find(node => node.system === 'run')
         ?? nodes.find(node => node.system === 'function' && !node.scopeId);
@@ -77,31 +198,75 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
     const terminateNodeId = terminateNode?.id;
     const runY = runNode?.y ?? RUN_Y;
     const terminateY = terminateNode?.y ?? runY;
-    const collectDepthsFromRoot = (rootNodeId: string | undefined, blockedNodeIds = new Set<string>()) => {
+    // Layers nodes by their longest path from the roots so a node always lands to
+    // the right of every parent feeding it. Using the shortest path instead would
+    // leave a node in the same column as one of its parents (for example a node
+    // fed by both an If/Else branch and by a node on the other branch), which
+    // forces the edge to travel backwards and draw a serpentine. Back edges found
+    // during the DFS are skipped so loops do not push depths forever.
+    const collectLongestPathDepths = (rootIds: string[], canVisit: (nodeId: string) => boolean) => {
         const depthById = new Map<string, number>();
-        const queue: string[] = rootNodeId ? [rootNodeId] : [];
+        const rootIdSet = new Set(rootIds);
+        const visitable = (nodeId: string) => !rootIdSet.has(nodeId) && canVisit(nodeId);
+        const state = new Map<string, 'visiting' | 'done'>();
+        const backEdges = new Set<string>();
+        const finishOrder: string[] = [];
 
-        if (rootNodeId) depthById.set(rootNodeId, 0);
+        const visit = (startId: string) => {
+            const stack: Array<{ id: string; children: string[]; nextIndex: number }> = [
+                { id: startId, children: (outgoing.get(startId) ?? []).filter(visitable), nextIndex: 0 },
+            ];
+            state.set(startId, 'visiting');
 
-        while (queue.length > 0) {
-            const currentId = queue.shift();
-            if (!currentId) continue;
-            const currentDepth = depthById.get(currentId) ?? 0;
+            while (stack.length > 0) {
+                const frame = stack[stack.length - 1];
 
-            for (const nextId of outgoing.get(currentId) ?? []) {
-                const nextNode = nodeById.get(nextId);
-                if (!nextNode || nextNode.system || blockedNodeIds.has(nextId)) continue;
-                const nextDepth = currentDepth + 1;
-                const knownDepth = depthById.get(nextId);
+                if (frame.nextIndex >= frame.children.length) {
+                    state.set(frame.id, 'done');
+                    finishOrder.push(frame.id);
+                    stack.pop();
+                    continue;
+                }
 
-                if (knownDepth === undefined || nextDepth < knownDepth) {
-                    depthById.set(nextId, nextDepth);
-                    queue.push(nextId);
+                const childId = frame.children[frame.nextIndex];
+                frame.nextIndex += 1;
+                const childState = state.get(childId);
+
+                if (childState === 'visiting') {
+                    backEdges.add(`${frame.id}->${childId}`);
+                } else if (childState === undefined) {
+                    state.set(childId, 'visiting');
+                    stack.push({ id: childId, children: (outgoing.get(childId) ?? []).filter(visitable), nextIndex: 0 });
                 }
             }
-        }
+        };
+
+        rootIds.forEach(rootId => {
+            if (!state.has(rootId)) visit(rootId);
+        });
+
+        rootIds.forEach(rootId => depthById.set(rootId, 0));
+        finishOrder.reverse().forEach(nodeId => {
+            const depth = depthById.get(nodeId);
+            if (depth === undefined) return;
+
+            (outgoing.get(nodeId) ?? []).forEach(nextId => {
+                if (!visitable(nextId) || backEdges.has(`${nodeId}->${nextId}`)) return;
+                const knownDepth = depthById.get(nextId);
+                if (knownDepth === undefined || depth + 1 > knownDepth) depthById.set(nextId, depth + 1);
+            });
+        });
 
         return depthById;
+    };
+
+    const collectDepthsFromRoot = (rootNodeId: string | undefined, blockedNodeIds = new Set<string>()) => {
+        if (!rootNodeId) return new Map<string, number>();
+
+        return collectLongestPathDepths([rootNodeId], nextId => {
+            const nextNode = nodeById.get(nextId);
+            return Boolean(nextNode) && !nextNode?.system && !blockedNodeIds.has(nextId);
+        });
     };
 
     const finallyDepthById = collectDepthsFromRoot(terminateNodeId);
@@ -109,35 +274,12 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
     const depthById = collectDepthsFromRoot(runNodeId, finallyNodeIds);
     const reachableEditableNodes = editableNodes.filter(node => depthById.has(node.id));
     const finallyEditableNodes = editableNodes.filter(node => finallyDepthById.has(node.id));
-    const columns = groupNodesByDepth(reachableEditableNodes, depthById);
-    const finallyColumns = groupNodesByDepth(finallyEditableNodes, finallyDepthById);
     const arrangedEditableById = new Map<string, CanvasNode>();
+    const arrangedEditableYById = new Map<string, number>();
+    const mainColumnX = (depth: number) => FIRST_COLUMN_X + (depth - 1) * HORIZONTAL_GAP;
 
-    const arrangeColumns = (columnMap: Map<number, CanvasNode[]>, anchorY: number) => {
-        [...columnMap.entries()]
-            .sort(([a], [b]) => a - b)
-            .forEach(([depth, columnNodes]) => {
-                const sortedColumnNodes = [...columnNodes].sort((a, b) => {
-                    const aSourceY = effectiveSourceY(a.id, anchorY, sourceNodeId => arrangedEditableById.get(sourceNodeId)?.y);
-                    const bSourceY = effectiveSourceY(b.id, anchorY, sourceNodeId => arrangedEditableById.get(sourceNodeId)?.y);
-
-                    if (aSourceY !== bSourceY) return aSourceY - bSourceY;
-                    return a.entry.name.localeCompare(b.entry.name);
-                });
-                const columnHeight = (sortedColumnNodes.length - 1) * VERTICAL_GAP;
-
-                sortedColumnNodes.forEach((node, index) => {
-                    arrangedEditableById.set(node.id, {
-                        ...node,
-                        x: snapCanvasPosition(FIRST_COLUMN_X + (depth - 1) * HORIZONTAL_GAP),
-                        y: snapCanvasPosition(anchorY - columnHeight / 2 + index * VERTICAL_GAP),
-                    });
-                });
-            });
-    };
-
-    arrangeColumns(columns, runY);
-    arrangeColumns(finallyColumns, terminateY);
+    arrangeLayoutColumns(buildLayoutColumns(reachableEditableNodes, depthById), runY, mainColumnX, arrangedEditableById, arrangedEditableYById);
+    arrangeLayoutColumns(buildLayoutColumns(finallyEditableNodes, finallyDepthById), terminateY, mainColumnX, arrangedEditableById, arrangedEditableYById);
 
     const isolatedNodes = editableNodes.filter(node => !depthById.has(node.id) && !finallyDepthById.has(node.id));
     const arrangedMainNodes = [...arrangedEditableById.values()];
@@ -176,7 +318,7 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
         }));
     });
 
-    let isolatedLineY = mainBottomY + VERTICAL_GAP;
+    let isolatedBottomY = mainBottomY;
     isolatedComponents
         .sort((a, b) => {
             const aTop = Math.min(...a.map(node => node.y));
@@ -187,62 +329,25 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
         .forEach(component => {
             const componentIds = new Set(component.map(node => node.id));
             const roots = component.filter(node => !(incoming.get(node.id) ?? []).some(parentId => componentIds.has(parentId)));
-            const componentDepthById = new Map<string, number>();
-            const componentQueue = (roots.length > 0 ? roots : [...component].sort((a, b) => a.x - b.x)).map(node => node.id);
-
-            componentQueue.forEach(nodeId => componentDepthById.set(nodeId, 0));
-
-            while (componentQueue.length > 0) {
-                const currentId = componentQueue.shift();
-                if (!currentId) continue;
-                const currentDepth = componentDepthById.get(currentId) ?? 0;
-
-                (outgoing.get(currentId) ?? []).forEach(nextId => {
-                    if (!componentIds.has(nextId)) return;
-                    const nextDepth = currentDepth + 1;
-                    const knownDepth = componentDepthById.get(nextId);
-
-                    if (knownDepth === undefined || nextDepth < knownDepth) {
-                        componentDepthById.set(nextId, nextDepth);
-                        componentQueue.push(nextId);
-                    }
-                });
-            }
+            const componentRootIds = (roots.length > 0 ? roots : [...component].sort((a, b) => a.x - b.x)).map(node => node.id);
+            const componentDepthById = collectLongestPathDepths(componentRootIds, nextId => componentIds.has(nextId));
 
             component.forEach(node => {
                 if (!componentDepthById.has(node.id)) componentDepthById.set(node.id, 0);
             });
 
-            const componentColumns = new Map<number, CanvasNode[]>();
-            component.forEach(node => {
-                const depth = componentDepthById.get(node.id) ?? 0;
-                componentColumns.set(depth, [...(componentColumns.get(depth) ?? []), node]);
-            });
+            const componentLayout = buildLayoutColumns(component, componentDepthById);
+            const isolatedLineY = snapCanvasPosition(isolatedBottomY + VERTICAL_GAP + maxColumnHeight(componentLayout) / 2);
 
-            const maxColumnSize = Math.max(1, ...[...componentColumns.values()].map(columnNodes => columnNodes.length));
-            const componentHeight = (maxColumnSize - 1) * VERTICAL_GAP;
+            const { bottom } = arrangeLayoutColumns(
+                componentLayout,
+                isolatedLineY,
+                depth => SYSTEM_X + depth * HORIZONTAL_GAP,
+                arrangedEditableById,
+                arrangedEditableYById,
+            );
 
-            [...componentColumns.entries()]
-                .sort(([a], [b]) => a - b)
-                .forEach(([depth, columnNodes]) => {
-                    const sortedColumnNodes = [...columnNodes].sort((a, b) => {
-                        const aSourceY = effectiveSourceY(a.id, isolatedLineY, sourceNodeId => arrangedEditableById.get(sourceNodeId)?.y);
-                        const bSourceY = effectiveSourceY(b.id, isolatedLineY, sourceNodeId => arrangedEditableById.get(sourceNodeId)?.y);
-
-                        if (aSourceY !== bSourceY) return aSourceY - bSourceY;
-                        return a.entry.name.localeCompare(b.entry.name);
-                    });
-
-                    sortedColumnNodes.forEach((node, index) => {
-                        arrangedEditableById.set(node.id, {
-                            ...node,
-                            x: snapCanvasPosition(SYSTEM_X + depth * HORIZONTAL_GAP),
-                            y: snapCanvasPosition(isolatedLineY - componentHeight / 2 + index * VERTICAL_GAP),
-                        });
-                    });
-                });
-
-            isolatedLineY += Math.max(VERTICAL_GAP, componentHeight + VERTICAL_GAP);
+            isolatedBottomY = bottom;
         });
 
     const localArrangedById = new Map<string, CanvasNode>();
@@ -255,55 +360,25 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
             const scopeId = functionNode.scopeId!;
             const scopeNodes = nodes.filter(node => node.scopeId === scopeId);
             const scopeNodeIds = new Set(scopeNodes.map(node => node.id));
-            const depthById = new Map<string, number>([[functionNode.id, 0]]);
-            const queue = [functionNode.id];
-            while (queue.length > 0) {
-                const nodeId = queue.shift();
-                if (!nodeId) continue;
-                const depth = depthById.get(nodeId) ?? 0;
-                (outgoing.get(nodeId) ?? []).forEach(targetId => {
-                    if (!scopeNodeIds.has(targetId) || depthById.has(targetId)) return;
-                    depthById.set(targetId, depth + 1);
-                    queue.push(targetId);
-                });
-            }
-            const scopeColumns = new Map<number, CanvasNode[]>();
-            scopeNodes.filter(node => !node.system && node.kind !== 'stickyNote').forEach(node => {
-                const depth = depthById.get(node.id);
-                if (depth === undefined) return;
-                scopeColumns.set(depth, [...(scopeColumns.get(depth) ?? []), node]);
-            });
-            const componentHeight = Math.max(
-                0,
-                ...[...scopeColumns.values()].map(columnNodes => (columnNodes.length - 1) * VERTICAL_GAP),
+            const depthById = collectLongestPathDepths([functionNode.id], targetId => scopeNodeIds.has(targetId));
+            const scopeLayout = buildLayoutColumns(
+                scopeNodes.filter(node => !node.system && node.kind !== 'stickyNote'),
+                depthById,
             );
-            const functionY = snapCanvasPosition(localFunctionsBottomY - componentHeight / 2);
-            localFunctionsBottomY = functionY - componentHeight / 2 - VERTICAL_GAP;
+            const functionY = snapCanvasPosition(localFunctionsBottomY - maxColumnHeight(scopeLayout) / 2);
             localArrangedById.set(functionNode.id, {
                 ...functionNode,
                 x: SYSTEM_X,
                 y: functionY,
             });
-            [...scopeColumns.entries()]
-                .sort(([a], [b]) => a - b)
-                .forEach(([depth, columnNodes]) => {
-                    const sortedColumnNodes = [...columnNodes].sort((a, b) => {
-                        const aSourceY = effectiveSourceY(a.id, functionY, sourceNodeId => localArrangedById.get(sourceNodeId)?.y);
-                        const bSourceY = effectiveSourceY(b.id, functionY, sourceNodeId => localArrangedById.get(sourceNodeId)?.y);
-
-                        if (aSourceY !== bSourceY) return aSourceY - bSourceY;
-                        return a.entry.name.localeCompare(b.entry.name);
-                    });
-                    const columnHeight = (sortedColumnNodes.length - 1) * VERTICAL_GAP;
-
-                    sortedColumnNodes.forEach((node, index) => {
-                        localArrangedById.set(node.id, {
-                            ...node,
-                            x: snapCanvasPosition(SYSTEM_X + depth * HORIZONTAL_GAP),
-                            y: snapCanvasPosition(functionY - columnHeight / 2 + index * VERTICAL_GAP),
-                        });
-                    });
-                });
+            const { top } = arrangeLayoutColumns(
+                scopeLayout,
+                functionY,
+                depth => SYSTEM_X + depth * HORIZONTAL_GAP,
+                localArrangedById,
+                new Map([[functionNode.id, functionY]]),
+            );
+            localFunctionsBottomY = top - VERTICAL_GAP;
         });
 
     return nodes.map(node => {
@@ -343,15 +418,17 @@ export const arrangeGraphSelection = (
     const arrangedSelection = arrangeGraph(layoutNodes, selectedEdges);
     const previousCenter = getNodesCenter(selectedNodes);
     const arrangedCenter = getNodesCenter(arrangedSelection);
+    // Snap the shift, not each node, so the relative positions computed by the
+    // layout survive the move back to the selection's original center.
     const offset = {
-        x: previousCenter.x - arrangedCenter.x,
-        y: previousCenter.y - arrangedCenter.y,
+        x: snapCanvasPosition(previousCenter.x - arrangedCenter.x),
+        y: snapCanvasPosition(previousCenter.y - arrangedCenter.y),
     };
     const arrangedById = new Map(arrangedSelection.map(node => [
         node.id,
         {
-            x: snapCanvasPosition(node.x + offset.x),
-            y: snapCanvasPosition(node.y + offset.y),
+            x: node.x + offset.x,
+            y: node.y + offset.y,
         },
     ]));
 
