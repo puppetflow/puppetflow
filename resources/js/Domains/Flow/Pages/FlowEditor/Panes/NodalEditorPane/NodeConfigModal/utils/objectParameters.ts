@@ -1,6 +1,6 @@
 import type { NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type {
-    IfConditionCategory,
+    IfValueCategory,
     NodeParameterValue,
     ObjectFieldValueType,
     ObjectNodeParameterField,
@@ -41,7 +41,7 @@ const normalizeJsonObjectText = (value: string) => {
     return parsed ? JSON.stringify(parsed) : null;
 };
 
-const inferCustomFieldType = (value: unknown): IfConditionCategory => {
+const inferCustomFieldType = (value: unknown): IfValueCategory => {
     if (Array.isArray(value)) return 'array';
     if (isRecord(value)) return 'object';
     if (typeof value === 'number') return 'number';

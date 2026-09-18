@@ -129,7 +129,7 @@ export default function FullscreenEditor({
                                 $loading={!renderedExpression.ok && renderedExpression.loading}
                             >
                                 {renderedExpression.ok ? (
-                                    <ExpressionPreview value={renderedExpression.value} />
+                                    <ExpressionPreview value={renderedExpression.value} source={value.value} />
                                 ) : (
                                     <pre>{renderedExpression.error}</pre>
                                 )}

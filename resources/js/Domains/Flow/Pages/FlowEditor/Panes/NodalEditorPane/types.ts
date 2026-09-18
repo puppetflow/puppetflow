@@ -61,8 +61,9 @@ export interface ObjectNodeParameterValue {
     fields: ObjectNodeParameterField[];
 }
 
-export type IfConditionCategory = 'string' | 'number' | 'dateTime' | 'boolean' | 'array' | 'object';
-export type ObjectFieldValueType = IfConditionCategory | 'code';
+export type IfValueCategory = 'string' | 'number' | 'dateTime' | 'boolean' | 'array' | 'object';
+export type IfConditionCategory = IfValueCategory | 'null';
+export type ObjectFieldValueType = IfValueCategory | 'code';
 
 export interface IfConditionRule {
     id: string;

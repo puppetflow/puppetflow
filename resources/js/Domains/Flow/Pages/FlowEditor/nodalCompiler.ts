@@ -263,6 +263,10 @@ const compareConditionSource = (category: IfConditionCategory, operator: string,
         case 'doesNotExist': return `${leftValue} === undefined || ${leftValue} === null`;
         case 'isEmpty': return emptyCheckSource(leftValue);
         case 'isNotEmpty': return `!${emptyCheckSource(leftValue)}`;
+        case 'isNull': return `${leftValue} === null`;
+        case 'isNotNull': return `${leftValue} !== null`;
+        case 'isUndefined': return `${leftValue} === undefined`;
+        case 'isNotUndefined': return `${leftValue} !== undefined`;
         case 'isTrue': return `${leftValue} === true`;
         case 'isFalse': return `${leftValue} === false`;
         case 'equals': return category === 'number' ? `${numberLeft} === ${numberRight}` : category === 'dateTime' ? `${dateLeft} === ${dateRight}` : `${leftValue} === ${rightValue}`;
@@ -319,6 +323,7 @@ const assignNodeResult = (
     recordExecution = true,
 ) => [
     `${indent}const ${resultName}State = $mergeNodeState($run, ${resultName});`,
+    `${indent}await __describeNodeResultPreview(${resultName});`,
     `${indent}__recordNodePreview(${safeNodeId}, ${resultName}State, ${recordExecution});`,
     `${indent}$nodes[${safeNodeId}] = ${resultName}State;`,
     `${indent}$nodes[${JSON.stringify(nodeLabel)}] = ${resultName}State;`,
@@ -353,12 +358,21 @@ $nodes.RUN = $runRoot;
 $nodes.last = $runRoot;
 const $ = nodeName => $nodes[nodeName];
 let $run = $runRoot;
+// Only plain objects (literals, JSON payloads) are spread into the run state. Class instances
+// such as Puppeteer ElementHandle, HTTPResponse or Page are kept whole under $result.
+// The prototype walk is realm-safe: Object.prototype is the only prototype whose own prototype is null.
+const __isPlainNodeResult = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const proto = Object.getPrototypeOf(value);
+    if (proto === null) return true;
+    return Object.getPrototypeOf(proto) === null && proto.constructor?.name === 'Object';
+};
 const $mergeNodeState = (previous, result) => {
     const previousState = previous && typeof previous === 'object' && !Array.isArray(previous)
         ? previous
         : $runRoot;
     const { $result: _previousResult, ...base } = previousState;
-    const merged = result && typeof result === 'object' && !Array.isArray(result)
+    const merged = __isPlainNodeResult(result)
         ? { ...base, ...result }
         : result === undefined ? base : { ...base, $result: result };
     merged.$input = __nopSerializePreview($runRoot.$input) ?? $runRoot.$input;
@@ -416,6 +430,114 @@ const __pfRenderExpression = async (template, $locals = {}) => {
 const $renderExpression = __pfRenderExpression;
 const __nopSerializePreview = (value) => {
     try { return JSON.parse(JSON.stringify(value)); } catch (_) { return undefined; }
+};
+// Puppeteer instances cannot be serialized as-is: previews show a readable summary instead.
+// Summaries computed asynchronously (DOM inspection) are cached per instance so the
+// synchronous serializer can pick them up.
+const __nodalPreviewDescriptions = new WeakMap();
+const __nodalPreviewMaxDescribedHandles = 25;
+const __isNodalPreviewHandle = (value) => (
+    !!value && typeof value === 'object'
+    && typeof value.remoteObject === 'function'
+    && typeof value.evaluate === 'function'
+);
+const __isNodalPreviewHttpResponse = (value) => (
+    !!value && typeof value === 'object'
+    && typeof value.status === 'function'
+    && typeof value.url === 'function'
+    && typeof value.headers === 'function'
+    && typeof value.request === 'function'
+);
+const __isNodalPreviewPage = (value) => (
+    !!value && typeof value === 'object'
+    && typeof value.url === 'function'
+    && typeof value.mainFrame === 'function'
+    && typeof value.goto === 'function'
+);
+const __describeNodalPreviewHandleSync = (handle) => {
+    let remote = null;
+    try { remote = handle.remoteObject(); } catch (_) { remote = null; }
+    let isElement = false;
+    try { isElement = typeof handle.asElement === 'function' && handle.asElement() !== null; } catch (_) { isElement = false; }
+    const summary = { $runtime: isElement ? 'element' : 'handle' };
+    if (remote && typeof remote.description === 'string' && remote.description) summary.description = remote.description;
+    if (remote && typeof remote.className === 'string' && remote.className) summary.className = remote.className;
+    return summary;
+};
+const __describeNodalPreviewHandleAsync = async (handle) => {
+    const summary = __describeNodalPreviewHandleSync(handle);
+    if (summary.$runtime !== 'element') return summary;
+    try {
+        const details = await handle.evaluate((element) => {
+            const text = typeof element.innerText === 'string' && element.innerText.trim()
+                ? element.innerText
+                : (element.textContent || '');
+            const attributes = {};
+            for (const name of ['id', 'name', 'type', 'href', 'src', 'placeholder', 'aria-label', 'role']) {
+                const value = element.getAttribute && element.getAttribute(name);
+                if (value) attributes[name] = value;
+            }
+            const rect = element.getBoundingClientRect ? element.getBoundingClientRect() : null;
+            return {
+                tag: element.tagName ? element.tagName.toLowerCase() : null,
+                className: typeof element.className === 'string' && element.className ? element.className : null,
+                text: text.trim().slice(0, 200) || null,
+                attributes,
+                visible: rect ? rect.width > 0 && rect.height > 0 : null,
+            };
+        });
+        if (details.tag) {
+            // DOM details supersede the terser CDP description ("iframe", "HTMLIFrameElement").
+            summary.tag = details.tag;
+            delete summary.description;
+            delete summary.className;
+        }
+        if (details.attributes.id) summary.id = details.attributes.id;
+        if (details.className) summary.class = details.className;
+        if (details.text) summary.text = details.text;
+        const otherAttributes = Object.fromEntries(Object.entries(details.attributes).filter(([name]) => name !== 'id'));
+        if (Object.keys(otherAttributes).length > 0) summary.attributes = otherAttributes;
+        if (details.visible !== null) summary.visible = details.visible;
+    } catch (_) {
+        // The element may be detached or its context destroyed: keep the CDP summary only.
+    }
+    return summary;
+};
+const __describeNodalPreviewInstance = (value) => {
+    if (!value || typeof value !== 'object') return undefined;
+    const cached = __nodalPreviewDescriptions.get(value);
+    if (cached !== undefined) return cached;
+    if (__isNodalPreviewHandle(value)) return __describeNodalPreviewHandleSync(value);
+    if (__isNodalPreviewHttpResponse(value)) {
+        const summary = { $runtime: 'httpResponse' };
+        try { summary.url = value.url(); } catch (_) {}
+        try { summary.status = value.status(); } catch (_) {}
+        try { summary.statusText = value.statusText(); } catch (_) {}
+        try { summary.ok = value.ok(); } catch (_) {}
+        try { summary.headers = value.headers(); } catch (_) {}
+        return summary;
+    }
+    if (__isNodalPreviewPage(value)) {
+        const summary = { $runtime: 'page' };
+        try { summary.url = value.url(); } catch (_) {}
+        return summary;
+    }
+    return undefined;
+};
+// Called right after a node resolves so element previews can include DOM details.
+const __describeNodeResultPreview = async (result) => {
+    const handles = __isNodalPreviewHandle(result)
+        ? [result]
+        : Array.isArray(result) ? result.filter(__isNodalPreviewHandle) : [];
+    if (handles.length === 0) return;
+    const described = handles.slice(0, __nodalPreviewMaxDescribedHandles);
+    await Promise.all(described.map(async (handle) => {
+        if (__nodalPreviewDescriptions.has(handle)) return;
+        __nodalPreviewDescriptions.set(handle, await __describeNodalPreviewHandleAsync(handle));
+    }));
+    for (const handle of handles.slice(__nodalPreviewMaxDescribedHandles)) {
+        if (!__nodalPreviewDescriptions.has(handle)) __nodalPreviewDescriptions.set(handle, __describeNodalPreviewHandleSync(handle));
+    }
 };
 const __nodalPreviewLimit = (name, fallback) => {
     const parsed = Number(process.env[name]);
@@ -495,6 +617,10 @@ const __compactNodalExecutionValue = (value, state, depth = 0) => {
     const capturePreview = __networkSniffingPreviewBody(value);
     if (capturePreview) {
         return __compactNodalExecutionValue(capturePreview, state, depth);
+    }
+    const instancePreview = __describeNodalPreviewInstance(value);
+    if (instancePreview !== undefined) {
+        return __compactNodalExecutionValue(instancePreview, state, depth);
     }
     if (value === null || typeof value === 'boolean' || typeof value === 'number') {
         const bytes = __nodalPreviewValueBytes(value);

@@ -1,4 +1,5 @@
 import { unavailableOutputPlaceholder } from '@/Domains/Flow/Pages/FlowEditor/utils/outputPreview';
+import { asRuntimeInstanceSummary } from '@/Domains/Flow/Pages/FlowEditor/utils/runtimeInstances';
 
 export interface InspectorTreeRow {
     key: string;
@@ -104,8 +105,10 @@ export const buildTreeRows = (value: unknown, rootPath: string): InspectorTreeRo
 
     const visit = (current: unknown, key: string, path: string, depth: number, ancestors: Set<object>) => {
         const circular = isContainer(current) && ancestors.has(current);
-        rows.push({ key, path, type: circular ? 'circular' : valueType(current), depth, value: current });
-        if (!isContainer(current) || circular) return;
+        // Puppeteer instance summaries are leaves: their fields are not addressable properties.
+        const instance = asRuntimeInstanceSummary(current) !== null;
+        rows.push({ key, path, type: circular ? 'circular' : instance ? 'instance' : valueType(current), depth, value: current });
+        if (!isContainer(current) || circular || instance) return;
 
         const nextAncestors = new Set(ancestors).add(current);
         getContainerEntries(current, path).forEach(entry => {

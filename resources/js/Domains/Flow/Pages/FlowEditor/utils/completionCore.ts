@@ -1,4 +1,5 @@
 import type { OnMount } from '@monaco-editor/react';
+import { asRuntimeInstanceSummary, runtimeInstanceTitle } from '@/Domains/Flow/Pages/FlowEditor/utils/runtimeInstances';
 
 export type CompletionModel = {
     getLineContent: (lineNumber: number) => string;
@@ -10,19 +11,26 @@ export const isCompletionRecord = (value: unknown): value is Record<string, unkn
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 };
 
+// Puppeteer instance summaries have no addressable properties at runtime.
+const isBrowsableRecord = (value: unknown): value is Record<string, unknown> => (
+    isCompletionRecord(value) && asRuntimeInstanceSummary(value) === null
+);
+
 const valueDetail = (value: unknown) => {
     if (value === null) return 'null';
     if (Array.isArray(value)) return 'array';
+    const instance = asRuntimeInstanceSummary(value);
+    if (instance) return runtimeInstanceTitle(instance);
     return typeof value;
 };
 
 export const getNestedRecord = (source: Record<string, unknown> | null, path: string) => {
-    let target: Record<string, unknown> | null = source;
+    let target: Record<string, unknown> | null = source && isBrowsableRecord(source) ? source : null;
     if (!path) return target;
 
     for (const segment of path.split('.').filter(Boolean)) {
-        if (!target || !isCompletionRecord(target[segment])) return null;
-        target = target[segment] as Record<string, unknown>;
+        if (!target || !isBrowsableRecord(target[segment])) return null;
+        target = target[segment];
     }
 
     return target;
@@ -72,7 +80,7 @@ export const topLevelPathSuggestions = (
     if (!source) return [];
 
     return Object.entries(source).map(([key, value]) => {
-        const isObject = isCompletionRecord(value);
+        const isObject = isBrowsableRecord(value);
 
         return {
             label: key,

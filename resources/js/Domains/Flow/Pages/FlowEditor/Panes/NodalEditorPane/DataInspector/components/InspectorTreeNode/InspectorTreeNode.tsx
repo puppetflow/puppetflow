@@ -1,4 +1,6 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import RuntimeInstanceBadge from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/RuntimeInstanceBadge/RuntimeInstanceBadge';
+import { asRuntimeInstanceSummary } from '@/Domains/Flow/Pages/FlowEditor/utils/runtimeInstances';
 import DraggableKey from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/components/DraggableKey/DraggableKey';
 import InspectorValue from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/components/InspectorValue/InspectorValue';
 import {
@@ -38,6 +40,20 @@ export default function InspectorTreeNode({
 }: InspectorTreeNodeProps) {
     const circular = isContainer(value) && ancestors.has(value);
     const referenceDisplay = resolveReferenceDisplay(value, references);
+    const instanceSummary = asRuntimeInstanceSummary(value);
+
+    // Puppeteer instances are leaves: the path stays draggable, but their summary fields are
+    // not real properties and must not be browsed or dragged as such.
+    if (instanceSummary) {
+        return (
+            <S.JsonLine $depth={depth}>
+                <S.TogglePlaceholder />
+                {label && <DraggableKey label={label} path={path} draggable={draggable} />}
+                {label && <span>:{'\u00A0'}</span>}
+                <RuntimeInstanceBadge summary={instanceSummary} size="sm" />
+            </S.JsonLine>
+        );
+    }
 
     if (!isContainer(value) || circular) {
         return (
