@@ -24,6 +24,7 @@ export interface SettingsFormData {
     viewport_height: number | '';
     keyboard_speed: number | '';
     user_agent: string;
+    language: string;
     disable_web_security: boolean;
     finally_enabled: boolean;
 }

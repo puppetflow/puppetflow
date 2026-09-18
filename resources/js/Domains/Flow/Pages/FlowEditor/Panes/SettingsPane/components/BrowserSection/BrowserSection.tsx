@@ -1,6 +1,8 @@
 import Input from '@/Shared/UI/Input/Input';
 import Switch from '@/Shared/UI/Switch/Switch';
 import UserAgentInput from '@/Shared/UI/UserAgentInput/UserAgentInput';
+import LanguageSelect from '@/Shared/UI/LanguageSelect/LanguageSelect';
+import { formatBrowserLanguage } from '@/Shared/Utils/browserLanguages';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
 import type { SettingsLimits } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/useSettingsLimits';
 import * as S from './styled';
@@ -10,14 +12,13 @@ interface BrowserSectionProps {
     viewport: SettingsLimits['wsViewport'];
     keyboardSpeed: SettingsLimits['wsKeyboardSpeed'];
     userAgent: SettingsLimits['wsUserAgent'];
+    language: SettingsLimits['wsLanguage'];
 }
 
-export default function BrowserSection({ form, viewport, keyboardSpeed, userAgent }: BrowserSectionProps) {
+export default function BrowserSection({ form, viewport, keyboardSpeed, userAgent, language }: BrowserSectionProps) {
+    const inheritedLanguage = formatBrowserLanguage(language);
     return (
         <>
-            <S.SettingsSeparator />
-            <S.SettingsSectionLabel>Browser</S.SettingsSectionLabel>
-
             <S.ViewportRow>
                 <Input
                     label="Viewport width"
@@ -62,6 +63,18 @@ export default function BrowserSection({ form, viewport, keyboardSpeed, userAgen
             />
             <S.SettingsHint>
                 Override the browser user agent for this flow. Leave empty to inherit the workspace default, then the instance default.
+            </S.SettingsHint>
+
+            <LanguageSelect
+                label="Browser language"
+                inheritLabel={inheritedLanguage ? `Inherit (${inheritedLanguage})` : 'Inherit (runtime default)'}
+                inheritedValue={language}
+                value={form.data.language}
+                onChange={value => form.setData('language', value)}
+                error={form.errors.language}
+            />
+            <S.SettingsHint>
+                Language the browser asks websites for (Accept-Language and navigator.language). Inherits the workspace default, then the instance default. Some websites ignore it and pick a language from the IP address or the account instead; use a proxy in the target country for those.
             </S.SettingsHint>
 
             <Switch

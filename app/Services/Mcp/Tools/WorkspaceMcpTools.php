@@ -6,6 +6,7 @@ use App\DTO\Workspace\WorkspaceMutationData;
 use App\Enums\Authorization\Ability;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Workspace\WorkspaceProvisioner;
+use App\Support\Flow\BrowserLanguage;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +34,7 @@ final class WorkspaceMcpTools implements McpToolHandler
             'viewport_height' => ['type' => 'integer', 'minimum' => 200, 'maximum' => 2160],
             'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
             'default_user_agent' => ['type' => ['string', 'null'], 'maxLength' => 512, 'description' => 'Default browser user agent for flows in this workspace. Null inherits the instance default.'],
+            'default_language' => ['type' => ['string', 'null'], 'maxLength' => BrowserLanguage::MAX_LENGTH, 'description' => 'Default browser language for flows in this workspace, as comma-separated BCP 47 tags (for example "fr-FR,fr"). Sets Accept-Language and navigator.language; websites may still pick a language from the IP address. Null inherits the instance default.'],
             'icon_type' => ['type' => 'string', 'enum' => ['emoji', 'color']],
             'icon_value' => ['type' => ['string', 'null']],
             'icon_color' => ['type' => ['string', 'null']],
@@ -83,6 +85,7 @@ final class WorkspaceMcpTools implements McpToolHandler
             'viewport_height' => ['sometimes', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
+            'default_language' => BrowserLanguage::rules(),
             'icon_type' => ['sometimes', Rule::in(['emoji', 'color'])],
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
@@ -118,6 +121,7 @@ final class WorkspaceMcpTools implements McpToolHandler
                 'viewport_width' => $workspace->viewport_width, 'viewport_height' => $workspace->viewport_height,
                 'keyboard_speed' => $workspace->keyboard_speed,
                 'default_user_agent' => $workspace->default_user_agent,
+                'default_language' => $workspace->default_language,
                 'allow_trigger_advertising' => (bool) $workspace->allow_trigger_advertising,
                 'require_two_factor' => $this->features->enabled('two_factor_enforcement_enabled')
                     && (bool) $workspace->require_two_factor,

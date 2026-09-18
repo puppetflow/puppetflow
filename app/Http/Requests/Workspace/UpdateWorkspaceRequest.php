@@ -6,6 +6,7 @@ use App\DTO\Workspace\WorkspaceMutationData;
 use App\Enums\Authorization\Ability;
 use App\Models\Workspace;
 use App\Rules\ValidNodalGraph;
+use App\Support\Flow\BrowserLanguage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -42,6 +43,7 @@ class UpdateWorkspaceRequest extends FormRequest
             'viewport_height' => ['sometimes', 'integer', 'min:200', 'max:2160'],
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
+            'default_language' => BrowserLanguage::rules(),
             'debug_log_object_depth' => ['sometimes', 'integer', 'between:0,20'],
             'debug_log_array_limit' => ['sometimes', 'integer', 'between:1,1000'],
             'icon_type' => ['sometimes', 'in:emoji,color,upload'],

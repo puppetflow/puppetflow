@@ -2,10 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
+import CollapsibleSection from '@/Shared/UI/CollapsibleSection/CollapsibleSection';
 import * as Layout from '@/Domains/Flow/Pages/FlowEditor/shared/paneLayout.styled';
 import Button from '@/Shared/UI/Button/Button';
 import FlowIconPicker from '@/Domains/Flow/Components/FlowIcon/FlowIconPicker';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
+import { useCollapsibleSections } from '@/Shared/Hooks/useCollapsibleSections';
 import type { Flow } from '@/Domains/Flow/types';
 import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
 import AISection from './components/AISection/AISection';
@@ -19,6 +21,14 @@ import ProxySection from './components/ProxySection/ProxySection';
 import RunSection from './components/RunSection/RunSection';
 import type { SettingsFormData } from './types';
 import { useSettingsLimits } from './useSettingsLimits';
+import {
+    DEFAULT_OPEN_GROUPS,
+    SETTINGS_GROUPS_STORAGE_KEY,
+    groupHasError,
+    groupsWithErrors,
+    isGroupModified,
+    type SettingsGroupId,
+} from './settingsGroups';
 import * as S from './styled';
 
 interface SettingsPaneProps {
@@ -44,7 +54,8 @@ export default function SettingsPane({
     const { confirm, ConfirmModal } = useConfirm();
     const limits = useSettingsLimits(flow);
     const isNodalFlow = flow.flow_type === 'nodal';
-    const settingsForm = useForm<SettingsFormData>({
+    const groups = useCollapsibleSections(SETTINGS_GROUPS_STORAGE_KEY, DEFAULT_OPEN_GROUPS);
+    const initialData: SettingsFormData = {
         name: flow.name,
         description: flow.description || '',
         available_in_mcp: flow.available_in_mcp ?? false,
@@ -73,16 +84,32 @@ export default function SettingsPane({
         viewport_height: flow.viewport_height ?? '',
         keyboard_speed: flow.keyboard_speed ?? '',
         user_agent: flow.user_agent ?? '',
+        language: flow.language ?? '',
         disable_web_security: flow.disable_web_security ?? false,
         finally_enabled: flow.finally_enabled ?? false,
-    });
+    };
+    const settingsForm = useForm<SettingsFormData>(initialData);
+    // Snapshot of the last saved values, so each group can flag its own unsaved changes.
+    const savedDataRef = useRef<SettingsFormData>(initialData);
+    const { expand } = groups;
 
     useEffect(() => {
         if (scrollTo === 'icon' && iconSectionRef.current) {
-            iconSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            onScrollHandled?.();
+            expand('general');
+            // Wait for the section body to become visible before scrolling to it.
+            const frame = window.requestAnimationFrame(() => {
+                iconSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                onScrollHandled?.();
+            });
+            return () => window.cancelAnimationFrame(frame);
         }
-    }, [scrollTo, onScrollHandled]);
+    }, [scrollTo, onScrollHandled, expand]);
+
+    // Never leave a validation error hidden behind a collapsed header.
+    useEffect(() => {
+        const failing = groupsWithErrors(settingsForm.errors);
+        if (failing.length > 0) expand(failing);
+    }, [settingsForm.errors, expand]);
 
     useEffect(() => {
         onDirtyChange?.(settingsForm.isDirty);
@@ -100,10 +127,19 @@ export default function SettingsPane({
         settingsForm.put(`/flows/${flow.id}`, {
             onSuccess: () => {
                 settingsForm.setDefaults();
+                savedDataRef.current = settingsForm.data;
                 onDirtyChange?.(false);
             },
         });
     };
+
+    const groupProps = (id: SettingsGroupId) => ({
+        open: groups.isOpen(id),
+        onToggle: () => groups.toggle(id),
+        modified: isGroupModified(id, settingsForm.data, savedDataRef.current),
+        hasError: groupHasError(id, settingsForm.errors),
+        size: 'sm' as const,
+    });
 
     const handleClearCookies = async () => {
         const confirmed = await confirm({
@@ -143,36 +179,94 @@ export default function SettingsPane({
             </Layout.StickyHeader>
             <Layout.SidePanelSectionInner>
                 <S.SettingsForm onSubmit={handleSaveSettings}>
-                    <GeneralSection form={settingsForm} />
-                    <AISection form={settingsForm} />
-                    <RunSection form={settingsForm} limits={limits} isNodalFlow={isNodalFlow} />
-                    <ProxySection
-                        form={settingsForm}
-                        workspaceProxies={workspaceProxies}
-                        teams={teams}
-                        canManageWorkspaceProxies={canManageWorkspaceProxies}
-                    />
-                    <OutputSection form={settingsForm} isNodalFlow={isNodalFlow} />
-                    <ArtifactsSection
-                        form={settingsForm}
-                        recordingEnabled={limits.recordingEnabled}
-                        isNodalFlow={isNodalFlow}
-                    />
-                    <BrowserSection
-                        form={settingsForm}
-                        viewport={limits.wsViewport}
-                        keyboardSpeed={limits.wsKeyboardSpeed}
-                        userAgent={limits.wsUserAgent}
-                    />
-                    <S.SettingsSeparator />
-                    <div ref={iconSectionRef}>
-                        <FlowIconPicker flow={flow} />
-                    </div>
-                    <S.SettingsSeparator />
-                </S.SettingsForm>
+                    <CollapsibleSection
+                        icon="lucide:settings-2"
+                        title="General"
+                        description="Name, description, icon and colors"
+                        {...groupProps('general')}
+                    >
+                        <GeneralSection form={settingsForm} />
+                        <S.SettingsSeparator />
+                        <S.IconAnchor ref={iconSectionRef}>
+                            <FlowIconPicker flow={flow} />
+                        </S.IconAnchor>
+                    </CollapsibleSection>
 
-                <CookiesSection onClear={handleClearCookies} />
-                <DangerSection onDelete={handleDeleteFlow} />
+                    <CollapsibleSection
+                        icon="lucide:play"
+                        title="Execution"
+                        description="Queue, timeout, retries and run retention"
+                        {...groupProps('execution')}
+                    >
+                        <RunSection form={settingsForm} limits={limits} isNodalFlow={isNodalFlow} />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                        icon="lucide:monitor"
+                        title="Browser"
+                        description="Viewport, keyboard speed, user agent and language"
+                        {...groupProps('browser')}
+                    >
+                        <BrowserSection
+                            form={settingsForm}
+                            viewport={limits.wsViewport}
+                            keyboardSpeed={limits.wsKeyboardSpeed}
+                            userAgent={limits.wsUserAgent}
+                            language={limits.wsLanguage}
+                        />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                        icon="lucide:globe-2"
+                        title="Proxy"
+                        description="Routing mode and pool filters"
+                        docPath="/guide/flows#proxy-routing"
+                        docLabel="Open proxy routing documentation"
+                        {...groupProps('proxy')}
+                    >
+                        <ProxySection
+                            form={settingsForm}
+                            workspaceProxies={workspaceProxies}
+                            teams={teams}
+                            canManageWorkspaceProxies={canManageWorkspaceProxies}
+                        />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                        icon="lucide:file-json"
+                        title="Output & artifacts"
+                        description="What the run result contains"
+                        {...groupProps('output')}
+                    >
+                        <OutputSection form={settingsForm} isNodalFlow={isNodalFlow} />
+                        <ArtifactsSection
+                            form={settingsForm}
+                            recordingEnabled={limits.recordingEnabled}
+                            isNodalFlow={isNodalFlow}
+                        />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                        icon="lucide:sparkles"
+                        title="AI & MCP"
+                        description="Expose this flow to MCP clients"
+                        docPath="/guide/mcp#_1-configure-the-workspace"
+                        docLabel="Open MCP flow exposure documentation"
+                        {...groupProps('ai')}
+                    >
+                        <AISection form={settingsForm} />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                        icon="lucide:wrench"
+                        title="Maintenance"
+                        description="Saved cookies and flow deletion"
+                        {...groupProps('maintenance')}
+                    >
+                        <CookiesSection onClear={handleClearCookies} />
+                        <DangerSection onDelete={handleDeleteFlow} />
+                    </CollapsibleSection>
+                </S.SettingsForm>
             </Layout.SidePanelSectionInner>
             <ConfirmModal />
         </Layout.SidePanelSection>

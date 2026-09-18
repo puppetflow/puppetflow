@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 
 export const InfoBanner = styled.div`
-    margin-top: 20px;
     padding: 14px;
     border: 1px solid ${({ theme }) => theme.colors.border.default};
     border-radius: ${({ theme }) => theme.radius.md};

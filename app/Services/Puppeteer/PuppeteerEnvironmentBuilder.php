@@ -127,6 +127,10 @@ final class PuppeteerEnvironmentBuilder
         if ($userAgent !== null) {
             $env['BROWSER_USER_AGENT'] = $userAgent;
         }
+        $language = $flow->getEffectiveLanguage();
+        if ($language !== null) {
+            $env['BROWSER_LANGUAGE'] = $language;
+        }
         if ($flow->disable_web_security !== null) {
             $env['BROWSER_DISABLE_WEB_SECURITY'] = $flow->disable_web_security ? 'true' : 'false';
         }

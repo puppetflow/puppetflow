@@ -28,9 +28,6 @@ export default function RunSection({
 
     return (
         <>
-            <S.SettingsSeparator />
-            <S.SettingsSectionLabel>Run</S.SettingsSectionLabel>
-
             <Select
                 label="Queue"
                 value={form.data.queue_index === null ? '' : String(form.data.queue_index)}

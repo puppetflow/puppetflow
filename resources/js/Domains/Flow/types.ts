@@ -56,6 +56,7 @@ export interface Flow {
     viewport_height: number | null;
     keyboard_speed: number | null;
     user_agent: string | null;
+    language: string | null;
     disable_web_security: boolean | null;
     finally_enabled: boolean;
     source_type: 'code' | 'repository' | 'library';

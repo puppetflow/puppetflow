@@ -203,6 +203,7 @@ class ApiDocController extends Controller
                             'viewport_height' => ['type' => 'integer', 'nullable' => true],
                             'keyboard_speed' => ['type' => 'integer', 'nullable' => true],
                             'user_agent' => ['type' => 'string', 'nullable' => true],
+                            'language' => ['type' => 'string', 'nullable' => true, 'description' => 'Browser language as comma-separated BCP 47 tags. Null inherits the workspace default.'],
                             'disable_web_security' => ['type' => 'boolean'],
                             'finally_enabled' => ['type' => 'boolean'],
                             'library_locked' => ['type' => 'boolean'],
@@ -253,6 +254,7 @@ class ApiDocController extends Controller
                                     'viewport_height' => ['type' => 'integer'],
                                     'keyboard_speed' => ['type' => 'integer'],
                                     'default_user_agent' => ['type' => 'string', 'nullable' => true],
+                                    'default_language' => ['type' => 'string', 'nullable' => true],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
                                     'require_two_factor' => [
                                         'type' => 'boolean',
@@ -303,6 +305,7 @@ class ApiDocController extends Controller
                             'viewport_height' => ['type' => 'integer', 'minimum' => 200, 'maximum' => 2160],
                             'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
                             'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
+                            'default_language' => ['type' => 'string', 'nullable' => true, 'maxLength' => 64, 'description' => 'Default browser language as comma-separated BCP 47 tags, for example "fr-FR,fr". Sets Accept-Language and navigator.language; websites may still choose a language from the IP address.'],
                             'icon_type' => ['type' => 'string', 'enum' => ['emoji', 'color']],
                             'icon_value' => ['type' => 'string', 'nullable' => true, 'maxLength' => 100],
                             'icon_color' => ['type' => 'string', 'nullable' => true, 'maxLength' => 7],
@@ -326,6 +329,7 @@ class ApiDocController extends Controller
                                     'viewport_height' => ['type' => 'integer', 'minimum' => 200, 'maximum' => 2160],
                                     'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
                                     'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
+                                    'default_language' => ['type' => 'string', 'nullable' => true, 'maxLength' => 64],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
                                     'require_two_factor' => [
                                         'type' => 'boolean',

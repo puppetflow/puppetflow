@@ -14,6 +14,16 @@ export const TwoColumns = styled.div`
     }
 `;
 
+export const SectionStack = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 1080px;
+    min-width: 0;
+    padding-bottom: 60px;
+`;
+
 export const CardStack = styled.div`
     display: flex;
     flex-direction: column;
