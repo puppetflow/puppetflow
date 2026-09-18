@@ -1,9 +1,11 @@
 import styled from 'styled-components';
 import { CANVAS_GRID_SIZE } from '../utils/grid';
 
-const CANVAS_DOT_SPACING = CANVAS_GRID_SIZE;
+// Dots mark every other snap step: the snap grid is fine enough to align
+// handles, the dots keep the previous, lighter density.
+const CANVAS_DOT_SPACING = CANVAS_GRID_SIZE * 2;
 const CANVAS_DOT_RADIUS = 1.35;
-const CANVAS_STRIPE_WIDTH = CANVAS_GRID_SIZE * 0.3;
+const CANVAS_STRIPE_WIDTH = CANVAS_GRID_SIZE * 0.6;
 
 export const Canvas = styled.div<{
     $knifeActive?: boolean;

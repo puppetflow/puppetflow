@@ -22,9 +22,9 @@ import type {
     Point,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import {
-    EDGE_DROP_INFLUENCE_RADIUS,
     findEdgeDropTarget as findCanvasEdgeDropTarget,
     getDragAutoPanDelta,
+    getEdgeDropInfluenceRadius,
     hasMovedBeyondDragThreshold,
 } from './canvasNodeDrag.utils';
 import type { UseCanvasInteractionsOptions } from './useCanvasInteractions.types';
@@ -136,7 +136,7 @@ export function useCanvasNodeDragInteractions({
                     x: snapCanvasPosition(draggedPosition.x + dx),
                     y: snapCanvasPosition(draggedPosition.y + dy),
                 },
-                EDGE_DROP_INFLUENCE_RADIUS / viewport.zoom,
+                getEdgeDropInfluenceRadius(viewport.zoom),
             ));
         } else {
             setEdgeDropTarget(null);
@@ -161,8 +161,8 @@ export function useCanvasNodeDragInteractions({
         const dropTarget = didDrag && draggedStartPosition && draggedNode && isEdgeInsertableNode(draggedNode)
             ? findEdgeDropTarget(
                 nodeDrag.nodeId,
-                { x: draggedStartPosition.x + dx, y: draggedStartPosition.y + dy },
-                EDGE_DROP_INFLUENCE_RADIUS / viewport.zoom,
+                { x: snapCanvasPosition(draggedStartPosition.x + dx), y: snapCanvasPosition(draggedStartPosition.y + dy) },
+                getEdgeDropInfluenceRadius(viewport.zoom),
             )
             : null;
 

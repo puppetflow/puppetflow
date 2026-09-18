@@ -1,6 +1,8 @@
 import {
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
+    NODE_PORT_SPACING,
+    NODE_PORT_Y_OFFSET,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
     getEdgePolyline,
@@ -23,7 +25,16 @@ const DRAG_AUTO_PAN_EDGE_SIZE = 72;
 const DRAG_AUTO_PAN_MAX_SPEED = 18;
 const NODE_DRAG_START_THRESHOLD = 4;
 
-export const EDGE_DROP_INFLUENCE_RADIUS = 24;
+const EDGE_DROP_SCREEN_RADIUS = 24;
+// A node aligned on one handle of a branching node has its tile center exactly
+// one handle spacing away from the sibling edge. The capture radius must stay
+// below that so aligning True and False targets by hand never turns into an
+// edge insertion, whatever the zoom.
+const EDGE_DROP_MAX_CANVAS_RADIUS = NODE_PORT_SPACING - 8;
+
+export const getEdgeDropInfluenceRadius = (zoom: number) => (
+    Math.min(EDGE_DROP_MAX_CANVAS_RADIUS, EDGE_DROP_SCREEN_RADIUS / zoom)
+);
 
 export const getDragAutoPanDelta = (rect: DOMRect, clientX: number, clientY: number) => {
     const speedForDistance = (distance: number) => {
@@ -50,6 +61,9 @@ export const findEdgeDropTarget = (
 ): EdgeDropTarget | null => {
     let closestTarget: EdgeDropTarget | null = null;
     let closestDistance = influenceRadius;
+    // Measure from the tile center, where the handles are, rather than from the
+    // node anchor which also spans the label below the tile.
+    const tileCenter = { x: point.x, y: point.y + NODE_PORT_Y_OFFSET };
 
     edges.forEach(edge => {
         if (!isExecutionEdge(edge)) return;
@@ -60,7 +74,7 @@ export const findEdgeDropTarget = (
 
         const start = getPortPosition(sourceNode, edge.sourcePort ?? DEFAULT_OUTPUT_PORT, 'output');
         const end = getPortPosition(targetNode, edge.targetPort ?? DEFAULT_INPUT_PORT, 'input');
-        const distance = getPointToPolylineDistance(point, getEdgePolyline(start, end));
+        const distance = getPointToPolylineDistance(tileCenter, getEdgePolyline(start, end));
         if (distance > closestDistance) return;
 
         const insertionLayout = getEdgeInsertionLayout(sourceNode, targetNode);
