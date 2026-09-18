@@ -1,5 +1,6 @@
 import type { IfConditionCategory, IfConditionRule, NodeParameterValue, ObjectFieldValueType, ObjectNodeParameterField, RawNodeParameterValue, ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { toExpressionScopeValue } from '@/Domains/Flow/Pages/FlowEditor/utils/runtimeInstances';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -24,7 +25,7 @@ export const normalizeParameterValue = (value: RawNodeParameterValue | unknown):
         const rules = Array.isArray(value.rules)
             ? value.rules.map((rule, index): IfConditionRule => {
                 const source = isRecord(rule) ? rule : {};
-                const category = typeof source.category === 'string' && ['string', 'number', 'dateTime', 'boolean', 'array', 'object'].includes(source.category)
+                const category = typeof source.category === 'string' && ['string', 'number', 'dateTime', 'boolean', 'array', 'object', 'null'].includes(source.category)
                     ? source.category as IfConditionCategory
                     : 'string';
 
@@ -404,17 +405,20 @@ const previewCurrentDate = (timestamp?: unknown, monthOffset = 0) => {
 const evaluateExpressionSource = (source: string, scope: { inputData: unknown; pageData?: unknown; outputData: unknown; nodeData?: unknown; runData?: unknown; contextData?: unknown; variableData?: Record<string, unknown> }) => {
     if (source.includes('$page')) return `[Needs run: ${source}]`;
 
+    // Runtime instance summaries (ElementHandle, HTTPResponse...) become opaque so that
+    // property access resolves to undefined, as it would at runtime.
     const $page = scope.pageData ?? {};
-    const $nodes = scope.nodeData ?? {};
+    const $nodes = toExpressionScopeValue(scope.nodeData) ?? {};
     const $ = (nodeName: string) => isRecord($nodes) ? $nodes[nodeName] : undefined;
-    const rawRunData = isRecord(scope.runData) ? scope.runData : {};
+    const scopedRunData = toExpressionScopeValue(scope.runData);
+    const rawRunData = isRecord(scopedRunData) ? scopedRunData : {};
     const rootRun = '$input' in rawRunData
         ? rawRunData
         : {
             ...rawRunData,
-            $input: scope.inputData,
-            $output: scope.outputData,
-            $context: scope.contextData,
+            $input: toExpressionScopeValue(scope.inputData),
+            $output: toExpressionScopeValue(scope.outputData),
+            $context: toExpressionScopeValue(scope.contextData),
         };
     const $run = isRecord($nodes) && isRecord($nodes.last) ? $nodes.last : rootRun;
     const runInput = isRecord(rootRun.$input) ? rootRun.$input : {};

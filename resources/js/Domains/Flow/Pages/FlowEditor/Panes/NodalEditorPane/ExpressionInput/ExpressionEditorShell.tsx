@@ -90,7 +90,7 @@ export default function ExpressionEditorShell({
                     $loading={!renderedExpression.ok && renderedExpression.loading}
                 >
                     {renderedExpression.ok
-                        ? <ExpressionPreview value={renderedExpression.value} />
+                        ? <ExpressionPreview value={renderedExpression.value} source={value.value} />
                         : <pre>{renderedExpression.error}</pre>}
                 </S.ExpressionInlineRender>
             )}

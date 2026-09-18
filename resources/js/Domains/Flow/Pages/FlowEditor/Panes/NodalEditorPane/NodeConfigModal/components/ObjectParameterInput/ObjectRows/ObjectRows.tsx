@@ -1,15 +1,15 @@
 import type { NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import type {
-    IfConditionCategory,
+    IfValueCategory,
     ObjectNodeParameterField,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { NodeValidationIssue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
 import {
-    IF_CATEGORIES,
     IF_CATEGORY_ICONS,
     IF_CATEGORY_LABELS,
+    IF_VALUE_CATEGORIES,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/utils/ifConditions';
 import {
     getEffectiveObjectFieldMeta,
@@ -113,13 +113,13 @@ export default function ObjectRows({
                                 disabled={readOnly}
                                 compact
                                 showOptionValue={false}
-                                options={IF_CATEGORIES.map(category => ({
+                                options={IF_VALUE_CATEGORIES.map(category => ({
                                     value: category,
                                     label: IF_CATEGORY_LABELS[category],
                                     icon: IF_CATEGORY_ICONS[category],
                                 }))}
                                 onChange={nextValue => onUpdateField(field.id, {
-                                    valueType: nextValue as IfConditionCategory,
+                                    valueType: nextValue as IfValueCategory,
                                 })}
                             />
                         )}

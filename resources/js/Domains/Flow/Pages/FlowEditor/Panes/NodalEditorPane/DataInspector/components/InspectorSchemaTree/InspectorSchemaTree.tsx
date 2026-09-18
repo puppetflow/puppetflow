@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import RuntimeInstanceBadge from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/RuntimeInstanceBadge/RuntimeInstanceBadge';
+import { asRuntimeInstanceSummary } from '@/Domains/Flow/Pages/FlowEditor/utils/runtimeInstances';
 import InspectorValue from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/components/InspectorValue/InspectorValue';
 import {
     resolveReferenceDisplay,
@@ -28,6 +30,7 @@ const TYPE_ICONS: Record<string, string> = {
     boolean: 'lucide:toggle-left',
     circular: 'lucide:refresh-cw',
     function: 'lucide:code-2',
+    instance: 'lucide:crosshair',
     null: 'lucide:circle-slash-2',
     number: 'lucide:hash',
     object: 'lucide:braces',
@@ -71,6 +74,7 @@ export default function InspectorSchemaTree({
         <S.Tree>
             {visibleRows.map(({ item, hasChildren }) => {
                 const referenceDisplay = resolveReferenceDisplay(item.value, references);
+                const instanceSummary = item.type === 'instance' ? asRuntimeInstanceSummary(item.value) : null;
                 const rootDisplay = item.depth === 0 ? rootDisplays?.get(item.path) : undefined;
                 const itemCount = isContainer(item.value)
                     ? Array.isArray(item.value) ? item.value.length : Object.keys(item.value).length
@@ -117,7 +121,9 @@ export default function InspectorSchemaTree({
                             </S.TypeIcon>
                             <S.Name>{item.key}</S.Name>
                         </S.TypeBadge>
-                        {isContainer(item.value)
+                        {instanceSummary
+                            ? <RuntimeInstanceBadge summary={instanceSummary} size="sm" />
+                            : isContainer(item.value)
                             ? summary && <S.Summary>{summary}</S.Summary>
                             : (
                                 <S.Value>

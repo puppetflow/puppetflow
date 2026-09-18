@@ -1,4 +1,4 @@
-import type { IfConditionCategory, IfConditionParameterValue, IfConditionRule, NodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { IfConditionCategory, IfConditionParameterValue, IfConditionRule, IfValueCategory, NodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import { DATA_TYPE_ICONS } from '@/Shared/Utils/dataTypeIcons';
 
@@ -62,6 +62,12 @@ export const IF_OPERATORS: Record<IfConditionCategory, IfOperatorDef[]> = {
         { value: 'lengthLessThanOrEqual', label: 'length less than or equal to', rightType: 'number' },
     ],
     object: BASE_IF_OPERATORS,
+    null: [
+        { value: 'isNull', label: 'is null' },
+        { value: 'isNotNull', label: 'is not null' },
+        { value: 'isUndefined', label: 'is undefined' },
+        { value: 'isNotUndefined', label: 'is not undefined' },
+    ],
 };
 
 export const IF_CATEGORY_LABELS: Record<IfConditionCategory, string> = {
@@ -71,9 +77,16 @@ export const IF_CATEGORY_LABELS: Record<IfConditionCategory, string> = {
     boolean: 'Boolean',
     array: 'Array',
     object: 'Object',
+    null: 'Null',
 };
 
+// Every category available in the If / Else condition dropdown.
 export const IF_CATEGORIES = Object.keys(IF_CATEGORY_LABELS) as IfConditionCategory[];
+
+// Categories that describe a value type (used for object field types); excludes "null".
+export const IF_VALUE_CATEGORIES = IF_CATEGORIES.filter(
+    (category): category is IfValueCategory => category !== 'null',
+);
 
 export const IF_CATEGORY_ICONS: Record<IfConditionCategory, string> = {
     string: DATA_TYPE_ICONS.string,
@@ -82,6 +95,7 @@ export const IF_CATEGORY_ICONS: Record<IfConditionCategory, string> = {
     boolean: DATA_TYPE_ICONS.boolean,
     array: DATA_TYPE_ICONS.array,
     object: DATA_TYPE_ICONS.object,
+    null: DATA_TYPE_ICONS.null,
 };
 
 export function defaultIfRule(): IfConditionRule {
