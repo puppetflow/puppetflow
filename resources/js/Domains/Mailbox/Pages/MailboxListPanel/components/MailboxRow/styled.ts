@@ -1,15 +1,25 @@
 import styled from 'styled-components';
 
 export const Row = styled.div<{ $active?: boolean; $depth: number }>`
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
-    padding-left: ${({ $depth }) => $depth > 0 ? `${$depth * 14}px` : '14px'};
+    padding: 10px 14px 10px 16px;
+    padding-left: ${({ $depth }) => $depth > 0 ? `${$depth * 14 + 2}px` : '16px'};
     cursor: pointer;
     transition: background ${({ theme }) => theme.transition.fast};
-    background: ${({ $active, theme }) => $active ? theme.colors.bg.hover : 'transparent'};
-    border-left: 3px solid ${({ $active, theme }) => $active ? theme.colors.accent.primary : 'transparent'};
+    background: ${({ $active, theme }) => $active ? theme.colors.bg.primary : 'transparent'};
+    border: 1px solid transparent;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border: 2px solid ${({ $active, theme }) => $active ? theme.colors.brand : 'transparent'};
+        border-radius: 4px;
+        pointer-events: none;
+    }
 
     &:hover {
         background: ${({ theme }) => theme.colors.bg.secondary};

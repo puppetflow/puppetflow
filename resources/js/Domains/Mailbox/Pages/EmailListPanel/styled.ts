@@ -105,21 +105,31 @@ export const EmailIconWrap = styled.div`
 `;
 
 export const EmailItem = styled.div<{ $active?: boolean; $unread?: boolean; $selected?: boolean }>`
+    position: relative;
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px 12px 8px 14px;
     cursor: pointer;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
-    border-left: 3px solid ${({ $active, theme }) => $active ? theme.colors.accent.primary : 'transparent'};
+    border: 1px solid transparent;
+    border-bottom-color: ${({ theme }) => theme.colors.border.default};
     transition: background ${({ theme }) => theme.transition.fast};
 
     background: ${({ $active, $unread, $selected, theme }) => {
         if ($selected) return theme.colors.accent.primary + (theme.mode === 'dark' ? '28' : '12');
-        if ($active) return theme.colors.bg.hover;
+        if ($active) return theme.colors.bg.primary;
         if ($unread) return theme.mode === 'dark' ? '#1a1a2e' : '#f0f4ff';
         return 'transparent';
     }};
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border: 2px solid ${({ $active, theme }) => $active ? theme.colors.brand : 'transparent'};
+        border-radius: 4px;
+        pointer-events: none;
+    }
 
     &:hover { background: ${({ theme }) => theme.colors.bg.secondary}; }
 

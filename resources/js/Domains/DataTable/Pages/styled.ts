@@ -180,18 +180,27 @@ export const List = styled.div`
 `;
 
 const listRow = css<{ $active: boolean; $depth?: number }>`
+    position: relative;
     display: flex;
     width: 100%;
     align-items: center;
     gap: 8px;
-    padding: 9px 11px;
-    padding-left: ${({ $depth = 0 }) => `${11 + $depth * 14}px`};
-    border: 0;
-    border-left: 3px solid ${({ $active, theme }) => $active ? theme.colors.accent.primary : 'transparent'};
-    background: ${({ $active, theme }) => $active ? theme.colors.bg.hover : 'transparent'};
+    padding: 9px 11px 9px 13px;
+    padding-left: ${({ $depth = 0 }) => `${13 + $depth * 14}px`};
+    border: 1px solid transparent;
+    background: ${({ $active, theme }) => $active ? theme.colors.bg.primary : 'transparent'};
     color: ${({ theme }) => theme.colors.text.primary};
     cursor: pointer;
     text-align: left;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border: 2px solid ${({ $active, theme }) => $active ? theme.colors.brand : 'transparent'};
+        border-radius: 4px;
+        pointer-events: none;
+    }
 
     &:hover { background: ${({ theme }) => theme.colors.bg.secondary}; }
 `;
