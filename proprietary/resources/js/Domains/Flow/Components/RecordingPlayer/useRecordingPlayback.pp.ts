@@ -39,6 +39,7 @@ export function useRecordingPlayback(actions: ActionLogEntry[]) {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [activeIndex, setActiveIndex] = useState(-1);
+    const [muted, setMuted] = useState(false);
     const [showRemainingTime, setShowRemainingTime] = useState(true);
 
     useEffect(() => {
@@ -46,6 +47,7 @@ export function useRecordingPlayback(actions: ActionLogEntry[]) {
         if (!video) return;
 
         const handlePlay = () => setPlaying(true);
+        const handleVolumeChange = () => setMuted(video.muted || video.volume === 0);
         const handlePause = () => {
             setPlaying(false);
             setCurrentTime(video.currentTime);
@@ -96,6 +98,7 @@ export function useRecordingPlayback(actions: ActionLogEntry[]) {
         };
 
         video.addEventListener('play', handlePlay);
+        video.addEventListener('volumechange', handleVolumeChange);
         video.addEventListener('pause', handlePause);
         video.addEventListener('seeked', handleSeeked);
         video.addEventListener('loadedmetadata', handleMetadata);
@@ -103,6 +106,7 @@ export function useRecordingPlayback(actions: ActionLogEntry[]) {
 
         return () => {
             video.removeEventListener('play', handlePlay);
+            video.removeEventListener('volumechange', handleVolumeChange);
             video.removeEventListener('pause', handlePause);
             video.removeEventListener('seeked', handleSeeked);
             video.removeEventListener('loadedmetadata', handleMetadata);
@@ -176,6 +180,13 @@ export function useRecordingPlayback(actions: ActionLogEntry[]) {
         setShowRemainingTime((currentValue) => !currentValue);
     }, []);
 
+    const toggleMute = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        video.muted = !video.muted;
+    }, []);
+
     const seekTo = useCallback((timeMs: number, fromActionClick = false) => {
         const video = videoRef.current;
         if (!video) return;
@@ -221,12 +232,14 @@ export function useRecordingPlayback(actions: ActionLogEntry[]) {
         currentTime,
         duration,
         handleTimelineClick,
+        muted,
         playing,
         progressRef,
         remainingTimeLabelRef,
         selectAction,
         showRemainingTime,
         timeLabelRef,
+        toggleMute,
         togglePlay,
         toggleTimeDisplay,
         videoRef,

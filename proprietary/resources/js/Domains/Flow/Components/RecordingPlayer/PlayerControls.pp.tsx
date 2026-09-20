@@ -10,6 +10,7 @@ interface Props {
     duration: number;
     hasActions: boolean;
     isFullscreen: boolean;
+    muted: boolean;
     onTimelineClick: MouseEventHandler<HTMLDivElement>;
     panelOpen: boolean;
     playing: boolean;
@@ -19,6 +20,7 @@ interface Props {
     src: string;
     timeLabelRef: RefObject<HTMLSpanElement | null>;
     toggleFullscreen: () => void;
+    toggleMute: () => void;
     togglePanel: () => void;
     togglePlay: () => void;
     toggleTimeDisplay: () => void;
@@ -30,6 +32,7 @@ export default function PlayerControls({
     duration,
     hasActions,
     isFullscreen,
+    muted,
     onTimelineClick,
     panelOpen,
     playing,
@@ -39,6 +42,7 @@ export default function PlayerControls({
     src,
     timeLabelRef,
     toggleFullscreen,
+    toggleMute,
     togglePanel,
     togglePlay,
     toggleTimeDisplay,
@@ -60,6 +64,14 @@ export default function PlayerControls({
         <Controls>
             <ControlButton onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
                 <Icon icon={playing ? 'lucide:pause' : 'lucide:play'} width={16} height={16} />
+            </ControlButton>
+            <ControlButton
+                onClick={toggleMute}
+                title={muted ? 'Unmute' : 'Mute'}
+                aria-label={muted ? 'Unmute recording' : 'Mute recording'}
+                aria-pressed={muted}
+            >
+                <Icon icon={muted ? 'lucide:volume-x' : 'lucide:volume-2'} width={16} height={16} />
             </ControlButton>
 
             <TimeLabel ref={timeLabelRef}>{formatTime(currentTime)}</TimeLabel>

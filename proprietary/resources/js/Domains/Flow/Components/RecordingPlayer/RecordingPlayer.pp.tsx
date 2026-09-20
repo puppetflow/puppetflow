@@ -46,12 +46,14 @@ export default function RecordingPlayer({
         currentTime,
         duration,
         handleTimelineClick,
+        muted,
         playing,
         progressRef,
         remainingTimeLabelRef,
         selectAction,
         showRemainingTime,
         timeLabelRef,
+        toggleMute,
         togglePlay,
         toggleTimeDisplay,
         videoRef,
@@ -96,6 +98,7 @@ export default function RecordingPlayer({
                             hasActions={hasActions}
                             isFullscreen={isFullscreen}
                             onTimelineClick={handleTimelineClick}
+                            muted={muted}
                             panelOpen={panelOpen}
                             playing={playing}
                             progressRef={progressRef}
@@ -104,6 +107,7 @@ export default function RecordingPlayer({
                             src={src}
                             timeLabelRef={timeLabelRef}
                             toggleFullscreen={toggleFullscreen}
+                            toggleMute={toggleMute}
                             togglePanel={togglePanel}
                             togglePlay={togglePlay}
                             toggleTimeDisplay={toggleTimeDisplay}

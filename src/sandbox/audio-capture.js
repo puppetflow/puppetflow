@@ -4,9 +4,11 @@
  * Headless Chromium has no audio device, so the sound a page plays cannot be
  * grabbed from the OS. Instead, a script injected in every document taps the
  * Web Audio graph and the media elements of the page, mixes them into a single
- * mono PCM stream and hands 16-bit chunks back to the runner through a CDP
- * binding. The runner then forwards the chunks to the stream relay (live view)
- * and to the recording encoder (mp4 audio track).
+ * mono PCM stream and queues 16-bit chunks that the runner pulls with
+ * Runtime.evaluate long-polls. Pulling is deliberate: anti-detection Chromium
+ * builds (CloakBrowser and friends) strip CDP bindings and page console events,
+ * while evaluate always works. The runner then forwards the chunks to the
+ * stream relay (live view) and to the recording encoder (mp4 audio track).
  *
  * Limitations: audio from cross-origin <audio>/<video> sources served without
  * CORS headers is muted by the browser when routed through Web Audio, so such
@@ -19,6 +21,11 @@ const DEFAULT_SAMPLE_RATE = 24000;
 const MIN_SAMPLE_RATE = 8000;
 const MAX_SAMPLE_RATE = 48000;
 const CHUNK_SIZE = 4096;
+// How long a pull waits in the page for a chunk before returning empty.
+const PULL_WAIT_MS = 1000;
+// Pause before retrying a frame whose document is navigating or has no tap.
+const PULL_RETRY_MS = 300;
+const MAX_POLLED_FRAMES_PER_PAGE = 24;
 
 function normalizeSampleRate(value) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -65,13 +72,62 @@ function pageAudioTap(config) {
   let silentChunks = 0;
   let sequence = 0;
 
+  // Outgoing queue drained by the runner's long-poll. Bounded so a stalled
+  // runner never makes the page grow without limit.
+  const queue = [];
+  const maxQueued = 48;
+  let waiter = null;
+
   function deliver(payload) {
-    const binding = window[config.binding];
-    if (typeof binding !== 'function') return;
-    try {
-      const result = binding(payload);
-      if (result && typeof result.catch === 'function') result.catch(function () {});
-    } catch (_) {}
+    queue.push(payload);
+    if (queue.length > maxQueued) queue.splice(0, queue.length - maxQueued);
+    if (waiter) {
+      const resolve = waiter;
+      waiter = null;
+      resolve(pullResult(queue.splice(0)));
+    }
+  }
+
+  // The runner passes the context rate it measured in earlier documents so a
+  // fresh document labels its first second right, before its own window.
+  function acceptRateHint(hint) {
+    if (evaluations === 0 && typeof hint === 'number' && hint >= 8000 && hint <= 96000) {
+      workingRate = hint;
+    }
+  }
+
+  function pullResult(chunks) {
+    return { c: chunks, k: workingRate, m: evaluations > 0 };
+  }
+
+  function pull(waitMs, rateHint) {
+    acceptRateHint(rateHint);
+    if (queue.length > 0) return Promise.resolve(pullResult(queue.splice(0)));
+    return new Promise(function (resolve) {
+      if (waiter) {
+        const previous = waiter;
+        waiter = null;
+        previous(pullResult([]));
+      }
+      waiter = resolve;
+      setTimeout(function () {
+        if (waiter === resolve) {
+          waiter = null;
+          resolve(pullResult(queue.splice(0)));
+        }
+      }, waitMs);
+    });
+  }
+
+  try {
+    Object.defineProperty(window, config.handle, {
+      value: Object.freeze({ pull: pull }),
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+  } catch (_) {
+    return;
   }
 
   function bytesToBase64(bytes) {
@@ -89,8 +145,68 @@ function pageAudioTap(config) {
     }
   }
 
+  // Fingerprint-hardened builds may lie about AudioContext.sampleRate and
+  // about everything derived from it (currentTime, playbackTime, decoded
+  // buffer lengths). The only trustworthy figure is frames rendered per
+  // wallclock second, so the reported rate is used until the first 1 s window
+  // has been measured, then the measured rate takes over. Later windows must
+  // agree twice in a row before the label moves again, which filters out
+  // main-thread stalls that drop ScriptProcessor buffers.
+  const knownRates = [8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000, 88200, 96000];
+  // A short first window bounds how long a wrong reported rate is used; the
+  // later, longer windows refine it.
+  const firstRateWindowMs = 500;
+  const rateWindowMs = 1000;
+  let workingRate = 0;
+  let pendingCandidate = 0;
+  let evaluations = 0;
+  let windowStart = 0;
+  let windowFrames = 0;
+
+  function snapRate(value) {
+    let best = knownRates[0];
+    for (const rate of knownRates) {
+      if (Math.abs(rate - value) < Math.abs(best - value)) best = rate;
+    }
+    return Math.abs(best - value) / best < 0.025 ? best : Math.round(value);
+  }
+
+  function ratesAgree(a, b) {
+    return a > 0 && b > 0 && Math.abs(a - b) / b < 0.01;
+  }
+
+  function observeRate(bufferLength) {
+    const now = Date.now();
+    if (!windowStart) {
+      windowStart = now;
+      windowFrames = 0;
+      return;
+    }
+    windowFrames += bufferLength;
+    const spanMs = now - windowStart;
+    if (spanMs < (evaluations === 0 ? firstRateWindowMs : rateWindowMs)) return;
+    const candidate = snapRate((windowFrames * 1000) / spanMs);
+    windowStart = now;
+    windowFrames = 0;
+    evaluations += 1;
+    if (ratesAgree(candidate, workingRate)) {
+      pendingCandidate = 0;
+    } else if (evaluations === 1 || ratesAgree(candidate, pendingCandidate)) {
+      workingRate = candidate;
+      pendingCandidate = 0;
+    } else {
+      pendingCandidate = candidate;
+    }
+  }
+
   function handleAudioProcess(event) {
     const input = event.inputBuffer.getChannelData(0);
+    if (!workingRate) workingRate = captureContext.sampleRate;
+    observeRate(input.length);
+    emitChunk(input, workingRate);
+  }
+
+  function emitChunk(input, contextRate) {
     let peak = 0;
     for (let i = 0; i < input.length; i++) {
       const magnitude = input[i] < 0 ? -input[i] : input[i];
@@ -105,18 +221,27 @@ function pageAudioTap(config) {
       silentChunks = 0;
     }
 
-    const pcm = new Int16Array(input.length);
-    for (let i = 0; i < input.length; i++) {
-      let sample = input[i];
+    // Decimate when the real rate is a whole multiple of the target so the
+    // relay and the recorder receive the configured rate.
+    const factor = contextRate > config.sampleRate && contextRate % config.sampleRate === 0
+      ? contextRate / config.sampleRate
+      : 1;
+    const outputRate = contextRate / factor;
+    const length = Math.floor(input.length / factor);
+    const pcm = new Int16Array(length);
+    for (let i = 0; i < length; i++) {
+      let sample = 0;
+      for (let k = 0; k < factor; k++) sample += input[i * factor + k];
+      sample /= factor;
       if (sample > 1) sample = 1;
       else if (sample < -1) sample = -1;
       pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
     }
-    const durationMs = (input.length / captureContext.sampleRate) * 1000;
+    const durationMs = (input.length / contextRate) * 1000;
     sequence += 1;
     deliver({
       d: bytesToBase64(new Uint8Array(pcm.buffer)),
-      r: captureContext.sampleRate,
+      r: outputRate,
       t: Date.now() - durationMs,
       s: sourceId,
       n: sequence,
@@ -125,7 +250,11 @@ function pageAudioTap(config) {
 
   function ensureCapture() {
     if (captureContext) return captureContext;
-    const context = new NativeAudioContext({ sampleRate: config.sampleRate, latencyHint: 'playback' });
+    // Never request a custom sampleRate: fingerprint-hardened builds pin the
+    // reported rate, and media routed through a context whose real rate
+    // differs from the reported one plays at the wrong speed. Use the default
+    // rate and decimate to the configured one in handleAudioProcess.
+    const context = new NativeAudioContext({ latencyHint: 'playback' });
     ownContexts.add(context);
     captureContext = context;
     mixer = context.createGain();
@@ -148,6 +277,9 @@ function pageAudioTap(config) {
       const capture = ensureCapture();
       const source = capture.createMediaStreamSource(tap.stream);
       nativeConnect.call(source, mixer);
+      // Runs in the same task as the page's own audio start, so it carries
+      // the same user activation when autoplay policy is enforced.
+      resumeCapture();
     } catch (_) {
       tap = null;
     }
@@ -158,6 +290,10 @@ function pageAudioTap(config) {
   function tapMediaElement(element) {
     if (!(element instanceof NativeMediaElement)) return;
     if (tappedMedia.has(element) || pageTappedMedia.has(element)) return;
+    // Muted media produces nothing to capture, and routing it through a
+    // suspended context would stall it (muted autoplay videos are common).
+    // It gets tapped on volumechange if the page unmutes it later.
+    if (element.muted || element.volume === 0) return;
     tappedMedia.add(element);
     try {
       const capture = ensureCapture();
@@ -165,6 +301,7 @@ function pageAudioTap(config) {
         ? nativeCreateMediaElementSource.call(capture, element)
         : capture.createMediaElementSource(element);
       nativeConnect.call(source, mixer);
+      resumeCapture();
     } catch (_) {}
   }
 
@@ -208,8 +345,21 @@ function pageAudioTap(config) {
   document.addEventListener('play', function (event) {
     try { tapMediaElement(event.target); } catch (_) {}
   }, true);
+  document.addEventListener('volumechange', function (event) {
+    const element = event.target;
+    if (element instanceof NativeMediaElement && !element.paused) {
+      try { tapMediaElement(element); } catch (_) {}
+    }
+  }, true);
   for (const gesture of ['pointerdown', 'keydown', 'touchstart']) {
     window.addEventListener(gesture, resumeCapture, true);
+  }
+
+  // Start the capture context right away in the top frame so the real sample
+  // rate is already measured when the page first makes a sound. Iframes stay
+  // lazy: ad-heavy pages would otherwise spawn one render thread each.
+  if (window === window.top) {
+    try { ensureCapture(); } catch (_) {}
   }
 }
 
@@ -219,9 +369,15 @@ function pageAudioTap(config) {
  */
 function createAudioCapture({ sampleRate, onChunk }) {
   const effectiveSampleRate = normalizeSampleRate(sampleRate);
-  const binding = '__pf_audio_sink_' + crypto.randomBytes(6).toString('hex');
+  const handle = '__pf_audio_' + crypto.randomBytes(6).toString('hex');
   const installed = new WeakSet();
+  const polledFrames = new WeakSet();
   let stopped = false;
+  // Real context rate measured by any document so far; the browser build
+  // determines it, so it carries over to new documents as a hint.
+  let measuredContextRate = 0;
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const handlePayload = (page) => (payload) => {
     if (stopped || !payload || typeof payload !== 'object') return;
@@ -241,6 +397,54 @@ function createAudioCapture({ sampleRate, onChunk }) {
     } catch (_) {}
   };
 
+  // One long-poll loop per frame. Each iteration blocks in the page until a
+  // chunk is queued (or PULL_WAIT_MS elapses), so idle frames cost one CDP
+  // round-trip per second and active ones deliver with round-trip latency.
+  const pollFrame = async (page, frame, deliver) => {
+    if (polledFrames.has(frame)) return;
+    polledFrames.add(frame);
+    let active = 0;
+    for (const candidate of page.frames()) {
+      if (polledFrames.has(candidate)) active += 1;
+    }
+    if (active > MAX_POLLED_FRAMES_PER_PAGE) {
+      polledFrames.delete(frame);
+      return;
+    }
+
+    while (!stopped && !frame.detached && !page.isClosed()) {
+      let result;
+      try {
+        result = await frame.evaluate(
+          (handleName, waitMs, rateHint) => {
+            const sink = window[handleName];
+            return sink ? sink.pull(waitMs, rateHint) : null;
+          },
+          handle,
+          PULL_WAIT_MS,
+          measuredContextRate,
+        );
+      } catch (_) {
+        // Navigation destroyed the execution context, or the frame is gone.
+        // The next document gets a fresh tap; retry shortly.
+        await sleep(PULL_RETRY_MS);
+        continue;
+      }
+      if (result === null) {
+        await sleep(PULL_RETRY_MS);
+        continue;
+      }
+      if (!result || typeof result !== 'object') continue;
+      if (result.m === true && Number.isFinite(result.k) && result.k >= 8000 && result.k <= 96000) {
+        measuredContextRate = result.k;
+      }
+      if (Array.isArray(result.c)) {
+        for (const payload of result.c) deliver(payload);
+      }
+    }
+    polledFrames.delete(frame);
+  };
+
   return {
     sampleRate: effectiveSampleRate,
 
@@ -248,13 +452,19 @@ function createAudioCapture({ sampleRate, onChunk }) {
       if (stopped || !page || installed.has(page) || page.isClosed()) return;
       installed.add(page);
       try {
-        await page.exposeFunction(binding, handlePayload(page));
         await page.evaluateOnNewDocument(pageAudioTap, {
-          binding,
+          handle,
           sampleRate: effectiveSampleRate,
           chunkSize: CHUNK_SIZE,
           sourceId: crypto.randomBytes(4).toString('hex'),
         });
+        const deliver = handlePayload(page);
+        page.on('frameattached', (frame) => {
+          pollFrame(page, frame, deliver).catch(() => {});
+        });
+        for (const frame of page.frames()) {
+          pollFrame(page, frame, deliver).catch(() => {});
+        }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         console.debug('Audio capture install skipped: ' + detail);
@@ -315,11 +525,31 @@ function createAudioTimeline({ sampleRate, latencyMs = 600, bufferSeconds = 8 })
       source.lastSeen = Date.now();
 
       const limit = emitted + ring.length;
+      // Box-average over the source span of each output sample when reducing
+      // the rate (non-integer ratios such as 44.1k -> 24k are common), which
+      // avoids the aliasing of plain decimation; interpolate when increasing.
+      const lastIndex = samples.length - 1;
       for (let i = 0; i < length; i++) {
         const absolute = position + i;
         if (absolute >= limit) break;
-        const sample = samples[Math.floor(i * ratio)] / 0x8000;
-        ring[absolute % ring.length] += sample;
+        const from = i * ratio;
+        let sample;
+        if (ratio > 1) {
+          const to = Math.min(from + ratio, samples.length);
+          let sum = 0;
+          let count = 0;
+          for (let k = Math.floor(from); k < to; k++) {
+            sum += samples[k];
+            count += 1;
+          }
+          sample = count > 0 ? sum / count : 0;
+        } else {
+          const index = Math.min(Math.floor(from), lastIndex);
+          const next = Math.min(index + 1, lastIndex);
+          const frac = from - index;
+          sample = samples[index] * (1 - frac) + samples[next] * frac;
+        }
+        ring[absolute % ring.length] += sample / 0x8000;
       }
 
       if (sources.size > 64) {

@@ -37,6 +37,7 @@ const STATUS_VALUES = new Set(['connecting', 'streaming', 'ended']);
 // Producer text messages announcing a binary payload that follows them.
 const BINARY_METADATA_TYPES = new Set(['frame-meta', 'audio-meta']);
 const AUDIO_MAX_PAYLOAD = 1024 * 1024;
+const AUDIO_MAX_PENDING_PUBLISHES = 8;
 const COALESCED_CONTROL_TYPES = new Set(['mousemove', 'wheel']);
 const CONTROL_TYPES = new Set([
     'mousemove', 'mousedown', 'mouseup', 'wheel', 'keydown', 'keyup',
@@ -670,7 +671,7 @@ async function handleProducerConnection(ws, runId) {
     let subscriptionReleased = false;
     let terminalPublish = null;
     let framePublishPending = false;
-    let audioPublishPending = false;
+    let audioPublishPending = 0;
     const cleanup = async () => {
         if (terminalPublish) {
             await terminalPublish;
@@ -771,13 +772,18 @@ async function handleProducerConnection(ws, runId) {
             if (metadata.type === 'audio-meta') {
                 // PCM chunks are small and frequent; an odd byte count cannot be
                 // valid 16-bit audio, so drop it rather than relay garbage.
-                if (frame.length > AUDIO_MAX_PAYLOAD || frame.length % 2 !== 0 || audioPublishPending) {
+                // Chunks may arrive in short bursts (the page tap flushes its
+                // backlog once the sample rate is known), so allow a few
+                // publishes in flight instead of dropping to one.
+                if (frame.length > AUDIO_MAX_PAYLOAD
+                    || frame.length % 2 !== 0
+                    || audioPublishPending >= AUDIO_MAX_PENDING_PUBLISHES) {
                     return;
                 }
-                audioPublishPending = true;
+                audioPublishPending += 1;
                 publishOwned(runId, session, encodeFrame(metadata, frame))
                     .finally(() => {
-                        audioPublishPending = false;
+                        audioPublishPending -= 1;
                     });
                 return;
             }
