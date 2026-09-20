@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { Section as CollapsibleSection } from '@/Shared/UI/CollapsibleSection/styled';
 import { settingsSeparatorStyles } from './shared.styled';
 
 export const SettingsForm = styled.form`
@@ -6,6 +7,10 @@ export const SettingsForm = styled.form`
     flex-direction: column;
     gap: 10px;
     padding: 12px 0 20px;
+
+    ${CollapsibleSection} {
+        background: ${({ theme }) => theme.colors.bg.primary};
+    }
 `;
 
 export const SettingsSeparator = styled.hr`

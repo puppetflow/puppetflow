@@ -154,18 +154,19 @@ services:
     restart: unless-stopped
     ports:
       - "3100:3000"
-    # Chromium uses /dev/shm for rendering buffers; the Docker default of
-    # 64 MB makes tabs crash under load.
     shm_size: "1gb"
     volumes:
       - ./data/execution:/app/data/execution
-      # Optional custom browser: Pinokio launches /opt/browser/chrome when it
-      # exists, otherwise the bundled Chromium. Unset: empty named volume.
-      - ${PINOKIO_BROWSER_DIR:-pinokio-browser}:/opt/browser:ro
+      # Browser archive downloaded by Pinokio on first start when
+      # PINOKIO_BROWSER_ARCHIVE_URL is set. Persisted so restarts do not re-download.
+      - pinokio-downloads:/opt/browsers
     environment:
       HOST: "0.0.0.0"
       PORT: 3000
       TOKEN: "${PINOKIO_TOKEN:-}"
+      # Optional browser archive (.tar.gz with a chrome executable) downloaded
+      # on first start and launched instead of the bundled Chromium.
+      BROWSER_ARCHIVE_URL: "${PINOKIO_BROWSER_ARCHIVE_URL:-}"
       CHROME_EXTRA_ARGS: "${PINOKIO_CHROME_EXTRA_ARGS:-}"
       TZ: "Europe/Paris"
       LANGUAGE: "fr-FR"
@@ -232,4 +233,4 @@ services:
 
 volumes:
   puppetflow-db:
-  pinokio-browser:
+  pinokio-downloads:

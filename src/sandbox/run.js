@@ -93,6 +93,27 @@ module.exports = async function(appDir, flowId, quiet) {
       if (process.env.FLOW_TIMEOUT_MS) { _qp.timeout = process.env.FLOW_TIMEOUT_MS; }
       const queryParams = new URLSearchParams(_qp);
       const browserWSEndpoint = ${JSON.stringify(`${PINOKIO_SECURE ? 'wss' : 'ws'}://${PINOKIO_HOST}:${PINOKIO_PORT}`)} + '?' + queryParams.toString();
+      // Pinokio identifies the binary it launches (name, version, SHA-256 of the
+      // executable) on /status. Logged so a run can tell which browser build
+      // served it, e.g. a stock Chromium vs a patched build of the same version.
+      const _logRemoteBrowserIdentity = async () => {
+        try {
+          const _statusParams = new URLSearchParams();
+          ${PINOKIO_TOKEN ? `_statusParams.set('token', ${JSON.stringify(PINOKIO_TOKEN)});` : ''}
+          const _statusUrl = ${JSON.stringify(`${PINOKIO_SECURE ? 'https' : 'http'}://${PINOKIO_HOST}:${PINOKIO_PORT}/status`)}
+            + (_statusParams.size ? '?' + _statusParams.toString() : '');
+          const _status = await (await fetch(_statusUrl, { signal: AbortSignal.timeout(3000) })).json();
+          const _b = _status && _status.browser;
+          if (!_b) return;
+          const _hash = typeof _b.sha256 === 'string' && _b.sha256.length >= 8
+            ? _b.sha256.slice(0, 4) + '***' + _b.sha256.slice(-4)
+            : 'unknown';
+          const _engine = _b.engine && _b.engine !== 'custom' ? _b.engine + ', ' : '';
+          console.debug('Browser: ' + (_b.name || 'unknown') + ' ' + (_b.version || 'unknown') + ' (' + _engine + 'sha256 ' + _hash + ')');
+        } catch (_identityErr) {
+          console.debug('Browser identity unavailable: ' + (_identityErr && _identityErr.message ? _identityErr.message : _identityErr));
+        }
+      };
       const _maxRetries = 10;
       for (let _attempt = 1; _attempt <= _maxRetries; _attempt++) {
         try {
@@ -100,6 +121,7 @@ module.exports = async function(appDir, flowId, quiet) {
             browserWSEndpoint: browserWSEndpoint
           });
           console.debug('Connected to remote browser' + (_attempt > 1 ? ' (attempt ' + _attempt + ')' : ''));
+          await _logRemoteBrowserIdentity();
           return browser;
         } catch (_connErr) {
           if (_attempt < _maxRetries) {
@@ -233,7 +255,70 @@ module.exports = async function(appDir, flowId, quiet) {
     ${browserConnect}
     let __runnerProxyCredentials = ${JSON.stringify(runnerProxyCredentials)};
     const _fakeUserAgent = process.env.BROWSER_USER_AGENT
-      || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
+      || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
+    // Derives navigator.platform and the client hints (Sec-CH-UA-*) from the
+    // User-Agent so all three describe the same OS and browser. Without this,
+    // a spoofed UA still leaves navigator.platform and Sec-CH-UA-Platform on
+    // the container's Linux, which is inconsistent even for non-stealth use.
+    const _userAgentOverride = ua => {
+      const override = { userAgent: ua };
+      let platform = 'Windows';
+      let platformVersion = '15.0.0';
+      let mobile = false;
+      let model = '';
+      let match;
+      if (/Windows NT/.test(ua)) {
+        override.platform = 'Win32';
+      } else if ((match = /Mac OS X ([0-9]+)[_.]([0-9]+)(?:[_.]([0-9]+))?/.exec(ua))) {
+        override.platform = 'MacIntel';
+        platform = 'macOS';
+        platformVersion = match[1] + '.' + match[2] + '.' + (match[3] || '0');
+      } else if (/iPhone|iPad|iPod/.test(ua)) {
+        override.platform = /iPad/.test(ua) ? 'iPad' : 'iPhone';
+        platform = 'iOS';
+        match = /OS ([0-9]+)_([0-9]+)/.exec(ua);
+        platformVersion = match ? match[1] + '.' + match[2] + '.0' : '17.0.0';
+        mobile = true;
+      } else if ((match = /Android ([0-9]+(?:[.][0-9]+)*)/.exec(ua))) {
+        override.platform = 'Linux armv8l';
+        platform = 'Android';
+        platformVersion = match[1];
+        mobile = /Mobile/.test(ua);
+        model = (/Android [^;)]+; ([^;)]+?)(?: Build|\\))/.exec(ua) || [0, ''])[1];
+      } else if (/Linux/.test(ua)) {
+        override.platform = 'Linux x86_64';
+        platform = 'Linux';
+        platformVersion = '6.8.0';
+      } else {
+        return override;
+      }
+      // Client hints only exist for Chromium-based UAs; Firefox and Safari
+      // strings must not advertise Sec-CH-UA at all.
+      const chrome = /(?:Chrome|CriOS)\\/([0-9]+)(?:[.]([0-9]+[.][0-9]+[.][0-9]+))?/.exec(ua);
+      if (chrome) {
+        const major = chrome[1];
+        const full = major + '.' + (chrome[2] || '0.0.0');
+        const brands = [
+          { brand: 'Chromium', version: major },
+          { brand: 'Google Chrome', version: major },
+          { brand: 'Not_A Brand', version: '99' }
+        ];
+        override.userAgentMetadata = {
+          brands: brands,
+          fullVersionList: brands.map(b => ({ brand: b.brand, version: b.brand === 'Not_A Brand' ? '99.0.0.0' : full })),
+          fullVersion: full,
+          platform: platform,
+          platformVersion: platformVersion,
+          architecture: platform === 'Android' || platform === 'iOS' ? 'arm' : 'x86',
+          model: model,
+          mobile: mobile,
+          bitness: '64',
+          wow64: false
+        };
+      }
+      return override;
+    };
+    const _userAgentOverrideParams = _userAgentOverride(_fakeUserAgent);
     const __namedPages = new Map();
     const __namedPageCreations = new Map();
     const __namedPageInitializers = [];
@@ -313,11 +398,44 @@ module.exports = async function(appDir, flowId, quiet) {
         .filter(page => !page.isClosed())
         .map(page => __applyNamedPageViewport(page)));
     };
+    const __applyUserAgentOverride = session =>
+      session.send('Emulation.setUserAgentOverride', _userAgentOverrideParams);
     const __prepareNamedPage = async page => {
       try {
-        await page.setUserAgent(_fakeUserAgent);
+        // page.setUserAgent() only forwards userAgent and metadata; the
+        // platform field needs the raw CDP command. Chromium keeps the
+        // platform override per DevTools session: after a cross-process
+        // navigation it replays sessions in attach order (a later session
+        // without the override resets navigator.platform), and detaching a
+        // session that carried it resets the current document. So every
+        // session opened on this tab (stream, downloads, user code) gets the
+        // same override, and a detach re-applies it on the tab's own session.
+        const target = page.target();
+        const createSession = target.createCDPSession.bind(target);
+        let ownSession = null;
+        target.createCDPSession = async (...args) => {
+          const session = await createSession(...args);
+          try {
+            await __applyUserAgentOverride(session);
+          } catch (_) {}
+          const detach = session.detach.bind(session);
+          session.detach = async (...detachArgs) => {
+            const result = await detach(...detachArgs);
+            if (ownSession && ownSession !== session && !page.isClosed()) {
+              try {
+                await __applyUserAgentOverride(ownSession);
+              } catch (_) {}
+            }
+            return result;
+          };
+          return session;
+        };
+        ownSession = await target.createCDPSession();
       } catch (_uaErr) {
-        console.debug('setUserAgent failed: ' + _uaErr.message);
+        console.debug('setUserAgentOverride failed: ' + _uaErr.message);
+        try {
+          await page.setUserAgent(_fakeUserAgent);
+        } catch (_) {}
       }
       await __applyNamedPageViewport(page);
       for (const initializer of __namedPageInitializers) {
