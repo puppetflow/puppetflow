@@ -1,4 +1,20 @@
 /* global __captureBrowserStorage */
+// Same comparison as the in-page check; evaluated on 0 matches it tells whether
+// a condition describes an absence (true on an empty page) or a presence.
+const __loginMarkerOperator = function(matches, operator, count) {
+  switch (operator) {
+    case 'exists': return matches > 0;
+    case 'doesNotExist': return matches === 0;
+    case 'equals': return matches === count;
+    case 'notEquals': return matches !== count;
+    case 'greaterThan': return matches > count;
+    case 'greaterThanOrEqual': return matches >= count;
+    case 'lessThan': return matches < count;
+    case 'lessThanOrEqual': return matches <= count;
+    default: return false;
+  }
+};
+
 /* @help Navigation
  * @sig $loginRemember(options)
  * @aliases remembered login, persistent login, reuse session
@@ -14,7 +30,7 @@
  * @nodal-param options.loggedMarkerCondition.textMatch [string]: Text to match against each selected element.
  * @nodal-param options.loggedMarkerCondition.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
  * @nodal-param options.loggedMarkerCondition.textCaseSensitive [boolean]: Preserve letter casing when matching text.
- * @nodal-param options.loggedMarkerCondition.operator [string]: Comparison applied to the number of matching elements. Defaults to exists.
+ * @nodal-param options.loggedMarkerCondition.operator [string]: Comparison applied to the number of matching elements. Defaults to exists. An absence (doesNotExist) is only confirmed if the elements never appear during the whole timeout.
  * @nodal-param options.loggedMarkerCondition.count [number]: Expected element count used by count comparison operators.
  * @nodal-param options.loggedMarkerConditionRaw [code]: Function evaluated directly in the flow context to detect the logged-in page. Use this raw variant when the check needs Puppetflow variables or helpers unavailable in the page context.
  * @nodal-placeholder options.loggedMarkerConditionRaw: async () => {
@@ -111,9 +127,18 @@ const $loginRemember = async function(options = {}) {
         }
         if (!loggedMarkerValidated) { throw new Error(); }
       } else {
-        console.debug('Waiting for logged marker during', ((opts.loggedMarkerTimeout / 1000).toFixed(0) + 's...'));
-        await __retryOnContextDestroyed(() => $page.waitForFunction(
-          ({ selector, textMatch, textFilter, textCaseSensitive, operator, count }) => {
+        // A condition already true on an empty page ("Sign up" button does not
+        // exist) says nothing right after domcontentloaded: the header may not
+        // be rendered yet, or a captcha page may stand in for the site. Such
+        // an absence is only confirmed if the elements never show up for the
+        // whole timeout; a presence is confirmed as soon as it shows up.
+        const absence = __loginMarkerOperator(0, opts.loggedMarkerCondition.operator, opts.loggedMarkerCondition.count);
+        console.debug(
+          absence ? 'Waiting for logged marker to stay absent during' : 'Waiting for logged marker during',
+          ((opts.loggedMarkerTimeout / 1000).toFixed(0) + 's...'),
+        );
+        const evaluateMarker = () => $page.waitForFunction(
+          ({ selector, textMatch, textFilter, textCaseSensitive, operator, count }, invert) => {
             const expectedText = textMatch
               ? (textCaseSensitive ? textMatch : textMatch.toLocaleLowerCase())
               : '';
@@ -128,21 +153,37 @@ const $loginRemember = async function(options = {}) {
                 return candidate.includes(expectedText);
               })
               .length;
+            let result;
             switch (operator) {
-              case 'exists': return matches > 0;
-              case 'doesNotExist': return matches === 0;
-              case 'equals': return matches === count;
-              case 'notEquals': return matches !== count;
-              case 'greaterThan': return matches > count;
-              case 'greaterThanOrEqual': return matches >= count;
-              case 'lessThan': return matches < count;
-              case 'lessThanOrEqual': return matches <= count;
-              default: return false;
+              case 'exists': result = matches > 0; break;
+              case 'doesNotExist': result = matches === 0; break;
+              case 'equals': result = matches === count; break;
+              case 'notEquals': result = matches !== count; break;
+              case 'greaterThan': result = matches > count; break;
+              case 'greaterThanOrEqual': result = matches >= count; break;
+              case 'lessThan': result = matches < count; break;
+              case 'lessThanOrEqual': result = matches <= count; break;
+              default: result = false;
             }
+            return invert ? !result : result;
           },
           { timeout: opts.loggedMarkerTimeout },
-          opts.loggedMarkerCondition
-        ));
+          opts.loggedMarkerCondition,
+          absence,
+        );
+        if (!absence) {
+          await __retryOnContextDestroyed(evaluateMarker);
+        } else {
+          let violated = true;
+          try {
+            await __retryOnContextDestroyed(evaluateMarker);
+          } catch (error) {
+            const timedOut = error && (error.name === 'TimeoutError' || /Waiting failed|timed? ?out/i.test(String(error.message)));
+            if (!timedOut) throw error;
+            violated = false;
+          }
+          if (violated) throw new Error();
+        }
       }
     } catch (error) {
       __emitAction('timeout', 'loggedMarker');
