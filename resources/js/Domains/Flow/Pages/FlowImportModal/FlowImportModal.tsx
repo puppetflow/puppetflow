@@ -144,8 +144,8 @@ export default function FlowImportModal({
             }
             setFileName(file.name);
             setParsedFile(parsed);
-            setCreateDataTables(false);
-            setCreateMailboxWatchers(false);
+            setCreateDataTables(parsed.dataTables.length > 0);
+            setCreateMailboxWatchers(parsed.mailboxWatchers.length > 0);
             setName(metadata.title || (parsed.flowType === 'code' ? labelFromCode(content, fallbackName) : fallbackName));
             setDescription(metadata.description || '');
             setDefaultInputs(metadata.defaultInputs ?? null);
@@ -286,18 +286,6 @@ export default function FlowImportModal({
 
                             {parsedFile && (
                                 <>
-                                    <ImportTargetFields
-                                        name={name}
-                                        description={description}
-                                        parsedFile={parsedFile}
-                                        visibility={visibility}
-                                        personalTree={personalTree}
-                                        workspaceTree={workspaceTree}
-                                        teamTrees={teamTrees}
-                                        onNameChange={setName}
-                                        onDescriptionChange={setDescription}
-                                        onVisibilityChange={setVisibility}
-                                    />
                                     {parsedFile.dataTables.length > 0 && (
                                         <S.ResourceImportCard>
                                             <S.ResourceImportHeader htmlFor="create-referenced-data-tables">
@@ -401,6 +389,21 @@ export default function FlowImportModal({
                                             )}
                                         </S.ResourceImportCard>
                                     )}
+                                    {(parsedFile.dataTables.length > 0 || parsedFile.mailboxWatchers.length > 0) && (
+                                        <S.ImportSectionDivider role="separator" />
+                                    )}
+                                    <ImportTargetFields
+                                        name={name}
+                                        description={description}
+                                        parsedFile={parsedFile}
+                                        visibility={visibility}
+                                        personalTree={personalTree}
+                                        workspaceTree={workspaceTree}
+                                        teamTrees={teamTrees}
+                                        onNameChange={setName}
+                                        onDescriptionChange={setDescription}
+                                        onVisibilityChange={setVisibility}
+                                    />
                                 </>
                             )}
 

@@ -75,6 +75,10 @@ module.exports = async function(appDir, flowId, quiet) {
   // Companion files live next to run.js, both in the repo (src/sandbox/)
   // and in the per-run sandbox copy ({sandboxDir}/src/).
   const runHeader = fs.readFileSync(`${__dirname}/run-header.js`, 'utf8');
+  // CDP transport that hides the Runtime-domain side effects Puppeteer would
+  // otherwise leave on the page (the check Pixelscan/DataDome run) and strips
+  // its "pptr:" source-URL markers. Required from the sandbox copy by path.
+  const cdpShimPath = `${__dirname}/cdp-shim.js`;
 
   const headlessMode = !!quiet;
 
@@ -87,6 +91,14 @@ module.exports = async function(appDir, flowId, quiet) {
         proxyBypassList: _proxyBypassListArg?.slice('--proxy-bypass-list='.length),
         disableWebSecurity: _disableWebSecurity,
         acceptLanguage: _browserLanguage || undefined,
+        // Applied with --user-agent at launch: unlike the CDP override below it
+        // also reaches shared and service workers. Unset, Pinokio uses the
+        // binary's own UA without the "Headless" marker.
+        userAgent: _configuredUserAgent || undefined,
+        // Pinokio sizes the window and the emulated screen around the viewport.
+        viewport: { width: _vpW, height: _vpH },
+        // Unset, Pinokio keeps its own TZ or derives one from the language.
+        timezone: _browserTimezone || undefined,
       };
       const _qp = { launch: JSON.stringify(_gatewayLaunch), stealth: 'true' };
       ${PINOKIO_TOKEN ? `_qp.token = ${JSON.stringify(PINOKIO_TOKEN)};` : ''}
@@ -96,7 +108,9 @@ module.exports = async function(appDir, flowId, quiet) {
       // Pinokio identifies the binary it launches (name, version, SHA-256 of the
       // executable) on /status. Logged so a run can tell which browser build
       // served it, e.g. a stock Chromium vs a patched build of the same version.
+      // BROWSER_IDENTITY_LOG=false keeps it out of the run logs.
       const _logRemoteBrowserIdentity = async () => {
+        if (!_browserIdentityLog) return;
         try {
           const _statusParams = new URLSearchParams();
           ${PINOKIO_TOKEN ? `_statusParams.set('token', ${JSON.stringify(PINOKIO_TOKEN)});` : ''}
@@ -117,9 +131,7 @@ module.exports = async function(appDir, flowId, quiet) {
       const _maxRetries = 10;
       for (let _attempt = 1; _attempt <= _maxRetries; _attempt++) {
         try {
-          const browser = await $puppeteer.connect({
-            browserWSEndpoint: browserWSEndpoint
-          });
+          const browser = await _connectBrowser(browserWSEndpoint);
           console.debug('Connected to remote browser' + (_attempt > 1 ? ' (attempt ' + _attempt + ')' : ''));
           await _logRemoteBrowserIdentity();
           return browser;
@@ -141,7 +153,22 @@ module.exports = async function(appDir, flowId, quiet) {
     require('fs').mkdirSync(_chromeUserDataDir, { recursive: true });
     launchOptions.userDataDir = _chromeUserDataDir;
     launchOptions.env = Object.assign({}, process.env, { TMPDIR: '/tmp', TMP: '/tmp', TEMP: '/tmp' });
-    const $browser = await $puppeteer.launch(launchOptions);
+    // Chromium reads its Intl/Date zone from TZ; an unset TZ means UTC, which
+    // is a server tell. Same precedence as Pinokio: configured, then the
+    // runner's own TZ, then a zone plausible for the language.
+    if (_browserTimezone) launchOptions.env.TZ = _browserTimezone;
+    else if (!launchOptions.env.TZ && _browserLanguagePrimary) {
+      const _derived = __timezoneForLanguage(_browserLanguagePrimary);
+      if (_derived) launchOptions.env.TZ = _derived;
+    }
+    if (_browserLanguagePrimary) launchOptions.env.LANGUAGE = _browserLanguagePrimary;
+    // Launch, then reconnect through the shim: puppeteer.launch has no
+    // transport option, so the process is spawned first, detached, and
+    // re-attached over the shimmed WebSocket. close() still terminates it.
+    const _launched = await $puppeteer.launch(launchOptions);
+    const _launchedWsEndpoint = _launched.wsEndpoint();
+    _launched.disconnect();
+    const $browser = await _connectBrowser(_launchedWsEndpoint, { defaultViewport: { width: _vpW, height: _vpH } });
     console.debug('Connected to Native Browser');
   `;
 
@@ -219,6 +246,19 @@ module.exports = async function(appDir, flowId, quiet) {
   const wrappedCode = `
   (async () => {
     const $puppeteer = require('puppeteer');
+    const { connectThroughShim: _connectThroughShim } = require(${JSON.stringify(cdpShimPath)});
+    // Off, Puppeteer keeps Runtime enabled and page.on('console')/('pageerror')
+    // work, at the cost of being detectable as CDP-controlled. On (default),
+    // those two events stay silent; nothing else changes. Puppetflow does not
+    // surface page console to run logs, so only flows that add the listeners
+    // themselves are affected.
+    const _hideCdp = process.env.BROWSER_HIDE_CDP !== 'false';
+    const _connectBrowser = (endpoint, extra = {}) => _connectThroughShim($puppeteer, endpoint, {
+      disableRuntime: _hideCdp,
+      stripSourceUrls: true,
+      log: message => console.debug(message),
+      ...extra,
+    });
     const _vpW = parseInt(process.env.VIEWPORT_WIDTH) || 1280;
     const _vpH = parseInt(process.env.VIEWPORT_HEIGHT) || 720;
     const _chromeUserDataDir = ${JSON.stringify(chromeUserDataDir)};
@@ -231,6 +271,45 @@ module.exports = async function(appDir, flowId, quiet) {
       .filter(tag => /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/.test(tag));
     const _browserLanguage = _browserLanguageTags.join(',');
     const _browserLanguagePrimary = _browserLanguageTags[0] || '';
+    // IANA zone configured instance-wide (BROWSER_TIMEZONE); empty lets the
+    // browser side pick: its own TZ, else one derived from the language.
+    // Whether run logs may name the browser build (name, version, hash, UA).
+    const _browserIdentityLog = process.env.BROWSER_IDENTITY_LOG !== 'false';
+    const _browserTimezone = String(process.env.BROWSER_TIMEZONE || '').trim();
+    if (_browserTimezone && !/^[A-Za-z0-9_+-][A-Za-z0-9_+\\/-]{0,63}$/.test(_browserTimezone)) {
+      throw new Error('BROWSER_TIMEZONE must be an IANA time zone name such as Europe/Paris');
+    }
+    // Same table as Pinokio's timezone_for_language: the most populous zone
+    // of the region, or of the language when the tag has no region.
+    const __timezoneForLanguage = tag => {
+      const [language, ...rest] = String(tag).split('-');
+      const region = rest.find(subtag => /^[A-Za-z]{2}$/.test(subtag))?.toUpperCase();
+      const byRegion = {
+        FR: 'Europe/Paris', BE: 'Europe/Brussels', CH: 'Europe/Zurich', LU: 'Europe/Luxembourg',
+        DE: 'Europe/Berlin', AT: 'Europe/Vienna', NL: 'Europe/Amsterdam', ES: 'Europe/Madrid',
+        IT: 'Europe/Rome', PT: 'Europe/Lisbon', GB: 'Europe/London', IE: 'Europe/Dublin',
+        PL: 'Europe/Warsaw', CZ: 'Europe/Prague', SE: 'Europe/Stockholm', NO: 'Europe/Oslo',
+        DK: 'Europe/Copenhagen', FI: 'Europe/Helsinki', GR: 'Europe/Athens', RO: 'Europe/Bucharest',
+        HU: 'Europe/Budapest', UA: 'Europe/Kyiv', RU: 'Europe/Moscow', TR: 'Europe/Istanbul',
+        IL: 'Asia/Jerusalem', SA: 'Asia/Riyadh', AE: 'Asia/Dubai', IN: 'Asia/Kolkata',
+        CN: 'Asia/Shanghai', HK: 'Asia/Hong_Kong', TW: 'Asia/Taipei', JP: 'Asia/Tokyo',
+        KR: 'Asia/Seoul', SG: 'Asia/Singapore', TH: 'Asia/Bangkok', VN: 'Asia/Ho_Chi_Minh',
+        ID: 'Asia/Jakarta', PH: 'Asia/Manila', AU: 'Australia/Sydney', NZ: 'Pacific/Auckland',
+        US: 'America/New_York', CA: 'America/Toronto', MX: 'America/Mexico_City', BR: 'America/Sao_Paulo',
+        AR: 'America/Argentina/Buenos_Aires', CL: 'America/Santiago', CO: 'America/Bogota', PE: 'America/Lima',
+        ZA: 'Africa/Johannesburg', EG: 'Africa/Cairo', MA: 'Africa/Casablanca', NG: 'Africa/Lagos',
+      };
+      const byLanguage = {
+        fr: 'Europe/Paris', de: 'Europe/Berlin', nl: 'Europe/Amsterdam', es: 'Europe/Madrid',
+        it: 'Europe/Rome', pt: 'Europe/Lisbon', en: 'America/New_York', pl: 'Europe/Warsaw',
+        cs: 'Europe/Prague', sv: 'Europe/Stockholm', nb: 'Europe/Oslo', no: 'Europe/Oslo',
+        da: 'Europe/Copenhagen', fi: 'Europe/Helsinki', el: 'Europe/Athens', ro: 'Europe/Bucharest',
+        hu: 'Europe/Budapest', uk: 'Europe/Kyiv', ru: 'Europe/Moscow', tr: 'Europe/Istanbul',
+        he: 'Asia/Jerusalem', ar: 'Asia/Riyadh', hi: 'Asia/Kolkata', zh: 'Asia/Shanghai',
+        ja: 'Asia/Tokyo', ko: 'Asia/Seoul', th: 'Asia/Bangkok', vi: 'Asia/Ho_Chi_Minh', id: 'Asia/Jakarta',
+      };
+      return (region && byRegion[region]) || byLanguage[language.toLowerCase()] || null;
+    };
     const _browserArgs = [
       '--window-size=' + _vpW + ',' + _vpH,
       ${browserProxyServer ? JSON.stringify(`--proxy-server=${browserProxyServer}`) + ',' : ''}
@@ -241,6 +320,13 @@ module.exports = async function(appDir, flowId, quiet) {
     if (_disableWebSecurity) {
       _browserArgs.push('--disable-web-security');
     }
+    // UA resolved by the backend (flow > workspace > instance); empty keeps the
+    // browser's own. Native launches get the same flags Pinokio applies.
+    const _configuredUserAgent = String(process.env.BROWSER_USER_AGENT || '').trim();
+    if (_configuredUserAgent) {
+      _browserArgs.push('--user-agent=' + _configuredUserAgent);
+    }
+    _browserArgs.push('--disable-blink-features=AutomationControlled');
     if (_browserLanguage) {
       // --lang needs the matching locale pack; --accept-lang drives navigator.language
       // and the Accept-Language header regardless, so both are set for native launches.
@@ -254,12 +340,18 @@ module.exports = async function(appDir, flowId, quiet) {
     };
     ${browserConnect}
     let __runnerProxyCredentials = ${JSON.stringify(runnerProxyCredentials)};
-    const _fakeUserAgent = process.env.BROWSER_USER_AGENT
-      || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
+    // Without a configured UA the browser's own is kept, minus the headless
+    // marker: its version always matches the binary, and its OS (Linux) matches
+    // what workers, fonts and the GPU reveal anyway. A spoofed Windows UA cannot
+    // be made consistent: navigator.platform in dedicated workers has no override.
+    const _fakeUserAgent = _configuredUserAgent
+      || (await $browser.userAgent()).replace('HeadlessChrome/', 'Chrome/');
     // Derives navigator.platform and the client hints (Sec-CH-UA-*) from the
     // User-Agent so all three describe the same OS and browser. Without this,
     // a spoofed UA still leaves navigator.platform and Sec-CH-UA-Platform on
     // the container's Linux, which is inconsistent even for non-stealth use.
+    // For the browser's own UA it still adds the "Google Chrome" brand that a
+    // Chromium build omits although its UA says Chrome.
     const _userAgentOverride = ua => {
       const override = { userAgent: ua };
       let platform = 'Windows';
@@ -389,8 +481,52 @@ module.exports = async function(appDir, flowId, quiet) {
         })()).catch(() => {});
       });
     };
+    // One CDP session per tab, kept for the run: it carries the emulation
+    // overrides below and is the fallback that re-applies them (see
+    // __prepareNamedPage).
+    const __pageEmulationSessions = new WeakMap();
+    // Same desktop resolutions as Pinokio's --screen-info: the smallest that
+    // fits the window (viewport plus 87px of tab strip and toolbar).
+    const __screenSizeFor = (width, height) => (
+      [[1920, 1080], [2560, 1440], [3840, 2160]]
+        .find(([screenWidth, screenHeight]) => width <= screenWidth && height + 87 <= screenHeight)
+        || [width, height + 87]
+    );
     const __applyNamedPageViewport = async page => {
       await page.setViewport({ ...__namedPageViewport });
+      // Puppeteer emulates a portrait screen the size of the viewport. A desktop
+      // screen is landscape at 0° and larger than the window; re-emit the same
+      // metrics with those, on the tab's own session so they outlive Puppeteer's.
+      const session = __pageEmulationSessions.get(page);
+      if (!session) return;
+      const { width, height } = __namedPageViewport;
+      const [screenWidth, screenHeight] = __screenSizeFor(width, height);
+      try {
+        await session.send('Emulation.setDeviceMetricsOverride', {
+          width,
+          height,
+          deviceScaleFactor: 1,
+          mobile: false,
+          screenWidth,
+          screenHeight,
+          positionX: 0,
+          positionY: 0,
+          screenOrientation: { type: 'landscapePrimary', angle: 0 },
+        });
+      } catch (_) {}
+      // The real window was sized by Pinokio at launch for the flow's viewport;
+      // after $setViewport it would stay put and outerWidth/outerHeight would
+      // no longer match the emulated viewport, so it is resized to follow.
+      try {
+        const { windowId, bounds } = await session.send('Browser.getWindowForTarget');
+        const windowHeight = height + 87;
+        if (bounds.width !== width || bounds.height !== windowHeight) {
+          await session.send('Browser.setWindowBounds', {
+            windowId,
+            bounds: { width, height: windowHeight },
+          });
+        }
+      } catch (_) {}
     };
     const __setNamedPageViewport = async (width, height) => {
       __namedPageViewport = { width, height };
@@ -431,6 +567,7 @@ module.exports = async function(appDir, flowId, quiet) {
           return session;
         };
         ownSession = await target.createCDPSession();
+        __pageEmulationSessions.set(page, ownSession);
       } catch (_uaErr) {
         console.debug('setUserAgentOverride failed: ' + _uaErr.message);
         try {

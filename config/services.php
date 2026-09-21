@@ -66,6 +66,12 @@ return [
         'disable_web_security' => env('BROWSER_DISABLE_WEB_SECURITY', false),
         'user_agent' => env('BROWSER_USER_AGENT', ''),
         'language' => env('BROWSER_LANGUAGE', ''),
+        'timezone' => env('BROWSER_TIMEZONE', ''),
+        // Whether run logs name the browser build (name, version, hash, UA).
+        'identity_log' => env('BROWSER_IDENTITY_LOG', true),
+        // Hide the CDP Runtime-domain side effects bot detection scores. Off
+        // keeps page.on('console')/('pageerror') working but is detectable.
+        'hide_cdp' => env('BROWSER_HIDE_CDP', true),
     ],
 
     'browser_stream' => [

@@ -9,6 +9,11 @@ export {
     PreviewPanel,
 } from '@/Shared/UI/PreviewModalLayout/styled';
 
+export const ImportSectionDivider = styled.div`
+    height: 1px;
+    background: ${({ theme }) => theme.colors.border.default};
+`;
+
 export const ResourceImportCard = styled.div`
     padding: 12px;
     border: 1px solid ${({ theme }) => theme.colors.border.default};

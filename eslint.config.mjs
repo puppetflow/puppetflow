@@ -58,6 +58,7 @@ export default tseslint.config(
             globals: {
                 // Browser context (inside $page.evaluate callbacks)
                 document: 'readonly',
+                getComputedStyle: 'readonly',
                 jQuery: 'readonly',
                 navigator: 'readonly',
                 window: 'readonly',
@@ -97,6 +98,13 @@ export default tseslint.config(
                 __activateOrCreateNamedPage: 'readonly',
                 __getActivePage: 'readonly',
                 __getActiveTabName: 'readonly',
+                // Human-like input (defined in 09-human-input)
+                __humanClickAt: 'readonly',
+                __humanClickElement: 'readonly',
+                __humanHoverElement: 'readonly',
+                __humanScrollBy: 'readonly',
+                __humanScrollIntoView: 'readonly',
+                __humanType: 'readonly',
                 __registerNamedPageInitializer: 'readonly',
                 __setNamedPageViewport: 'readonly',
                 __requireSandboxModule: 'readonly',

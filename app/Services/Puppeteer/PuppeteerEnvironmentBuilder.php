@@ -131,6 +131,21 @@ final class PuppeteerEnvironmentBuilder
         if ($language !== null) {
             $env['BROWSER_LANGUAGE'] = $language;
         }
+        // Instance-wide only: unset, the browser side keeps its own TZ or
+        // derives a zone from the language (see run.js / Pinokio).
+        $timezone = trim((string) config('services.browser.timezone', ''));
+        if ($timezone !== '') {
+            $env['BROWSER_TIMEZONE'] = $timezone;
+        }
+        // Off on shared instances so run logs do not reveal the browser build
+        // (name, version, hash, user agent) to every user.
+        if (! filter_var(config('services.browser.identity_log', true), FILTER_VALIDATE_BOOLEAN)) {
+            $env['BROWSER_IDENTITY_LOG'] = 'false';
+        }
+        // Only emitted when disabled: run.js hides CDP unless it reads 'false'.
+        if (! filter_var(config('services.browser.hide_cdp', true), FILTER_VALIDATE_BOOLEAN)) {
+            $env['BROWSER_HIDE_CDP'] = 'false';
+        }
         if ($flow->disable_web_security !== null) {
             $env['BROWSER_DISABLE_WEB_SECURITY'] = $flow->disable_web_security ? 'true' : 'false';
         }

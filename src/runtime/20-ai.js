@@ -629,7 +629,7 @@ const __aiExecutePuppetflowAction = async function(call) {
         if (targetedLink) targetedLink.removeAttribute('target');
         if (targetedForm) targetedForm.removeAttribute('target');
       }));
-      await __retryOnContextDestroyed(() => target.click({ button: clickOptions.buttonType }));
+      await __retryOnContextDestroyed(() => __humanClickElement(target, { button: clickOptions.buttonType }));
       await __internalSleep(clickOptions.delay);
       return { finished: false, details: { url: $page.url() } };
     }
@@ -783,7 +783,7 @@ const __aiExecutePuppeteerAction = async function(call) {
             ariaLabel: String(element.getAttribute('aria-label') || '').slice(0, 120),
           } : null;
         }, { clickX: x, clickY: y }));
-        await $page.mouse.click(x, y);
+        await __humanClickAt($page, x, y);
         await __internalSleep(250);
         return { finished: false, details: { target, url: $page.url() } };
       } else {
@@ -795,7 +795,7 @@ const __aiExecutePuppeteerAction = async function(call) {
           if (targetedLink) targetedLink.removeAttribute('target');
           if (targetedForm) targetedForm.removeAttribute('target');
         }));
-        await __retryOnContextDestroyed(() => element.click());
+        await __retryOnContextDestroyed(() => __humanClickElement(element));
         await __internalSleep(Math.min(Math.max(Number(args.delay) || 250, 0), 5000));
         return { finished: false, details: { target, url: $page.url() } };
       }
@@ -803,10 +803,10 @@ const __aiExecutePuppeteerAction = async function(call) {
       if (typeof args.value !== 'string') throw new Error('Puppeteer type requires value.');
       const element = await __aiDirectElement(args, 'input, textarea, [contenteditable="true"]');
       if (args.clear !== false) {
-        await __retryOnContextDestroyed(() => element.click({ clickCount: 3 }));
+        await __retryOnContextDestroyed(() => __humanClickElement(element, { clickCount: 3 }));
         await element.press('Backspace');
       }
-      await element.type(args.value, { delay: Math.min(Math.max(Number(args.delay) || 20, 0), 1000) });
+      await __humanType(element, args.value, Math.min(Math.max(Number(args.delay) || 20, 0), 1000));
       break;
     }
     case 'press':
@@ -816,7 +816,7 @@ const __aiExecutePuppeteerAction = async function(call) {
       break;
     case 'hover': {
       const element = await __aiDirectElement(args);
-      await __retryOnContextDestroyed(() => element.hover());
+      await __retryOnContextDestroyed(() => __humanHoverElement(element));
       break;
     }
     case 'select': {
@@ -833,7 +833,7 @@ const __aiExecutePuppeteerAction = async function(call) {
         const element = await __aiDirectElement(args);
         await __retryOnContextDestroyed(() => element.evaluate((target, pixels) => target.scrollBy(0, pixels), Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000))));
       } else {
-        await __retryOnContextDestroyed(() => $page.evaluate(pixels => window.scrollBy(0, pixels), Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000))));
+        await __retryOnContextDestroyed(() => __humanScrollBy($page, Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000))));
       }
       break;
     case 'waitForSelector':

@@ -873,21 +873,10 @@ export function analyzeNodalAutocompleteContext(
     });
 
     const locals = new Map<string, VariableSuggestion>();
-
-    graph.nodes.forEach(node => {
-        if (node.deactivated || node.name !== LOOP_NODE_NAME || !upstream.has(node.id)) return;
-
-        const bodyStart = outgoing.get(node.id)?.find(edge => edgeSourcePort(edge) === 'loop')?.targetNodeId;
-        const doneStart = outgoing.get(node.id)?.find(edge => edgeSourcePort(edge) === 'done')?.targetNodeId;
-        if (!reachableFrom(bodyStart, outgoing, doneStart).has(targetNodeId)) return;
-
-        const mode = readFixedScalar(node.values?.mode) || 'items';
-        const loopContext: Record<string, unknown> = { index: 0 };
-        if (mode === 'items') loopContext.item = undefined;
-        runData.$loop = loopContext;
-        const existingLoopState = nodeData[node.id];
+    const attachLoopContext = (node: NodalGraph['nodes'][number], loopContext: Record<string, unknown>) => {
+        const existingState = nodeData[node.id];
         const loopState = {
-            ...(isRecord(existingLoopState) ? existingLoopState : runObject),
+            ...(isRecord(existingState) ? existingState : runObject),
             $loop: loopContext,
         };
         Object.defineProperty(nodeData, node.id, {
@@ -896,6 +885,28 @@ export function analyzeNodalAutocompleteContext(
             configurable: true,
         });
         nodeData[node.label?.trim() || formatEntryLabel(getEntryByName(node.name))] = loopState;
+        if (nodeData.last === existingState) nodeData.last = loopState;
+    };
+
+    orderedUpstream.forEach(nodeId => {
+        const node = nodesById.get(nodeId);
+        if (!node || node.deactivated || node.name !== LOOP_NODE_NAME) return;
+
+        const bodyStart = outgoing.get(node.id)?.find(edge => edgeSourcePort(edge) === 'loop')?.targetNodeId;
+        const doneStart = outgoing.get(node.id)?.find(edge => edgeSourcePort(edge) === 'done')?.targetNodeId;
+        const bodyNodeIds = reachableFrom(bodyStart, outgoing, doneStart);
+        if (!bodyNodeIds.has(targetNodeId)) return;
+
+        const mode = readFixedScalar(node.values?.mode) || 'items';
+        const loopContext: Record<string, unknown> = { index: 0 };
+        if (mode === 'items') loopContext.item = undefined;
+        runData.$loop = loopContext;
+        attachLoopContext(node, loopContext);
+        bodyNodeIds.forEach(bodyNodeId => {
+            const bodyNode = nodesById.get(bodyNodeId);
+            if (!bodyNode || bodyNode.system || !upstream.has(bodyNodeId) || !isRecord(nodeData[bodyNodeId])) return;
+            attachLoopContext(bodyNode, loopContext);
+        });
 
         locals.set('$item', { id: '$item', key: '$item', type: 'loop_item' });
         locals.set('$index', { id: '$index', key: '$index', type: 'loop_index' });

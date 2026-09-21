@@ -559,7 +559,7 @@ const $now = DateTime.now();
  */
 const $today = DateTime.now().startOf('day');
 
-/* global $viewportWidth:writable, $viewportHeight:writable, _fakeUserAgent */
+/* global $viewportWidth:writable, $viewportHeight:writable, _fakeUserAgent, _browserIdentityLog */
 
 const __retryOnContextDestroyed = async function(fn, retries = 2, delayMs = 300) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -596,7 +596,7 @@ const $setViewport = async function(width, height) {
   $json.$viewportHeight = vHeight;
 };
 $setViewport();
-console.debug('User agent:', _fakeUserAgent);
+if (_browserIdentityLog) console.debug('User agent:', _fakeUserAgent);
 
 /* @help Cookies
  * @sig $saveCookies(profile?, options?)
@@ -1314,6 +1314,223 @@ const $currentDatePlusOneMonth = function(timestamp) {
   };
 };
 
+/* global $viewportWidth, $viewportHeight */
+
+// Human-like input. A person moves the pointer along a curve before clicking,
+// holds the button for a few tens of milliseconds, lands off-centre, types at
+// an irregular rhythm and scrolls in wheel notches; bot detection scores the
+// absence of all of that (instant teleporting clicks at exact centres, constant
+// key intervals, window.scrollBy jumps). These helpers replace the raw
+// puppeteer calls while keeping their contract: same target, same end state.
+
+// Last pointer position per tab, so the next move starts where the previous
+// one ended instead of teleporting.
+const __humanMousePositions = new WeakMap();
+const __humanRandom = (min, max) => min + Math.random() * (max - min);
+const __humanJitterMs = (base, spread = 0.35) => Math.max(0, Math.round(base * __humanRandom(1 - spread, 1 + spread)));
+const __humanPageOf = handle => {
+  try {
+    return handle.frame.page();
+  } catch (_) {
+    return $page;
+  }
+};
+
+const __humanMousePosition = page => {
+  let position = __humanMousePositions.get(page);
+  if (!position) {
+    const viewport = page.viewport() || { width: $viewportWidth, height: $viewportHeight };
+    position = {
+      x: __humanRandom(viewport.width * 0.3, viewport.width * 0.7),
+      y: __humanRandom(viewport.height * 0.3, viewport.height * 0.7),
+    };
+    __humanMousePositions.set(page, position);
+  }
+  return position;
+};
+
+// Cubic Bezier from the current position with two randomised control points,
+// eased so the pointer accelerates then settles on the target.
+const __humanMoveTo = async function(page, x, y) {
+  const from = __humanMousePosition(page);
+  const distance = Math.hypot(x - from.x, y - from.y);
+  if (distance < 1) return;
+  const bend = Math.min(distance * 0.25, 120);
+  const control1 = {
+    x: from.x + (x - from.x) / 3 + __humanRandom(-bend, bend),
+    y: from.y + (y - from.y) / 3 + __humanRandom(-bend, bend),
+  };
+  const control2 = {
+    x: from.x + (2 * (x - from.x)) / 3 + __humanRandom(-bend, bend),
+    y: from.y + (2 * (y - from.y)) / 3 + __humanRandom(-bend, bend),
+  };
+  const steps = Math.max(8, Math.min(40, Math.round(distance / 25)));
+  const totalMs = __humanJitterMs(Math.min(120 + distance * 0.6, 700));
+  for (let step = 1; step <= steps; step++) {
+    const t = step / steps;
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const u = 1 - eased;
+    const pointX = u * u * u * from.x + 3 * u * u * eased * control1.x + 3 * u * eased * eased * control2.x + eased * eased * eased * x;
+    const pointY = u * u * u * from.y + 3 * u * u * eased * control1.y + 3 * u * eased * eased * control2.y + eased * eased * eased * y;
+    const last = step === steps;
+    await page.mouse.move(last ? x : pointX + __humanRandom(-1, 1), last ? y : pointY + __humanRandom(-1, 1));
+    await __internalSleep(totalMs / steps);
+  }
+  __humanMousePositions.set(page, { x, y });
+};
+
+// Move, settle, then press and release with a realistic hold time.
+const __humanClickAt = async function(page, x, y, options = {}) {
+  const { button = 'left', clickCount = 1 } = options;
+  await __humanMoveTo(page, x, y);
+  await __internalSleep(__humanJitterMs(70, 0.6));
+  for (let count = 1; count <= clickCount; count++) {
+    await page.mouse.down({ button, clickCount: count });
+    await __internalSleep(__humanJitterMs(75, 0.5));
+    await page.mouse.up({ button, clickCount: count });
+    if (count < clickCount) await __internalSleep(__humanJitterMs(90, 0.4));
+  }
+};
+
+// Wheel notches (about 100px each in Chrome) with short pauses. Returns the
+// distance actually requested; callers correct the remainder themselves.
+const __humanWheel = async function(page, deltaY) {
+  const direction = Math.sign(deltaY);
+  let remaining = Math.abs(deltaY);
+  while (remaining > 0) {
+    const notch = Math.min(remaining, Math.round(__humanRandom(80, 130)));
+    await page.mouse.wheel({ deltaY: direction * notch });
+    remaining -= notch;
+    await __internalSleep(__humanJitterMs(45, 0.5));
+  }
+};
+
+// A point over the document itself: wheel events go to the innermost
+// scrollable container under the pointer, so scrolling the page from over a
+// scrollable panel would scroll the panel instead. Null when none is found.
+const __humanPageScrollPoint = async function(page) {
+  const viewport = page.viewport() || { width: $viewportWidth, height: $viewportHeight };
+  const current = __humanMousePosition(page);
+  const candidates = [current];
+  for (let attempt = 0; attempt < 5; attempt++) {
+    candidates.push({
+      x: __humanRandom(viewport.width * 0.2, viewport.width * 0.8),
+      y: __humanRandom(viewport.height * 0.2, viewport.height * 0.8),
+    });
+  }
+  const index = await page.evaluate(points => {
+    const scrollsOnItsOwn = element => {
+      const style = getComputedStyle(element);
+      return /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+    };
+    return points.findIndex(({ x, y }) => {
+      let element = document.elementFromPoint(x, y);
+      while (element && element !== document.documentElement && element !== document.body) {
+        if (scrollsOnItsOwn(element)) return false;
+        element = element.parentElement;
+      }
+      return true;
+    });
+  }, candidates);
+  return index >= 0 ? candidates[index] : null;
+};
+
+// Scroll the page by deltaY the way a wheel would, then make up any shortfall
+// (end of document, nested scroller) so the result equals window.scrollBy.
+const __humanScrollBy = async function(page, deltaY) {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return;
+  const point = await __retryOnContextDestroyed(() => __humanPageScrollPoint(page)).catch(() => null);
+  if (point) {
+    const before = await page.evaluate(() => window.scrollY);
+    await __humanMoveTo(page, point.x, point.y);
+    await __humanWheel(page, deltaY);
+    await __internalSleep(__humanJitterMs(120, 0.4));
+    const after = await page.evaluate(() => window.scrollY);
+    const remainder = deltaY - (after - before);
+    if (Math.abs(remainder) <= 2) return;
+    deltaY = remainder;
+  }
+  await page.evaluate(px => window.scrollBy(0, px), deltaY);
+};
+
+// Bring an element into the viewport as a reader would: wheel towards it,
+// then let scrollIntoView settle the exact position. No-op when it is
+// already fully visible, like puppeteer's own click().
+const __humanScrollIntoView = async function(handle, options = {}) {
+  const { block = 'center', force = false } = options;
+  const page = __humanPageOf(handle);
+  const visible = await handle.isIntersectingViewport({ threshold: 1 }).catch(() => false);
+  if (visible && !force) return;
+  const offset = await handle.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return rect.top + rect.height / 2 - window.innerHeight / 2;
+  }).catch(() => 0);
+  if (Math.abs(offset) > 40) await __humanScrollBy(page, Math.round(offset)).catch(() => {});
+  const settled = await handle.isIntersectingViewport({ threshold: 1 }).catch(() => false);
+  if (settled && block === 'center') return;
+  await handle.evaluate((element, blockPosition) => element.scrollIntoView({
+    behavior: 'auto',
+    block: blockPosition,
+    inline: 'nearest',
+  }), block);
+};
+
+// Where a person would click: near the clickable point, offset by a few pixels
+// but never outside the element's box.
+const __humanClickTarget = async function(handle) {
+  const box = await handle.boundingBox();
+  const point = await handle.clickablePoint();
+  if (!box) return point;
+  const spreadX = Math.min(box.width, 60) * 0.3;
+  const spreadY = Math.min(box.height, 60) * 0.3;
+  return {
+    x: Math.min(box.x + box.width - 2, Math.max(box.x + 2, point.x + __humanRandom(-spreadX, spreadX))),
+    y: Math.min(box.y + box.height - 2, Math.max(box.y + 2, point.y + __humanRandom(-spreadY, spreadY))),
+  };
+};
+
+const __humanClickElement = async function(handle, options = {}) {
+  const page = __humanPageOf(handle);
+  await __humanScrollIntoView(handle);
+  let target;
+  try {
+    target = await __humanClickTarget(handle);
+  } catch (_) {
+    // Not clickable the way puppeteer computes it (no layout box): let its
+    // own click() raise the same error the flow has always seen.
+    await handle.click({ button: options.button, clickCount: options.clickCount });
+    return;
+  }
+  await __humanClickAt(page, target.x, target.y, options);
+};
+
+const __humanHoverElement = async function(handle) {
+  const page = __humanPageOf(handle);
+  await __humanScrollIntoView(handle);
+  const target = await __humanClickTarget(handle);
+  await __humanMoveTo(page, target.x, target.y);
+};
+
+// Keystrokes at an irregular rhythm around the requested speed: a longer
+// pause after spaces and punctuation, an occasional hesitation. Speed 0 keeps
+// instant typing, as before.
+const __humanType = async function(handle, text, speed) {
+  const value = String(text);
+  await handle.focus();
+  const page = __humanPageOf(handle);
+  if (!(speed > 0)) {
+    await page.keyboard.type(value);
+    return;
+  }
+  for (const char of value) {
+    await page.keyboard.type(char);
+    let delay = speed * __humanRandom(0.55, 1.6);
+    if (/[\s.,;:!?]/.test(char)) delay *= __humanRandom(1.4, 2.6);
+    if (Math.random() < 0.03) delay *= __humanRandom(3, 6);
+    await __internalSleep(Math.round(delay));
+  }
+};
+
 /* @help Navigation
  * @sig $screenshot(screenshotName?, options?)
  * @aliases capture screen, take screenshot, screen capture
@@ -1756,6 +1973,10 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
 
   let input = result.handle;
   const prepareInput = async function(handle) {
+    // Bring the pointer over the field first, as a person reaching for it
+    // would; focus semantics stay those of puppeteer's type() (no click, so
+    // no caret move or picker popup).
+    await __retryOnContextDestroyed(() => __humanHoverElement(handle)).catch(() => {});
     await __retryOnContextDestroyed(() => handle.focus());
     if (mode === 'replace') {
       await handle.press('a', { commands: ['selectAll'] });
@@ -1791,7 +2012,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
     }
   }
   await __internalSleep(sleep);
-  await input.type(inputValue, { delay: speed });
+  await __humanType(input, inputValue, speed);
   if (tabCount) {
     for (let i = 0; i < tabCount; i++) {
       await input.press('Tab');
@@ -4084,7 +4305,7 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
   if (!result) return null;
 
   const { handle } = result;
-  await __retryOnContextDestroyed(() => handle.click({ button: buttonType }));
+  await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
   await __internalSleep(delay);
   return true;
 };
@@ -4121,7 +4342,7 @@ const $clickElementAtIndex = async function(elementsSelector, elementIndex, opti
   if (!result) return null;
 
   const { handle } = result;
-  await __retryOnContextDestroyed(() => handle.click({ button: buttonType }));
+  await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
   await __internalSleep(delay);
   return true;
 };
@@ -4158,7 +4379,7 @@ const $clickAtCoordinates = async function(coordinateX, coordinateY, options = {
   __emitAction('click', buttonType + ' (' + coordinateX + ', ' + coordinateY + ')');
   console.debug('Clicking point with', buttonType, 'button:', coordinateX, coordinateY);
   await __internalSleep(delay);
-  await __retryOnContextDestroyed(() => $page.mouse.click(coordinateX, coordinateY, { button: buttonType }));
+  await __retryOnContextDestroyed(() => __humanClickAt($page, coordinateX, coordinateY, { button: buttonType }));
   await __internalSleep(delay);
 };
 
@@ -4174,7 +4395,7 @@ const $scrollByPixels = async function(scrollPixels) {
     throw new TypeError('$scrollByPixels: scrollPixels must be a finite number.');
   }
   __emitAction('scrollByPixels', scrollPixels + 'px');
-  await __retryOnContextDestroyed(() => $page.evaluate(px => window.scrollBy(0, px), scrollPixels));
+  await __retryOnContextDestroyed(() => __humanScrollBy($page, scrollPixels));
   console.debug('Scrolled page', scrollPixels + 'px');
 };
 
@@ -4201,11 +4422,7 @@ const $scrollToElement = async function(selectorOrHandle) {
   }
 
   __emitAction('scrollToElement', isSelector ? selectorOrHandle : '(handle)');
-  await __retryOnContextDestroyed(() => element.evaluate(el => el.scrollIntoView({
-    behavior: 'auto',
-    block: 'center',
-    inline: 'nearest',
-  })));
+  await __retryOnContextDestroyed(() => __humanScrollIntoView(element, { block: 'center', force: true }));
   console.debug('Scrolled to element', isHandle ? '(handle)' : selectorOrHandle);
 };
 
@@ -5759,7 +5976,7 @@ const __aiExecutePuppetflowAction = async function(call) {
         if (targetedLink) targetedLink.removeAttribute('target');
         if (targetedForm) targetedForm.removeAttribute('target');
       }));
-      await __retryOnContextDestroyed(() => target.click({ button: clickOptions.buttonType }));
+      await __retryOnContextDestroyed(() => __humanClickElement(target, { button: clickOptions.buttonType }));
       await __internalSleep(clickOptions.delay);
       return { finished: false, details: { url: $page.url() } };
     }
@@ -5913,7 +6130,7 @@ const __aiExecutePuppeteerAction = async function(call) {
             ariaLabel: String(element.getAttribute('aria-label') || '').slice(0, 120),
           } : null;
         }, { clickX: x, clickY: y }));
-        await $page.mouse.click(x, y);
+        await __humanClickAt($page, x, y);
         await __internalSleep(250);
         return { finished: false, details: { target, url: $page.url() } };
       } else {
@@ -5925,7 +6142,7 @@ const __aiExecutePuppeteerAction = async function(call) {
           if (targetedLink) targetedLink.removeAttribute('target');
           if (targetedForm) targetedForm.removeAttribute('target');
         }));
-        await __retryOnContextDestroyed(() => element.click());
+        await __retryOnContextDestroyed(() => __humanClickElement(element));
         await __internalSleep(Math.min(Math.max(Number(args.delay) || 250, 0), 5000));
         return { finished: false, details: { target, url: $page.url() } };
       }
@@ -5933,10 +6150,10 @@ const __aiExecutePuppeteerAction = async function(call) {
       if (typeof args.value !== 'string') throw new Error('Puppeteer type requires value.');
       const element = await __aiDirectElement(args, 'input, textarea, [contenteditable="true"]');
       if (args.clear !== false) {
-        await __retryOnContextDestroyed(() => element.click({ clickCount: 3 }));
+        await __retryOnContextDestroyed(() => __humanClickElement(element, { clickCount: 3 }));
         await element.press('Backspace');
       }
-      await element.type(args.value, { delay: Math.min(Math.max(Number(args.delay) || 20, 0), 1000) });
+      await __humanType(element, args.value, Math.min(Math.max(Number(args.delay) || 20, 0), 1000));
       break;
     }
     case 'press':
@@ -5946,7 +6163,7 @@ const __aiExecutePuppeteerAction = async function(call) {
       break;
     case 'hover': {
       const element = await __aiDirectElement(args);
-      await __retryOnContextDestroyed(() => element.hover());
+      await __retryOnContextDestroyed(() => __humanHoverElement(element));
       break;
     }
     case 'select': {
@@ -5963,7 +6180,7 @@ const __aiExecutePuppeteerAction = async function(call) {
         const element = await __aiDirectElement(args);
         await __retryOnContextDestroyed(() => element.evaluate((target, pixels) => target.scrollBy(0, pixels), Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000))));
       } else {
-        await __retryOnContextDestroyed(() => $page.evaluate(pixels => window.scrollBy(0, pixels), Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000))));
+        await __retryOnContextDestroyed(() => __humanScrollBy($page, Math.max(-10000, Math.min(Number(args.pixels) || 0, 10000))));
       }
       break;
     case 'waitForSelector':

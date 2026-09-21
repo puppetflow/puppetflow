@@ -164,7 +164,7 @@ services:
       HOST: "0.0.0.0"
       PORT: 3000
       TOKEN: "${PINOKIO_TOKEN:-}"
-      # Optional browser archive (.tar.gz with a chrome executable) downloaded
+      # Optional browser archive (.tar.gz or .zip with a chrome executable) downloaded
       # on first start and launched instead of the bundled Chromium.
       BROWSER_ARCHIVE_URL: "${PINOKIO_BROWSER_ARCHIVE_URL:-}"
       CHROME_EXTRA_ARGS: "${PINOKIO_CHROME_EXTRA_ARGS:-}"

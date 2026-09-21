@@ -189,6 +189,7 @@ export default function useNodeConfigModal({
         };
     };
     const captureContextPreview = asRecord(autocompleteContext.runData?.$capture);
+    const insideLoopBody = autocompleteContext.runData?.$loop !== undefined;
     const currentNodeCapturePreview = asRecord(asRecord(nodalPreviewNodes?.[node.id])?.$capture);
     const [beforeExecutionIndexBySourceId, setBeforeExecutionIndexBySourceId] = useState<Record<string, number>>({});
     const [afterExecutionIndex, setAfterExecutionIndex] = useState<number | null>(null);
@@ -198,58 +199,90 @@ export default function useNodeConfigModal({
         setAfterExecutionIndex(null);
     }, [latestRun?.id, node.id]);
 
-    const previewSources = useMemo(() => previewNodes.map(({ node: sourceNode, distance }) => {
-        const display = nodeDisplay(sourceNode);
-        const isRun = sourceNode.system === 'run';
-        const hasRuntimeValue = Boolean(
-            nodalPreviewNodes
-            && Object.prototype.hasOwnProperty.call(nodalPreviewNodes, sourceNode.id),
-        );
-        const staticValue = staticPreviewNodes?.[sourceNode.id];
-        const runtimeValue = nodalPreviewNodes?.[sourceNode.id];
-        const executionStatus = normalizeExecutionStatus(
-            nodalPreviewExecutions?.[sourceNode.id],
-            nodalPreviewExecutionMeta?.[sourceNode.id],
-        );
-        const executions = normalizeExecutions(
-            nodalPreviewExecutions?.[sourceNode.id],
-            executionStatus,
-        );
-        const exposesLoopContext = distance === 1 && sourceNode.entry.name === LOOP_NODE_NAME;
-        const callbackValue = resolveSniffCallbackValue({
-            sourceNode,
-            staticValue,
-            runtimeValue,
-            fallbackBase: runNodePreview,
-            captureContextPreview,
-            currentNodeCapture: currentNodeCapturePreview,
-        });
-        const fallbackValue = isRun
-            ? runNodePreview
-            : callbackValue ?? (hasRuntimeValue ? runtimeValue : staticValue);
-        const visible = (state: unknown) => (exposesLoopContext ? state : withoutLoopContext(state));
-        const executionIndex = executions.length > 1
-            ? Math.min(Math.max(0, beforeExecutionIndexBySourceId[sourceNode.id] ?? 0), executions.length - 1)
-            : 0;
-        const value = visible(executions[executionIndex]?.value ?? fallbackValue);
-        // Retained executions are the first ones; the node snapshot holds the final state.
-        const latestValue = visible(fallbackValue);
+    const previewSources = useMemo(() => {
+        const runtimeSources = previewNodes.map(({ node: sourceNode }) => {
+            const executionStatus = normalizeExecutionStatus(
+                nodalPreviewExecutions?.[sourceNode.id],
+                nodalPreviewExecutionMeta?.[sourceNode.id],
+            );
+            const executions = normalizeExecutions(
+                nodalPreviewExecutions?.[sourceNode.id],
+                executionStatus,
+            );
+            const executionIndex = executions.length > 1
+                ? Math.min(Math.max(0, beforeExecutionIndexBySourceId[sourceNode.id] ?? 0), executions.length - 1)
+                : 0;
+            const runtimeValue = nodalPreviewNodes?.[sourceNode.id];
 
-        return {
-            id: sourceNode.id,
-            ...display,
-            detail: `${distance} node${distance === 1 ? '' : 's'} back`,
-            rootPath: distance === 1 ? '$run' : `$(${JSON.stringify(display.label)})`,
-            value,
-            latestValue,
-            executions,
-            executionStatus,
-            executionIndex,
+            return {
+                executions,
+                executionStatus,
+                executionIndex,
+                runtimeValue,
+                hasRuntimeValue: Boolean(
+                    nodalPreviewNodes
+                    && Object.prototype.hasOwnProperty.call(nodalPreviewNodes, sourceNode.id),
+                ),
+            };
+        });
+        // Nodes added since the last run have no runtime snapshot. Inside a loop body their static
+        // fallback still carries a placeholder $loop; it is replaced by the $loop of the closest
+        // upstream node that did run (previewNodes are sorted by distance) so $loop.item stays real.
+        const runtimeLoopContext = insideLoopBody
+            ? runtimeSources
+                .map(({ executions, executionIndex, runtimeValue }) => (
+                    asRecord(executions[executionIndex]?.value ?? runtimeValue)?.$loop
+                ))
+                .find(loop => loop !== undefined)
+            : undefined;
+        const withRuntimeLoopContext = (state: unknown) => {
+            const record = asRecord(state);
+            if (!record || runtimeLoopContext === undefined || !Object.prototype.hasOwnProperty.call(record, '$loop')) {
+                return state;
+            }
+            return { ...record, $loop: runtimeLoopContext };
         };
-    }), [
+
+        return previewNodes.map(({ node: sourceNode, distance }, index) => {
+            const display = nodeDisplay(sourceNode);
+            const isRun = sourceNode.system === 'run';
+            const { executions, executionStatus, executionIndex, runtimeValue, hasRuntimeValue } = runtimeSources[index];
+            const staticValue = withRuntimeLoopContext(staticPreviewNodes?.[sourceNode.id]);
+            const exposesLoopContext = insideLoopBody
+                || (distance === 1 && sourceNode.entry.name === LOOP_NODE_NAME);
+            const callbackValue = resolveSniffCallbackValue({
+                sourceNode,
+                staticValue,
+                runtimeValue,
+                fallbackBase: runNodePreview,
+                captureContextPreview,
+                currentNodeCapture: currentNodeCapturePreview,
+            });
+            const fallbackValue = isRun
+                ? runNodePreview
+                : callbackValue ?? (hasRuntimeValue ? runtimeValue : staticValue);
+            const visible = (state: unknown) => (exposesLoopContext ? state : withoutLoopContext(state));
+            const value = visible(executions[executionIndex]?.value ?? fallbackValue);
+            // Retained executions are the first ones; the node snapshot holds the final state.
+            const latestValue = visible(fallbackValue);
+
+            return {
+                id: sourceNode.id,
+                ...display,
+                detail: `${distance} node${distance === 1 ? '' : 's'} back`,
+                rootPath: distance === 1 ? '$run' : `$(${JSON.stringify(display.label)})`,
+                value,
+                latestValue,
+                executions,
+                executionStatus,
+                executionIndex,
+            };
+        });
+    }, [
         beforeExecutionIndexBySourceId,
         captureContextPreview,
         currentNodeCapturePreview,
+        insideLoopBody,
         nodalPreviewExecutionMeta,
         nodalPreviewExecutions,
         nodalPreviewNodes,
@@ -320,16 +353,23 @@ export default function useNodeConfigModal({
             [selectedPreviewSource.id]: matchingBeforeIndex,
         }));
     };
+    // Without a runtime snapshot, the static "After" state inherits the $loop shown for $run.
+    const staticCurrentNodeAfterDataWithLoop = useMemo(() => {
+        const runLoop = asRecord(previewSources[0]?.value)?.$loop;
+        const state = asRecord(staticCurrentNodeAfterData);
+        if (!insideLoopBody || runLoop === undefined || !state) return staticCurrentNodeAfterData;
+        return { ...state, $loop: runLoop };
+    }, [insideLoopBody, previewSources, staticCurrentNodeAfterData]);
     const rawCurrentNodeAfterData = node.system === 'run'
         ? runNodePreview
         : currentNodeExecutions[selectedAfterExecutionIndex]?.value
-            ?? (hasCurrentNodeRuntimeValue ? nodalPreviewNodes?.[node.id] : staticCurrentNodeAfterData);
+            ?? (hasCurrentNodeRuntimeValue ? nodalPreviewNodes?.[node.id] : staticCurrentNodeAfterDataWithLoop);
     // Memoized so the "After" inspector keeps its expand/collapse state across re-renders.
     const currentNodeAfterData = useMemo(
-        () => entry.name === LOOP_NODE_NAME
+        () => insideLoopBody || entry.name === LOOP_NODE_NAME
             ? rawCurrentNodeAfterData
             : withoutLoopContext(rawCurrentNodeAfterData),
-        [entry.name, rawCurrentNodeAfterData],
+        [entry.name, insideLoopBody, rawCurrentNodeAfterData],
     );
     const targetedRunPreview = asRecord(previewSources[0]?.value) ?? runPreview;
     const targetedNodePreviewData = useMemo(() => ({

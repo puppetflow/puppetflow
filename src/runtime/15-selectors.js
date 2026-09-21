@@ -370,7 +370,7 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
   if (!result) return null;
 
   const { handle } = result;
-  await __retryOnContextDestroyed(() => handle.click({ button: buttonType }));
+  await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
   await __internalSleep(delay);
   return true;
 };
@@ -407,7 +407,7 @@ const $clickElementAtIndex = async function(elementsSelector, elementIndex, opti
   if (!result) return null;
 
   const { handle } = result;
-  await __retryOnContextDestroyed(() => handle.click({ button: buttonType }));
+  await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
   await __internalSleep(delay);
   return true;
 };
@@ -444,7 +444,7 @@ const $clickAtCoordinates = async function(coordinateX, coordinateY, options = {
   __emitAction('click', buttonType + ' (' + coordinateX + ', ' + coordinateY + ')');
   console.debug('Clicking point with', buttonType, 'button:', coordinateX, coordinateY);
   await __internalSleep(delay);
-  await __retryOnContextDestroyed(() => $page.mouse.click(coordinateX, coordinateY, { button: buttonType }));
+  await __retryOnContextDestroyed(() => __humanClickAt($page, coordinateX, coordinateY, { button: buttonType }));
   await __internalSleep(delay);
 };
 
@@ -460,7 +460,7 @@ const $scrollByPixels = async function(scrollPixels) {
     throw new TypeError('$scrollByPixels: scrollPixels must be a finite number.');
   }
   __emitAction('scrollByPixels', scrollPixels + 'px');
-  await __retryOnContextDestroyed(() => $page.evaluate(px => window.scrollBy(0, px), scrollPixels));
+  await __retryOnContextDestroyed(() => __humanScrollBy($page, scrollPixels));
   console.debug('Scrolled page', scrollPixels + 'px');
 };
 
@@ -487,11 +487,7 @@ const $scrollToElement = async function(selectorOrHandle) {
   }
 
   __emitAction('scrollToElement', isSelector ? selectorOrHandle : '(handle)');
-  await __retryOnContextDestroyed(() => element.evaluate(el => el.scrollIntoView({
-    behavior: 'auto',
-    block: 'center',
-    inline: 'nearest',
-  })));
+  await __retryOnContextDestroyed(() => __humanScrollIntoView(element, { block: 'center', force: true }));
   console.debug('Scrolled to element', isHandle ? '(handle)' : selectorOrHandle);
 };
 

@@ -66,6 +66,10 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
 
   let input = result.handle;
   const prepareInput = async function(handle) {
+    // Bring the pointer over the field first, as a person reaching for it
+    // would; focus semantics stay those of puppeteer's type() (no click, so
+    // no caret move or picker popup).
+    await __retryOnContextDestroyed(() => __humanHoverElement(handle)).catch(() => {});
     await __retryOnContextDestroyed(() => handle.focus());
     if (mode === 'replace') {
       await handle.press('a', { commands: ['selectAll'] });
@@ -101,7 +105,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
     }
   }
   await __internalSleep(sleep);
-  await input.type(inputValue, { delay: speed });
+  await __humanType(input, inputValue, speed);
   if (tabCount) {
     for (let i = 0; i < tabCount; i++) {
       await input.press('Tab');
