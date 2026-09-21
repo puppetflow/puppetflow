@@ -45,6 +45,10 @@ const getSearchRank = (entry: HelpEntryDef, query: string) => {
     if (description.includes(query)) return 6;
     if (category.includes(query)) return 7;
 
+    const queryTerms = query.trim().split(/\s+/).filter(Boolean);
+    const searchableText = [title, rawName, signature, description, category, ...aliases].join(' ');
+    if (queryTerms.length > 1 && queryTerms.every(term => searchableText.includes(term))) return 8;
+
     return Number.POSITIVE_INFINITY;
 };
 

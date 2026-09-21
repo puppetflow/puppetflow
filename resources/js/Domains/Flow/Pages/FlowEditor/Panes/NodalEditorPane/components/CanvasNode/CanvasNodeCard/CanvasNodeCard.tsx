@@ -141,6 +141,7 @@ export default function CanvasNodeCard({
     const invalid = validationIssues.length > 0;
     const siteUrl = invalid ? null : getNodeSiteUrl(node);
     const faviconUrl = siteUrl ? getSiteFaviconUrl(siteUrl) : null;
+    const snippetEditUrl = entry.category === 'Snippets' ? entry.editUrl : undefined;
     const resourceDisplays = useMemo(
         () => getNodeResourceDisplays(node, resourceReferences),
         [node, resourceReferences],
@@ -189,8 +190,22 @@ export default function CanvasNodeCard({
             onDoubleClick={handleNativeDoubleClick}
             style={{ left: node.x, top: node.y }}
         >
-            {(invalid || (siteUrl && faviconUrl) || resourceDisplays.length > 0) && (
+            {(invalid || (siteUrl && faviconUrl) || snippetEditUrl || resourceDisplays.length > 0) && (
                 <S.NodeBadgeStack>
+                    {snippetEditUrl && (
+                        <S.NodeEditBadge
+                            href={snippetEditUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Edit snippet"
+                            aria-label="Edit snippet"
+                            onPointerDown={event => event.stopPropagation()}
+                            onClick={event => event.stopPropagation()}
+                            onDoubleClick={event => event.stopPropagation()}
+                        >
+                            <Icon icon="lucide:square-pen" width={13} height={13} />
+                        </S.NodeEditBadge>
+                    )}
                     {resourceDisplays.map(resource => (
                         resource.resourceKind && resource.resourceId != null && (
                             <ResourceBadge
@@ -327,22 +342,22 @@ export default function CanvasNodeCard({
                         (Deactivated)
                     </S.NodeDeactivatedLabel>
                 )}
+                {node.system === 'terminate' && (
+                    <S.NodeHint>
+                        Runs cleanup logic even if the flow fails
+                    </S.NodeHint>
+                )}
+                {node.system === 'run' && (
+                    <S.NodeHint>
+                        Entry point of the flow run
+                    </S.NodeHint>
+                )}
+                {node.system === 'function' && (
+                    <S.NodeHint>
+                        Receives the arguments passed by the caller
+                    </S.NodeHint>
+                )}
             </S.NodeLabel>
-            {node.system === 'terminate' && (
-                <S.NodeHint>
-                    Runs cleanup logic even if the flow fails
-                </S.NodeHint>
-            )}
-            {node.system === 'run' && (
-                <S.NodeHint>
-                    Entry point of the flow run
-                </S.NodeHint>
-            )}
-            {node.system === 'function' && (
-                <S.NodeHint>
-                    Receives the arguments passed by the caller
-                </S.NodeHint>
-            )}
             {inputPorts.map(port => (
                 <S.NodeHandle
                     key={port.id}
@@ -396,7 +411,8 @@ export default function CanvasNodeCard({
                     {port.connectionType === 'ai_tool' && (
                         <ToolPortShape position={port.position} />
                     )}
-                    {(outputPorts.length > 1 || port.connectionType === 'ai_tool') && (
+                    {entry.name !== MCP_CLIENT_TOOL_NODE_NAME
+                        && (outputPorts.length > 1 || port.connectionType === 'ai_tool') && (
                         <S.NodeHandleLabel $position={port.position}>{port.label}</S.NodeHandleLabel>
                     )}
                 </S.NodeHandle>

@@ -5,6 +5,7 @@ namespace App\Services\Integration\Ai\Vendor\Gemini;
 use App\Contracts\Integration\Ai\AiProviderDriverInterface;
 use App\Enums\Integration\IntegrationAiProviderEnum;
 use App\Services\Integration\Ai\Vendor\Concerns\DecodesToolArguments;
+use App\Services\Integration\Ai\Vendor\Concerns\RelaxesJsonSchema;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -12,6 +13,7 @@ use RuntimeException;
 class GeminiDriver implements AiProviderDriverInterface
 {
     use DecodesToolArguments;
+    use RelaxesJsonSchema;
 
     public function provider(): IntegrationAiProviderEnum
     {
@@ -101,11 +103,19 @@ class GeminiDriver implements AiProviderDriverInterface
                             return ['text' => $part['text']];
                         }
                         if (($part['type'] ?? null) === 'tool_call' && is_string($part['name'] ?? null)) {
-                            return ['functionCall' => [
-                                'name' => $part['name'],
-                                'args' => $this->toolArguments($part),
-                                ...(is_string($part['id'] ?? null) ? ['id' => $part['id']] : []),
-                            ]];
+                            // Gemini 3 models require the thought signature returned with
+                            // the function call to be echoed back; when the runtime has none,
+                            // the documented placeholder skips the validation.
+                            return [
+                                'functionCall' => [
+                                    'name' => $part['name'],
+                                    'args' => $this->toolArguments($part),
+                                    ...(is_string($part['id'] ?? null) ? ['id' => $part['id']] : []),
+                                ],
+                                'thoughtSignature' => is_string($part['thought_signature'] ?? null) && $part['thought_signature'] !== ''
+                                    ? $part['thought_signature']
+                                    : 'skip_thought_signature_validator',
+                            ];
                         }
                         if (($part['type'] ?? null) === 'tool_result' && is_string($part['name'] ?? null)) {
                             return ['functionResponse' => [
@@ -176,6 +186,14 @@ class GeminiDriver implements AiProviderDriverInterface
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/'
             .rawurlencode($model).':generateContent?key='.rawurlencode($apiKey);
         $response = $this->request()->post($url, $payload);
+        if (
+            $response->failed()
+            && is_array($payload['generationConfig']['responseJsonSchema'] ?? null)
+            && $this->isSchemaRejected($response, ['schema'])
+        ) {
+            $payload['generationConfig']['responseJsonSchema'] = $this->relaxSchema($payload['generationConfig']['responseJsonSchema']);
+            $response = $this->request()->post($url, $payload);
+        }
         for ($attempt = 0; $attempt < 3 && $response->failed(); $attempt++) {
             $removedOption = false;
             foreach ([
@@ -245,6 +263,7 @@ class GeminiDriver implements AiProviderDriverInterface
                     'name' => $name,
                     'arguments' => is_array($part['functionCall']['args'] ?? null) ? $part['functionCall']['args'] : [],
                     'argumentsJson' => $argumentJson[$index] ?? '{}',
+                    'thoughtSignature' => is_string($part['thoughtSignature'] ?? null) ? $part['thoughtSignature'] : null,
                 ];
             })
             ->filter(fn (array $call): bool => $call['name'] !== '')

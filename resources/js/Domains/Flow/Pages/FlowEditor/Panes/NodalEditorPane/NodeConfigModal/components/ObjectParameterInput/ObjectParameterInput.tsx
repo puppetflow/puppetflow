@@ -2,7 +2,11 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import ExpressionInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/ExpressionInput/ExpressionInput';
-import type { NodeParameterValue, ObjectNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type {
+    NodeParameterValue,
+    ObjectNodeParameterValue,
+    ScalarNodeParameterValue,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
 import type { NodeValidationIssue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import { useConfirm } from '@/Shared/Hooks/useConfirm';
@@ -17,6 +21,7 @@ import {
     normalizeObjectParameterValue,
     OBJECT_INPUT_MODE_OPTIONS,
     removeObjectField,
+    supportsObjectForm,
     switchObjectInputMode,
     updateObjectField,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/utils/objectParameters';
@@ -69,6 +74,7 @@ export default function ObjectParameterInput({
     const fields = getObjectFields(objectValue, meta);
     const allowCustomFields = allowsCustomObjectFields(meta);
     const functionMap = isFunctionMap(meta);
+    const formSupported = supportsObjectForm(meta);
     const availableFieldKeys = getAvailableObjectFieldKeys(fields, meta);
     const jsonValidationIssues = objectValue.inputMode === 'json' ? validationIssues : [];
     const flowValidationIssues = validationIssues.filter(issue => issue.kind === 'connect-flow');
@@ -145,6 +151,39 @@ export default function ObjectParameterInput({
         });
     };
 
+    const jsonValue: ScalarNodeParameterValue = { mode: objectValue.jsonMode ?? 'fixed', value: objectValue.value };
+    const onJsonChange = (nextValue: ScalarNodeParameterValue) => onChange({
+        ...objectValue,
+        jsonMode: nextValue.mode,
+        value: nextValue.value,
+    });
+
+    // A JSON-only object (no declared fields, no custom fields) is a single
+    // value: render it as one field instead of a wrapper plus a "JSON" child.
+    if (!functionMap && !formSupported) {
+        return (
+            <>
+                <ExpressionInput
+                    label={label}
+                    labelSlot={labelSlot}
+                    hint={meta.description}
+                    placeholder={meta.placeholder ?? '{\n  "timeout": 30000\n}'}
+                    inputType="textarea"
+                    value={jsonValue}
+                    outputData={outputData}
+                    autocompleteContext={autocompleteContext}
+                    flowId={flowId}
+                    readOnly={readOnly}
+                    invalid={objectInvalid}
+                    errorMessage={objectInvalid ? (objectErrorMessage || undefined) : undefined}
+                    onRemove={onRemove ? () => void confirmRemoval(label, onRemove) : undefined}
+                    onChange={onJsonChange}
+                />
+                <ConfirmModal />
+            </>
+        );
+    }
+
     return (
         <>
             <S.ObjectField ref={objectFieldRef} $invalid={objectInvalid}>
@@ -172,7 +211,7 @@ export default function ObjectParameterInput({
                             <Shared.NodeFieldError>{objectErrorMessage || 'This field is required.'}</Shared.NodeFieldError>
                         )}
                     </div>
-                    {!functionMap && (
+                    {!functionMap && formSupported && (
                         <CustomSelect
                             value={objectValue.inputMode}
                             disabled={readOnly}
@@ -195,16 +234,12 @@ export default function ObjectParameterInput({
                         hint="Write a fixed JSON object, or switch to Expression to build this object dynamically."
                         placeholder={meta.placeholder ?? '{\n  "timeout": 30000\n}'}
                         inputType="textarea"
-                        value={{ mode: objectValue.jsonMode ?? 'fixed', value: objectValue.value }}
+                        value={jsonValue}
                         outputData={outputData}
                         autocompleteContext={autocompleteContext}
                         flowId={flowId}
                         readOnly={readOnly}
-                        onChange={nextValue => onChange({
-                            ...objectValue,
-                            jsonMode: nextValue.mode,
-                            value: nextValue.value,
-                        })}
+                        onChange={onJsonChange}
                     />
                 ) : (
                     <S.ObjectFormRows>

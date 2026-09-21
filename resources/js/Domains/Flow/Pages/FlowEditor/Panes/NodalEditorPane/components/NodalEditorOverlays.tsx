@@ -41,6 +41,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
         edges,
         flow,
         generatedCode,
+        holdMiniMap,
         latestRun,
         miniMapFading,
         nodes,
@@ -49,6 +50,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
         pendingEdgeInsertion,
         pickerOpen,
         readOnly,
+        releaseMiniMap,
         renameNode,
         resolvedTheme,
         runProgress,
@@ -163,6 +165,8 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                     viewport={viewport}
                     setViewport={setViewport}
                     fading={miniMapFading}
+                    onHoldStart={holdMiniMap}
+                    onHoldEnd={releaseMiniMap}
                 />
             )}
             <CanvasControls

@@ -124,13 +124,33 @@ const LOGGED_MARKER_OPERATORS = new Set([
 const LOGGED_MARKER_TEXT_FILTERS = new Set(['contains', 'exact', 'startsWith', 'endsWith']);
 const DYNAMIC_PARAMETER_VALUE = Symbol('dynamic-parameter-value');
 
-const isValidIdentifier = (value: string) => (
+export const isValidIdentifier = (value: string) => (
     /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value)
     && !RESERVED_IDENTIFIERS.has(value)
     && !RUNTIME_IDENTIFIERS.has(value)
     && !value.startsWith('__pf')
     && !value.startsWith('nodeResult')
 );
+
+// Turns a free-form label into a usable private function identifier, for
+// example "Check Annoying Popup" becomes "checkAnnoyingPopup". Returns null
+// when nothing usable remains.
+export function toFunctionIdentifier(value: string): string | null {
+    const words = value.match(/[A-Za-z0-9_$]+/g) ?? [];
+    if (words.length === 0) return null;
+
+    const joined = words.length === 1
+        ? words[0]
+        : words
+            .map((word, index) => (index === 0
+                ? word.charAt(0).toLowerCase() + word.slice(1)
+                : word.charAt(0).toUpperCase() + word.slice(1)))
+            .join('');
+    if (isValidIdentifier(joined)) return joined;
+
+    const prefixed = `fn${joined.charAt(0).toUpperCase()}${joined.slice(1)}`;
+    return isValidIdentifier(prefixed) ? prefixed : null;
+}
 
 export interface NodeValidationIssue {
     path: string;

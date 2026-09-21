@@ -5,6 +5,7 @@ namespace App\Services\Integration\Ai\Vendor\Anthropic;
 use App\Contracts\Integration\Ai\AiProviderDriverInterface;
 use App\Enums\Integration\IntegrationAiProviderEnum;
 use App\Services\Integration\Ai\Vendor\Concerns\DecodesToolArguments;
+use App\Services\Integration\Ai\Vendor\Concerns\RelaxesJsonSchema;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -12,6 +13,7 @@ use RuntimeException;
 class AnthropicDriver implements AiProviderDriverInterface
 {
     use DecodesToolArguments;
+    use RelaxesJsonSchema;
 
     public function provider(): IntegrationAiProviderEnum
     {
@@ -150,6 +152,13 @@ class AnthropicDriver implements AiProviderDriverInterface
         }
 
         $response = $this->request($apiKey)->post('https://api.anthropic.com/v1/messages', $payload);
+        if ($response->failed() && isset($payload['output_config']) && $this->isSchemaRejected($response, ['output_config.format.schema'])) {
+            // Anthropic compiles the schema into a grammar and rejects value
+            // constraints (minimum, maxItems, ...). Drop them, keep them as
+            // hints in the descriptions, and retry once.
+            $payload['output_config']['format']['schema'] = $this->relaxSchema($responseFormat['schema']);
+            $response = $this->request($apiKey)->post('https://api.anthropic.com/v1/messages', $payload);
+        }
         for ($attempt = 0; $attempt < 2 && $response->failed(); $attempt++) {
             $removedOption = false;
             foreach (['temperature', 'top_p'] as $samplingOption) {

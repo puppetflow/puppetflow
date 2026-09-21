@@ -1,8 +1,9 @@
+/* global __captureBrowserStorage */
 /* @help Navigation
  * @sig $loginRemember(options)
  * @aliases remembered login, persistent login, reuse session
- * @desc Login remember function. Saves cookies to a JSON file and loads them back on the next run.
- * @nodal-desc Reuse saved login cookies, or run the login steps again when the session is expired.
+ * @desc Login remember function. Reuses the browser storage restored for the run and saves cookies and localStorage as soon as the session is confirmed.
+ * @nodal-desc Reuse the saved session, or run the login steps again when the session is expired.
  * @opt loginUrl: null, loginRecipe: null, loggedUrl: null, loggedMarkerCondition: null, loggedMarkerConditionRaw: null, loggedMarkerTimeout: 5000, password: $input.password
  * @nodal-param options: Login settings used when saved cookies are missing or expired.
  * @nodal-param options.loginUrl [string, required]: URL of the login page.
@@ -93,7 +94,10 @@ const $loginRemember = async function(options = {}) {
     opts.loggedUrl = opts.url;
     console.debug('Login remember does not know the loggedUrl, using url as loggedUrl');
   }
-  await __internalLoadCookies('_loginRemember');
+  // The run starts with the Default browser storage restored (cookies and
+  // localStorage), or with whatever profile the flow loaded through
+  // $loadCookies before this point. Nothing to load here: just check the
+  // session and persist it as soon as it is confirmed.
   await $gotoUrl(opts.loggedUrl, __getActiveTabName(), gotoOpts);
   const $waitForLoggedMarker = async function() {
     try {
@@ -149,12 +153,17 @@ const $loginRemember = async function(options = {}) {
     await $gotoUrl(opts.loginUrl, __getActiveTabName(), gotoOpts);
     await opts.loginRecipe();
     await $waitForLoggedMarker();
-    await __internalSaveCookies('_loginRemember');
   };
   try {
     await $waitForLoggedMarker();
   } catch (error) {
     await runLoginRecipe();
   }
+  // Save the active profile (Default unless the flow loaded another one)
+  // right away rather than only at flow end: a fresh login or a rotated
+  // session cookie survives even if the rest of the flow fails.
+  await __captureBrowserStorage().catch(error => {
+    console.error('Cannot save browser storage after login:', error && error.message ? error.message : error);
+  });
 };
 

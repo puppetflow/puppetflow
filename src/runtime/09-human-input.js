@@ -177,9 +177,50 @@ const __humanClickTarget = async function(handle) {
   };
 };
 
+// A control kept out of sight for styling (an sr-only checkbox or radio behind
+// a decorated label: 1px box, clipped away) has no surface a pointer can land
+// on; the click goes to whatever is painted there and the control never
+// toggles, while element.click() from the console does. A person clicks its
+// label, which activates the control the same way.
+const __humanIsPointerHidden = function(handle) {
+  return handle.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return rect.width < 2 || rect.height < 2
+      || /^rect\(0px,? 0px,? 0px,? 0px\)$/.test(getComputedStyle(element).clip);
+  });
+};
+
+const __humanLabelOf = async function(handle) {
+  const label = await handle.evaluateHandle(element => {
+    const candidates = [...(element.labels ? Array.from(element.labels) : []), element.closest('label')];
+    return candidates.find(candidate => {
+      if (!candidate) return false;
+      const box = candidate.getBoundingClientRect();
+      return box.width >= 2 && box.height >= 2;
+    }) || null;
+  });
+  const element = label.asElement();
+  if (!element) await label.dispose();
+  return element;
+};
+
 const __humanClickElement = async function(handle, options = {}) {
   const page = __humanPageOf(handle);
   await __humanScrollIntoView(handle);
+  if (await __humanIsPointerHidden(handle).catch(() => false)) {
+    const label = await __humanLabelOf(handle).catch(() => null);
+    if (label) {
+      try {
+        await __humanClickElement(label, options);
+      } finally {
+        await label.dispose().catch(() => {});
+      }
+      return;
+    }
+    // No label to stand in for it: a DOM click is the only thing that reaches it.
+    await handle.evaluate(element => element.click());
+    return;
+  }
   let target;
   try {
     target = await __humanClickTarget(handle);

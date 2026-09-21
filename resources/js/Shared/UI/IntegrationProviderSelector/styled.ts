@@ -15,7 +15,7 @@ export const Pills = styled.div`
     flex-wrap: wrap;
 `;
 
-export const Pill = styled.button<{ $active?: boolean; $color?: string }>`
+export const Pill = styled.button<{ $active?: boolean; $color?: string; $configured?: boolean }>`
     display: flex;
     align-items: center;
     gap: 6px;
@@ -31,10 +31,15 @@ export const Pill = styled.button<{ $active?: boolean; $color?: string }>`
         $active ? ($color || '#888') + '14' : 'transparent'};
     color: ${({ $active, $color, theme }) =>
         $active ? ($color || theme.colors.accent.primary) : theme.colors.text.secondary};
+    opacity: ${({ $configured }) => $configured === false ? 0.78 : 1};
 
     &:hover {
         border-color: ${({ $color, theme }) => $color || theme.colors.accent.primary};
         background: ${({ $color }) => ($color || '#888') + '0a'};
+    }
+
+    &:disabled {
+        cursor: wait;
     }
 `;
 

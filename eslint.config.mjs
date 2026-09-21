@@ -91,7 +91,6 @@ export default tseslint.config(
                 __emitAction: 'readonly',
                 __formatActionLabel: 'readonly',
                 __internalLoadCookies: 'readonly',
-                __internalSaveCookies: 'readonly',
                 __internalSelect: 'readonly',
                 __internalSleep: 'readonly',
                 __activateNamedPage: 'readonly',

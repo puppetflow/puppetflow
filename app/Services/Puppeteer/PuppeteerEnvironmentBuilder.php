@@ -211,7 +211,7 @@ final class PuppeteerEnvironmentBuilder
             $current = $run->getAttribute('resolved_secrets');
             $run->update(['resolved_secrets' => array_values(array_unique([
                 ...(is_array($current) ? $current : []),
-                ...array_filter([$username, $password], fn (string $value): bool => $value !== ''),
+                ...array_filter([$password], fn (string $value): bool => $value !== ''),
             ]))]);
         }
     }

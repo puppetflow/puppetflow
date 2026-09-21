@@ -4,12 +4,15 @@ namespace App\Services\Integration\Ai\Vendor\OpenAi;
 
 use App\Contracts\Integration\Ai\AiProviderDriverInterface;
 use App\Enums\Integration\IntegrationAiProviderEnum;
+use App\Services\Integration\Ai\Vendor\Concerns\RelaxesJsonSchema;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class OpenAiDriver implements AiProviderDriverInterface
 {
+    use RelaxesJsonSchema;
+
     public function provider(): IntegrationAiProviderEnum
     {
         return IntegrationAiProviderEnum::OPENAI;
@@ -134,6 +137,14 @@ class OpenAiDriver implements AiProviderDriverInterface
         }
 
         $response = $this->request($apiKey)->post('https://api.openai.com/v1/responses', $payload);
+        if (
+            $response->failed()
+            && is_array($payload['text']['format']['schema'] ?? null)
+            && $this->isSchemaRejected($response, ['invalid schema', 'text.format', 'response_format'])
+        ) {
+            $payload['text']['format']['schema'] = $this->relaxSchema($payload['text']['format']['schema']);
+            $response = $this->request($apiKey)->post('https://api.openai.com/v1/responses', $payload);
+        }
         for ($attempt = 0; $attempt < 3 && $response->failed(); $attempt++) {
             $removedOption = false;
             foreach ([

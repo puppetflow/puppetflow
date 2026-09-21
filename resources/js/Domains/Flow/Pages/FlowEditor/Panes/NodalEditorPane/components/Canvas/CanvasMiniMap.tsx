@@ -17,6 +17,8 @@ interface CanvasMiniMapProps {
     viewport: { x: number; y: number; zoom: number };
     setViewport: React.Dispatch<React.SetStateAction<{ x: number; y: number; zoom: number }>>;
     fading?: boolean;
+    onHoldStart?: () => void;
+    onHoldEnd?: () => void;
 }
 
 export default function CanvasMiniMap({
@@ -26,6 +28,8 @@ export default function CanvasMiniMap({
     viewport,
     setViewport,
     fading,
+    onHoldStart,
+    onHoldEnd,
 }: CanvasMiniMapProps) {
     const {
         projection,
@@ -36,7 +40,12 @@ export default function CanvasMiniMap({
     if (!projection || !viewportWorldBounds || nodes.length === 0) return null;
 
     return (
-        <CanvasMiniMapControls fading={fading} onNavigate={moveViewportTo}>
+        <CanvasMiniMapControls
+            fading={fading}
+            onNavigate={moveViewportTo}
+            onHoldStart={onHoldStart}
+            onHoldEnd={onHoldEnd}
+        >
             <S.Svg
                 width={MINI_MAP_WIDTH}
                 height={MINI_MAP_HEIGHT}

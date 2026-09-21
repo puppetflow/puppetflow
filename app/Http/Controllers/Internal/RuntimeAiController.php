@@ -42,12 +42,18 @@ class RuntimeAiController extends Controller
             'messages.*.content.*.arguments' => ['nullable', 'array'],
             'messages.*.content.*.arguments_json' => ['nullable', 'json', 'max:1000000'],
             'messages.*.content.*.tool_call_id' => ['nullable', 'string', 'max:255'],
+            'messages.*.content.*.thought_signature' => ['nullable', 'string', 'max:100000'],
             'options' => ['nullable', 'array'],
             'options.tools' => ['nullable', 'array', 'max:256'],
             'options.tools.*.name' => ['required_with:options.tools', 'string', 'max:64'],
             'options.tools.*.description' => ['nullable', 'string', 'max:4096'],
             'options.tools.*.inputSchema' => ['required_with:options.tools', 'array'],
         ]);
+        // validate() only keeps the nested keys that have rules (options.tools),
+        // which silently dropped system, sampling, response_format and timeout.
+        // Tools were validated above, so the raw options array is safe to forward.
+        $options = $request->input('options');
+        $options = is_array($options) ? $options : [];
         [$run, $flow, $actor] = $this->runtimeContext($request);
         $context = $this->authorizationContexts->for($actor, $flow->workspace_id);
 
@@ -80,7 +86,7 @@ class RuntimeAiController extends Controller
             $aiModel,
             $validated['capability'],
             $validated['messages'],
-            is_array($validated['options'] ?? null) ? $validated['options'] : [],
+            $options,
         );
 
         return response()->json($result);

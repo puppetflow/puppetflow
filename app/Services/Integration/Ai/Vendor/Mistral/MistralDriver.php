@@ -4,12 +4,15 @@ namespace App\Services\Integration\Ai\Vendor\Mistral;
 
 use App\Contracts\Integration\Ai\AiProviderDriverInterface;
 use App\Enums\Integration\IntegrationAiProviderEnum;
+use App\Services\Integration\Ai\Vendor\Concerns\RelaxesJsonSchema;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class MistralDriver implements AiProviderDriverInterface
 {
+    use RelaxesJsonSchema;
+
     public function provider(): IntegrationAiProviderEnum
     {
         return IntegrationAiProviderEnum::MISTRAL;
@@ -160,6 +163,14 @@ class MistralDriver implements AiProviderDriverInterface
         }
 
         $response = $this->request($apiKey)->post('https://api.mistral.ai/v1/chat/completions', $payload);
+        if (
+            $response->failed()
+            && is_array($payload['response_format']['json_schema']['schema'] ?? null)
+            && $this->isSchemaRejected($response, ['schema', 'response_format'])
+        ) {
+            $payload['response_format']['json_schema']['schema'] = $this->relaxSchema($payload['response_format']['json_schema']['schema']);
+            $response = $this->request($apiKey)->post('https://api.mistral.ai/v1/chat/completions', $payload);
+        }
         $this->ensureSuccess($response);
         $decoded = $response->json();
         $raw = is_array($decoded) ? $decoded : [];
@@ -207,7 +218,8 @@ class MistralDriver implements AiProviderDriverInterface
     private function ensureSuccess(Response $response): void
     {
         if ($response->failed()) {
-            $detail = $response->json('error.message');
+            // Mistral returns {"object":"error","message":...}; some proxies wrap it in "error".
+            $detail = $response->json('error.message') ?? $response->json('message');
             $suffix = is_string($detail) && $detail !== '' ? " {$detail}" : '';
 
             throw new RuntimeException("Mistral request failed with HTTP {$response->status()}.{$suffix}");

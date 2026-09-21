@@ -136,7 +136,7 @@ const fieldValueToJsonValue = (
 
 const jsonValueToNodeParameterValue = (value: unknown, meta?: NodalParamDef): NodeParameterValue => {
     if (isObjectInput(meta)) {
-        if (isRecord(value)) {
+        if (isRecord(value) && supportsObjectForm(meta)) {
             return {
                 mode: 'object',
                 inputMode: 'form',
@@ -225,14 +225,24 @@ export function allowsCustomObjectFields(meta?: NodalParamDef) {
         || isFunctionMap(meta);
 }
 
+// A plain object without declared fields and without custom fields (for
+// example a JSON Schema) has nothing to show in form mode: it is JSON only.
+export function supportsObjectForm(meta?: NodalParamDef) {
+    return Object.keys(meta?.objectFields ?? {}).length > 0 || allowsCustomObjectFields(meta);
+}
+
 export function normalizeObjectParameterValue(value: NodeParameterValue | undefined, meta: NodalParamDef): ObjectNodeParameterValue {
     const normalized = normalizeParameterValue(value);
-    if (normalized.mode === 'object') return normalized;
+    if (normalized.mode === 'object') {
+        return normalized.inputMode === 'form' && !supportsObjectForm(meta)
+            ? { ...normalized, inputMode: 'json' }
+            : normalized;
+    }
     const scalar = normalizeScalarParameterValue(normalized);
 
     return {
         mode: 'object',
-        inputMode: Object.keys(meta.objectFields ?? {}).length > 0 || allowsCustomObjectFields(meta) ? 'form' : 'json',
+        inputMode: supportsObjectForm(meta) ? 'form' : 'json',
         jsonMode: scalar.mode,
         value: scalar.value || '{}',
         fields: [],
@@ -414,7 +424,7 @@ export function createEmptyFieldValue(meta?: NodalParamDef): NodeParameterValue 
 
         return {
             mode: 'object',
-            inputMode: Object.keys(objectFields).length > 0 || allowsCustomObjectFields(meta) ? 'form' : 'json',
+            inputMode: supportsObjectForm(meta) ? 'form' : 'json',
             jsonMode: 'fixed',
             value: '{}',
             fields: [...new Set([...requiredKeys, ...preferredOneOfKeys])]

@@ -29,6 +29,21 @@ let __activeBrowserStoragePersistLocalStorage = true;
 let __localStorageByOrigin = {};
 const __localStorageRestoreScriptByPage = new WeakMap();
 
+// localStorage lives per web origin, so only http(s) pages carry anything to
+// capture or restore. Evaluating on the internal tabs Pinokio leaves open
+// (chrome://new-tab-page, about:blank) is not just pointless: under the CDP
+// shim the new-tab page can churn its execution context, and an evaluate on
+// it then blocks for the full default timeout (30s) instead of resolving.
+// That is the intermittent long blank screen at the start of a run. url() is
+// synchronous and needs no context, so it is safe to gate on.
+const __isWebStoragePage = function(page) {
+  try {
+    return /^https?:\/\//.test(page.url());
+  } catch (_) {
+    return false;
+  }
+};
+
 const __cookieProfilePath = function(profile, helperName) {
   return __resolveArtifactPath(paths.cookies, __resolveCookieProfileName(profile) + '.json', helperName + ' path');
 };
@@ -85,6 +100,19 @@ const __capturePageLocalStorage = async function(page) {
   }).catch(() => null);
 };
 
+// The restore script runs at the start of every document the tab loads until
+// it is replaced, and it replaces the origin's localStorage with a snapshot
+// taken before the navigation. Applied more than once it destroys what the
+// site itself wrote in between: fdj.fr, for instance, writes its session
+// state after login, redirects to /?MMEG=true, finds the state gone, signs in
+// again, redirects again... a reload loop that never reaches network idle.
+// A per-origin marker in sessionStorage (tab-scoped, survives same-origin
+// navigations, empty in a new tab) makes each installation apply exactly once
+// per origin. The key is random per run so it is not a stable fingerprint;
+// the value is the installation number so a newer snapshot applies again.
+const __localStorageRestoreMarker = '_' + crypto.randomBytes(8).toString('hex');
+let __localStorageRestoreGeneration = 0;
+
 const __installLocalStorageRestore = async function(page) {
   if (!page || !__activeBrowserStorageProfile) return;
   const previous = __localStorageRestoreScriptByPage.get(page);
@@ -94,17 +122,24 @@ const __installLocalStorageRestore = async function(page) {
   }
   if (!__activeBrowserStoragePersistLocalStorage) return;
   const snapshot = __normalizeLocalStorageByOrigin(__localStorageByOrigin);
-  const applySnapshot = originStorage => {
+  const generation = String(++__localStorageRestoreGeneration);
+  const applySnapshot = (originStorage, marker, applyGeneration) => {
     try {
       const entries = originStorage[window.location.origin];
       if (!entries) return;
+      if (window.sessionStorage.getItem(marker) === applyGeneration) return;
       window.localStorage.clear();
       Object.entries(entries).forEach(([key, value]) => window.localStorage.setItem(key, value));
+      window.sessionStorage.setItem(marker, applyGeneration);
     } catch (_) {}
   };
-  const script = await page.evaluateOnNewDocument(applySnapshot, snapshot);
+  const script = await page.evaluateOnNewDocument(applySnapshot, snapshot, __localStorageRestoreMarker, generation);
   __localStorageRestoreScriptByPage.set(page, script.identifier);
-  await page.evaluate(applySnapshot, snapshot).catch(() => {});
+  // The current document only has storage to replace on a web origin; on
+  // about:blank or an internal page the evaluate is useless and, under the
+  // CDP shim, can hang for the whole default timeout.
+  if (!__isWebStoragePage(page)) return;
+  await page.evaluate(applySnapshot, snapshot, __localStorageRestoreMarker, generation).catch(() => {});
 };
 
 const __captureBrowserStorage = async function(
@@ -116,6 +151,7 @@ const __captureBrowserStorage = async function(
   const captureDefaultShadow = resolvedProfile !== __defaultCookieProfileName;
   if (persistLocalStorage || captureDefaultShadow) {
     for (const page of await $browser.pages()) {
+      if (!__isWebStoragePage(page)) continue;
       const captured = await __capturePageLocalStorage(page);
       if (captured && typeof captured.origin === 'string') {
         __localStorageByOrigin[captured.origin] = captured.entries;
@@ -154,11 +190,6 @@ const __shadowSaveDefaultBrowserStorage = async function() {
   }
 };
 
-const __internalSaveCookies = async function(profile) {
-  const resolvedProfile = __resolveCookieProfileName(profile);
-  const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  fs.writeFileSync(__cookieProfilePath(resolvedProfile, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
-};
 const $saveCookies = async function(profile, options) {
   const resolved = __resolveCookieHelperArguments(profile, options);
   __activeBrowserStorageProfile = resolved.profile;
@@ -244,6 +275,7 @@ const $clearCookies = async function(profile) {
 
   await $client.send('Network.clearBrowserCookies');
   for (const page of await $browser.pages()) {
+    if (!__isWebStoragePage(page)) continue;
     await page.evaluate(() => {
       try { window.localStorage.clear(); } catch (_) {}
       try { window.sessionStorage.clear(); } catch (_) {}

@@ -7,8 +7,11 @@ import {
     getNodePortDefinition,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
+    applyConnectionScope,
+    collectReplacedEdgeIds,
     connectEdgeWithStructuredJoins,
     connectsSeparateSystemFlows,
+    resolveConnectionScope,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { getPortPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/geometry';
 import type {
@@ -30,6 +33,7 @@ type UseCanvasEdgeInteractionsOptions = Pick<
     | 'setConnectionDrag'
     | 'setEdgeDropTarget'
     | 'setEdges'
+    | 'setNodes'
     | 'setPendingConnectionTarget'
     | 'setPendingEdgeInsertion'
     | 'setPickerOpen'
@@ -47,6 +51,7 @@ export function useCanvasEdgeInteractions({
     setConnectionDrag,
     setEdgeDropTarget,
     setEdges,
+    setNodes,
     setPendingConnectionTarget,
     setPendingEdgeInsertion,
     setPickerOpen,
@@ -126,21 +131,6 @@ export function useCanvasEdgeInteractions({
                 setConnectionDrag(null);
                 return true;
             }
-            if ((sourceNode?.scopeId ?? null) !== (targetNode?.scopeId ?? null)) {
-                connectionDragRef.current = null;
-                setConnectionDrag(null);
-                return true;
-            }
-            if (
-                sourceDefinition.connectionType !== 'ai_tool'
-                && connectsSeparateSystemFlows(nodes, edges, sourceNodeId, finalTargetNodeId)
-            ) {
-                connectionDragRef.current = null;
-                setConnectionDrag(null);
-                return true;
-            }
-
-            recordHistory();
             const nextEdge = {
                     id: `${sourceNodeId}:${sourcePort}->${finalTargetNodeId}:${targetPortId}`,
                     sourceNodeId,
@@ -149,9 +139,38 @@ export function useCanvasEdgeInteractions({
                     targetPort: targetPortId,
                     connectionType: sourceDefinition.connectionType ?? 'flow',
             };
-            setEdges(current => sourceDefinition.connectionType === 'ai_tool'
-                ? [...current.filter(edge => edge.id !== nextEdge.id), nextEdge]
-                : connectEdgeWithStructuredJoins(nodes, current, nextEdge));
+            const scopeResolution = resolveConnectionScope(
+                nodes,
+                edges,
+                sourceNodeId,
+                finalTargetNodeId,
+                collectReplacedEdgeIds(edges, nextEdge),
+            );
+            if (!scopeResolution) {
+                connectionDragRef.current = null;
+                setConnectionDrag(null);
+                return true;
+            }
+            const scopedNodes = applyConnectionScope(nodes, scopeResolution);
+            if (
+                sourceDefinition.connectionType !== 'ai_tool'
+                && connectsSeparateSystemFlows(scopedNodes, edges, sourceNodeId, finalTargetNodeId)
+            ) {
+                connectionDragRef.current = null;
+                setConnectionDrag(null);
+                return true;
+            }
+
+            const nextEdges = sourceDefinition.connectionType === 'ai_tool'
+                ? [...edges.filter(edge => edge.id !== nextEdge.id), nextEdge]
+                : connectEdgeWithStructuredJoins(scopedNodes, edges, nextEdge);
+            if (nextEdges !== edges) {
+                recordHistory();
+                if (scopedNodes !== nodes) {
+                    setNodes(current => applyConnectionScope(current, scopeResolution));
+                }
+                setEdges(nextEdges);
+            }
         } else if (!targetNodeId || targetNodeId === connectionDragState.fromNodeId) {
             setPendingConnectionTarget({
                 fromNodeId: connectionDragState.fromNodeId,
@@ -173,7 +192,7 @@ export function useCanvasEdgeInteractions({
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
         return true;
-    }, [connectionDragRef, edges, nodes, recordHistory, setConnectionDrag, setEdges, setPendingConnectionTarget, setPendingEdgeInsertion, setPickerOpen, setSearch]);
+    }, [connectionDragRef, edges, nodes, recordHistory, setConnectionDrag, setEdges, setNodes, setPendingConnectionTarget, setPendingEdgeInsertion, setPickerOpen, setSearch]);
 
     const handlePortPointerDown = useCallback((
         event: React.PointerEvent<HTMLDivElement>,

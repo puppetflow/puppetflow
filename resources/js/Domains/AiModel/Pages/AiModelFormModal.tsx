@@ -13,9 +13,8 @@ import GroupSelector from '@/Domains/NotificationChannel/Pages/ChannelFormModal/
 import ConnectionSelect from '@/Domains/NotificationChannel/Pages/ChannelFormModal/components/ConnectionSelect/ConnectionSelect';
 import IntegrationProviderSelector from '@/Shared/UI/IntegrationProviderSelector/IntegrationProviderSelector';
 import type { ProviderMeta } from '@/Domains/NotificationChannel/Pages/ChannelFormModal/config';
-import { getProviderConfig } from '@/Domains/Integration/Pages/providerConfig';
+import { getProviderConfig, getProvidersByCategory } from '@/Domains/Integration/Pages/providerConfig';
 import type { IntegrationProvider } from '@/Domains/Integration/types';
-import { useIntegrationCreation } from '@/Domains/Integration/Contexts/IntegrationCreationContext';
 import { useAuth } from '@/App/Hooks/usePageProps';
 import { canEditOwnership, OWNERSHIP_DISABLED_HINT } from '@/Shared/Utils/ownershipPermissions';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
@@ -54,7 +53,6 @@ export default function AiModelFormModal({
     zIndex,
     quickMode,
 }: AiModelFormModalProps) {
-    const integrationCreation = useIntegrationCreation();
     const { user } = useAuth();
     const editing = Boolean(model);
     const initialIntegration = aiIntegrations.find(integration => integration.id === model?.ai_integration_id);
@@ -81,7 +79,13 @@ export default function AiModelFormModal({
     const [saving, setSaving] = useState(false);
     const selectedIntegration = aiIntegrations.find(integration => integration.id === aiIntegrationId);
     const vendors = useMemo(
-        () => [...new Set(aiIntegrations.map(integration => integration.provider as string))],
+        () => getProvidersByCategory('ai')
+            .filter(provider => !provider.comingSoon)
+            .map(provider => provider.provider),
+        [],
+    );
+    const configuredVendors = useMemo(
+        () => [...new Set(aiIntegrations.map(integration => integration.provider))],
         [aiIntegrations],
     );
     const vendorIntegrations = useMemo(
@@ -242,18 +246,6 @@ export default function AiModelFormModal({
         }
     };
 
-    const createIntegration = async () => {
-        const result = await integrationCreation.create({ category: 'ai' });
-        if (!result) return;
-        await integrationCreation.refresh('integrations');
-        const { integration } = result;
-        setVendor(integration.provider);
-        setAiIntegrationId(integration.id);
-        setSelectedModelId('');
-        setCustomModelId(false);
-        setModelFilter(initialModelFilter);
-    };
-
     return (
         <Modal
             isOpen
@@ -265,29 +257,21 @@ export default function AiModelFormModal({
             modalKind={quickMode ? 'ai-model-quick-create' : undefined}
         >
             <S.Form onSubmit={handleSubmit}>
-                {aiIntegrations.length === 0 ? (
-                    <S.EmptyIntegrationResult>
-                        <S.EmptyIntegrationResultContent>
-                            No AI integrations available. Set up an AI integration first.
-                        </S.EmptyIntegrationResultContent>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => void createIntegration()}
-                        >
-                            + Add integration
-                        </Button>
-                    </S.EmptyIntegrationResult>
-                ) : (
-                    <>
                         <IntegrationProviderSelector
                             providers={vendors}
+                            configuredProviders={configuredVendors}
                             value={vendor}
                             label="Vendor"
                             providerMeta={vendorMeta}
                             category="ai"
                             emptyMessage="No AI integrations found."
+                            onIntegrationCreated={(provider, integrationId) => {
+                                setVendor(provider);
+                                setAiIntegrationId(integrationId);
+                                setSelectedModelId('');
+                                setCustomModelId(false);
+                                setModelFilter(initialModelFilter);
+                            }}
                             onChange={nextVendor => {
                                 setVendor(nextVendor);
                                 setAiIntegrationId(null);
@@ -429,8 +413,6 @@ export default function AiModelFormModal({
                         {editing ? 'Save Model' : 'Create Model'}
                     </Button>
                 </S.FormActions>
-                    </>
-                )}
             </S.Form>
         </Modal>
     );

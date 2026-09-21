@@ -209,7 +209,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
         name: NO_OP_NODE_NAME,
         signature: `${NO_OP_NODE_NAME}()`,
         desc: 'Pass through without doing anything. Useful to organize and route the visual flow.',
-        aliases: ['pass through', 'do nothing', 'placeholder'],
+        aliases: ['noop', 'pass through', 'do nothing', 'placeholder'],
         category: 'Control',
         availability: 'nodal',
     },

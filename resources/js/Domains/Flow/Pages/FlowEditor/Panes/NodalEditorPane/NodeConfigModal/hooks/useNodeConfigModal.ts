@@ -20,6 +20,7 @@ import {
     expandNodalPreview,
     mergeOutputContextPreview,
     nodeStateLabel,
+    previewParameterValue,
     resolveSniffCallbackValue,
 } from '../utils/preview';
 import { asRecord } from '../utils/values';
@@ -225,29 +226,87 @@ export default function useNodeConfigModal({
                 ),
             };
         });
-        // Nodes added since the last run have no runtime snapshot. Inside a loop body their static
-        // fallback still carries a placeholder $loop; it is replaced by the $loop of the closest
-        // upstream node that did run (previewNodes are sorted by distance) so $loop.item stays real.
+        const resolvedRuntimeValue = (index: number) => {
+            const source = runtimeSources[index];
+            if (!source?.hasRuntimeValue) return undefined;
+            return asRecord(source.executions[source.executionIndex]?.value ?? source.runtimeValue);
+        };
+        // Nodes added since the last run have no runtime snapshot, and their static state was
+        // computed without run data. Once an upstream node with a runtime snapshot is found
+        // (previewNodes are sorted by distance, so walk from the farthest), each following node
+        // is replayed on top of the previous state: Set variables, Meta, Code assignments and
+        // the like are re-evaluated with the real upstream values instead of showing undefined.
+        const staticValues: unknown[] = new Array<unknown>(previewNodes.length);
+        const replayNodeData: Record<string, unknown> = { ...(autocompleteContext.nodeData ?? {}) };
+        let runtimeSeen = false;
+        for (let index = previewNodes.length - 1; index >= 0; index--) {
+            const sourceNode = previewNodes[index].node;
+            const staticValue = staticPreviewNodes?.[sourceNode.id];
+            const runtime = resolvedRuntimeValue(index);
+            const previous = index + 1 < previewNodes.length ? asRecord(staticValues[index + 1]) : undefined;
+            let resolved: unknown = staticValue;
+            if (runtime) {
+                runtimeSeen = true;
+                resolved = runtime;
+            } else if (sourceNode.system === 'run') {
+                resolved = runNodePreview;
+            } else if (runtimeSeen && previous) {
+                const replayed = asRecord(createStaticNodeAfterData({
+                    node: sourceNode,
+                    entry: resolveNodeConfigEntry(sourceNode).entry,
+                    inputPreview: asRecord(previous.$input) ?? {},
+                    outputPreview: previous.$output,
+                    contextPreview: asRecord(previous.$context) ?? {},
+                    nodeData: { ...replayNodeData, last: previous },
+                }));
+                const staticLoop = asRecord(staticValue)?.$loop;
+                resolved = replayed && staticLoop !== undefined ? { ...replayed, $loop: staticLoop } : replayed ?? staticValue;
+            }
+            staticValues[index] = resolved;
+            if (resolved !== undefined) replayNodeData[nodeStateLabel(sourceNode)] = resolved;
+        }
+        // Inside a loop body the static fallback carries a placeholder $loop. It is replaced by the
+        // $loop of the closest upstream node that did run, or, when the loop never ran, by the first
+        // item of its Items expression evaluated against the inherited state, so $loop.item stays real.
         const runtimeLoopContext = insideLoopBody
             ? runtimeSources
-                .map(({ executions, executionIndex, runtimeValue }) => (
-                    asRecord(executions[executionIndex]?.value ?? runtimeValue)?.$loop
-                ))
+                .map((_, index) => resolvedRuntimeValue(index)?.$loop)
                 .find(loop => loop !== undefined)
             : undefined;
-        const withRuntimeLoopContext = (state: unknown) => {
+        const evaluatedLoopContext = (() => {
+            if (!insideLoopBody || runtimeLoopContext !== undefined) return undefined;
+            const loopIndex = previewNodes.findIndex(({ node: sourceNode }) => (
+                sourceNode.entry.name === LOOP_NODE_NAME
+                && asRecord(staticPreviewNodes?.[sourceNode.id])?.$loop !== undefined
+            ));
+            const loopNode = previewNodes[loopIndex]?.node;
+            if (!loopNode || (normalizeScalarParameterValue(loopNode.values.mode).value || 'items') !== 'items') {
+                return undefined;
+            }
+            const { $loop: _loop, ...loopBase } = asRecord(staticValues[loopIndex]) ?? {};
+            const items = previewParameterValue(loopNode.values.items, {
+                inputData: loopBase.$input,
+                outputData: loopBase.$output,
+                contextData: loopBase.$context,
+                runData: loopBase,
+                nodeData: { ...replayNodeData, last: loopBase },
+            });
+            return Array.isArray(items) && items.length > 0 ? { index: 0, item: items[0] } : undefined;
+        })();
+        const previewLoopContext = runtimeLoopContext ?? evaluatedLoopContext;
+        const withPreviewLoopContext = (state: unknown) => {
             const record = asRecord(state);
-            if (!record || runtimeLoopContext === undefined || !Object.prototype.hasOwnProperty.call(record, '$loop')) {
+            if (!record || previewLoopContext === undefined || !Object.prototype.hasOwnProperty.call(record, '$loop')) {
                 return state;
             }
-            return { ...record, $loop: runtimeLoopContext };
+            return { ...record, $loop: previewLoopContext };
         };
 
         return previewNodes.map(({ node: sourceNode, distance }, index) => {
             const display = nodeDisplay(sourceNode);
             const isRun = sourceNode.system === 'run';
             const { executions, executionStatus, executionIndex, runtimeValue, hasRuntimeValue } = runtimeSources[index];
-            const staticValue = withRuntimeLoopContext(staticPreviewNodes?.[sourceNode.id]);
+            const staticValue = withPreviewLoopContext(staticValues[index]);
             const exposesLoopContext = insideLoopBody
                 || (distance === 1 && sourceNode.entry.name === LOOP_NODE_NAME);
             const callbackValue = resolveSniffCallbackValue({
@@ -279,6 +338,7 @@ export default function useNodeConfigModal({
             };
         });
     }, [
+        autocompleteContext.nodeData,
         beforeExecutionIndexBySourceId,
         captureContextPreview,
         currentNodeCapturePreview,
@@ -309,8 +369,13 @@ export default function useNodeConfigModal({
         inputPreview: asRecord(runNodePreview.$input) ?? {},
         outputPreview: runNodePreview.$output,
         contextPreview: asRecord(runNodePreview.$context) ?? {},
-        nodeData: autocompleteContext.nodeData,
-    }), [autocompleteContext.nodeData, entry, node, runNodePreview]);
+        // The static "After" state starts from the "Before" state shown for $run, so runtime keys
+        // inherited from upstream nodes stay visible when this node has no snapshot yet.
+        nodeData: {
+            ...(autocompleteContext.nodeData ?? {}),
+            ...(previewSources[0] ? { last: previewSources[0].value } : {}),
+        },
+    }), [autocompleteContext.nodeData, entry, node, previewSources, runNodePreview]);
     const hasCurrentNodeRuntimeValue = Boolean(
         nodalPreviewNodes
         && Object.prototype.hasOwnProperty.call(nodalPreviewNodes, node.id),

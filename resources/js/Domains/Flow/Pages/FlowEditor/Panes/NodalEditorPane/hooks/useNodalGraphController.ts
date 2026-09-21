@@ -83,7 +83,13 @@ export function useNodalGraphController({
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
     const [canvasMode, setCanvasMode] = useState<'canvas' | 'code'>('canvas');
     const { activatePane, isActivePane, isAnotherPaneActive } = useActiveNodalEditorPane();
-    const { miniMapFading, revealMiniMap, showMiniMap } = useMiniMapVisibility();
+    const {
+        holdMiniMap,
+        miniMapFading,
+        releaseMiniMap,
+        revealMiniMap,
+        showMiniMap,
+    } = useMiniMapVisibility();
     const { nodes: visibleNodes, edges: visibleEdges } = useMemo(
         () => visibleCanvasGraph(nodes, edges, finallyEnabled),
         [edges, finallyEnabled, nodes],
@@ -152,6 +158,7 @@ export function useNodalGraphController({
         finallyEnabled,
         generatedCode,
         getWorldPointFromClient,
+        holdMiniMap,
         isActivePane,
         isAnotherPaneActive,
         knifeDrag,
@@ -168,6 +175,7 @@ export function useNodalGraphController({
         readOnly,
         recordHistory,
         redoGraph,
+        releaseMiniMap,
         resolvedTheme,
         revealMiniMap,
         search,

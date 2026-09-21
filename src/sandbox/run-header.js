@@ -619,6 +619,21 @@ let __activeBrowserStoragePersistLocalStorage = true;
 let __localStorageByOrigin = {};
 const __localStorageRestoreScriptByPage = new WeakMap();
 
+// localStorage lives per web origin, so only http(s) pages carry anything to
+// capture or restore. Evaluating on the internal tabs Pinokio leaves open
+// (chrome://new-tab-page, about:blank) is not just pointless: under the CDP
+// shim the new-tab page can churn its execution context, and an evaluate on
+// it then blocks for the full default timeout (30s) instead of resolving.
+// That is the intermittent long blank screen at the start of a run. url() is
+// synchronous and needs no context, so it is safe to gate on.
+const __isWebStoragePage = function(page) {
+  try {
+    return /^https?:\/\//.test(page.url());
+  } catch (_) {
+    return false;
+  }
+};
+
 const __cookieProfilePath = function(profile, helperName) {
   return __resolveArtifactPath(paths.cookies, __resolveCookieProfileName(profile) + '.json', helperName + ' path');
 };
@@ -675,6 +690,19 @@ const __capturePageLocalStorage = async function(page) {
   }).catch(() => null);
 };
 
+// The restore script runs at the start of every document the tab loads until
+// it is replaced, and it replaces the origin's localStorage with a snapshot
+// taken before the navigation. Applied more than once it destroys what the
+// site itself wrote in between: fdj.fr, for instance, writes its session
+// state after login, redirects to /?MMEG=true, finds the state gone, signs in
+// again, redirects again... a reload loop that never reaches network idle.
+// A per-origin marker in sessionStorage (tab-scoped, survives same-origin
+// navigations, empty in a new tab) makes each installation apply exactly once
+// per origin. The key is random per run so it is not a stable fingerprint;
+// the value is the installation number so a newer snapshot applies again.
+const __localStorageRestoreMarker = '_' + crypto.randomBytes(8).toString('hex');
+let __localStorageRestoreGeneration = 0;
+
 const __installLocalStorageRestore = async function(page) {
   if (!page || !__activeBrowserStorageProfile) return;
   const previous = __localStorageRestoreScriptByPage.get(page);
@@ -684,17 +712,24 @@ const __installLocalStorageRestore = async function(page) {
   }
   if (!__activeBrowserStoragePersistLocalStorage) return;
   const snapshot = __normalizeLocalStorageByOrigin(__localStorageByOrigin);
-  const applySnapshot = originStorage => {
+  const generation = String(++__localStorageRestoreGeneration);
+  const applySnapshot = (originStorage, marker, applyGeneration) => {
     try {
       const entries = originStorage[window.location.origin];
       if (!entries) return;
+      if (window.sessionStorage.getItem(marker) === applyGeneration) return;
       window.localStorage.clear();
       Object.entries(entries).forEach(([key, value]) => window.localStorage.setItem(key, value));
+      window.sessionStorage.setItem(marker, applyGeneration);
     } catch (_) {}
   };
-  const script = await page.evaluateOnNewDocument(applySnapshot, snapshot);
+  const script = await page.evaluateOnNewDocument(applySnapshot, snapshot, __localStorageRestoreMarker, generation);
   __localStorageRestoreScriptByPage.set(page, script.identifier);
-  await page.evaluate(applySnapshot, snapshot).catch(() => {});
+  // The current document only has storage to replace on a web origin; on
+  // about:blank or an internal page the evaluate is useless and, under the
+  // CDP shim, can hang for the whole default timeout.
+  if (!__isWebStoragePage(page)) return;
+  await page.evaluate(applySnapshot, snapshot, __localStorageRestoreMarker, generation).catch(() => {});
 };
 
 const __captureBrowserStorage = async function(
@@ -706,6 +741,7 @@ const __captureBrowserStorage = async function(
   const captureDefaultShadow = resolvedProfile !== __defaultCookieProfileName;
   if (persistLocalStorage || captureDefaultShadow) {
     for (const page of await $browser.pages()) {
+      if (!__isWebStoragePage(page)) continue;
       const captured = await __capturePageLocalStorage(page);
       if (captured && typeof captured.origin === 'string') {
         __localStorageByOrigin[captured.origin] = captured.entries;
@@ -744,11 +780,6 @@ const __shadowSaveDefaultBrowserStorage = async function() {
   }
 };
 
-const __internalSaveCookies = async function(profile) {
-  const resolvedProfile = __resolveCookieProfileName(profile);
-  const cookies = (await $client.send('Network.getAllCookies')).cookies;
-  fs.writeFileSync(__cookieProfilePath(resolvedProfile, '$saveCookies'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
-};
 const $saveCookies = async function(profile, options) {
   const resolved = __resolveCookieHelperArguments(profile, options);
   __activeBrowserStorageProfile = resolved.profile;
@@ -834,6 +865,7 @@ const $clearCookies = async function(profile) {
 
   await $client.send('Network.clearBrowserCookies');
   for (const page of await $browser.pages()) {
+    if (!__isWebStoragePage(page)) continue;
     await page.evaluate(() => {
       try { window.localStorage.clear(); } catch (_) {}
       try { window.sessionStorage.clear(); } catch (_) {}
@@ -848,11 +880,12 @@ const $clearCookies = async function(profile) {
   await __captureDefaultBrowserStorage();
 };
 
+/* global __captureBrowserStorage */
 /* @help Navigation
  * @sig $loginRemember(options)
  * @aliases remembered login, persistent login, reuse session
- * @desc Login remember function. Saves cookies to a JSON file and loads them back on the next run.
- * @nodal-desc Reuse saved login cookies, or run the login steps again when the session is expired.
+ * @desc Login remember function. Reuses the browser storage restored for the run and saves cookies and localStorage as soon as the session is confirmed.
+ * @nodal-desc Reuse the saved session, or run the login steps again when the session is expired.
  * @opt loginUrl: null, loginRecipe: null, loggedUrl: null, loggedMarkerCondition: null, loggedMarkerConditionRaw: null, loggedMarkerTimeout: 5000, password: $input.password
  * @nodal-param options: Login settings used when saved cookies are missing or expired.
  * @nodal-param options.loginUrl [string, required]: URL of the login page.
@@ -943,7 +976,10 @@ const $loginRemember = async function(options = {}) {
     opts.loggedUrl = opts.url;
     console.debug('Login remember does not know the loggedUrl, using url as loggedUrl');
   }
-  await __internalLoadCookies('_loginRemember');
+  // The run starts with the Default browser storage restored (cookies and
+  // localStorage), or with whatever profile the flow loaded through
+  // $loadCookies before this point. Nothing to load here: just check the
+  // session and persist it as soon as it is confirmed.
   await $gotoUrl(opts.loggedUrl, __getActiveTabName(), gotoOpts);
   const $waitForLoggedMarker = async function() {
     try {
@@ -999,13 +1035,18 @@ const $loginRemember = async function(options = {}) {
     await $gotoUrl(opts.loginUrl, __getActiveTabName(), gotoOpts);
     await opts.loginRecipe();
     await $waitForLoggedMarker();
-    await __internalSaveCookies('_loginRemember');
   };
   try {
     await $waitForLoggedMarker();
   } catch (error) {
     await runLoginRecipe();
   }
+  // Save the active profile (Default unless the flow loaded another one)
+  // right away rather than only at flow end: a fresh login or a rotated
+  // session cookie survives even if the rest of the flow fails.
+  await __captureBrowserStorage().catch(error => {
+    console.error('Cannot save browser storage after login:', error && error.message ? error.message : error);
+  });
 };
 
 /* @help Date
@@ -1483,9 +1524,50 @@ const __humanClickTarget = async function(handle) {
   };
 };
 
+// A control kept out of sight for styling (an sr-only checkbox or radio behind
+// a decorated label: 1px box, clipped away) has no surface a pointer can land
+// on; the click goes to whatever is painted there and the control never
+// toggles, while element.click() from the console does. A person clicks its
+// label, which activates the control the same way.
+const __humanIsPointerHidden = function(handle) {
+  return handle.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return rect.width < 2 || rect.height < 2
+      || /^rect\(0px,? 0px,? 0px,? 0px\)$/.test(getComputedStyle(element).clip);
+  });
+};
+
+const __humanLabelOf = async function(handle) {
+  const label = await handle.evaluateHandle(element => {
+    const candidates = [...(element.labels ? Array.from(element.labels) : []), element.closest('label')];
+    return candidates.find(candidate => {
+      if (!candidate) return false;
+      const box = candidate.getBoundingClientRect();
+      return box.width >= 2 && box.height >= 2;
+    }) || null;
+  });
+  const element = label.asElement();
+  if (!element) await label.dispose();
+  return element;
+};
+
 const __humanClickElement = async function(handle, options = {}) {
   const page = __humanPageOf(handle);
   await __humanScrollIntoView(handle);
+  if (await __humanIsPointerHidden(handle).catch(() => false)) {
+    const label = await __humanLabelOf(handle).catch(() => null);
+    if (label) {
+      try {
+        await __humanClickElement(label, options);
+      } finally {
+        await label.dispose().catch(() => {});
+      }
+      return;
+    }
+    // No label to stand in for it: a DOM click is the only thing that reaches it.
+    await handle.evaluate(element => element.click());
+    return;
+  }
   let target;
   try {
     target = await __humanClickTarget(handle);
@@ -2315,13 +2397,25 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
     }
 
     const currentUrl = page.url();
-    const readyState = await page.evaluate(() => document.readyState).catch(() => '');
+    let readyStateError = null;
+    const readyState = await page.evaluate(() => document.readyState).catch(error => {
+      readyStateError = error && error.message ? error.message.split('\n')[0] : String(error);
+      return '';
+    });
     const targetUrlWithoutHash = url.split('#')[0].replace(/\/$/, '');
     const currentUrlWithoutHash = currentUrl.split('#')[0].replace(/\/$/, '');
     const reachedTarget = currentUrlWithoutHash === targetUrlWithoutHash || currentUrlWithoutHash !== beforeUrl.replace(/\/$/, '');
     const pageLooksLoaded = readyState === 'interactive' || readyState === 'complete';
 
     if (!reachedTarget || !pageLooksLoaded) {
+      // Say why the timeout was not waived: a document still parsing, an
+      // unexpected URL and a failed readyState probe (stale execution
+      // context) call for different fixes and are indistinguishable from
+      // the bare "Navigation timeout" otherwise.
+      console.debug('$gotoUrl navigation timeout not ignored: url=' + currentUrl
+        + ' readyState=' + (readyState || 'unknown')
+        + (readyStateError ? ' (probe failed: ' + readyStateError + ')' : '')
+        + ' waitUntil=' + (Array.isArray(waitUntil) ? waitUntil.join(',') : waitUntil));
       throw err;
     }
 
@@ -5550,6 +5644,9 @@ const __aiRequestWithMcp = async function(aiModelId, capability, messages, optio
           name: String(call.name || ''),
           arguments: call.arguments,
           arguments_json: call.argumentsJson,
+          ...(typeof call.thoughtSignature === 'string' && call.thoughtSignature
+            ? { thought_signature: call.thoughtSignature }
+            : {}),
         })),
       ],
     });
@@ -5611,7 +5708,7 @@ const __aiRequestWithMcp = async function(aiModelId, capability, messages, optio
  * @nodal-param options.max_tokens [number]: Maximum number of output tokens.
  * @nodal-param options.maxToolCalls [number]: Maximum MCP tool calls for this message.
  * @nodal-param options.timeout [number]: Maximum request duration in milliseconds.
- * @nodal-param options.outputMode [string]: Return plain text, JSON, or JSON constrained by a schema.
+ * @nodal-param options.outputMode [string]: Return plain text, JSON, or JSON constrained by a schema. JSON modes also expose the parsed object as json.
  * @nodal-param options.schema [object]: JSON Schema used when output mode is JSON schema.
  */
 const $aiMessage = async function(aiModelId, message, options = {}) {
@@ -5626,10 +5723,19 @@ const $aiMessage = async function(aiModelId, message, options = {}) {
   delete requestOptions.messages;
   delete requestOptions.outputMode;
   delete requestOptions.schema;
-  if (options.outputMode === 'json') {
+  const hasSchema = Boolean(options.schema)
+    && typeof options.schema === 'object'
+    && !Array.isArray(options.schema)
+    && Object.keys(options.schema).length > 0;
+  // A provided schema wins over "json" or an unset output mode: the user
+  // clearly wants the response constrained, so never silently drop it.
+  const outputMode = options.outputMode === 'schema' || (hasSchema && options.outputMode !== 'text')
+    ? 'schema'
+    : options.outputMode;
+  if (outputMode === 'json') {
     requestOptions.response_format = { type: 'json_object' };
-  } else if (options.outputMode === 'schema') {
-    if (!options.schema || typeof options.schema !== 'object' || Array.isArray(options.schema)) {
+  } else if (outputMode === 'schema') {
+    if (!hasSchema) {
       throw new Error('AI Message requires a JSON Schema when output mode is schema.');
     }
     requestOptions.response_format = {
@@ -5649,7 +5755,33 @@ const $aiMessage = async function(aiModelId, message, options = {}) {
     'text:',
     typeof response.text === 'string' ? response.text : '',
   );
+  if (outputMode === 'json' || outputMode === 'schema') {
+    // JSON modes expose the parsed object so downstream nodes read $run.json
+    // instead of JSON.parse($run.text). Fences are tolerated for providers
+    // that only follow a "return JSON" instruction.
+    response.json = __aiParseJsonText(response.text);
+    if (response.json === null) {
+      console.warn('AI Message returned a response that is not valid JSON; json is null.');
+    }
+  }
   return response;
+};
+
+const __aiParseJsonText = function(text) {
+  if (typeof text !== 'string') return null;
+  const unfenced = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try {
+    return JSON.parse(unfenced);
+  } catch (_) {
+    const start = unfenced.search(/[[{]/);
+    const finish = Math.max(unfenced.lastIndexOf('}'), unfenced.lastIndexOf(']'));
+    if (start === -1 || finish <= start) return null;
+    try {
+      return JSON.parse(unfenced.slice(start, finish + 1));
+    } catch (_) {
+      return null;
+    }
+  }
 };
 
 const __aiExtractJson = function(text) {

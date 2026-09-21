@@ -49,6 +49,11 @@ type EditableCredential = {
     };
 };
 
+type EditableVariable = {
+    id: string;
+    key: string;
+};
+
 const AUTHENTICATION_OPTIONS: { value: Authentication; label: string }[] = [
     { value: 'mcpOAuth2', label: 'MCP OAuth 2.0' },
     { value: 'bearer', label: 'Bearer token' },
@@ -83,8 +88,7 @@ export default function McpConnectionAssistant({
     const [editingVariableId, setEditingVariableId] = useState<string | null>(null);
     const [originalAuthentication, setOriginalAuthentication] = useState<Authentication | null>(null);
     const [formError, setFormError] = useState('');
-    const [name, setName] = useState('MCP Server');
-    const [variableKey, setVariableKey] = useState('MCP Server Credential');
+    const [name, setName] = useState('MCP Server Credential');
     const [endpoint, setEndpoint] = useState('');
     const [transport, setTransport] = useState<'httpStreamable' | 'sse'>('httpStreamable');
     const [authentication, setAuthentication] = useState<Authentication>('mcpOAuth2');
@@ -139,8 +143,7 @@ export default function McpConnectionAssistant({
         const requestId = ++setupLoadRequest.current;
         const credentialVariableId = config.credentialVariableId;
         resetSecretFields();
-        setName('MCP Server');
-        setVariableKey('MCP Server Credential');
+        setName('MCP Server Credential');
         setEndpoint('');
         setTransport('httpStreamable');
         setAuthentication('mcpOAuth2');
@@ -162,10 +165,11 @@ export default function McpConnectionAssistant({
             const response = await fetch(`/mcp-credentials/from-variable?${query.toString()}`);
             const payload = await response.json().catch(() => ({})) as {
                 credential?: EditableCredential;
+                variable?: EditableVariable;
                 message?: string;
                 errors?: Record<string, string[]>;
             };
-            if (!response.ok || !payload.credential) {
+            if (!response.ok || !payload.credential || !payload.variable) {
                 throw new Error(laravelErrorMessage(payload) ?? 'Unable to load the Stored Credential.');
             }
             if (requestId !== setupLoadRequest.current) return;
@@ -174,7 +178,7 @@ export default function McpConnectionAssistant({
             setEditingVariableId(credentialVariableId);
             setOriginalAuthentication(credential.authentication);
             setSelectedAuthentication(credential.authentication);
-            setName(credential.name);
+            setName(payload.variable.key);
             setEndpoint(credential.config.endpoint || '');
             setTransport(credential.config.transport ?? 'httpStreamable');
             setOriginalEndpoint(credential.config.endpoint || '');
@@ -335,7 +339,7 @@ export default function McpConnectionAssistant({
                 headers: { ...csrfHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name,
-                    ...(!editingCredentialId ? { variable_key: variableKey } : {}),
+                    variable_key: name,
                     authentication,
                     config: credentialConfig,
                     scope: credentialScope,
@@ -428,10 +432,7 @@ export default function McpConnectionAssistant({
                 modalKind="mcp-credential-quick-create"
             >
                 <S.Form onSubmit={saveCredential}>
-                    <Input label="Credentials name" value={name} onChange={event => setName(event.target.value)} required />
-                    {!editingCredentialId && (
-                        <Input label="Variable label" value={variableKey} onChange={event => setVariableKey(event.target.value)} required />
-                    )}
+                    <Input label="Credential name" value={name} onChange={event => setName(event.target.value)} required />
                     <Input
                         label="Endpoint"
                         type="url"

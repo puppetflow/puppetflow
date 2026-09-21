@@ -7,10 +7,11 @@ import {
 } from './constants';
 import { formatEntryLabel, formatNodeLabel, getEntryByName } from './catalog';
 import { collectSystemFlowNodeIds } from './edges';
-import { cloneNodeValues } from './expression';
+import { cloneNodeValues, normalizeScalarParameterValue } from './expression';
 import { snapCanvasPosition } from './grid';
 import { sanitizeNodeValuesForEntry } from './nodeValues';
 import { uniqueNodeLabel } from './node';
+import { toFunctionIdentifier } from './validation';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type {
     CanvasEdge,
@@ -73,9 +74,22 @@ const dynamicCallEntry = (node: NodalGraph['nodes'][number]): HelpEntryDef | nul
     return null;
 };
 
+// Private function names double as JavaScript identifiers in the generated
+// code. Graphs saved with a free-form label as the name are repaired on load.
+const repairFunctionNodeValues = (node: NodalGraph['nodes'][number]): NodalGraph['nodes'][number]['values'] => {
+    if (node.system !== 'function' || !node.scopeId) return node.values;
+
+    const name = normalizeScalarParameterValue(node.values?.name).value;
+    const identifier = toFunctionIdentifier(name);
+    if (!identifier || identifier === name) return node.values;
+
+    return { ...node.values, name: { mode: 'fixed', value: identifier } };
+};
+
 export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
     const reservedIds = graph.nodes.map(node => node.id);
-    return graph.nodes.reduce<CanvasNode[]>((acc, node) => {
+    return graph.nodes.reduce<CanvasNode[]>((acc, rawNode) => {
+        const node = { ...rawNode, values: repairFunctionNodeValues(rawNode) };
         const isStickyNote = node.kind === 'stickyNote';
         const entry = isStickyNote
             ? STICKY_NOTE_ENTRY

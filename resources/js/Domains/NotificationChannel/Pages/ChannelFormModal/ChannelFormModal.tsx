@@ -2,6 +2,7 @@ import Modal from '@/Shared/UI/Modal/Modal';
 import Button from '@/Shared/UI/Button/Button';
 import type { ScopeTeam } from '@proprietary/Shared/UI/ScopePicker/ScopePicker.pp';
 import type { Integration, IntegrationProvider } from '@/Domains/Integration/types';
+import { getProvidersByCategory } from '@/Domains/Integration/Pages/providerConfig';
 import type { CreatedNotificationChannel, NotificationChannel } from '@/Domains/NotificationChannel/types';
 import IntegrationProviderSelector from '@/Shared/UI/IntegrationProviderSelector/IntegrationProviderSelector';
 import ChatDetection from './components/ChatDetection/ChatDetection';
@@ -10,6 +11,10 @@ import GroupSelector from './components/GroupSelector/GroupSelector';
 import IdentityFields from './components/IdentityFields/IdentityFields';
 import { PROVIDER_META } from './config';
 import { useChannelForm } from './useChannelForm';
+
+const MESSENGER_PROVIDERS = getProvidersByCategory('messenger')
+    .filter(provider => !provider.comingSoon)
+    .map(provider => provider.provider);
 
 export interface ChannelFormModalProps {
     mode: 'create' | 'edit';
@@ -49,7 +54,8 @@ export default function ChannelFormModal({
         >
             <form onSubmit={form.handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <IntegrationProviderSelector
-                    providers={form.availableMessengers}
+                    providers={MESSENGER_PROVIDERS}
+                    configuredProviders={form.availableMessengers}
                     value={form.messenger}
                     onChange={form.handleMessengerChange}
                     label="Messenger"
@@ -62,8 +68,6 @@ export default function ChannelFormModal({
                     }}
                 />
 
-                {messengerIntegrations.length > 0 && (
-                    <>
                 {form.messenger && (
                     <ConnectionSelect
                         integrations={form.filteredIntegrations}
@@ -119,8 +123,6 @@ export default function ChannelFormModal({
                         {mode === 'create' ? 'Create Channel' : 'Update Channel'}
                     </Button>
                 </div>
-                    </>
-                )}
             </form>
             <ConfirmModal />
         </Modal>

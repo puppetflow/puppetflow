@@ -1,4 +1,4 @@
-import type { Integration } from '@/Domains/Integration/types';
+import type { Integration, IntegrationProvider } from '@/Domains/Integration/types';
 
 export type MessengerIntegration = Pick<Integration, 'id' | 'name' | 'provider'>;
 
@@ -14,13 +14,8 @@ export interface DetectResult {
     error?: string;
 }
 
-export function getAvailableMessengers(integrations: MessengerIntegration[]): string[] {
-    return Object.keys(
-        integrations.reduce<Record<string, true>>((providers, integration) => {
-            providers[integration.provider as string] = true;
-            return providers;
-        }, {}),
-    );
+export function getAvailableMessengers(integrations: MessengerIntegration[]): IntegrationProvider[] {
+    return [...new Set(integrations.map(integration => integration.provider))];
 }
 
 export function getIntegrationsForMessenger(

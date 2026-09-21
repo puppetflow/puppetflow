@@ -323,6 +323,90 @@ export function connectsSeparateSystemFlows(
         || (terminateNodeIds.has(sourceNodeId) && runNodeIds.has(targetNodeId));
 }
 
+const collectConnectedNodeIds = (edges: CanvasEdge[], startNodeId: string): Set<string> => {
+    const connectedNodeIds = new Set<string>();
+    const queue = [startNodeId];
+
+    while (queue.length) {
+        const nodeId = queue.shift();
+        if (!nodeId || connectedNodeIds.has(nodeId)) continue;
+
+        connectedNodeIds.add(nodeId);
+        edges.forEach(edge => {
+            if (edge.sourceNodeId === nodeId) queue.push(edge.targetNodeId);
+            else if (edge.targetNodeId === nodeId) queue.push(edge.sourceNodeId);
+        });
+    }
+
+    return connectedNodeIds;
+};
+
+export type ConnectionScopeResolution = {
+    scopeId: string | undefined;
+    rescopedNodeIds: Set<string>;
+};
+
+// Execution edges dropped when `edge` gets connected: a flow output port and
+// a flow input port each hold a single edge, so the previous ones are replaced.
+export function collectReplacedEdgeIds(edges: CanvasEdge[], edge: CanvasEdge): Set<string> {
+    if (!isExecutionEdge(edge)) return new Set();
+
+    const sourcePort = edgeSourcePort(edge);
+    return new Set(edges
+        .filter(existing => isExecutionEdge(existing) && (
+            (existing.sourceNodeId === edge.sourceNodeId && edgeSourcePort(existing) === sourcePort)
+            || existing.targetNodeId === edge.targetNodeId
+        ))
+        .map(existing => existing.id));
+}
+
+// Edges may only link nodes living in the same scope (the main flow or one
+// private function). When two differently scoped nodes get connected, the
+// free-floating side (no RUN, FINALLY or function entry node in its connected
+// component, ignoring the edges the connection replaces) is moved into the
+// scope of the other side. Returns null when both sides are anchored to a
+// system node and the connection is impossible.
+export function resolveConnectionScope(
+    nodes: CanvasNode[],
+    edges: CanvasEdge[],
+    firstNodeId: string,
+    secondNodeId: string,
+    replacedEdgeIds: ReadonlySet<string> = new Set(),
+): ConnectionScopeResolution | null {
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const firstNode = nodeById.get(firstNodeId);
+    const secondNode = nodeById.get(secondNodeId);
+    if (!firstNode || !secondNode) return null;
+    if ((firstNode.scopeId ?? null) === (secondNode.scopeId ?? null)) {
+        return { scopeId: firstNode.scopeId, rescopedNodeIds: new Set() };
+    }
+
+    const remainingEdges = edges.filter(edge => !replacedEdgeIds.has(edge.id));
+    const candidates: Array<[moving: CanvasNode, anchor: CanvasNode]> = [
+        [secondNode, firstNode],
+        [firstNode, secondNode],
+    ];
+    for (const [moving, anchor] of candidates) {
+        const movingNodeIds = collectConnectedNodeIds(remainingEdges, moving.id);
+        const anchored = [...movingNodeIds].some(nodeId => nodeById.get(nodeId)?.system);
+        if (anchored) continue;
+
+        return { scopeId: anchor.scopeId, rescopedNodeIds: movingNodeIds };
+    }
+
+    return null;
+}
+
+export function applyConnectionScope(nodes: CanvasNode[], resolution: ConnectionScopeResolution): CanvasNode[] {
+    if (resolution.rescopedNodeIds.size === 0) return nodes;
+
+    return nodes.map(node => (
+        resolution.rescopedNodeIds.has(node.id) && (node.scopeId ?? null) !== (resolution.scopeId ?? null)
+            ? { ...node, scopeId: resolution.scopeId }
+            : node
+    ));
+}
+
 export function collectDownstreamNodeIds(edges: CanvasEdge[], startNodeId: string, excludedNodeIds = new Set<string>()): Set<string> {
     const downstreamNodeIds = new Set<string>();
     const queue = [startNodeId];

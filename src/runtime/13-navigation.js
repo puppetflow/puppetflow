@@ -96,13 +96,25 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
     }
 
     const currentUrl = page.url();
-    const readyState = await page.evaluate(() => document.readyState).catch(() => '');
+    let readyStateError = null;
+    const readyState = await page.evaluate(() => document.readyState).catch(error => {
+      readyStateError = error && error.message ? error.message.split('\n')[0] : String(error);
+      return '';
+    });
     const targetUrlWithoutHash = url.split('#')[0].replace(/\/$/, '');
     const currentUrlWithoutHash = currentUrl.split('#')[0].replace(/\/$/, '');
     const reachedTarget = currentUrlWithoutHash === targetUrlWithoutHash || currentUrlWithoutHash !== beforeUrl.replace(/\/$/, '');
     const pageLooksLoaded = readyState === 'interactive' || readyState === 'complete';
 
     if (!reachedTarget || !pageLooksLoaded) {
+      // Say why the timeout was not waived: a document still parsing, an
+      // unexpected URL and a failed readyState probe (stale execution
+      // context) call for different fixes and are indistinguishable from
+      // the bare "Navigation timeout" otherwise.
+      console.debug('$gotoUrl navigation timeout not ignored: url=' + currentUrl
+        + ' readyState=' + (readyState || 'unknown')
+        + (readyStateError ? ' (probe failed: ' + readyStateError + ')' : '')
+        + ' waitUntil=' + (Array.isArray(waitUntil) ? waitUntil.join(',') : waitUntil));
       throw err;
     }
 

@@ -174,6 +174,9 @@ const __aiRequestWithMcp = async function(aiModelId, capability, messages, optio
           name: String(call.name || ''),
           arguments: call.arguments,
           arguments_json: call.argumentsJson,
+          ...(typeof call.thoughtSignature === 'string' && call.thoughtSignature
+            ? { thought_signature: call.thoughtSignature }
+            : {}),
         })),
       ],
     });
@@ -235,7 +238,7 @@ const __aiRequestWithMcp = async function(aiModelId, capability, messages, optio
  * @nodal-param options.max_tokens [number]: Maximum number of output tokens.
  * @nodal-param options.maxToolCalls [number]: Maximum MCP tool calls for this message.
  * @nodal-param options.timeout [number]: Maximum request duration in milliseconds.
- * @nodal-param options.outputMode [string]: Return plain text, JSON, or JSON constrained by a schema.
+ * @nodal-param options.outputMode [string]: Return plain text, JSON, or JSON constrained by a schema. JSON modes also expose the parsed object as json.
  * @nodal-param options.schema [object]: JSON Schema used when output mode is JSON schema.
  */
 const $aiMessage = async function(aiModelId, message, options = {}) {
@@ -250,10 +253,19 @@ const $aiMessage = async function(aiModelId, message, options = {}) {
   delete requestOptions.messages;
   delete requestOptions.outputMode;
   delete requestOptions.schema;
-  if (options.outputMode === 'json') {
+  const hasSchema = Boolean(options.schema)
+    && typeof options.schema === 'object'
+    && !Array.isArray(options.schema)
+    && Object.keys(options.schema).length > 0;
+  // A provided schema wins over "json" or an unset output mode: the user
+  // clearly wants the response constrained, so never silently drop it.
+  const outputMode = options.outputMode === 'schema' || (hasSchema && options.outputMode !== 'text')
+    ? 'schema'
+    : options.outputMode;
+  if (outputMode === 'json') {
     requestOptions.response_format = { type: 'json_object' };
-  } else if (options.outputMode === 'schema') {
-    if (!options.schema || typeof options.schema !== 'object' || Array.isArray(options.schema)) {
+  } else if (outputMode === 'schema') {
+    if (!hasSchema) {
       throw new Error('AI Message requires a JSON Schema when output mode is schema.');
     }
     requestOptions.response_format = {
@@ -273,7 +285,33 @@ const $aiMessage = async function(aiModelId, message, options = {}) {
     'text:',
     typeof response.text === 'string' ? response.text : '',
   );
+  if (outputMode === 'json' || outputMode === 'schema') {
+    // JSON modes expose the parsed object so downstream nodes read $run.json
+    // instead of JSON.parse($run.text). Fences are tolerated for providers
+    // that only follow a "return JSON" instruction.
+    response.json = __aiParseJsonText(response.text);
+    if (response.json === null) {
+      console.warn('AI Message returned a response that is not valid JSON; json is null.');
+    }
+  }
   return response;
+};
+
+const __aiParseJsonText = function(text) {
+  if (typeof text !== 'string') return null;
+  const unfenced = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try {
+    return JSON.parse(unfenced);
+  } catch (_) {
+    const start = unfenced.search(/[[{]/);
+    const finish = Math.max(unfenced.lastIndexOf('}'), unfenced.lastIndexOf(']'));
+    if (start === -1 || finish <= start) return null;
+    try {
+      return JSON.parse(unfenced.slice(start, finish + 1));
+    } catch (_) {
+      return null;
+    }
+  }
 };
 
 const __aiExtractJson = function(text) {

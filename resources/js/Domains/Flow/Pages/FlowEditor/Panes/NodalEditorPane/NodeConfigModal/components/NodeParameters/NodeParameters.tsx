@@ -9,7 +9,7 @@ import {
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import { EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
-import { getMissingRequiredParameters } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
+import { getMissingRequiredParameters, toFunctionIdentifier } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import { useNodeValidationResources } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/NodeValidationContext';
 import { useQuickRequirementCreation } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
 import CodeNodeEditor from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CodeNodeEditor/CodeNodeEditor';
@@ -179,6 +179,12 @@ export default function NodeParameters({
                             placeholder="myFunction"
                             disabled={readOnly}
                             onChange={event => onUpdateValue(node.id, 'name', { mode: 'fixed', value: event.target.value })}
+                            onBlur={event => {
+                                const identifier = toFunctionIdentifier(event.target.value);
+                                if (identifier && identifier !== event.target.value) {
+                                    onUpdateValue(node.id, 'name', { mode: 'fixed', value: identifier });
+                                }
+                            }}
                         />
                     </S.SchemaField>
                     <NodeParameterField

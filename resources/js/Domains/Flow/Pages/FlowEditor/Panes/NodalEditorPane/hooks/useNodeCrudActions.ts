@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { formatEntryLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import { nodeDisplayLabel, uniqueNodeLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
+import { toFunctionIdentifier } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import type {
     CanvasEdge,
     CanvasNode,
@@ -39,7 +40,7 @@ export function useNodeCrudActions({
 
         if (currentNode.system === 'function' && currentNode.scopeId) {
             const currentName = normalizeScalarParameterValue(currentNode.values.name).value.trim();
-            const nextName = label.trim() || currentName;
+            const nextName = toFunctionIdentifier(label) ?? currentName;
             if (!nextName || currentName === nextName) return;
 
             recordHistory();

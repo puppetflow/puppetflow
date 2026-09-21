@@ -69,6 +69,25 @@ export const NodeSiteBadge = styled.a`
     }
 `;
 
+export const NodeEditBadge = styled.a`
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    border: 2px solid ${({ theme }) => theme.colors.bg.primary};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    background: ${({ theme }) => theme.colors.bg.secondary};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.border.default}, ${({ theme }) => theme.shadow.sm};
+    cursor: pointer;
+
+    &:hover {
+        color: ${({ theme }) => theme.colors.text.primary};
+    }
+`;
+
 export const NodeHoverActions = styled.div<{ $bottom?: boolean }>`
     position: absolute;
     left: 50%;
@@ -205,9 +224,12 @@ export const NodeIcon = styled.div<{ $color?: string }>`
     }
 `;
 
+// Fixed height: the card is centered on the node anchor and the port geometry
+// (NODE_PORT_Y_OFFSET) assumes tile + gap + label = 112px. Longer content
+// (hint, deactivated marker) overflows below without moving the tile.
 export const NodeLabel = styled.div`
     width: 118px;
-    min-height: 32px;
+    height: 32px;
     text-align: center;
     font-size: 12px;
     line-height: 16px;
@@ -234,11 +256,8 @@ export const NodeDeactivatedLabel = styled.span`
 `;
 
 export const NodeHint = styled.div`
-    position: absolute;
-    top: 100px;
-    left: 50%;
     width: 150px;
-    transform: translateX(-50%);
+    margin: 4px -16px 0;
     text-align: center;
     font-size: 10px;
     line-height: 14px;

@@ -210,6 +210,16 @@ module.exports = async function(appDir, flowId, quiet) {
       username: 'runner',
       password: crypto.randomBytes(24).toString('base64url'),
     };
+    // For an https:// upstream, proxy-chain issues the CONNECT with a Host
+    // header naming the destination site, and Node derives the TLS SNI from
+    // that header: the proxy then receives SNI "www.example.com" instead of
+    // its own name, serves its default certificate, and the tunnel fails
+    // (DEPTH_ZERO_SELF_SIGNED_CERT -> ERR_TUNNEL_CONNECTION_FAILED in the
+    // browser). Agent options take precedence over per-request ones, so an
+    // agent pinned to the proxy hostname restores the right SNI.
+    const upstreamHttpsAgent = authenticatedProxyUrl.protocol === 'https:'
+      ? new (require('https').Agent)({ servername: authenticatedProxyUrl.hostname })
+      : undefined;
     runnerProxy = new ProxyChainServer({
       host: '0.0.0.0',
       port: 0,
@@ -220,6 +230,7 @@ module.exports = async function(appDir, flowId, quiet) {
         return {
           requestAuthentication: !authenticated,
           upstreamProxyUrl: authenticatedProxyUrl.toString(),
+          httpsAgent: upstreamHttpsAgent,
           customResponseFunction: isHttp && hostname === 'proxy-auth.puppetflow.invalid'
             ? () => ({ statusCode: 200, body: '' })
             : undefined,
@@ -235,6 +246,22 @@ module.exports = async function(appDir, flowId, quiet) {
     }
     browserProxyServer = `http://${proxyHost}:${runnerProxy.port}`;
   }
+  // Human-readable proxy summary for the run log. The password never appears:
+  // RUNNER_PROXY_SERVER is stripped of any embedded userinfo, and the local
+  // relay only listens on this machine with per-run random credentials.
+  const proxyLogLabel = (() => {
+    if (!RUNNER_PROXY_SERVER) return 'Proxy: none (direct connection)';
+    let upstream = RUNNER_PROXY_SERVER;
+    try {
+      const url = new URL(RUNNER_PROXY_SERVER);
+      url.username = '';
+      url.password = '';
+      upstream = url.toString().replace(/\/$/, '');
+    } catch (_) {}
+    return 'Proxy: ' + upstream
+      + (RUNNER_PROXY_USERNAME ? ' (authenticated as ' + RUNNER_PROXY_USERNAME + ')' : '')
+      + (runnerProxy ? ', via local relay ' + browserProxyServer : '');
+  })();
   const closeRunnerProxy = async () => {
     if (!runnerProxy) return;
     try {
@@ -701,6 +728,7 @@ module.exports = async function(appDir, flowId, quiet) {
     const _audioSampleRate = _audioCaptureModule
       ? _audioCaptureModule.normalizeSampleRate(process.env.FLOW_RUN_AUDIO_SAMPLE_RATE)
       : 0;
+    console.debug(${JSON.stringify(proxyLogLabel)});
     let _recorder = null;
     if (_recordingPath) {
       try {
@@ -1589,7 +1617,16 @@ module.exports = async function(appDir, flowId, quiet) {
 };
 
 function simplifyError(error, headerLineCount) {
-  const message = error.message || String(error);
+  let message = error.message || String(error);
+  // Puppeteer wraps the real reason (timeout, detached frame, evaluation
+  // error...) in error.cause; without it "Waiting for selector failed" says
+  // nothing about why.
+  const seen = new Set([error]);
+  for (let cause = error.cause; cause && !seen.has(cause); cause = cause.cause) {
+    seen.add(cause);
+    const causeMessage = cause.message || String(cause);
+    if (causeMessage && !message.includes(causeMessage)) message += ': ' + causeMessage;
+  }
   const stack = error.stack || '';
 
   const userFrames = [];

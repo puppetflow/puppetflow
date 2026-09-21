@@ -4,8 +4,10 @@ import {
     DEFAULT_OUTPUT_PORT,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
+    applyConnectionScope,
     collectDownstreamNodeIds,
     insertNodeIntoEdge,
+    resolveConnectionScope,
     type EdgeDropTarget,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { snapCanvasPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/grid';
@@ -180,14 +182,24 @@ export function useCanvasNodeDragInteractions({
             const insertedOutputPort = draggedNode
                 ? primaryNodeOutputPort(draggedNode) ?? DEFAULT_OUTPUT_PORT
                 : DEFAULT_OUTPUT_PORT;
-            const preparedEdges = insertNodeIntoEdge(
+            const scopeResolution = resolveConnectionScope(
                 nodes,
                 edges,
-                targetEdge,
+                targetEdge.sourceNodeId,
                 nodeDrag.nodeId,
-                insertedOutputPort,
+                new Set([targetEdge.id]),
             );
-            if (preparedEdges === edges) {
+            const scopedNodes = scopeResolution ? applyConnectionScope(nodes, scopeResolution) : nodes;
+            const preparedEdges = scopeResolution
+                ? insertNodeIntoEdge(
+                    scopedNodes,
+                    edges,
+                    targetEdge,
+                    nodeDrag.nodeId,
+                    insertedOutputPort,
+                )
+                : edges;
+            if (preparedEdges === edges || !scopeResolution) {
                 nodeDragRef.current = null;
                 constrainedDragAxisRef.current = null;
                 setEdgeDropTarget(null);
@@ -205,7 +217,7 @@ export function useCanvasNodeDragInteractions({
                 )
                 : new Set<string>();
 
-            setNodes(current => current.map(node => {
+            setNodes(current => applyConnectionScope(current, scopeResolution).map(node => {
                 if (node.id === nodeDrag.nodeId) return { ...node, x: dropTarget.x, y: dropTarget.y };
                 if (!shiftedNodeIds.has(node.id) || !dropTarget.targetShift) return node;
                 return {

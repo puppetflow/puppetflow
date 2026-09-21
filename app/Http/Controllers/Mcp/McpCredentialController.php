@@ -57,6 +57,7 @@ final class McpCredentialController extends Controller
                 ...$this->publicCredential($credential),
                 'config' => $this->editableConfig($credential),
             ],
+            'variable' => $this->publicVariable($variable),
         ]);
     }
 
