@@ -11,6 +11,7 @@ import {
     collectReplacedEdgeIds,
     connectEdgeWithStructuredJoins,
     connectsSeparateSystemFlows,
+    edgeSourcePort,
     resolveConnectionScope,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { getPortPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/geometry';
@@ -87,12 +88,27 @@ export function useCanvasEdgeInteractions({
                 : getNodeOutputPorts(hoveredNode.entry.name, hoveredNode.entry)
             ).find(port => port.connectionType === 'ai_tool')
             : undefined;
+        // Dropped on the card rather than on a handle: the wire lands on the
+        // side opposite to where it started. Dragged from an input, it takes
+        // a flow output of the hovered node, an unused one first so a node
+        // with several handles (If / Else, Loop) keeps its other branches.
+        const bodyDropPort = hoveredNode && hoveredNode.id !== connectionDragState.fromNodeId && !targetPortElement
+            ? (connectionDragState.fromSide === 'output'
+                ? getNodeInputPorts(hoveredNode.entry.name).find(port => port.id === DEFAULT_INPUT_PORT)
+                : (() => {
+                    const outputs = getNodeOutputPorts(hoveredNode.entry.name, hoveredNode.entry)
+                        .filter(port => (port.connectionType ?? 'flow') === 'flow');
+                    return outputs.find(port => !edges.some(edge => (
+                        edge.sourceNodeId === hoveredNode.id && edgeSourcePort(edge) === port.id
+                    ))) ?? outputs[0];
+                })())
+            : undefined;
         const targetPort = compatibleToolPort?.id
             ?? (targetPortElement?.dataset.portKind as NodePortKind | undefined)
-            ?? (targetNodeId && targetNodeId !== connectionDragState.fromNodeId ? DEFAULT_INPUT_PORT : undefined);
+            ?? bodyDropPort?.id;
         const targetSide = compatibleToolPort?.side
             ?? (targetPortElement?.dataset.portSide as NodePortSide | undefined)
-            ?? (targetNodeId && targetNodeId !== connectionDragState.fromNodeId ? 'input' : undefined);
+            ?? bodyDropPort?.side;
         const draggedFromNode = nodes.find(node => node.id === connectionDragState.fromNodeId);
         const draggedFromPort = draggedFromNode
             ? getNodePortDefinition(

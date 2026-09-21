@@ -232,18 +232,15 @@ export function replaceEdgesWithStructuredJoins(
     return analyzeStructuredGraph(nodes, replaced).valid ? replaced : edges;
 }
 
+// Connecting onto a busy handle replaces what was there, on either side: the
+// source output drops its previous edge, and a target already fed by a single
+// edge drops it too. A target fed by several edges is a structured join (both
+// branches of an If / Else, a Merge) and is left untouched.
 export function connectEdgeWithStructuredJoins(
     nodes: TopologyNode[],
     edges: CanvasEdge[],
     edge: CanvasEdge,
 ): CanvasEdge[] {
-    if (
-        edgeSourcePort(edge).startsWith('flow-')
-        && edges.some(existing => existing.targetNodeId === edge.targetNodeId)
-    ) {
-        return edges;
-    }
-
     return replaceEdgesWithStructuredJoins(nodes, edges, [edge]);
 }
 

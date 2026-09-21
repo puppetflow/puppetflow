@@ -1,5 +1,26 @@
 import styled from 'styled-components';
 
+// Invisible wide strokes along each edge so hovering anywhere on the line,
+// not just its midpoint, reveals the actions. Below the nodes (z-index 2).
+export const EdgeHitLayer = styled.svg`
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 1;
+`;
+
+export const EdgeHitPath = styled.path`
+    fill: none;
+    stroke: transparent;
+    stroke-width: 18;
+    stroke-linecap: round;
+    pointer-events: stroke;
+`;
+
 export const EdgeActionZone = styled.div`
     position: absolute;
     width: 96px;
@@ -25,7 +46,8 @@ export const EdgeActionGroup = styled.div`
     transition: opacity ${({ theme }) => theme.transition.fast};
 
     ${EdgeActionZone}:hover &,
-    ${EdgeActionZone}:focus-within & {
+    ${EdgeActionZone}:focus-within &,
+    ${EdgeActionZone}[data-edge-hovered='true'] & {
         opacity: 1;
         pointer-events: auto;
     }
