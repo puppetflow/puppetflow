@@ -1,4 +1,4 @@
-/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectElement */
+/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectElement, __humanPageOf, __humanJitterMs */
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
@@ -8,6 +8,20 @@
  * @nodal-output number
  * @nodal-param keyboardSpeedValue [number, required]: Delay in milliseconds between keystrokes and low-level input actions.
  */
+// Which accelerator selects all text: Cmd+A on Apple platforms, Ctrl+A
+// elsewhere. Read once from the page so a spoofed platform stays consistent.
+let __selectAllModifierCache = null;
+const __selectAllModifier = async function(handle) {
+  if (__selectAllModifierCache) return __selectAllModifierCache;
+  let platform = '';
+  try {
+    platform = await __humanPageOf(handle).evaluate(() =>
+      navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || '');
+  } catch (_) {}
+  __selectAllModifierCache = /mac|iphone|ipad|ipod/i.test(platform) ? 'Meta' : 'Control';
+  return __selectAllModifierCache;
+};
+
 const $keyboardSpeed = function(keyboardSpeedValue) {
   const value = Number(keyboardSpeedValue);
   if (!Number.isFinite(value) || value < 0) {
@@ -72,8 +86,19 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
     await __retryOnContextDestroyed(() => __humanHoverElement(handle)).catch(() => {});
     await __retryOnContextDestroyed(() => handle.focus());
     if (mode === 'replace') {
-      await handle.press('a', { commands: ['selectAll'] });
-      await handle.press('Backspace');
+      // Select all through the real accelerator so the page sees a modified
+      // "a" keydown (ctrlKey/metaKey set) instead of a bare "a" that no human
+      // would use to clear a field. The selectAll command still guarantees the
+      // selection regardless of the browser's own OS shortcut.
+      const modifier = await __selectAllModifier(handle);
+      const keyboard = __humanPageOf(handle).keyboard;
+      await keyboard.down(modifier);
+      try {
+        await handle.press('a', { commands: ['selectAll'], delay: __humanJitterMs(55, 0.5) });
+      } finally {
+        await keyboard.up(modifier);
+      }
+      await handle.press('Backspace', { delay: __humanJitterMs(55, 0.5) });
       return;
     }
     await __retryOnContextDestroyed(() => handle.evaluate((element, valueMode) => {
@@ -108,7 +133,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
   await __humanType(input, inputValue, speed);
   if (tabCount) {
     for (let i = 0; i < tabCount; i++) {
-      await input.press('Tab');
+      await input.press('Tab', { delay: __humanJitterMs(55, 0.5) });
       await __internalSleep(sleep);
     }
   }

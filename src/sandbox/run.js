@@ -340,6 +340,42 @@ module.exports = async function(appDir, flowId, quiet) {
     };
     ${browserConnect}
     let __runnerProxyCredentials = ${JSON.stringify(runnerProxyCredentials)};
+    // The binary's real version, read from the browser itself with no network
+    // ("Chrome/148.0.7778.97"). navigator.userAgentData is unavailable on
+    // about:blank and data: pages, so it cannot be probed offline; the build
+    // number is what matters: a genuine Chrome reports its real one as
+    // fullVersion, never a synthetic "X.0.0.0".
+    const _realBrowserVersion = await (async () => {
+      try {
+        const match = /([0-9]+)((?:[.][0-9]+)+)$/.exec(String(await $browser.version()));
+        return match ? { major: parseInt(match[1], 10), full: match[1] + match[2] } : null;
+      } catch (_) {
+        return null;
+      }
+    })();
+    // Chrome's GREASE brand list generator, ported from Chromium
+    // (components/embedder_support/user_agent_utils.cc). The greased brand
+    // text, its version and the order of the entries are all a pure function of
+    // the major version, so a fixed list is a reliable automation tell.
+    const _greaseChars = [' ', '(', ':', '-', '.', '/', ')', ';', '=', '?', '_'];
+    const _greaseVersions = ['8', '99', '24'];
+    const _greaseOrder = (seed, size) => size <= 2
+      ? [seed % 2, (seed + 1) % 2]
+      : [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]][seed % 6];
+    const _buildBrandList = (major, fullVersion, brandName, full) => {
+      const greaseVersion = full ? _greaseVersions[major % 3] + '.0.0.0' : _greaseVersions[major % 3];
+      const version = full ? fullVersion : String(major);
+      const greaseBrand = 'Not' + _greaseChars[major % 11] + 'A' + _greaseChars[(major + 1) % 11] + 'Brand';
+      const list = [
+        { brand: greaseBrand, version: greaseVersion },
+        { brand: 'Chromium', version },
+      ];
+      if (brandName) list.push({ brand: brandName, version });
+      const order = _greaseOrder(major, list.length);
+      const shuffled = new Array(list.length);
+      for (let index = 0; index < list.length; index++) shuffled[order[index]] = list[index];
+      return shuffled;
+    };
     // Without a configured UA the browser's own is kept, minus the headless
     // marker: its version always matches the binary, and its OS (Linux) matches
     // what workers, fonts and the GPU reveal anyway. A spoofed Windows UA cannot
@@ -350,8 +386,8 @@ module.exports = async function(appDir, flowId, quiet) {
     // User-Agent so all three describe the same OS and browser. Without this,
     // a spoofed UA still leaves navigator.platform and Sec-CH-UA-Platform on
     // the container's Linux, which is inconsistent even for non-stealth use.
-    // For the browser's own UA it still adds the "Google Chrome" brand that a
-    // Chromium build omits although its UA says Chrome.
+    // The brand list is the binary's own (see _buildBrandList) so it never
+    // advertises a brand this build does not actually have.
     const _userAgentOverride = ua => {
       const override = { userAgent: ua };
       let platform = 'Windows';
@@ -388,16 +424,17 @@ module.exports = async function(appDir, flowId, quiet) {
       // strings must not advertise Sec-CH-UA at all.
       const chrome = /(?:Chrome|CriOS)\\/([0-9]+)(?:[.]([0-9]+[.][0-9]+[.][0-9]+))?/.exec(ua);
       if (chrome) {
-        const major = chrome[1];
-        const full = major + '.' + (chrome[2] || '0.0.0');
-        const brands = [
-          { brand: 'Chromium', version: major },
-          { brand: 'Google Chrome', version: major },
-          { brand: 'Not_A Brand', version: '99' }
-        ];
+        const major = parseInt(chrome[1], 10);
+        // When the UA keeps the binary's major (the default, unspoofed case)
+        // the real build number is reported, exactly as this Chrome does. A
+        // custom UA that moves the major can only offer the reduced "X.0.0.0".
+        // The brand set is the bundled Chromium's: "Chromium" plus the GREASE
+        // entry, never a "Google Chrome" brand this build does not have.
+        const keepReal = _realBrowserVersion !== null && _realBrowserVersion.major === major;
+        const full = keepReal ? _realBrowserVersion.full : chrome[1] + '.' + (chrome[2] || '0.0.0');
         override.userAgentMetadata = {
-          brands: brands,
-          fullVersionList: brands.map(b => ({ brand: b.brand, version: b.brand === 'Not_A Brand' ? '99.0.0.0' : full })),
+          brands: _buildBrandList(major, full, null, false),
+          fullVersionList: _buildBrandList(major, full, null, true),
           fullVersion: full,
           platform: platform,
           platformVersion: platformVersion,

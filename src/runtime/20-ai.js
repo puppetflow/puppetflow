@@ -1,4 +1,4 @@
-/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue */
+/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue, __humanJitterMs */
 
 const __aiMaxImageBytes = 5 * 1024 * 1024;
 
@@ -804,7 +804,7 @@ const __aiExecutePuppeteerAction = async function(call) {
       const element = await __aiDirectElement(args, 'input, textarea, [contenteditable="true"]');
       if (args.clear !== false) {
         await __retryOnContextDestroyed(() => __humanClickElement(element, { clickCount: 3 }));
-        await element.press('Backspace');
+        await element.press('Backspace', { delay: __humanJitterMs(55, 0.5) });
       }
       await __humanType(element, args.value, Math.min(Math.max(Number(args.delay) || 20, 0), 1000));
       break;
@@ -812,7 +812,7 @@ const __aiExecutePuppeteerAction = async function(call) {
     case 'press':
       if (typeof args.key !== 'string' || !args.key || args.key.length > 40) throw new Error('Puppeteer press requires a valid key.');
       __emitAction('press', args.key);
-      await $page.keyboard.press(args.key);
+      await $page.keyboard.press(args.key, { delay: __humanJitterMs(55, 0.5) });
       break;
     case 'hover': {
       const element = await __aiDirectElement(args);

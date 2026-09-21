@@ -38,7 +38,9 @@ function normalizeSampleRate(value) {
  * function so it can be serialized by puppeteer's evaluateOnNewDocument.
  */
 function pageAudioTap(config) {
-  const sentinel = '__pf_audio_tap_installed__';
+  // The sentinel name is randomised per run (config.sentinel) so it carries no
+  // stable, product-identifying marker a page could look up by name.
+  const sentinel = config.sentinel;
   if (window[sentinel]) return;
   try {
     Object.defineProperty(window, sentinel, { value: true, configurable: false, enumerable: false, writable: false });
@@ -65,6 +67,43 @@ function pageAudioTap(config) {
   const nativeCreateMediaElementSource = NativeBaseContext
     ? NativeBaseContext.prototype.createMediaElementSource
     : null;
+
+  // Bot detection reads Function.prototype.toString on the patched prototype
+  // methods to spot non-native replacements. Report the tap's own methods (and
+  // this toString itself) as native so the patches keep the "[native code]"
+  // signature the originals had. Registered functions are marked below.
+  const __spoofedNatives = new WeakSet();
+  const __spoofNative = fn => {
+    if (typeof fn === 'function') {
+      try { __spoofedNatives.add(fn); } catch (_) {}
+    }
+    return fn;
+  };
+  try {
+    const nativeFunctionToString = Function.prototype.toString;
+    let nativeToStringSource;
+    try {
+      nativeToStringSource = nativeFunctionToString.call(nativeFunctionToString);
+    } catch (_) {
+      nativeToStringSource = 'function toString() { [native code] }';
+    }
+    let patchedToString;
+    patchedToString = new Proxy(nativeFunctionToString, {
+      apply(target, thisArg, args) {
+        if (thisArg === patchedToString) return nativeToStringSource;
+        if (__spoofedNatives.has(thisArg)) {
+          const name = thisArg && thisArg.name ? String(thisArg.name) : '';
+          return 'function ' + name + '() { [native code] }';
+        }
+        return Reflect.apply(target, thisArg, args);
+      },
+    });
+    Object.defineProperty(Function.prototype, 'toString', {
+      value: patchedToString,
+      configurable: true,
+      writable: true,
+    });
+  } catch (_) {}
 
   let captureContext = null;
   let mixer = null;
@@ -342,6 +381,13 @@ function pageAudioTap(config) {
     return nativePlay.apply(this, arguments);
   };
 
+  // Mark the patched methods so Function.prototype.toString reports them as
+  // native. Done after assignment so each reference is the replacement.
+  __spoofNative(NativeAudioNode.prototype.connect);
+  __spoofNative(NativeAudioNode.prototype.disconnect);
+  if (nativeCreateMediaElementSource) __spoofNative(NativeBaseContext.prototype.createMediaElementSource);
+  __spoofNative(NativeMediaElement.prototype.play);
+
   document.addEventListener('play', function (event) {
     try { tapMediaElement(event.target); } catch (_) {}
   }, true);
@@ -369,7 +415,11 @@ function pageAudioTap(config) {
  */
 function createAudioCapture({ sampleRate, onChunk }) {
   const effectiveSampleRate = normalizeSampleRate(sampleRate);
-  const handle = '__pf_audio_' + crypto.randomBytes(6).toString('hex');
+  // Random, product-neutral identifiers: the page-side sink and its
+  // installation sentinel change every run and carry no recognisable marker.
+  const randomIdentifier = () => '_' + crypto.randomBytes(8).toString('hex');
+  const handle = randomIdentifier();
+  const sentinel = randomIdentifier();
   const installed = new WeakSet();
   const polledFrames = new WeakSet();
   let stopped = false;
@@ -454,6 +504,7 @@ function createAudioCapture({ sampleRate, onChunk }) {
       try {
         await page.evaluateOnNewDocument(pageAudioTap, {
           handle,
+          sentinel,
           sampleRate: effectiveSampleRate,
           chunkSize: CHUNK_SIZE,
           sourceId: crypto.randomBytes(4).toString('hex'),

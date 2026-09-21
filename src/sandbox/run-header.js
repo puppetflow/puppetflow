@@ -382,12 +382,6 @@ const $_appUrl = process.env.APP_URL || '';
 const __downloadingPath = process.env.PINOKIO_DOWNLOADING_PATH || paths.downloading;
 const __downloadsPath = process.env.PINOKIO_DOWNLOADS_PATH || paths.downloads;
 const __pageClients = new WeakMap();
-const __installPageRunProgressNoops = () => {
-  window.__nopRunLine = window.__nopRunLine || (() => {});
-  window.__nopRunNodeStart = window.__nopRunNodeStart || (() => {});
-  window.__nopRunNodeEnd = window.__nopRunNodeEnd || (() => {});
-  window.__nopRunEdge = window.__nopRunEdge || (() => {});
-};
 await __registerNamedPageInitializer(async page => {
   const client = await page.target().createCDPSession();
   __pageClients.set(page, client);
@@ -405,10 +399,6 @@ await __registerNamedPageInitializer(async page => {
       console.debug('Emulation.setLocaleOverride failed: ' + (error && error.message ? error.message : error));
     }
   }
-  try {
-    await page.evaluateOnNewDocument(__installPageRunProgressNoops);
-    await page.evaluate(__installPageRunProgressNoops);
-  } catch (_) {}
 });
 const $client = new Proxy({}, {
   get(_target, property) {
@@ -1392,15 +1382,19 @@ const __humanClickAt = async function(page, x, y, options = {}) {
   }
 };
 
-// Wheel notches (about 100px each in Chrome) with short pauses. Returns the
-// distance actually requested; callers correct the remainder themselves.
+// A notched mouse delivers an identical deltaY on every notch (about 100px in
+// Chrome, 120 on some setups). A random per-notch delta in a fixed band matches
+// neither that nor a touchpad's small variable deltas, so it reads as synthetic.
+// One constant notch size is picked per run and reused for every notch; any
+// sub-notch remainder is left to the caller (window.scrollBy) to finish.
+let __wheelNotchPx = null;
 const __humanWheel = async function(page, deltaY) {
+  if (__wheelNotchPx === null) __wheelNotchPx = Math.random() < 0.5 ? 100 : 120;
   const direction = Math.sign(deltaY);
   let remaining = Math.abs(deltaY);
-  while (remaining > 0) {
-    const notch = Math.min(remaining, Math.round(__humanRandom(80, 130)));
-    await page.mouse.wheel({ deltaY: direction * notch });
-    remaining -= notch;
+  while (remaining >= __wheelNotchPx) {
+    await page.mouse.wheel({ deltaY: direction * __wheelNotchPx });
+    remaining -= __wheelNotchPx;
     await __internalSleep(__humanJitterMs(45, 0.5));
   }
 };
@@ -1523,7 +1517,17 @@ const __humanType = async function(handle, text, speed) {
     return;
   }
   for (const char of value) {
-    await page.keyboard.type(char);
+    // Hold each key for a few tens of milliseconds before releasing it. A
+    // back-to-back down/up (keyboard.type) leaves a near-zero hold time that
+    // no physical keystroke has. Characters with no key mapping (accents,
+    // emoji) fall back to type(), which inserts them without key events.
+    try {
+      await page.keyboard.down(char);
+      await __internalSleep(__humanJitterMs(55, 0.5));
+      await page.keyboard.up(char);
+    } catch (_) {
+      await page.keyboard.type(char);
+    }
     let delay = speed * __humanRandom(0.55, 1.6);
     if (/[\s.,;:!?]/.test(char)) delay *= __humanRandom(1.4, 2.6);
     if (Math.random() < 0.03) delay *= __humanRandom(3, 6);
@@ -1905,7 +1909,7 @@ const $stopSuccess = function(successMessage, responseData) {
   throw new StopRun(successMessage, $generateResponseSuccess(successMessage, responseData));
 };
 
-/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectElement */
+/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectElement, __humanPageOf, __humanJitterMs */
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
@@ -1915,6 +1919,20 @@ const $stopSuccess = function(successMessage, responseData) {
  * @nodal-output number
  * @nodal-param keyboardSpeedValue [number, required]: Delay in milliseconds between keystrokes and low-level input actions.
  */
+// Which accelerator selects all text: Cmd+A on Apple platforms, Ctrl+A
+// elsewhere. Read once from the page so a spoofed platform stays consistent.
+let __selectAllModifierCache = null;
+const __selectAllModifier = async function(handle) {
+  if (__selectAllModifierCache) return __selectAllModifierCache;
+  let platform = '';
+  try {
+    platform = await __humanPageOf(handle).evaluate(() =>
+      navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || '');
+  } catch (_) {}
+  __selectAllModifierCache = /mac|iphone|ipad|ipod/i.test(platform) ? 'Meta' : 'Control';
+  return __selectAllModifierCache;
+};
+
 const $keyboardSpeed = function(keyboardSpeedValue) {
   const value = Number(keyboardSpeedValue);
   if (!Number.isFinite(value) || value < 0) {
@@ -1979,8 +1997,19 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
     await __retryOnContextDestroyed(() => __humanHoverElement(handle)).catch(() => {});
     await __retryOnContextDestroyed(() => handle.focus());
     if (mode === 'replace') {
-      await handle.press('a', { commands: ['selectAll'] });
-      await handle.press('Backspace');
+      // Select all through the real accelerator so the page sees a modified
+      // "a" keydown (ctrlKey/metaKey set) instead of a bare "a" that no human
+      // would use to clear a field. The selectAll command still guarantees the
+      // selection regardless of the browser's own OS shortcut.
+      const modifier = await __selectAllModifier(handle);
+      const keyboard = __humanPageOf(handle).keyboard;
+      await keyboard.down(modifier);
+      try {
+        await handle.press('a', { commands: ['selectAll'], delay: __humanJitterMs(55, 0.5) });
+      } finally {
+        await keyboard.up(modifier);
+      }
+      await handle.press('Backspace', { delay: __humanJitterMs(55, 0.5) });
       return;
     }
     await __retryOnContextDestroyed(() => handle.evaluate((element, valueMode) => {
@@ -2015,7 +2044,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
   await __humanType(input, inputValue, speed);
   if (tabCount) {
     for (let i = 0; i < tabCount; i++) {
-      await input.press('Tab');
+      await input.press('Tab', { delay: __humanJitterMs(55, 0.5) });
       await __internalSleep(sleep);
     }
   }
@@ -5345,7 +5374,7 @@ const $breakpoint = async function(label, context = {}) {
     });
   });
 };
-/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue */
+/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue, __humanJitterMs */
 
 const __aiMaxImageBytes = 5 * 1024 * 1024;
 
@@ -6151,7 +6180,7 @@ const __aiExecutePuppeteerAction = async function(call) {
       const element = await __aiDirectElement(args, 'input, textarea, [contenteditable="true"]');
       if (args.clear !== false) {
         await __retryOnContextDestroyed(() => __humanClickElement(element, { clickCount: 3 }));
-        await element.press('Backspace');
+        await element.press('Backspace', { delay: __humanJitterMs(55, 0.5) });
       }
       await __humanType(element, args.value, Math.min(Math.max(Number(args.delay) || 20, 0), 1000));
       break;
@@ -6159,7 +6188,7 @@ const __aiExecutePuppeteerAction = async function(call) {
     case 'press':
       if (typeof args.key !== 'string' || !args.key || args.key.length > 40) throw new Error('Puppeteer press requires a valid key.');
       __emitAction('press', args.key);
-      await $page.keyboard.press(args.key);
+      await $page.keyboard.press(args.key, { delay: __humanJitterMs(55, 0.5) });
       break;
     case 'hover': {
       const element = await __aiDirectElement(args);

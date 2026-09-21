@@ -76,15 +76,19 @@ const __humanClickAt = async function(page, x, y, options = {}) {
   }
 };
 
-// Wheel notches (about 100px each in Chrome) with short pauses. Returns the
-// distance actually requested; callers correct the remainder themselves.
+// A notched mouse delivers an identical deltaY on every notch (about 100px in
+// Chrome, 120 on some setups). A random per-notch delta in a fixed band matches
+// neither that nor a touchpad's small variable deltas, so it reads as synthetic.
+// One constant notch size is picked per run and reused for every notch; any
+// sub-notch remainder is left to the caller (window.scrollBy) to finish.
+let __wheelNotchPx = null;
 const __humanWheel = async function(page, deltaY) {
+  if (__wheelNotchPx === null) __wheelNotchPx = Math.random() < 0.5 ? 100 : 120;
   const direction = Math.sign(deltaY);
   let remaining = Math.abs(deltaY);
-  while (remaining > 0) {
-    const notch = Math.min(remaining, Math.round(__humanRandom(80, 130)));
-    await page.mouse.wheel({ deltaY: direction * notch });
-    remaining -= notch;
+  while (remaining >= __wheelNotchPx) {
+    await page.mouse.wheel({ deltaY: direction * __wheelNotchPx });
+    remaining -= __wheelNotchPx;
     await __internalSleep(__humanJitterMs(45, 0.5));
   }
 };
@@ -207,7 +211,17 @@ const __humanType = async function(handle, text, speed) {
     return;
   }
   for (const char of value) {
-    await page.keyboard.type(char);
+    // Hold each key for a few tens of milliseconds before releasing it. A
+    // back-to-back down/up (keyboard.type) leaves a near-zero hold time that
+    // no physical keystroke has. Characters with no key mapping (accents,
+    // emoji) fall back to type(), which inserts them without key events.
+    try {
+      await page.keyboard.down(char);
+      await __internalSleep(__humanJitterMs(55, 0.5));
+      await page.keyboard.up(char);
+    } catch (_) {
+      await page.keyboard.type(char);
+    }
     let delay = speed * __humanRandom(0.55, 1.6);
     if (/[\s.,;:!?]/.test(char)) delay *= __humanRandom(1.4, 2.6);
     if (Math.random() < 0.03) delay *= __humanRandom(3, 6);

@@ -280,12 +280,6 @@ const $_appUrl = process.env.APP_URL || '';
 const __downloadingPath = process.env.PINOKIO_DOWNLOADING_PATH || paths.downloading;
 const __downloadsPath = process.env.PINOKIO_DOWNLOADS_PATH || paths.downloads;
 const __pageClients = new WeakMap();
-const __installPageRunProgressNoops = () => {
-  window.__nopRunLine = window.__nopRunLine || (() => {});
-  window.__nopRunNodeStart = window.__nopRunNodeStart || (() => {});
-  window.__nopRunNodeEnd = window.__nopRunNodeEnd || (() => {});
-  window.__nopRunEdge = window.__nopRunEdge || (() => {});
-};
 await __registerNamedPageInitializer(async page => {
   const client = await page.target().createCDPSession();
   __pageClients.set(page, client);
@@ -303,10 +297,6 @@ await __registerNamedPageInitializer(async page => {
       console.debug('Emulation.setLocaleOverride failed: ' + (error && error.message ? error.message : error));
     }
   }
-  try {
-    await page.evaluateOnNewDocument(__installPageRunProgressNoops);
-    await page.evaluate(__installPageRunProgressNoops);
-  } catch (_) {}
 });
 const $client = new Proxy({}, {
   get(_target, property) {
