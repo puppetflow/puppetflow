@@ -861,9 +861,17 @@ export function analyzeNodalAutocompleteContext(
         }
 
         if (node.name === CODE_NODE_NAME) {
+            const code = readFixedScalar(node.values?.[CODE_NODE_VALUE_KEY]);
+            // `$run.x = …` assignments belong to the node's own state too, or the
+            // Before/After panels of the next nodes would never show them.
+            const assignments: Record<string, unknown> = {};
+            collectCodeRunAssignments(code, assignments);
+            collectCodeRunAssignments(code, runData);
             const previewValue = unresolvedNodeResultPreview(node);
-            setNodeResult(node, previewValue);
-            collectCodeRunAssignments(readFixedScalar(node.values?.[CODE_NODE_VALUE_KEY]), runData);
+            setNodeResult(node, {
+                ...(isRecord(previewValue) ? previewValue : previewValue === undefined ? {} : { $result: previewValue }),
+                ...assignments,
+            });
             return;
         }
 
