@@ -20,7 +20,7 @@ import * as S from './styled';
 interface VariablePickerButtonProps {
     disabled?: boolean;
     onBeforeOpen: () => void;
-    onSelect: (key: string) => void;
+    onSelect: (variable: VariableSuggestion) => void;
 }
 
 export default function VariablePickerButton({
@@ -95,9 +95,9 @@ export default function VariablePickerButton({
         capture: true,
     });
 
-    const selectVariable = (id: string) => {
+    const selectVariable = (variable: VariableSuggestion) => {
         close();
-        onSelect(id);
+        onSelect(variable);
     };
 
     const closeQuickCreate = () => {
@@ -111,7 +111,7 @@ export default function VariablePickerButton({
             setSuggestions(variables);
             refreshResources();
             setQuickCreateOpen(false);
-            selectVariable(String(variable.id));
+            selectVariable(variable);
         });
     };
 
@@ -184,7 +184,7 @@ export default function VariablePickerButton({
                             onKeyDown={event => {
                                 if (event.key === 'Enter' && filteredSuggestions[0]) {
                                     event.preventDefault();
-                                    selectVariable(String(filteredSuggestions[0].id));
+                                    selectVariable(filteredSuggestions[0]);
                                 }
                             }}
                         />
@@ -220,7 +220,7 @@ export default function VariablePickerButton({
                             >
                                 <S.VariableItem
                                     type="button"
-                                    onClick={() => selectVariable(String(variable.id))}
+                                    onClick={() => selectVariable(variable)}
                                 >
                                     <strong>{variable.key}</strong>
                                     <S.VariableItemDetail data-item-detail>

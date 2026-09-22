@@ -1,6 +1,7 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { RenderedExpression } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
+import type { VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import EditorActions from './EditorActions/EditorActions';
 import ExpressionPreview from './ExpressionPreview/ExpressionPreview';
 import {
@@ -25,7 +26,7 @@ interface ExpressionEditorShellProps {
     onFocus: () => void;
     onBlur: () => void;
     onVariablePickerOpen: () => void;
-    onVariableSelect: (key: string) => void;
+    onVariableSelect: (variable: VariableSuggestion) => void;
 }
 
 export default function ExpressionEditorShell({

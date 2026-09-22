@@ -13,6 +13,7 @@ import {
     EXPRESSION_OVERFLOW_SCROLLBAR_OPTIONS,
     PLAIN_FIXED_INPUT_EDITOR_OPTIONS,
 } from './utils';
+import type { VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import type { WatcherSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
 import * as S from './FixedInputRenderer.styled';
 import * as Shared from './shared.styled';
@@ -51,7 +52,7 @@ interface FixedInputRendererProps {
     onTextareaMount: OnMount;
     onTextareaChange: (value: string) => void;
     onVariablePickerOpen: () => void;
-    onVariableSelect: (key: string) => void;
+    onVariableSelect: (variable: VariableSuggestion) => void;
     onRefreshSuggestions: () => void;
 }
 

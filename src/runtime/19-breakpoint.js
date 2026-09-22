@@ -70,6 +70,7 @@ const $breakpoint = async function(label, context = {}) {
     $getDownloadsPathFile,
     $unzipFile,
     $vars,
+    $totp,
     ...context
   };
   

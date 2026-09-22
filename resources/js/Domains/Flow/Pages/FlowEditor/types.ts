@@ -68,6 +68,10 @@ export interface HelpEntryDef {
     siteUrlContexts?: SiteUrlContextDef[];
     localFunctionId?: string;
     editUrl?: string;
+    /** Published version the flow editor is bound to (snippet entries only). */
+    snippetVersion?: number;
+    /** The snippet has draft edits not yet published as a version (snippet entries only). */
+    snippetHasUnpublishedChanges?: boolean;
 }
 
 export interface FlowStats {

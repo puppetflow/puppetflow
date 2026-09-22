@@ -49,10 +49,16 @@ class VariableResolverService
         foreach ($variables as $var) {
             /** @var UserVariable $var */
             if ($this->typeResolverChain->supports($var->type)) {
-                $resolved = $this->typeResolverChain->resolveValue($var, $workspaceId);
+                // TOTP values (local seeds and vault OTP fields) must stay as
+                // references in run inputs. Resolving them here would freeze a
+                // code that expires during the run.
+                $isTotp = $var->isTotp();
+                $resolved = $isTotp
+                    ? (string) $var->id
+                    : $this->typeResolverChain->resolveValue($var, $workspaceId);
                 if ($resolved !== null) {
                     $scalarMap[$var->id] = $resolved;
-                    if ($this->typeResolverChain->isSecret($var->type)) {
+                    if (! $isTotp && $this->typeResolverChain->isSecret($var->type)) {
                         $secretMap[$var->id] = [$resolved];
                     }
                 }

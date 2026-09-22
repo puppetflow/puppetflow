@@ -36,7 +36,7 @@ const DOCUMENTATION_PAGE_GROUPS = [
         path: '/reference/flow-api/utilities',
         names: new Set([
             '$sleep', '$stopwatchStart', '$stopwatchCheck', '$stopwatchStop',
-            '$if', '$ifEmpty', '$max', '$min', '$log', '$legend', '$meta', '$vars',
+            '$if', '$ifEmpty', '$max', '$min', '$log', '$legend', '$meta', '$vars', '$totp',
             '$matchSequence', '$parseDates', '$sortDates', '$currentDate',
             '$currentDateMinusOneMonth', '$currentDatePlusOneMonth',
         ]),

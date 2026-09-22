@@ -1,4 +1,8 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
+
+const spin = keyframes`
+    to { transform: rotate(360deg); }
+`;
 
 export const Header = styled.div`
     display: flex;
@@ -100,6 +104,96 @@ export const CloseButton = styled.button`
 
     &:hover {
         color: ${({ theme }) => theme.colors.text.primary};
+    }
+`;
+
+export const SnippetBar = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 6px 12px 6px 18px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border.default};
+    color: ${({ theme }) => theme.colors.text.secondary};
+    background: ${({ theme }) => theme.colors.bg.primary};
+
+    > code {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 600;
+        color: ${({ theme }) => theme.colors.text.primary};
+    }
+`;
+
+export const SnippetLabel = styled.span`
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+`;
+
+export const SnippetVersion = styled.strong`
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font-size: 11px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.accent.primary};
+    background: ${({ theme }) => theme.colors.accent.primary}18;
+`;
+
+export const SnippetDraftBadge = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font-size: 11px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.accent.warning};
+    background: ${({ theme }) => theme.colors.accent.warning}22;
+    border: 1px solid ${({ theme }) => theme.colors.accent.warning}55;
+    cursor: help;
+`;
+
+export const SnippetActions = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    flex-shrink: 0;
+`;
+
+export const SnippetAction = styled.button<{ $spinning?: boolean }>`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    cursor: pointer;
+    transition: color ${({ theme }) => theme.transition.fast}, background ${({ theme }) => theme.transition.fast};
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+        color: ${({ theme }) => theme.colors.text.primary};
+        background: ${({ theme }) => theme.colors.bg.secondary};
+    }
+
+    &:disabled {
+        cursor: default;
+        opacity: 0.6;
+    }
+
+    svg {
+        animation: ${({ $spinning }) => ($spinning ? spin : 'none')} 0.8s linear infinite;
     }
 `;
 

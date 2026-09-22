@@ -394,6 +394,7 @@ final class AuthoringResourceProjection
             'scope',
             'key',
             'type',
+            'vault_field_type',
         ])
             ->filter(fn (UserVariable $variable): bool => Gate::forUser($actor)
                 ->allows(Ability::USE->value, $variable))
@@ -401,6 +402,7 @@ final class AuthoringResourceProjection
                 'id' => $variable->id,
                 'key' => $variable->key,
                 'type' => $variable->type,
+                'is_totp' => $variable->isTotp(),
             ])
             ->values()
             ->all());

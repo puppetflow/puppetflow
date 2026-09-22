@@ -25,6 +25,8 @@ export const snippetSuggestionToEntry = (snippet: SnippetSuggestion): HelpEntryD
     displayLabel: snippet.label,
     category: 'Snippets',
     editUrl: snippet.edit_url,
+    snippetVersion: snippet.version,
+    snippetHasUnpublishedChanges: snippet.has_unpublished_changes,
 });
 
 /** Default value of a snippet / local function call argument: forwards the flow input key of the same name. */
@@ -38,7 +40,7 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         return {
             [CODE_NODE_VALUE_KEY]: {
                 mode: 'fixed' as const,
-                value: '// Write JavaScript for this step here.\n// Available: $page, $run ($run.$input, $run.$output, $run.$context, previous variables), $nodes, $(nodeName) and $vars(...).\n// Store variables for following nodes with $run, for example:\n// $run.my_var = 32\n',
+                value: '// Write JavaScript for this step here.\n// Available: $page, $run ($run.$input, $run.$output, $run.$context, previous variables), $nodes, $(nodeName), $vars(...) and $totp(...).\n// Store variables for following nodes with $run, for example:\n// $run.my_var = 32\n',
             },
         };
     }

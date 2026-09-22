@@ -525,6 +525,7 @@ class UserVariableController extends Controller
         $pattern = '${vars.'.$id;
         $codePatterns = [
             '~'.preg_quote('$vars', '~').'\s*\(\s*(["\'])'.preg_quote($id, '~').'(?=\1|\.)~',
+            '~'.preg_quote('$totp', '~').'\s*\(\s*(["\'])'.preg_quote($id, '~').'(?=\1)~',
         ];
 
         $flowMap = [];
@@ -741,7 +742,7 @@ class UserVariableController extends Controller
             ->with('team:id,name')
             ->orderByRaw("CASE WHEN scope = 'workspace' THEN 0 WHEN scope = 'team' THEN 1 ELSE 2 END")
             ->orderBy('key')
-            ->get(['id', 'key', 'type', 'value', 'scope', 'team_id', 'vault_provider']);
+            ->get(['id', 'key', 'type', 'value', 'scope', 'team_id', 'vault_provider', 'vault_field_type']);
 
         $suggestions = [];
         foreach ($variables as $var) {
@@ -749,6 +750,7 @@ class UserVariableController extends Controller
                 'id' => $var->id,
                 'key' => $var->key,
                 'type' => $var->type,
+                'is_totp' => $var->isTotp(),
                 'scope' => $var->scope,
                 'team_name' => $var->team?->name,
                 'provider' => $var->vault_provider,

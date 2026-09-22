@@ -74,6 +74,9 @@ export default function InspectorSchemaTree({
         <S.Tree>
             {visibleRows.map(({ item, hasChildren }) => {
                 const referenceDisplay = resolveReferenceDisplay(item.value, references);
+                const dragExpression = referenceDisplay?.isTotp
+                    ? `$totp(${item.path})`
+                    : item.path;
                 const instanceSummary = item.type === 'instance' ? asRuntimeInstanceSummary(item.value) : null;
                 const rootDisplay = item.depth === 0 ? rootDisplays?.get(item.path) : undefined;
                 const itemCount = isContainer(item.value)
@@ -103,7 +106,7 @@ export default function InspectorSchemaTree({
                             $draggable={draggable}
                             title={draggable ? 'Drag into an expression field' : undefined}
                             onDragStart={draggable ? event => {
-                                event.dataTransfer.setData('text/plain', item.path);
+                                event.dataTransfer.setData('text/plain', dragExpression);
                                 event.dataTransfer.effectAllowed = 'copy';
                             } : undefined}
                         >

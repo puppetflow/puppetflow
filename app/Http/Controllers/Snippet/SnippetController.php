@@ -479,7 +479,7 @@ class SnippetController extends Controller
         $this->sharedVisibility->applyUse($query, $context);
         $snippets = $query
             ->orderBy('label')
-            ->get(['id', 'label', 'description', 'published_version_id']);
+            ->get(['id', 'label', 'description', 'args', 'code', 'snippet_type', 'nodal_graph', 'published_version_id']);
 
         return response()->json($snippets
             ->map(function (Snippet $snippet): ?array {
@@ -492,6 +492,8 @@ class SnippetController extends Controller
                     'id' => $snippet->id,
                     'label' => $snippet->label,
                     'args' => $version->args ?? '',
+                    'version' => $version->version,
+                    'has_unpublished_changes' => $snippet->hasUnpublishedChanges(),
                     'description' => $snippet->description,
                     'edit_url' => route('snippets.index', ['s' => $snippet->id], false),
                 ];

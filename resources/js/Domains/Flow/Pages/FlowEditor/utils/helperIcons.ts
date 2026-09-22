@@ -40,6 +40,7 @@ export const HELPER_ICON_BY_NAME: Record<string, string> = {
     $max: 'lucide:arrow-up-1-0',
     $min: 'lucide:arrow-down-1-0',
     $vars: 'lucide:key-round',
+    $totp: 'lucide:shield-keyhole',
     $meta: 'lucide:tags',
     $legend: 'lucide:text-cursor-input',
     $log: 'lucide:terminal',

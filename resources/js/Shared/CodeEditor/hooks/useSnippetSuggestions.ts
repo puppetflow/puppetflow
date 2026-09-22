@@ -5,6 +5,9 @@ export interface SnippetSuggestion {
     id: string;
     label: string;
     args: string;
+    version: number;
+    /** True when the snippet draft differs from the published version flows run. */
+    has_unpublished_changes: boolean;
     description: string | null;
     edit_url: string;
 }
@@ -17,6 +20,8 @@ export const snippetSuggestionToHelpEntry = (snippet: SnippetSuggestion): HelpEn
     displayLabel: snippet.label,
     category: 'Snippets',
     editUrl: snippet.edit_url,
+    snippetVersion: snippet.version,
+    snippetHasUnpublishedChanges: snippet.has_unpublished_changes,
 });
 
 interface UseSnippetSuggestionsOptions {
@@ -32,21 +37,26 @@ export function useSnippetSuggestions({
     refreshKey = 0,
 }: UseSnippetSuggestionsOptions = {}) {
     const [entries, setEntries] = useState<HelpEntryDef[]>([]);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!enabled) return;
 
         const controller = new AbortController();
+        setLoading(true);
 
         fetch('/snippets/suggestions', { signal: controller.signal, cache: 'no-store' })
             .then(response => response.json())
             .then((items: SnippetSuggestion[]) => {
                 setEntries(items.map(mapSuggestion));
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
 
         return () => controller.abort();
     }, [enabled, mapSuggestion, refreshKey]);
 
-    return entries;
+    return { entries, loading };
 }

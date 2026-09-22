@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSnippetSuggestions } from '@/Shared/CodeEditor/hooks/useSnippetSuggestions';
 import { HIDDEN_TOOLBOX_ENTRY_NAMES, isHelpCategoryPick } from '@/Domains/Flow/Pages/FlowEditor/categories';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
@@ -59,10 +59,13 @@ export function useNodeCatalog({ nodes, setNodes }: UseNodeCatalogOptions) {
     const [snippetRefreshKey, setSnippetRefreshKey] = useState(0);
     const [search, setSearch] = useState('');
     const [activeCategoryKey, setActiveCategoryKey] = useState(NODE_CATEGORIES[0].key);
-    const snippetEntries = useSnippetSuggestions({
+    const { entries: snippetEntries, loading: snippetsRefreshing } = useSnippetSuggestions({
         mapSuggestion: snippetSuggestionToEntry,
         refreshKey: snippetRefreshKey,
     });
+    // Re-fetches published snippets so nodes pick up a newly published signature without
+    // reopening the node picker.
+    const refreshSnippets = useCallback(() => setSnippetRefreshKey(current => current + 1), []);
     const localFunctionEntries = useMemo<HelpEntryDef[]>(() => nodes
         .filter(node => node.system === 'function' && node.scopeId)
         .flatMap(node => {
@@ -181,10 +184,12 @@ export function useNodeCatalog({ nodes, setNodes }: UseNodeCatalogOptions) {
     return {
         activeCategoryKey,
         pickerOpen,
+        refreshSnippets,
         search,
         setActiveCategoryKey,
         setPickerOpen,
         setSearch,
+        snippetsRefreshing,
         visibleEntries,
     };
 }

@@ -6,6 +6,8 @@ interface CanvasControlsProps {
     canvasMode: 'canvas' | 'code';
     pickerOpen: boolean;
     selectedCount: number;
+    /** True when "Reorganize" will lay out the selection rather than the whole graph. */
+    reorderTargetsSelection: boolean;
     canDeleteSelection: boolean;
     canSwapSelection: boolean;
     readOnly?: boolean;
@@ -25,6 +27,7 @@ export default function CanvasControls({
     canvasMode,
     pickerOpen,
     selectedCount,
+    reorderTargetsSelection,
     canDeleteSelection,
     canSwapSelection,
     readOnly,
@@ -55,7 +58,7 @@ export default function CanvasControls({
                     <S.CanvasControlButton
                         type="button"
                         onClick={onReorder}
-                        title={selectedCount > 0 ? 'Reorganize selection (R)' : 'Reorganize graph (R)'}
+                        title={reorderTargetsSelection ? 'Reorganize selection (R)' : 'Reorganize graph (R)'}
                     >
                         <Icon icon="lucide:wand-sparkles" width={14} height={14} />
                     </S.CanvasControlButton>

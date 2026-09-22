@@ -24,7 +24,7 @@ class ValidNodalGraph implements ValidationRule
 
     private const RUNTIME_IDENTIFIERS = [
         '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context', '$json',
-        '$loop', '$capture', '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed',
+        '$loop', '$capture', '$vars', '$totp', '$userOutput', '$renderExpression', '$keyboardSpeed',
         '$now', '$today', '$if', '$ifEmpty', '$max', '$min', '$sortDates', '$parseDates',
         '$currentDate', '$currentDateMinusOneMonth', '$currentDatePlusOneMonth', '$matchSequence',
         '$viewportWidth', '$viewportHeight',

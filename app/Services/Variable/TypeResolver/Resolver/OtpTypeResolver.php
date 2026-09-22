@@ -26,7 +26,7 @@ class OtpTypeResolver implements VariableTypeResolverInterface
     {
         return [
             // The runtime recomputes a fresh code from the otpauth URI on every
-            // $vars() call; a precomputed code would expire after ~30 seconds.
+            // $totp() or $vars() call; a precomputed code would expire during a run.
             'value' => $this->otpauthUri($var->value),
             'vault_field_type' => 'OTP',
         ];

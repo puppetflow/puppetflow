@@ -434,6 +434,7 @@ const evaluateExpressionSource = (source: string, scope: { inputData: unknown; p
     const $vars = (name: string) => Object.prototype.hasOwnProperty.call(scope.variableData ?? {}, name)
         ? scope.variableData?.[name]
         : `[Needs run: $vars(${JSON.stringify(name)})]`;
+    const $totp = (name: string) => `[Needs run: $totp(${JSON.stringify(name)})]`;
     // Mirrors the runtime scope: run data is only reachable through $run or $('Node').
     const $scope = {
         $nodes,
@@ -444,15 +445,16 @@ const evaluateExpressionSource = (source: string, scope: { inputData: unknown; p
         $viewportHeight,
         $now,
         $today,
+        $totp,
         ...expressionUtilityScope,
         $currentDate: (timestamp?: unknown) => previewCurrentDate(timestamp),
         $currentDateMinusOneMonth: (timestamp?: unknown) => previewCurrentDate(timestamp, -1),
         $currentDatePlusOneMonth: (timestamp?: unknown) => previewCurrentDate(timestamp, 1),
         $,
     };
-    const render = new Function('$page', '$nodes', '$run', '$vars', '$viewportWidth', '$viewportHeight', '$now', '$today', '$scope', `with ($scope) { return (${source}); }`);
+    const render = new Function('$page', '$nodes', '$run', '$vars', '$totp', '$viewportWidth', '$viewportHeight', '$now', '$today', '$scope', `with ($scope) { return (${source}); }`);
 
-    return render($page, $nodes, $run, $vars, $viewportWidth, $viewportHeight, $now, $today, $scope);
+    return render($page, $nodes, $run, $vars, $totp, $viewportWidth, $viewportHeight, $now, $today, $scope);
 };
 
 const formatExpressionInterpolationPreview = (value: unknown) => {

@@ -396,6 +396,7 @@ const __pfRenderExpression = async (template, $locals = {}) => {
         $now,
         $today,
         $vars,
+        $totp,
         $if,
         $ifEmpty,
         $max,
@@ -409,7 +410,7 @@ const __pfRenderExpression = async (template, $locals = {}) => {
         ...($locals && typeof $locals === 'object' ? $locals : {}),
         $,
     };
-    const renderSource = (source) => Function('$page', '$nodes', '$run', '$vars', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($page, $nodes, $scope.$run, typeof $vars === 'function' ? $vars : undefined, $viewportWidth, $viewportHeight, $scope);
+    const renderSource = (source) => Function('$page', '$nodes', '$run', '$vars', '$totp', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($page, $nodes, $scope.$run, typeof $vars === 'function' ? $vars : undefined, typeof $totp === 'function' ? $totp : undefined, $viewportWidth, $viewportHeight, $scope);
     const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
     const pureExpression = templateParts.length === 1 && template.trim() === templateParts[0][0] ? templateParts[0] : null;
 
@@ -811,7 +812,7 @@ const RESERVED_IDENTIFIERS = new Set([
 ]);
 const RUNTIME_IDENTIFIERS = new Set([
     '$', '$page', '$input', '$nodes', '$run', '$runRoot', '$output', '$context', '$json',
-    '$loop', '$capture', '$vars', '$userOutput', '$renderExpression', '$keyboardSpeed', '$now', '$today',
+    '$loop', '$capture', '$vars', '$totp', '$userOutput', '$renderExpression', '$keyboardSpeed', '$now', '$today',
     '$if', '$ifEmpty', '$max', '$min', '$sortDates', '$parseDates',
     '$currentDate', '$currentDateMinusOneMonth', '$currentDatePlusOneMonth', '$matchSequence',
     '$viewportWidth', '$viewportHeight',

@@ -86,7 +86,7 @@ const $vars = (() => {
     return String(code).padStart(digits, '0');
   }
 
-  return function(variableId) {
+  const resolveVariable = function(variableId) {
     const parts = String(variableId).split('.');
     const baseId = parts.shift();
     const entry = entries[baseId];
@@ -123,5 +123,40 @@ const $vars = (() => {
     }
     return value;
   };
+
+  resolveVariable.totp = function(variableId) {
+    const id = String(variableId);
+    const entry = entries[id];
+    if (!entry) {
+      // Run inputs that hold a TOTP reference can be overridden with a literal
+      // code (manual run, API trigger). Pass such codes through unchanged.
+      if (/^\d{4,10}$/.test(id)) {
+        return id;
+      }
+      throw new Error('TOTP variable "' + id + '" not found');
+    }
+    if (entry.vault_field_type !== 'OTP' || !entry.value || !entry.value.startsWith('otpauth://')) {
+      throw new Error('Variable "' + id + '" is not a TOTP variable');
+    }
+    const value = computeTotp(entry.value);
+    if (!value) throw new Error('Failed to compute TOTP for variable "' + id + '"');
+    if (entry.is_secret === true) {
+      __recordRuntimeSecret(value);
+    }
+    return value;
+  };
+
+  return resolveVariable;
 })();
+
+/* @help Utility
+ * @sig $totp(variableId)
+ * @aliases totp
+ * @desc Compute a fresh TOTP code at call time from a TOTP variable ID. A literal code is returned as is.
+ * @nodal-output string
+ * @nodal-param variableId: TOTP variable ID (or an already computed code) to resolve at runtime.
+ */
+const $totp = function(variableId) {
+  return $vars.totp(variableId);
+};
 

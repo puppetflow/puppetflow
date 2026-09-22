@@ -11,6 +11,7 @@ import type {
 import {
     arrangeGraph,
     arrangeGraphSelection,
+    canArrangeSelection,
     getNodesCenter,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/layout';
 import { hasOpenModal } from './nodalKeyboardShortcuts.utils';
@@ -139,7 +140,7 @@ export function useCanvasViewActions({
     const reorderGraph = useCallback(() => {
         if (readOnly) return;
 
-        if (selectedNodeIds.size > 0) {
+        if (canArrangeSelection(nodes, selectedNodeIds)) {
             const arrangedNodes = arrangeGraphSelection(nodes, edges, selectedNodeIds);
             const hasPositionChanges = arrangedNodes.some((node, index) => (
                 node.x !== nodes[index]?.x || node.y !== nodes[index]?.y

@@ -1,5 +1,6 @@
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { ExpressionHeaderActions } from '../shared.styled';
 import VariablePickerButton from './VariablePickerButton';
 import * as S from './styled';
@@ -12,7 +13,7 @@ interface EditorActionsProps {
     onExpand: () => void;
     onChange: (value: ScalarNodeParameterValue) => void;
     onVariablePickerOpen: () => void;
-    onVariableSelect: (key: string) => void;
+    onVariableSelect: (variable: VariableSuggestion) => void;
 }
 
 export default function EditorActions({

@@ -6,6 +6,7 @@ import {
     getConnectedOutputPortsByNode,
     shouldDeactivateNodes,
 } from '../utils/node';
+import { canArrangeSelection } from '../utils/layout';
 import CanvasCodePreview from './Canvas/CanvasCodePreview';
 import CanvasControls from './Canvas/CanvasControls';
 import CanvasMiniMap from './Canvas/CanvasMiniMap';
@@ -50,6 +51,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
         pendingEdgeInsertion,
         pickerOpen,
         readOnly,
+        refreshSnippets,
         releaseMiniMap,
         renameNode,
         resolvedTheme,
@@ -61,6 +63,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
         setSearch,
         setViewport,
         showMiniMap,
+        snippetsRefreshing,
         swapSelectedNodes,
         toggleNodeDeactivation,
         toggleNodeOrSelectionDeactivation,
@@ -68,6 +71,11 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
         viewport,
         visibleEntries,
     } = controller;
+
+    const reorderTargetsSelection = useMemo(
+        () => canArrangeSelection(nodes, selectedNodeIds),
+        [nodes, selectedNodeIds],
+    );
 
     const editingConnectedOutputPorts = useMemo(() => (
         editingNodeCurrent
@@ -174,6 +182,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                 canvasMode={canvasMode}
                 pickerOpen={pickerOpen}
                 selectedCount={selectedNodeIds.size}
+                reorderTargetsSelection={reorderTargetsSelection}
                 canDeleteSelection={selectedEditableNodes.length > 0}
                 canSwapSelection={canSwapSelection}
                 readOnly={readOnly}
@@ -213,6 +222,8 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                     autocompleteContext={editingAutocompleteContext}
                     isFinallyNode={editingNodeIsFinally}
                     readOnly={readOnly}
+                    snippetsRefreshing={snippetsRefreshing}
+                    onRefreshSnippets={refreshSnippets}
                     onClose={canvasViewActions.closeNodeConfig}
                     onUpdateValue={updateNodeValue}
                     onRenameNode={renameNode}

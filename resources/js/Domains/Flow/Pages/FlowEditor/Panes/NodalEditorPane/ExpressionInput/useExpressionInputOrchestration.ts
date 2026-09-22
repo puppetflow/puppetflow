@@ -10,10 +10,10 @@ import { fetchChannelSuggestions, type ChannelSuggestion } from '@/Domains/Flow/
 import { fetchMailboxWatcherSuggestions, type WatcherSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/mailboxWatcherSuggestions';
 import { fetchVariableSuggestions, type VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import type { ScalarNodeParameterValue } from '../types';
-import { evaluateExpressionPreview, expressionForPath, type RenderedExpression } from '../utils/expression';
+import { evaluateExpressionPreview, type RenderedExpression } from '../utils/expression';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
 import type { ExpressionInputType } from './FixedInputRenderer';
-import { hasOpenEditorAutocomplete, insertPathExpression } from './utils';
+import { hasOpenEditorAutocomplete, insertPathExpression, pathExpressionAt } from './utils';
 import {
     useNodeValidationResourceRevision,
     useRefreshNodeValidationResources,
@@ -105,7 +105,7 @@ export function useExpressionInputOrchestration({
         revision: resourceRevision,
     });
     const variableResource = useAsyncResource<VariableSuggestion[], string>({
-        active: value.value.includes('$vars(') ? value.value : false,
+        active: value.value.includes('$vars(') || value.value.includes('$totp(') ? value.value : false,
         loader: fetchExpressionVariableSuggestions,
         fallback: [],
         revision: resourceRevision,
@@ -192,8 +192,8 @@ export function useExpressionInputOrchestration({
                 ?? model?.getFullModelRange().getEndPosition();
             if (model && position) {
                 if (value.mode === 'fixed') {
-                    const expression = expressionForPath(path);
                     const offset = model.getOffsetAt(position);
+                    const expression = pathExpressionAt(model.getValue(), path, offset);
                     const nextValue = insertPathExpression(model.getValue(), path, offset);
                     updateExpression(nextValue);
                     focusExpressionAt(offset + expression.length);
@@ -201,6 +201,8 @@ export function useExpressionInputOrchestration({
                 }
 
                 targetEditor.pushUndoStop();
+                const offset = model.getOffsetAt(position);
+                const expression = pathExpressionAt(model.getValue(), path, offset);
                 targetEditor.executeEdits('drop-path', [{
                     range: {
                         startLineNumber: position.lineNumber,
@@ -208,7 +210,7 @@ export function useExpressionInputOrchestration({
                         endLineNumber: position.lineNumber,
                         endColumn: position.column,
                     },
-                    text: expressionForPath(path),
+                    text: expression,
                 }]);
                 targetEditor.pushUndoStop();
                 targetEditor.focus();
@@ -222,7 +224,7 @@ export function useExpressionInputOrchestration({
         const offset = nativeInput instanceof HTMLInputElement || nativeInput instanceof HTMLTextAreaElement
             ? nativeInput.selectionStart ?? value.value.length
             : value.value.length;
-        const expression = expressionForPath(path);
+        const expression = pathExpressionAt(value.value, path, offset);
         updateExpression(insertPathExpression(value.value, path, offset));
         focusExpressionAt(offset + expression.length);
     };

@@ -9,6 +9,7 @@ import { fetchMailboxWatcherSuggestions } from '@/Domains/Flow/Pages/FlowEditor/
 import {
     fetchVariableSuggestions,
     getVariableSuggestionIcon,
+    isTotpVariable,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { fetchMediaAssetSuggestions } from '@/Domains/Flow/Pages/FlowEditor/utils/mediaAssetSuggestions';
 import { mediaIcon, mediaIconColor } from '@/Domains/Media/types';
@@ -23,6 +24,8 @@ export interface ReferenceDisplay {
     resourceId?: Id;
     referenceId?: string;
     referenceLabel?: string;
+    /** True when the reference is a TOTP variable (local seed or vault OTP field). */
+    isTotp?: boolean;
 }
 
 const REFERENCE_PATTERN = /^\$\{(vars|channels|mailboxWatchers|aiModels|dataTables|mediaAssets)\.([^.}]+)(?:\.([^}]+))?\}$/;
@@ -54,6 +57,7 @@ export function resolveReferenceDisplay(
         editUrl: resolved?.editUrl,
         referenceId,
         referenceLabel: resolved?.label,
+        isTotp: resolved?.isTotp,
     };
 }
 
@@ -91,6 +95,7 @@ function useReferenceDisplayMap(flowId?: Id, extended = true, enabled = true) {
                         label: variable.key,
                         icon: variableIcon.icon,
                         editUrl: `/variables?edit=${encodeURIComponent(String(variable.id))}`,
+                        isTotp: isTotpVariable(variable),
                         ...('color' in variableIcon && variableIcon.color ? { iconColor: variableIcon.color } : {}),
                     };
                     next.set(`vars.${variable.id}`, display);

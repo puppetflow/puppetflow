@@ -394,16 +394,28 @@ export const arrangeGraph = (nodes: CanvasNode[], edges: CanvasEdge[]): CanvasNo
     });
 };
 
+// Nodes the selection layout can move: sticky notes and system nodes are ignored.
+export const arrangeableSelection = (
+    nodes: CanvasNode[],
+    selectedNodeIds: Set<string>,
+): CanvasNode[] => nodes.filter(node => (
+    selectedNodeIds.has(node.id)
+    && !node.system
+    && node.kind !== 'stickyNote'
+));
+
+// Reorganizing a single node is a no-op, so the selection layout only applies from two nodes.
+export const canArrangeSelection = (
+    nodes: CanvasNode[],
+    selectedNodeIds: Set<string>,
+): boolean => selectedNodeIds.size > 1 && arrangeableSelection(nodes, selectedNodeIds).length > 1;
+
 export const arrangeGraphSelection = (
     nodes: CanvasNode[],
     edges: CanvasEdge[],
     selectedNodeIds: Set<string>,
 ): CanvasNode[] => {
-    const selectedNodes = nodes.filter(node => (
-        selectedNodeIds.has(node.id)
-        && !node.system
-        && node.kind !== 'stickyNote'
-    ));
+    const selectedNodes = arrangeableSelection(nodes, selectedNodeIds);
     if (selectedNodes.length === 0) return nodes;
 
     const selectedIds = new Set(selectedNodes.map(node => node.id));

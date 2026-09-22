@@ -142,7 +142,7 @@ final class NodalResourceReferenceValidator
             ? array_values(array_filter($field['path'], 'is_string'))
             : [];
         $kind = (
-            ($nodeName === '$vars' && $path === ['variableId'])
+            (in_array($nodeName, ['$vars', '$totp'], true) && $path === ['variableId'])
             || ($nodeName === '$mcpClientTool' && $path === ['credentialId'])
         )
             ? 'variables'
@@ -267,6 +267,11 @@ final class NodalResourceReferenceValidator
         ) {
             throw ValidationException::withMessages([
                 'nodal_graph' => "{$nodeName} requires an MCP Credentials variable.",
+            ]);
+        }
+        if ($nodeName === '$totp' && ($resource['is_totp'] ?? false) !== true) {
+            throw ValidationException::withMessages([
+                'nodal_graph' => "{$nodeName} requires a TOTP variable.",
             ]);
         }
         $requiredCapability = match (true) {

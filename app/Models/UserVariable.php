@@ -57,6 +57,17 @@ class UserVariable extends Model
         ];
     }
 
+    /**
+     * Whether the variable yields a time-based one-time password, either from
+     * a local seed or from a vault OTP field. Such values must be computed at
+     * call time with $totp() instead of being frozen when a run starts.
+     */
+    public function isTotp(): bool
+    {
+        return $this->type === 'otp'
+            || ($this->type === 'vault' && $this->vault_field_type === 'OTP');
+    }
+
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
@@ -10,6 +11,8 @@ interface NodeConfigHeaderProps {
     label: string;
     currentSiteUrl: string | null;
     readOnly?: boolean;
+    snippetsRefreshing?: boolean;
+    onRefreshSnippets?: () => void;
     onLabelChange: (label: string) => void;
     onCommitLabel: () => void;
     onClose: () => void;
@@ -20,11 +23,24 @@ export default function NodeConfigHeader({
     label,
     currentSiteUrl,
     readOnly,
+    snippetsRefreshing = false,
+    onRefreshSnippets,
     onLabelChange,
     onCommitLabel,
     onClose,
 }: NodeConfigHeaderProps) {
     const documentationPath = getHelpEntryDocumentationPath(entry);
+    const isSnippet = entry.name.startsWith('$$');
+    const refreshSnippetsRef = useRef(onRefreshSnippets);
+    refreshSnippetsRef.current = onRefreshSnippets;
+
+    // Opening a snippet node re-fetches the published signature so the version, the
+    // draft badge and callArguments reflect what the snippet editor last published.
+    useEffect(() => {
+        if (isSnippet) {
+            refreshSnippetsRef.current?.();
+        }
+    }, [isSnippet, entry.name]);
 
     return (
         <>
@@ -76,6 +92,49 @@ export default function NodeConfigHeader({
                 <strong>{currentSiteUrl ?? 'No current page yet'}</strong>
                 {currentSiteUrl && <Icon icon="lucide:external-link" width={13} height={13} />}
             </S.CurrentSite>
+            {isSnippet && (
+                <S.SnippetBar>
+                    <S.SnippetLabel>Snippet</S.SnippetLabel>
+                    {entry.snippetVersion != null && (
+                        <S.SnippetVersion title="Published version used by this node">
+                            v{entry.snippetVersion}
+                        </S.SnippetVersion>
+                    )}
+                    {entry.snippetHasUnpublishedChanges && (
+                        <S.SnippetDraftBadge title="The snippet has edits that are not published yet. This node keeps using the published version until they are.">
+                            <Icon icon="lucide:file-pen" width={11} height={11} />
+                            Unsaved Draft
+                        </S.SnippetDraftBadge>
+                    )}
+                    <code title={entry.signature}>{entry.signature}</code>
+                    <S.SnippetActions>
+                        {onRefreshSnippets && (
+                            <S.SnippetAction
+                                type="button"
+                                $spinning={snippetsRefreshing}
+                                disabled={snippetsRefreshing}
+                                title="Reload the published snippet signature"
+                                aria-label="Reload the published snippet signature"
+                                onClick={onRefreshSnippets}
+                            >
+                                <Icon icon="lucide:refresh-cw" width={14} height={14} />
+                            </S.SnippetAction>
+                        )}
+                        {entry.editUrl && (
+                            <S.SnippetAction
+                                as="a"
+                                href={entry.editUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Open the snippet in a new tab"
+                                aria-label="Open the snippet in a new tab"
+                            >
+                                <Icon icon="lucide:external-link" width={14} height={14} />
+                            </S.SnippetAction>
+                        )}
+                    </S.SnippetActions>
+                </S.SnippetBar>
+            )}
         </>
     );
 }

@@ -3,6 +3,7 @@ import type { OnMount } from '@monaco-editor/react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import { useThemeMode } from '@/App/Hooks/useThemeMode';
 import type { NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { variableCallFor, type VariableSuggestion } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import type { ScalarNodeParameterValue } from '../types';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
 import ExpressionEditorShell from './ExpressionEditorShell';
@@ -194,7 +195,7 @@ export default function ExpressionInput({
         variableCursorOffsetRef.current = value.value.length;
     };
 
-    const insertVariable = (key: string) => {
+    const insertVariable = (variable: VariableSuggestion) => {
         const currentValue = value.value;
         const offset = Math.max(0, Math.min(
             variableCursorOffsetRef.current ?? currentValue.length,
@@ -202,7 +203,7 @@ export default function ExpressionInput({
         ));
         const prefix = currentValue.slice(0, offset);
         const insideExpression = prefix.lastIndexOf('{{') > prefix.lastIndexOf('}}');
-        const variableCall = `$vars(${JSON.stringify(key)})`;
+        const variableCall = variableCallFor(variable);
         const insertion = insideExpression ? variableCall : `{{ ${variableCall} }}`;
         const nextValue = currentValue.slice(0, offset) + insertion + currentValue.slice(offset);
 

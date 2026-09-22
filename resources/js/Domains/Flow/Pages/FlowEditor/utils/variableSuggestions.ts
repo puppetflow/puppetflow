@@ -7,6 +7,8 @@ export type VariableSuggestion = {
     id: Id;
     key: string;
     type: string;
+    /** True for local OTP seeds and vault OTP fields; both must go through $totp(). */
+    is_totp?: boolean;
     scope?: string;
     team_name?: string | null;
     provider?: string | null;
@@ -14,7 +16,15 @@ export type VariableSuggestion = {
     can_manage?: boolean;
 };
 
-export function getVariableSuggestionIcon(variable: Pick<VariableSuggestion, 'type' | 'provider'>) {
+export function isTotpVariable(variable: Pick<VariableSuggestion, 'type' | 'is_totp'>) {
+    return variable.is_totp === true || variable.type === 'otp';
+}
+
+export function variableCallFor(variable: Pick<VariableSuggestion, 'id' | 'type' | 'is_totp'>) {
+    return `${isTotpVariable(variable) ? '$totp' : '$vars'}(${JSON.stringify(String(variable.id))})`;
+}
+
+export function getVariableSuggestionIcon(variable: Pick<VariableSuggestion, 'type' | 'provider' | 'is_totp'>) {
     if (variable.provider === 'onepassword') {
         return { icon: 'simple-icons:1password', color: '#0572ec' };
     }
@@ -24,7 +34,7 @@ export function getVariableSuggestionIcon(variable: Pick<VariableSuggestion, 'ty
 
     const icon = variable.type === 'json' || variable.type === 'json_path'
         ? DATA_TYPE_ICONS.object
-        : variable.type === 'totp'
+        : isTotpVariable(variable)
             ? DATA_TYPE_ICONS.otp
             : DATA_TYPE_ICONS[variable.type as keyof typeof DATA_TYPE_ICONS] ?? DATA_TYPE_ICONS.variable;
 
@@ -145,7 +155,7 @@ export function registerJsonVariableCompletions(monaco: Parameters<OnMount>[1], 
     });
 }
 
-const VARS_FN_PATTERN = /\$vars\(\s*(["'])([a-zA-Z0-9_.-]*)$/;
+const VARIABLE_FN_PATTERN = /(\$(?:vars|totp))\(\s*(["'])([a-zA-Z0-9_.-]*)$/;
 
 export function registerVarsCompletions(monaco: Parameters<OnMount>[1], modelUri?: string | null) {
     if (!monaco) return { dispose: () => {} };
@@ -157,10 +167,11 @@ export function registerVarsCompletions(monaco: Parameters<OnMount>[1], modelUri
             const lineContent = model.getLineContent(position.lineNumber);
             const textBefore = lineContent.substring(0, position.column - 1);
 
-            const functionMatch = textBefore.match(VARS_FN_PATTERN);
+            const functionMatch = textBefore.match(VARIABLE_FN_PATTERN);
             if (!functionMatch) return { suggestions: [] };
 
-            const typed = functionMatch[2] ?? '';
+            const functionName = functionMatch[1] ?? '$vars';
+            const typed = functionMatch[3] ?? '';
             const startCol = position.column - typed.length;
             const range = {
                 startLineNumber: position.lineNumber,
@@ -170,7 +181,10 @@ export function registerVarsCompletions(monaco: Parameters<OnMount>[1], modelUri
             };
 
             const vars = await fetchVariableSuggestionsForAutocomplete();
-            const filtered = vars.filter(variable => !String(variable.id).includes('.'));
+            const filtered = vars.filter(variable => (
+                !String(variable.id).includes('.')
+                && (functionName !== '$totp' || isTotpVariable(variable))
+            ));
 
             const suggestions = filtered.map(variable => idCompletionItem(
                 { id: variable.id, name: variable.key },
@@ -179,7 +193,7 @@ export function registerVarsCompletions(monaco: Parameters<OnMount>[1], modelUri
                         ? monaco.languages.CompletionItemKind.Field
                         : monaco.languages.CompletionItemKind.Value,
                     detail: `${variable.id} (${variable.type})`,
-                    documentation: `${variable.key}\n$vars("${variable.id}")`,
+                    documentation: `${variable.key}\n${functionName}("${variable.id}")`,
                     range,
                 },
             ));

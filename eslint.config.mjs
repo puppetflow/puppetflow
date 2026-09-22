@@ -141,6 +141,7 @@ export default tseslint.config(
                 $sleep: 'readonly',
                 $unzipFile: 'readonly',
                 $vars: 'readonly',
+                $totp: 'readonly',
                 $waitForFile: 'readonly',
             },
         },

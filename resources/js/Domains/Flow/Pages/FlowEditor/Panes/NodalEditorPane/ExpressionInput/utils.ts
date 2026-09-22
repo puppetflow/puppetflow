@@ -103,9 +103,20 @@ export const PLAIN_FIXED_INPUT_EDITOR_OPTIONS = {
 const TEMPLATE_PATTERN = /\{\{[\s\S]*?\}\}/g;
 const templateDecoratedEditors = new WeakSet<editor.IStandaloneCodeEditor>();
 
-export function insertPathExpression(current: string, path: string, offset = current.length) {
-    const expression = expressionForPath(path);
+export function pathExpressionAt(current: string, path: string, offset = current.length) {
     const insertionOffset = Math.max(0, Math.min(offset, current.length));
+    const insideTemplate = [...current.matchAll(TEMPLATE_PATTERN)].some(match => {
+        const start = match.index ?? 0;
+        return insertionOffset >= start + 2
+            && insertionOffset <= start + match[0].length - 2;
+    });
+
+    return insideTemplate ? path : expressionForPath(path);
+}
+
+export function insertPathExpression(current: string, path: string, offset = current.length) {
+    const insertionOffset = Math.max(0, Math.min(offset, current.length));
+    const expression = pathExpressionAt(current, path, insertionOffset);
     return current.slice(0, insertionOffset) + expression + current.slice(insertionOffset);
 }
 

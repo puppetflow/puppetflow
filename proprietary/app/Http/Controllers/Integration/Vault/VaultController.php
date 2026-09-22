@@ -139,6 +139,7 @@ class VaultController extends Controller
             $pattern = '${vars.'.$variable->id;
             $codePatterns = [
                 '~'.preg_quote('$vars', '~').'\s*\(\s*(["\'])'.preg_quote($variable->id, '~').'(?=\1|\.)~',
+                '~'.preg_quote('$totp', '~').'\s*\(\s*(["\'])'.preg_quote($variable->id, '~').'(?=\1)~',
             ];
 
             $flows = Flow::where('workspace_id', $variable->workspace_id)

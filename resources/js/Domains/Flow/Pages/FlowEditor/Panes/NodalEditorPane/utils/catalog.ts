@@ -290,6 +290,7 @@ const NODE_LABEL_BY_NAME: Record<string, string> = {
     $aiControl: 'AI Control',
     $mcpClientTool: 'MCP Client Tool',
     $httpRequest: 'HTTP Request',
+    $totp: 'Time-based One-Time Password',
     $dataTableInsertRow: 'Insert Row',
     $dataTableUpdateRows: 'Update Row(s)',
     $dataTableUpsertRows: 'Upsert Row(s)',

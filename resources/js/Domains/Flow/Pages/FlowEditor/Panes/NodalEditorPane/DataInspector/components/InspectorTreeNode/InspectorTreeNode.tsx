@@ -40,6 +40,7 @@ export default function InspectorTreeNode({
 }: InspectorTreeNodeProps) {
     const circular = isContainer(value) && ancestors.has(value);
     const referenceDisplay = resolveReferenceDisplay(value, references);
+    const dragExpression = referenceDisplay?.isTotp ? `$totp(${path})` : path;
     const instanceSummary = asRuntimeInstanceSummary(value);
 
     // Puppeteer instances are leaves: the path stays draggable, but their summary fields are
@@ -48,7 +49,7 @@ export default function InspectorTreeNode({
         return (
             <S.JsonLine $depth={depth}>
                 <S.TogglePlaceholder />
-                {label && <DraggableKey label={label} path={path} draggable={draggable} />}
+                {label && <DraggableKey label={label} path={path} dragExpression={dragExpression} draggable={draggable} />}
                 {label && <span>:{'\u00A0'}</span>}
                 <RuntimeInstanceBadge summary={instanceSummary} size="sm" />
             </S.JsonLine>
@@ -59,7 +60,7 @@ export default function InspectorTreeNode({
         return (
             <S.JsonLine $depth={depth}>
                 <S.TogglePlaceholder />
-                {label && <DraggableKey label={label} path={path} draggable={draggable} />}
+                {label && <DraggableKey label={label} path={path} dragExpression={dragExpression} draggable={draggable} />}
                 {label && <span>:{'\u00A0'}</span>}
                 {circular
                     ? <S.Summary>[Circular]</S.Summary>
@@ -89,7 +90,7 @@ export default function InspectorTreeNode({
                 <S.Toggle type="button" title={collapsed ? 'Expand' : 'Collapse'} onClick={() => onToggleCollapse(path)}>
                     <Icon icon={collapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'} width={11} height={11} />
                 </S.Toggle>
-                {label && <DraggableKey label={label} path={path} draggable={draggable} />}
+                {label && <DraggableKey label={label} path={path} dragExpression={dragExpression} draggable={draggable} />}
                 {label && <span>:{'\u00A0'}</span>}
                 <S.Punctuation>{open}</S.Punctuation>
                 {collapsed && (

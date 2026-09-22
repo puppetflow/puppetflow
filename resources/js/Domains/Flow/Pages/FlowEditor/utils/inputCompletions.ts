@@ -15,6 +15,7 @@ const ROOT_COMPLETION_PATTERN = /(?:^|[^\w$.])(\$[a-zA-Z_]*)$/;
 const NODAL_EXPRESSION_FUNCTIONS = new Set([
     '$',
     '$vars',
+    '$totp',
     '$if',
     '$ifEmpty',
     '$max',
@@ -170,6 +171,7 @@ export function registerNodalAutocompleteCompletions(
                         documentation: 'Request and response payload for the current Sniffing branch execution.',
                     }] : []),
                     { key: '$vars', detail: 'site variables', documentation: 'Global site variables.' },
+                    { key: '$totp', detail: 'fresh TOTP code', documentation: 'Compute a fresh TOTP code from a variable ID.' },
                     { key: '$now', detail: 'current date and time', documentation: 'Current run DateTime.' },
                     { key: '$today', detail: 'start of today', documentation: 'Current day at midnight.' },
                     { key: '$if', detail: 'conditional value', documentation: 'Return one of two values depending on a condition.' },

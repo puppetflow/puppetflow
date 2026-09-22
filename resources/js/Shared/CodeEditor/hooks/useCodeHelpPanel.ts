@@ -41,7 +41,7 @@ export function useCodeHelpPanel({
     const [evaluation, setEvaluation] = useState<CodeHelpEvaluation | null>(null);
     const [requestedEntryName, setRequestedEntryName] = useState<string | null>(null);
     const entryRefs = useRef<Array<HTMLButtonElement | null>>([]);
-    const snippetEntries = useSnippetSuggestions({ enabled: showHelp });
+    const { entries: snippetEntries } = useSnippetSuggestions({ enabled: showHelp });
 
     const allEntries = useMemo(() => uniqueHelpEntriesByName([
         ...baseEntries,

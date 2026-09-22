@@ -37,6 +37,8 @@ interface NodeConfigModalProps {
     autocompleteContext: NodalAutocompleteContext;
     isFinallyNode?: boolean;
     readOnly?: boolean;
+    snippetsRefreshing?: boolean;
+    onRefreshSnippets?: () => void;
     onClose: () => void;
     onUpdateValue: (nodeId: string, key: string, value: NodeParameterValue) => void;
     onRenameNode: (nodeId: string, label: string) => void;
@@ -145,6 +147,8 @@ export default function NodeConfigModal({
     autocompleteContext,
     isFinallyNode = false,
     readOnly,
+    snippetsRefreshing = false,
+    onRefreshSnippets,
     onClose,
     onUpdateValue,
     onRenameNode,
@@ -254,6 +258,8 @@ export default function NodeConfigModal({
                         label={labelDraft}
                         currentSiteUrl={currentSiteUrl}
                         readOnly={readOnly}
+                        snippetsRefreshing={snippetsRefreshing}
+                        onRefreshSnippets={onRefreshSnippets}
                         onLabelChange={setLabelDraft}
                         onCommitLabel={commitLabel}
                         onClose={handleClose}

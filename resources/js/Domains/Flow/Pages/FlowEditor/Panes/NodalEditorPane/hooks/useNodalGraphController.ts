@@ -104,10 +104,12 @@ export function useNodalGraphController({
     const {
         activeCategoryKey,
         pickerOpen,
+        refreshSnippets,
         search,
         setActiveCategoryKey,
         setPickerOpen,
         setSearch,
+        snippetsRefreshing,
         visibleEntries,
     } = useNodeCatalog({ nodes, setNodes });
     const clearTransientGraphState = useCallback(() => {
@@ -175,6 +177,7 @@ export function useNodalGraphController({
         readOnly,
         recordHistory,
         redoGraph,
+        refreshSnippets,
         releaseMiniMap,
         resolvedTheme,
         revealMiniMap,
@@ -201,6 +204,7 @@ export function useNodalGraphController({
         setSelectionBox,
         setViewport,
         showMiniMap,
+        snippetsRefreshing,
         toast,
         undoGraph,
         updateZoom,

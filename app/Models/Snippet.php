@@ -79,6 +79,27 @@ class Snippet extends Model
         return $version instanceof SnippetVersion ? $version->version : null;
     }
 
+    /**
+     * Whether the editable draft differs from the published version. Only the
+     * fields snapshotted by a publication count: a label or scope change alone
+     * does not make the draft unpublished. Requires args, code and nodal_graph
+     * to be loaded on both the snippet and its published version.
+     */
+    public function hasUnpublishedChanges(): bool
+    {
+        $version = $this->publishedVersion;
+        if (! $version instanceof SnippetVersion) {
+            return false;
+        }
+
+        return ($this->args ?? '') !== ($version->args ?? '')
+            || ($this->code ?? '') !== ($version->code ?? '')
+            || (
+                $this->snippet_type === 'nodal'
+                && json_encode($this->nodal_graph) !== json_encode($version->nodal_graph)
+            );
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Snippet $snippet): void {
