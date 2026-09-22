@@ -52,7 +52,9 @@ export default function TriggerList({
         open: overflowId !== null,
         refs: [overflowRef],
         onDismiss: closeOverflow,
-        closeOnScroll: false,
+        // The menu is portaled with a fixed position: it would drift away from
+        // its row if the list scrolled underneath it.
+        closeOnScroll: true,
         eventType: 'mousedown',
         eventCapture: false,
     });

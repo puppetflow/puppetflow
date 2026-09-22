@@ -13,10 +13,10 @@ import {
     ResourceItemMeta as ActionItemMeta,
     ResourceItemName as ActionItemName,
     ResourceOverflowButton as OverflowBtn,
-    ResourceOverflowMenu as OverflowMenu,
     ResourceOverflowMenuItem as OverflowMenuItem,
     ResourceOverflowWrap as OverflowWrap,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/shared.styled';
+import ResourceOverflowMenuPortal from '@/Domains/Flow/Pages/FlowEditor/Panes/ResourceOverflowMenuPortal';
 
 interface ActionListItemProps {
     action: FlowAction;
@@ -89,7 +89,7 @@ export default function ActionListItem({
                             <Icon icon="lucide:ellipsis-vertical" width={14} />
                         </OverflowBtn>
                         {overflowOpen && (
-                            <OverflowMenu>
+                            <ResourceOverflowMenuPortal anchorRef={overflowRef}>
                                 <OverflowMenuItem
                                     type="button"
                                     onClick={() => {
@@ -109,7 +109,7 @@ export default function ActionListItem({
                                 >
                                     <Icon icon="lucide:trash-2" width={13} /> Delete
                                 </OverflowMenuItem>
-                            </OverflowMenu>
+                            </ResourceOverflowMenuPortal>
                         )}
                     </OverflowWrap>
                 </ActionItemActions>

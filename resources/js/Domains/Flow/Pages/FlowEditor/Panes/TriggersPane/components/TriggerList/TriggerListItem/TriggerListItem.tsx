@@ -13,10 +13,10 @@ import {
     ResourceItemMeta as TriggerItemMeta,
     ResourceItemName as TriggerItemName,
     ResourceOverflowButton as OverflowBtn,
-    ResourceOverflowMenu as OverflowMenu,
     ResourceOverflowMenuItem as OverflowMenuItem,
     ResourceOverflowWrap as OverflowWrap,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/shared.styled';
+import ResourceOverflowMenuPortal from '@/Domains/Flow/Pages/FlowEditor/Panes/ResourceOverflowMenuPortal';
 
 interface TriggerListItemProps {
     trigger: FlowTrigger;
@@ -106,7 +106,7 @@ export default function TriggerListItem({
                             <Icon icon="lucide:ellipsis-vertical" width={14} />
                         </OverflowBtn>
                         {overflowOpen && (
-                            <OverflowMenu>
+                            <ResourceOverflowMenuPortal anchorRef={overflowRef}>
                                 <OverflowMenuItem
                                     type="button"
                                     onClick={() => {
@@ -126,7 +126,7 @@ export default function TriggerListItem({
                                 >
                                     <Icon icon="lucide:trash-2" width={13} /> Delete
                                 </OverflowMenuItem>
-                            </OverflowMenu>
+                            </ResourceOverflowMenuPortal>
                         )}
                     </OverflowWrap>
                 </TriggerItemActions>
