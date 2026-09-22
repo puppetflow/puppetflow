@@ -58,18 +58,18 @@ const $sleep = async function(milliseconds) {
 /* @help Selectors
  * @sig $selectAtIndex(cssSelector, elementIndex)
  * @aliases select nth element, element by index
- * @desc Get the nth element matching a CSS selector (0-indexed). Returns null if not enough elements.
+ * @desc Get an element matching a CSS selector by index. Negative indexes count from the end. Returns null if not enough elements.
  * @nodal-desc Pick one matching element by its position on the page.
  * @nodal-output element
  * @nodal-param cssSelector [string, selector]: CSS selector used to find elements on the page.
- * @nodal-param elementIndex [integer]: Zero-based element position to return. Use 0 for the first match.
+ * @nodal-param elementIndex [integer]: Element position to return. Use 0 for the first match, -1 for the last, or -2 for the previous one.
  */
 const $selectAtIndex = async function(cssSelector, elementIndex) {
   const elements = await __internalSelect(cssSelector, {
     continueOnError: true,
-    index: -1,
+    all: true,
   });
-  return elements.length > elementIndex ? elements[elementIndex] : null;
+  return elements.at(elementIndex) ?? null;
 };
 
 /* @help Utility

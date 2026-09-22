@@ -103,6 +103,7 @@ export default tseslint.config(
                 __humanHoverElement: 'readonly',
                 __humanScrollBy: 'readonly',
                 __humanScrollIntoView: 'readonly',
+                __humanTakesFocus: 'readonly',
                 __humanType: 'readonly',
                 __registerNamedPageInitializer: 'readonly',
                 __setNamedPageViewport: 'readonly',

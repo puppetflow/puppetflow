@@ -610,7 +610,7 @@ const __aiElementDetails = async function(element) {
   })));
 };
 
-const __aiDirectElement = async function(args, defaultSelector) {
+const __aiDirectElement = async function(args, defaultSelector, selectOptions = {}) {
   const selector = typeof args.selector === 'string' && args.selector ? args.selector : defaultSelector;
   if (typeof selector !== 'string' || !selector) throw new Error('Puppeteer action requires a selector.');
   const timeout = __aiActionTimeout(args.timeout);
@@ -619,9 +619,23 @@ const __aiDirectElement = async function(args, defaultSelector) {
     timeout,
     textMatch,
     textFilter: textMatch ? 'exact' : 'contains',
+    ...selectOptions,
   });
   if (!result) throw new Error('Puppeteer target was not found.');
   return result.handle;
+};
+
+// The field to type into: the first match that can take focus. Sites keep
+// hidden duplicates of their forms (LinkedIn renders a 0x0 copy of its login
+// form before the real one), and a keystroke aimed at one of those lands on
+// the page instead. Same first-visible fallback as $fillInput.
+const __aiTypeTarget = async function(args) {
+  const selector = 'input, textarea, [contenteditable="true"]';
+  const element = await __aiDirectElement(args, selector);
+  if (await __humanTakesFocus(element)) return element;
+  const visible = await __aiDirectElement(args, selector, { visibleOnly: true, continueOnError: true }).catch(() => null);
+  if (visible && await __humanTakesFocus(visible)) return visible;
+  throw new Error('Puppeteer type target cannot take focus (hidden or disabled); use a more specific selector.');
 };
 
 const __aiExecutePuppetflowAction = async function(call) {
@@ -839,7 +853,7 @@ const __aiExecutePuppeteerAction = async function(call) {
       }
     case 'type': {
       if (typeof args.value !== 'string') throw new Error('Puppeteer type requires value.');
-      const element = await __aiDirectElement(args, 'input, textarea, [contenteditable="true"]');
+      const element = await __aiTypeTarget(args);
       if (args.clear !== false) {
         await __retryOnContextDestroyed(() => __humanClickElement(element, { clickCount: 3 }));
         await element.press('Backspace', { delay: __humanJitterMs(55, 0.5) });

@@ -240,12 +240,30 @@ const __humanHoverElement = async function(handle) {
   await __humanMoveTo(page, target.x, target.y);
 };
 
+// Focuses the element and reports whether focus actually landed on it or
+// inside it (element.focus() is a silent no-op on a hidden or disabled
+// control; a composite widget may hand focus to an inner field). Looks up
+// activeElement on the element's own root so inputs in a shadow tree count.
+const __humanTakesFocus = async function(handle) {
+  await __retryOnContextDestroyed(() => handle.focus());
+  return __retryOnContextDestroyed(() => handle.evaluate(element => {
+    const root = element.getRootNode();
+    const active = root.activeElement || document.activeElement;
+    return Boolean(active) && (active === element || element.contains(active));
+  }));
+};
+
 // Keystrokes at an irregular rhythm around the requested speed: a longer
 // pause after spaces and punctuation, an occasional hesitation. Speed 0 keeps
 // instant typing, as before.
 const __humanType = async function(handle, text, speed) {
   const value = String(text);
-  await handle.focus();
+  // Keystrokes go to whatever holds focus: if the element did not take it,
+  // they would land on the page (select-all, backspace, text) and the value
+  // would silently never be entered.
+  if (!(await __humanTakesFocus(handle))) {
+    throw new Error('Element cannot take focus (hidden or disabled); nothing was typed.');
+  }
   const page = __humanPageOf(handle);
   if (!(speed > 0)) {
     await page.keyboard.type(value);

@@ -79,7 +79,35 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
   if (!result) return;
 
   let input = result.handle;
-  const prepareInput = async function(handle) {
+
+  // A field that cannot take focus (LinkedIn renders a 0x0 duplicate of its
+  // login form before the real one, some sites keep a display:none copy)
+  // would leave the select-all and the keystrokes to the page itself: the
+  // whole document gets selected and nothing is typed. Fall back to the
+  // first visible match, or stop with a clear reason. Returns the handle to
+  // type into, or null when continueOnError swallows the failure.
+  const focusInput = async function(handle) {
+    if (await __humanTakesFocus(handle)) return handle;
+
+    let replacement = null;
+    if (typeof inputSelectorOrHandle === 'string' && !visibleOnly) {
+      replacement = await __internalSelect(inputSelectorOrHandle, { ...selectOptions, visibleOnly: true, continueOnError: true });
+      if (replacement && !(await __humanTakesFocus(replacement.handle))) replacement = null;
+    }
+    if (!replacement) {
+      if (continueOnError) return null;
+      throw new StopRun(
+        'Input ' + (typeof inputSelectorOrHandle === 'string' ? inputSelectorOrHandle : '(element)')
+        + ' cannot take focus (hidden or disabled). Enable visibleOnly or use a more specific selector.',
+      );
+    }
+    console.debug('Input', inputSelectorOrHandle, 'at index', index, 'cannot take focus (hidden duplicate?); using the first visible match instead');
+    return replacement.handle;
+  };
+
+  const prepareInput = async function(candidate) {
+    const handle = await focusInput(candidate);
+    if (!handle) return null;
     // Bring the pointer over the field first, as a person reaching for it
     // would; focus semantics stay those of puppeteer's type() (no click, so
     // no caret move or picker popup).
@@ -99,7 +127,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
         await keyboard.up(modifier);
       }
       await handle.press('Backspace', { delay: __humanJitterMs(55, 0.5) });
-      return;
+      return handle;
     }
     await __retryOnContextDestroyed(() => handle.evaluate((element, valueMode) => {
       const atStart = valueMode === 'prepend';
@@ -116,19 +144,20 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
       selection.removeAllRanges();
       selection.addRange(range);
     }, mode));
+    return handle;
   };
   try {
-    await prepareInput(input);
+    input = await prepareInput(input);
   } catch (err) {
     if (err.message.includes('Node is detached') && typeof inputSelectorOrHandle === 'string') {
       const retry = await __internalSelect(inputSelectorOrHandle, selectOptions);
       if (!retry) return;
-      input = retry.handle;
-      await prepareInput(input);
+      input = await prepareInput(retry.handle);
     } else {
       throw err;
     }
   }
+  if (!input) return;
   await __internalSleep(sleep);
   await __humanType(input, inputValue, speed);
   if (tabCount) {

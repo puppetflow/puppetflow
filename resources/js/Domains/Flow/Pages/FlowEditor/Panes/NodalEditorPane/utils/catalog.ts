@@ -172,7 +172,7 @@ const OPTION_DESCRIPTIONS: Record<string, string> = {
     textFilter: 'Text filter mode: contains, exact, startsWith, or endsWith.',
     textCaseSensitive: 'Preserve letter casing when matching text.',
     visibleOnly: 'Only use elements that are visible on the page.',
-    index: 'Zero-based position to use when several elements match. Use -1 only when the helper supports all matches.',
+    index: 'Position to use when several elements match. Use -1 for the last match, -2 for the previous one.',
     tabCount: 'Number of Tab key presses to send after filling the input.',
     rootSelector: 'CSS selector for the shadow DOM root to search inside.',
     output: 'Include this generated file or artifact in the flow output.',

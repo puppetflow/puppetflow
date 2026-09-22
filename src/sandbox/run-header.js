@@ -1628,12 +1628,30 @@ const __humanHoverElement = async function(handle) {
   await __humanMoveTo(page, target.x, target.y);
 };
 
+// Focuses the element and reports whether focus actually landed on it or
+// inside it (element.focus() is a silent no-op on a hidden or disabled
+// control; a composite widget may hand focus to an inner field). Looks up
+// activeElement on the element's own root so inputs in a shadow tree count.
+const __humanTakesFocus = async function(handle) {
+  await __retryOnContextDestroyed(() => handle.focus());
+  return __retryOnContextDestroyed(() => handle.evaluate(element => {
+    const root = element.getRootNode();
+    const active = root.activeElement || document.activeElement;
+    return Boolean(active) && (active === element || element.contains(active));
+  }));
+};
+
 // Keystrokes at an irregular rhythm around the requested speed: a longer
 // pause after spaces and punctuation, an occasional hesitation. Speed 0 keeps
 // instant typing, as before.
 const __humanType = async function(handle, text, speed) {
   const value = String(text);
-  await handle.focus();
+  // Keystrokes go to whatever holds focus: if the element did not take it,
+  // they would land on the page (select-all, backspace, text) and the value
+  // would silently never be entered.
+  if (!(await __humanTakesFocus(handle))) {
+    throw new Error('Element cannot take focus (hidden or disabled); nothing was typed.');
+  }
   const page = __humanPageOf(handle);
   if (!(speed > 0)) {
     await page.keyboard.type(value);
@@ -1718,18 +1736,18 @@ const $sleep = async function(milliseconds) {
 /* @help Selectors
  * @sig $selectAtIndex(cssSelector, elementIndex)
  * @aliases select nth element, element by index
- * @desc Get the nth element matching a CSS selector (0-indexed). Returns null if not enough elements.
+ * @desc Get an element matching a CSS selector by index. Negative indexes count from the end. Returns null if not enough elements.
  * @nodal-desc Pick one matching element by its position on the page.
  * @nodal-output element
  * @nodal-param cssSelector [string, selector]: CSS selector used to find elements on the page.
- * @nodal-param elementIndex [integer]: Zero-based element position to return. Use 0 for the first match.
+ * @nodal-param elementIndex [integer]: Element position to return. Use 0 for the first match, -1 for the last, or -2 for the previous one.
  */
 const $selectAtIndex = async function(cssSelector, elementIndex) {
   const elements = await __internalSelect(cssSelector, {
     continueOnError: true,
-    index: -1,
+    all: true,
   });
-  return elements.length > elementIndex ? elements[elementIndex] : null;
+  return elements.at(elementIndex) ?? null;
 };
 
 /* @help Utility
@@ -2113,7 +2131,35 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
   if (!result) return;
 
   let input = result.handle;
-  const prepareInput = async function(handle) {
+
+  // A field that cannot take focus (LinkedIn renders a 0x0 duplicate of its
+  // login form before the real one, some sites keep a display:none copy)
+  // would leave the select-all and the keystrokes to the page itself: the
+  // whole document gets selected and nothing is typed. Fall back to the
+  // first visible match, or stop with a clear reason. Returns the handle to
+  // type into, or null when continueOnError swallows the failure.
+  const focusInput = async function(handle) {
+    if (await __humanTakesFocus(handle)) return handle;
+
+    let replacement = null;
+    if (typeof inputSelectorOrHandle === 'string' && !visibleOnly) {
+      replacement = await __internalSelect(inputSelectorOrHandle, { ...selectOptions, visibleOnly: true, continueOnError: true });
+      if (replacement && !(await __humanTakesFocus(replacement.handle))) replacement = null;
+    }
+    if (!replacement) {
+      if (continueOnError) return null;
+      throw new StopRun(
+        'Input ' + (typeof inputSelectorOrHandle === 'string' ? inputSelectorOrHandle : '(element)')
+        + ' cannot take focus (hidden or disabled). Enable visibleOnly or use a more specific selector.',
+      );
+    }
+    console.debug('Input', inputSelectorOrHandle, 'at index', index, 'cannot take focus (hidden duplicate?); using the first visible match instead');
+    return replacement.handle;
+  };
+
+  const prepareInput = async function(candidate) {
+    const handle = await focusInput(candidate);
+    if (!handle) return null;
     // Bring the pointer over the field first, as a person reaching for it
     // would; focus semantics stay those of puppeteer's type() (no click, so
     // no caret move or picker popup).
@@ -2133,7 +2179,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
         await keyboard.up(modifier);
       }
       await handle.press('Backspace', { delay: __humanJitterMs(55, 0.5) });
-      return;
+      return handle;
     }
     await __retryOnContextDestroyed(() => handle.evaluate((element, valueMode) => {
       const atStart = valueMode === 'prepend';
@@ -2150,19 +2196,20 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
       selection.removeAllRanges();
       selection.addRange(range);
     }, mode));
+    return handle;
   };
   try {
-    await prepareInput(input);
+    input = await prepareInput(input);
   } catch (err) {
     if (err.message.includes('Node is detached') && typeof inputSelectorOrHandle === 'string') {
       const retry = await __internalSelect(inputSelectorOrHandle, selectOptions);
       if (!retry) return;
-      input = retry.handle;
-      await prepareInput(input);
+      input = await prepareInput(retry.handle);
     } else {
       throw err;
     }
   }
+  if (!input) return;
   await __internalSleep(sleep);
   await __humanType(input, inputValue, speed);
   if (tabCount) {
@@ -4174,8 +4221,8 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   const { textMatch, textFilter, textCaseSensitive } = __selectorTextOptions(options);
   const isDeepSelector = typeof selectorOrHandle === 'string'
     && (selectorOrHandle.includes('>>>') || selectorOrHandle.includes('>>iframe>>'));
-  const { visibleOnly = false, index = 0, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null } = options;
-  const many = index === -1;
+  const { visibleOnly = false, index = 0, all = false, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null } = options;
+  const many = all === true;
 
   const __filterCandidates = async function(candidates) {
     if (textMatch) {
@@ -4210,12 +4257,13 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
       throw new StopRun('No elements ' + label + (textMatch ? ' with text ' + textFilter + ' "' + textMatch + '"' : '') + ' found');
     }
 
-    if (index >= candidates.length) {
+    const resolvedIndex = index < 0 ? candidates.length + index : index;
+    if (resolvedIndex < 0 || resolvedIndex >= candidates.length) {
       if (continueOnError) return null;
       throw new StopRun('Index out of bounds: ' + index + ' (found ' + candidates.length + ' elements)');
     }
 
-    const handle = candidates[index];
+    const handle = candidates[resolvedIndex];
     const visible = handle ? await handle.isVisible() : false;
     if (visibleOnly && !visible) {
       if (continueOnError) return null;
@@ -4317,7 +4365,7 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
  * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
- * @nodal-param options.index [number]: Zero-based position to use when several elements match.
+ * @nodal-param options.index [number]: Position to use when several elements match. Use -1 for the last match, -2 for the previous one.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
 const $selectElement = async function(selectorOrHandle, options = {}) {
@@ -4341,7 +4389,7 @@ const $selectElement = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
 const $selectManyElements = async function(cssSelector, options = {}) {
-  return __internalSelect(cssSelector, { continueOnError: true, ...options, index: -1 });
+  return __internalSelect(cssSelector, { continueOnError: true, ...options, all: true });
 };
 
 const __validateElementGetters = function(getters) {
@@ -4432,7 +4480,7 @@ const $extractAttribute = async function(selectorOrHandle, getters) {
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
  */
 const $extractAttributes = async function(selectorOrHandle, getters) {
-  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, index: -1 });
+  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, all: true });
   const getterMap = __validateElementGetters(getters);
   return Promise.all(handles.map(handle => __extractElementAttributes(handle, getterMap)));
 };
@@ -4477,12 +4525,12 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
 /* @help Interaction
  * @sig $clickElementAtIndex(elementsSelector, elementIndex, options?)
  * @aliases click nth element, click item by index
- * @desc Click an element at a specific index after an optional delay (ms). Throws StopRun if not found or index out of bounds.
+ * @desc Click an element at a specific index after an optional delay (ms). Negative indexes count from the end. Throws StopRun if not found or index out of bounds.
  * @nodal-desc Click one matching element by its position after an optional delay.
  * @nodal-output boolean
  * @opt delay: 1000, buttonType: left, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param elementsSelector [string, selector]: CSS selector that matches the candidate elements.
- * @nodal-param elementIndex [integer]: Zero-based element position to click.
+ * @nodal-param elementIndex [integer]: Element position to click. Use -1 for the last match, -2 for the previous one.
  * @nodal-param options: Click and selection options.
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
@@ -6121,7 +6169,7 @@ const __aiElementDetails = async function(element) {
   })));
 };
 
-const __aiDirectElement = async function(args, defaultSelector) {
+const __aiDirectElement = async function(args, defaultSelector, selectOptions = {}) {
   const selector = typeof args.selector === 'string' && args.selector ? args.selector : defaultSelector;
   if (typeof selector !== 'string' || !selector) throw new Error('Puppeteer action requires a selector.');
   const timeout = __aiActionTimeout(args.timeout);
@@ -6130,9 +6178,23 @@ const __aiDirectElement = async function(args, defaultSelector) {
     timeout,
     textMatch,
     textFilter: textMatch ? 'exact' : 'contains',
+    ...selectOptions,
   });
   if (!result) throw new Error('Puppeteer target was not found.');
   return result.handle;
+};
+
+// The field to type into: the first match that can take focus. Sites keep
+// hidden duplicates of their forms (LinkedIn renders a 0x0 copy of its login
+// form before the real one), and a keystroke aimed at one of those lands on
+// the page instead. Same first-visible fallback as $fillInput.
+const __aiTypeTarget = async function(args) {
+  const selector = 'input, textarea, [contenteditable="true"]';
+  const element = await __aiDirectElement(args, selector);
+  if (await __humanTakesFocus(element)) return element;
+  const visible = await __aiDirectElement(args, selector, { visibleOnly: true, continueOnError: true }).catch(() => null);
+  if (visible && await __humanTakesFocus(visible)) return visible;
+  throw new Error('Puppeteer type target cannot take focus (hidden or disabled); use a more specific selector.');
 };
 
 const __aiExecutePuppetflowAction = async function(call) {
@@ -6350,7 +6412,7 @@ const __aiExecutePuppeteerAction = async function(call) {
       }
     case 'type': {
       if (typeof args.value !== 'string') throw new Error('Puppeteer type requires value.');
-      const element = await __aiDirectElement(args, 'input, textarea, [contenteditable="true"]');
+      const element = await __aiTypeTarget(args);
       if (args.clear !== false) {
         await __retryOnContextDestroyed(() => __humanClickElement(element, { clickCount: 3 }));
         await element.press('Backspace', { delay: __humanJitterMs(55, 0.5) });

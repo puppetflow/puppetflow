@@ -75,8 +75,8 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   const { textMatch, textFilter, textCaseSensitive } = __selectorTextOptions(options);
   const isDeepSelector = typeof selectorOrHandle === 'string'
     && (selectorOrHandle.includes('>>>') || selectorOrHandle.includes('>>iframe>>'));
-  const { visibleOnly = false, index = 0, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null } = options;
-  const many = index === -1;
+  const { visibleOnly = false, index = 0, all = false, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null } = options;
+  const many = all === true;
 
   const __filterCandidates = async function(candidates) {
     if (textMatch) {
@@ -111,12 +111,13 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
       throw new StopRun('No elements ' + label + (textMatch ? ' with text ' + textFilter + ' "' + textMatch + '"' : '') + ' found');
     }
 
-    if (index >= candidates.length) {
+    const resolvedIndex = index < 0 ? candidates.length + index : index;
+    if (resolvedIndex < 0 || resolvedIndex >= candidates.length) {
       if (continueOnError) return null;
       throw new StopRun('Index out of bounds: ' + index + ' (found ' + candidates.length + ' elements)');
     }
 
-    const handle = candidates[index];
+    const handle = candidates[resolvedIndex];
     const visible = handle ? await handle.isVisible() : false;
     if (visibleOnly && !visible) {
       if (continueOnError) return null;
@@ -218,7 +219,7 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
  * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
- * @nodal-param options.index [number]: Zero-based position to use when several elements match.
+ * @nodal-param options.index [number]: Position to use when several elements match. Use -1 for the last match, -2 for the previous one.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
 const $selectElement = async function(selectorOrHandle, options = {}) {
@@ -242,7 +243,7 @@ const $selectElement = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
 const $selectManyElements = async function(cssSelector, options = {}) {
-  return __internalSelect(cssSelector, { continueOnError: true, ...options, index: -1 });
+  return __internalSelect(cssSelector, { continueOnError: true, ...options, all: true });
 };
 
 const __validateElementGetters = function(getters) {
@@ -333,7 +334,7 @@ const $extractAttribute = async function(selectorOrHandle, getters) {
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
  */
 const $extractAttributes = async function(selectorOrHandle, getters) {
-  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, index: -1 });
+  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, all: true });
   const getterMap = __validateElementGetters(getters);
   return Promise.all(handles.map(handle => __extractElementAttributes(handle, getterMap)));
 };
@@ -378,12 +379,12 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
 /* @help Interaction
  * @sig $clickElementAtIndex(elementsSelector, elementIndex, options?)
  * @aliases click nth element, click item by index
- * @desc Click an element at a specific index after an optional delay (ms). Throws StopRun if not found or index out of bounds.
+ * @desc Click an element at a specific index after an optional delay (ms). Negative indexes count from the end. Throws StopRun if not found or index out of bounds.
  * @nodal-desc Click one matching element by its position after an optional delay.
  * @nodal-output boolean
  * @opt delay: 1000, buttonType: left, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param elementsSelector [string, selector]: CSS selector that matches the candidate elements.
- * @nodal-param elementIndex [integer]: Zero-based element position to click.
+ * @nodal-param elementIndex [integer]: Element position to click. Use -1 for the last match, -2 for the previous one.
  * @nodal-param options: Click and selection options.
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
