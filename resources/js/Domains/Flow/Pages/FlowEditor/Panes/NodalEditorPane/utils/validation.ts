@@ -314,12 +314,19 @@ function getLoggedMarkerConditionIssues(value: NodeParameterValue | undefined): 
         }];
     }
 
-    const selector = readScalarValue(readObjectFieldValue(condition, 'selector'));
-    if (selector !== DYNAMIC_PARAMETER_VALUE && (typeof selector !== 'string' || !selector.trim())) {
+    const selectorOrHandle = readScalarValue(readObjectFieldValue(condition, 'selectorOrHandle'));
+    const legacySelector = readScalarValue(readObjectFieldValue(condition, 'selector'));
+    const markerTarget = selectorOrHandle === undefined || selectorOrHandle === ''
+        ? legacySelector
+        : selectorOrHandle;
+    if (
+        markerTarget !== DYNAMIC_PARAMETER_VALUE
+        && (typeof markerTarget !== 'string' || !markerTarget.trim())
+    ) {
         return [{
             path: 'options.loggedMarkerCondition',
             label: 'Logged marker condition',
-            message: 'Selector is required.',
+            message: 'Selector or handle is required.',
         }];
     }
 

@@ -25,8 +25,9 @@ const __loginMarkerOperator = function(matches, operator, count) {
  * @nodal-param options.loginUrl [string, required]: URL of the login page.
  * @nodal-param options.loginRecipe [flow, required]: Flow used to perform the login.
  * @nodal-param options.loggedUrl [string, required]: URL to visit when checking whether the session is already logged in.
- * @nodal-param options.loggedMarkerCondition [object, logged-marker-condition]: Selector condition evaluated in the page context to detect the logged-in page.
- * @nodal-param options.loggedMarkerCondition.selector [string, selector, required]: CSS selector used to find the logged-in marker.
+ * @nodal-param options.loggedMarkerCondition [object, logged-marker-condition]: Element condition evaluated in the page context to detect the logged-in page.
+ * @nodal-param options.loggedMarkerCondition.selectorOrHandle [element, selector]: CSS selector or ElementHandle used to find the logged-in marker.
+ * @nodal-param options.loggedMarkerCondition.selector [string, selector]: Legacy CSS selector used to find the logged-in marker.
  * @nodal-param options.loggedMarkerCondition.textMatch [string]: Text to match against each selected element.
  * @nodal-param options.loggedMarkerCondition.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
  * @nodal-param options.loggedMarkerCondition.textCaseSensitive [boolean]: Preserve letter casing when matching text.
@@ -92,9 +93,12 @@ const $loginRemember = async function(options = {}) {
       textFilter,
       textCaseSensitive: opts.loggedMarkerCondition.textCaseSensitive === true
     };
-    const { selector, operator, count } = opts.loggedMarkerCondition;
-    if (typeof selector !== 'string' || !selector.trim()) {
-      throw new Error('Login remember loggedMarkerCondition requires a selector');
+    const { selectorOrHandle, selector, operator, count } = opts.loggedMarkerCondition;
+    const markerTarget = selectorOrHandle || selector;
+    const isCssSelector = typeof markerTarget === 'string' && markerTarget.trim();
+    const isElementHandle = markerTarget && typeof markerTarget === 'object' && typeof markerTarget.evaluate === 'function';
+    if (!isCssSelector && !isElementHandle) {
+      throw new Error('Login remember loggedMarkerCondition requires a CSS selector or ElementHandle');
     }
     if (!markerConditionOperators.includes(operator)) {
       throw new Error('Login remember loggedMarkerCondition has an invalid operator');
@@ -137,12 +141,24 @@ const $loginRemember = async function(options = {}) {
           absence ? 'Waiting for logged marker to stay absent during' : 'Waiting for logged marker during',
           ((opts.loggedMarkerTimeout / 1000).toFixed(0) + 's...'),
         );
+        const markerTarget = opts.loggedMarkerCondition.selectorOrHandle
+          || opts.loggedMarkerCondition.selector;
+        const markerCondition = {
+          ...opts.loggedMarkerCondition,
+          selectorOrHandle: undefined,
+          selector: undefined,
+        };
         const evaluateMarker = () => $page.waitForFunction(
-          ({ selector, textMatch, textFilter, textCaseSensitive, operator, count }, invert) => {
+          (target, { textMatch, textFilter, textCaseSensitive, operator, count }, invert) => {
             const expectedText = textMatch
               ? (textCaseSensitive ? textMatch : textMatch.toLocaleLowerCase())
               : '';
-            const matches = Array.from(document.querySelectorAll(selector))
+            const elements = typeof target === 'string'
+              ? Array.from(document.querySelectorAll(target))
+              : target && target.isConnected
+                ? [target]
+                : [];
+            const matches = elements
               .filter(element => {
                 if (!expectedText) return true;
                 const elementText = String(element.innerText || element.textContent || '').trim();
@@ -168,7 +184,8 @@ const $loginRemember = async function(options = {}) {
             return invert ? !result : result;
           },
           { timeout: opts.loggedMarkerTimeout },
-          opts.loggedMarkerCondition,
+          markerTarget,
+          markerCondition,
           absence,
         );
         if (!absence) {

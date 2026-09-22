@@ -147,6 +147,7 @@ const formatFixedLiteral = (
         || valueType === 'mailbox-watcher'
         || valueType === 'data-table'
         || valueType === 'media'
+        || valueType === 'element'
     ) {
         return JSON.stringify(value);
     }
@@ -567,8 +568,11 @@ const formatTypedFieldForCompiler = (
     valueType: ObjectFieldValueType | undefined,
     options: { awaitExpressions?: boolean } = {},
 ) => {
-    const source = formatParameterForCompiler(value, valueType === 'code'
-        ? { ...options, valueType: 'code' }
+    const literalValueType = valueType === 'code' || valueType === 'string' || valueType === 'element'
+        ? valueType
+        : undefined;
+    const source = formatParameterForCompiler(value, literalValueType
+        ? { ...options, valueType: literalValueType }
         : options);
     const coerceLiteral = `((value) => {
         if (typeof value !== 'string') return value;

@@ -33,7 +33,7 @@ export interface NodalParamDef {
     picker?: 'selector';
     placeholder?: string;
     defaultValue?: string;
-    valueType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'function' | 'code' | 'flow' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns' | 'media';
+    valueType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'function' | 'code' | 'flow' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns' | 'media' | 'element';
     required?: boolean;
     validationRequired?: boolean;
     input?: 'text' | 'textarea' | 'code' | 'select' | 'object' | 'custom-object' | 'getter-map' | 'function-map' | 'logged-marker-condition' | 'boolean' | 'number' | 'channel' | 'mailbox-watcher' | 'ai-model' | 'ai-vision-model' | 'tab-name' | 'stopwatch-name' | 'sniff-profile' | 'cookie-profile' | 'data-table' | 'data-table-values' | 'data-table-filters' | 'data-table-columns' | 'media';

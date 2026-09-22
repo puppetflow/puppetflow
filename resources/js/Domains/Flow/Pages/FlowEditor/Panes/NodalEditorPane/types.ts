@@ -63,7 +63,7 @@ export interface ObjectNodeParameterValue {
 
 export type IfValueCategory = 'string' | 'number' | 'dateTime' | 'boolean' | 'array' | 'object';
 export type IfConditionCategory = IfValueCategory | 'null';
-export type ObjectFieldValueType = IfValueCategory | 'code';
+export type ObjectFieldValueType = IfValueCategory | 'code' | 'element';
 
 export interface IfConditionRule {
     id: string;

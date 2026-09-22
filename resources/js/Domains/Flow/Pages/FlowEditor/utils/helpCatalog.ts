@@ -449,7 +449,7 @@ function normalizeNodalParamType(type: string | undefined): NodalParamDef['value
 
     const normalized = type.toLowerCase();
     if (['int', 'integer', 'float', 'double'].includes(normalized)) return 'number';
-    if (['string', 'number', 'boolean', 'array', 'object', 'custom-object', 'getter-map', 'function-map', 'function', 'code', 'flow', 'channel', 'mailbox-watcher', 'ai-model', 'ai-vision-model', 'data-table', 'data-table-values', 'data-table-filters', 'data-table-columns', 'media'].includes(normalized)) {
+    if (['string', 'number', 'boolean', 'array', 'object', 'custom-object', 'getter-map', 'function-map', 'function', 'code', 'flow', 'channel', 'mailbox-watcher', 'ai-model', 'ai-vision-model', 'data-table', 'data-table-values', 'data-table-filters', 'data-table-columns', 'media', 'element'].includes(normalized)) {
         return normalized as NodalParamDef['valueType'];
     }
 

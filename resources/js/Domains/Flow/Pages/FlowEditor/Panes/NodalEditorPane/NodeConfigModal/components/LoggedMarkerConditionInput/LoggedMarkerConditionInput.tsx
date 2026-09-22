@@ -85,7 +85,8 @@ export default function LoggedMarkerConditionInput({
 }: LoggedMarkerConditionInputProps) {
     const objectValue = normalizeObjectParameterValue(value, meta);
     const fields = getObjectFields(objectValue, meta);
-    const selectorField = fields.find(field => field.key === 'selector');
+    const selectorOrHandleField = fields.find(field => field.key === 'selectorOrHandle')
+        ?? fields.find(field => field.key === 'selector');
     const textMatchField = fields.find(field => field.key === 'textMatch');
     const textFilterField = fields.find(field => field.key === 'textFilter');
     const textCaseSensitiveField = fields.find(field => field.key === 'textCaseSensitive');
@@ -106,7 +107,7 @@ export default function LoggedMarkerConditionInput({
 
     const fieldValueType = (key: string): ObjectFieldValueType | undefined => {
         const valueType = meta.objectFields?.[key]?.valueType;
-        return ['string', 'number', 'dateTime', 'boolean', 'array', 'object', 'code'].includes(valueType ?? '')
+        return ['string', 'number', 'dateTime', 'boolean', 'array', 'object', 'code', 'element'].includes(valueType ?? '')
             ? valueType as ObjectFieldValueType
             : undefined;
     };
@@ -159,7 +160,7 @@ export default function LoggedMarkerConditionInput({
         setGrabbing(true);
         try {
             const result = await grabSelector(currentSiteUrl, { forceOnboarding });
-            updateField('selector', { mode: 'fixed', value: result.selector });
+            updateField('selectorOrHandle', { mode: 'fixed', value: result.selector });
         } catch {
             // The coordinator owns user-facing failure feedback.
         } finally {
@@ -182,9 +183,9 @@ export default function LoggedMarkerConditionInput({
         }, 550);
     };
 
-    const selectorLabel = (
+    const selectorOrHandleLabel = (
         <Shared.PickerLabel>
-            <label>Selector</label>
+            <label>Selector or handle</label>
             <Shared.PickerButton
                 type="button"
                 disabled={readOnly || grabbing}
@@ -231,17 +232,17 @@ export default function LoggedMarkerConditionInput({
             </S.Header>
             {invalid && <S.Error>{errorMessage || 'Complete the marker condition.'}</S.Error>}
             <ExpressionInput
-                label="Selector"
-                labelSlot={selectorLabel}
-                hint={meta.objectFields?.selector?.description}
+                label="Selector or handle"
+                labelSlot={selectorOrHandleLabel}
+                hint={meta.objectFields?.selectorOrHandle?.description}
                 placeholder=".dashboard, [data-testid=&quot;account-menu&quot;]"
                 inputType="text"
-                value={normalizeScalarParameterValue(selectorField?.value)}
+                value={normalizeScalarParameterValue(selectorOrHandleField?.value)}
                 outputData={outputData}
                 autocompleteContext={autocompleteContext}
                 flowId={flowId}
                 readOnly={readOnly}
-                onChange={nextValue => updateField('selector', nextValue)}
+                onChange={nextValue => updateField('selectorOrHandle', nextValue)}
             />
             <S.ConditionBlock>
                 <S.ConditionLabel>Selector Operator</S.ConditionLabel>

@@ -53,7 +53,7 @@ const inferCustomFieldType = (value: unknown): IfValueCategory => {
 const objectFieldValueType = (meta: NodalParamDef, key: string): ObjectFieldValueType | undefined => {
     const valueType = meta.objectFields?.[key]?.valueType;
 
-    return ['string', 'number', 'dateTime', 'boolean', 'array', 'object', 'code'].includes(valueType ?? '')
+    return ['string', 'number', 'dateTime', 'boolean', 'array', 'object', 'code', 'element'].includes(valueType ?? '')
         ? valueType as ObjectFieldValueType
         : undefined;
 };
@@ -263,7 +263,7 @@ export function getObjectFields(value: ObjectNodeParameterValue, meta: NodalPara
             ...field,
             valueType: isFunctionMap(meta)
                 ? 'code' as const
-                : field.valueType ?? objectFieldValueType(meta, field.key),
+                : objectFieldValueType(meta, field.key) ?? field.valueType,
         }));
     const requiredKeys = knownKeys.filter(key => (
         meta.objectFields?.[key]?.required
