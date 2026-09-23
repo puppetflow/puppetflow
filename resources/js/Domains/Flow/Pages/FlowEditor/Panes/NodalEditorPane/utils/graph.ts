@@ -6,7 +6,7 @@ import {
     SYSTEM_NODE_ENTRIES,
 } from './constants';
 import { formatEntryLabel, formatNodeLabel, getEntryByName } from './catalog';
-import { collectSystemFlowNodeIds } from './edges';
+import { collectSystemFlowNodeIds, normalizeNodeScopes } from './edges';
 import { cloneNodeValues, normalizeScalarParameterValue } from './expression';
 import { snapCanvasPosition } from './grid';
 import { sanitizeNodeValuesForEntry } from './nodeValues';
@@ -88,7 +88,7 @@ const repairFunctionNodeValues = (node: NodalGraph['nodes'][number]): NodalGraph
 
 export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
     const reservedIds = graph.nodes.map(node => node.id);
-    return graph.nodes.reduce<CanvasNode[]>((acc, rawNode) => {
+    const canvasNodes = graph.nodes.reduce<CanvasNode[]>((acc, rawNode) => {
         const node = { ...rawNode, values: repairFunctionNodeValues(rawNode) };
         const isStickyNote = node.kind === 'stickyNote';
         const entry = isStickyNote
@@ -127,6 +127,9 @@ export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
 
         return [...acc, nextNode];
     }, []);
+
+    // Saved scopeIds may disagree with the wiring; the edges are the source of truth.
+    return normalizeNodeScopes(canvasNodes, graph.edges);
 };
 
 // The FINALLY branch stays in the graph while the flow setting is off (the compiler and validators

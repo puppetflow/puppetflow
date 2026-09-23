@@ -10,7 +10,8 @@ export const Container = styled.aside<{ $mobileOpen?: boolean; $collapsed?: bool
     flex-direction: column;
     overflow: visible;
     position: relative;
-    z-index: 20;
+    /* Above the sticky page header so the expand button overflowing the sidebar stays clickable. */
+    z-index: 30;
     transition:
         width 200ms ease,
         min-width 200ms ease;

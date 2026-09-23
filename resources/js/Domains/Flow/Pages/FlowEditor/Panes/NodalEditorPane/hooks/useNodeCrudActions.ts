@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import { formatEntryLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
+import { collectAttachedNodeIds } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import { nodeDisplayLabel, uniqueNodeLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import { toFunctionIdentifier } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
@@ -12,6 +13,7 @@ import { reconnectDeletedLinearNodes, renameNodeValuesReferences } from './nodeA
 
 interface UseNodeCrudActionsOptions {
     nodes: CanvasNode[];
+    edges: CanvasEdge[];
     readOnly: boolean;
     recordHistory: () => void;
     setNodes: React.Dispatch<React.SetStateAction<CanvasNode[]>>;
@@ -24,6 +26,7 @@ interface UseNodeCrudActionsOptions {
 // Removes nodes and manages graph-level node creation or replacement operations.
 export function useNodeCrudActions({
     nodes,
+    edges,
     readOnly,
     recordHistory,
     setNodes,
@@ -82,19 +85,32 @@ export function useNodeCrudActions({
                 && node.scopeId === node.id
             ))
             .map(node => node.id));
+        // Removing a function takes its body along, but only the nodes actually wired
+        // to it (plus its call nodes). Nodes merely tagged with the function scope,
+        // whether connected to the main flow or floating, are handed back to the
+        // main flow instead of vanishing with the function.
+        const removedBodyIds = new Set<string>(removedFunctionIds);
+        removedFunctionIds.forEach(functionId => {
+            collectAttachedNodeIds(nodes, edges, functionId).forEach(nodeId => removedBodyIds.add(nodeId));
+        });
+        const orphanedIds = new Set<string>();
         nodes.forEach(node => {
             if (
                 (!node.system && requestedIds.has(node.id))
-                || (node.scopeId && removedFunctionIds.has(node.scopeId))
+                || removedBodyIds.has(node.id)
                 || (node.localFunctionId && removedFunctionIds.has(node.localFunctionId))
             ) {
                 removableIds.add(node.id);
+            } else if (node.scopeId && removedFunctionIds.has(node.scopeId)) {
+                orphanedIds.add(node.id);
             }
         });
         if (removableIds.size === 0) return;
 
         recordHistory();
-        setNodes(current => current.filter(node => !removableIds.has(node.id)));
+        setNodes(current => current
+            .filter(node => !removableIds.has(node.id))
+            .map(node => orphanedIds.has(node.id) ? { ...node, scopeId: undefined } : node));
         setEdges(current => reconnectDeletedLinearNodes(nodes, current, removableIds));
         setSelectedNodeIds(current => new Set(
             [...current].filter(nodeId => !removableIds.has(nodeId)),
@@ -102,6 +118,7 @@ export function useNodeCrudActions({
         setEditingNode(current => current && removableIds.has(current.id) ? null : current);
         setOpenNodeMenuId(current => current && removableIds.has(current) ? null : current);
     }, [
+        edges,
         nodes,
         readOnly,
         recordHistory,

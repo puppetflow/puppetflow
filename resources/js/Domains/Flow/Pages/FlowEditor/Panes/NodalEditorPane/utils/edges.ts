@@ -404,6 +404,75 @@ export function applyConnectionScope(nodes: CanvasNode[], resolution: Connection
     ));
 }
 
+type ScopedNode = Pick<CanvasNode, 'id' | 'system' | 'scopeId'>;
+type ScopeEdge = Pick<CanvasEdge, 'sourceNodeId' | 'targetNodeId'>;
+
+// Regular nodes wired (in any direction, through any edge kind) to `anchorId`
+// without crossing another system node. The anchor itself is not included.
+export function collectAttachedNodeIds(nodes: ScopedNode[], edges: ScopeEdge[], anchorId: string): Set<string> {
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const attached = new Set<string>();
+    const visited = new Set<string>([anchorId]);
+    const queue = [anchorId];
+
+    while (queue.length) {
+        const nodeId = queue.shift()!;
+        edges.forEach(edge => {
+            const nextId = edge.sourceNodeId === nodeId
+                ? edge.targetNodeId
+                : edge.targetNodeId === nodeId ? edge.sourceNodeId : null;
+            if (!nextId || visited.has(nextId)) return;
+            const next = nodeById.get(nextId);
+            if (!next || next.system) return;
+            visited.add(nextId);
+            attached.add(nextId);
+            queue.push(nextId);
+        });
+    }
+
+    return attached;
+}
+
+// A node's scope follows its wiring: whatever is connected to RUN or FINALLY
+// belongs to the main flow, whatever hangs off a FUNCTION entry node belongs to
+// that function. The stored scopeId is only trusted for free-floating nodes.
+// This repairs graphs whose scopeIds drifted from their edges (for instance a
+// main chain tagged with a function scope, which would otherwise be wiped out
+// together with the function). Returns the same array when nothing changes.
+export function normalizeNodeScopes<T extends ScopedNode>(nodes: T[], edges: ScopeEdge[]): T[] {
+    const localFunctionIds = new Set(nodes
+        .filter(node => node.system === 'function' && node.scopeId === node.id)
+        .map(node => node.id));
+    const rootAnchors = nodes.filter(node => (
+        node.system === 'run'
+        || node.system === 'terminate'
+        || (node.system === 'function' && !node.scopeId)
+    ));
+    const functionAnchors = nodes.filter(node => localFunctionIds.has(node.id));
+
+    const resolvedScopes = new Map<string, string | undefined>();
+    const assignFromAnchor = (anchor: T, scopeId: string | undefined) => {
+        collectAttachedNodeIds(nodes, edges, anchor.id).forEach(nodeId => {
+            if (!resolvedScopes.has(nodeId)) resolvedScopes.set(nodeId, scopeId);
+        });
+    };
+    rootAnchors.forEach(anchor => assignFromAnchor(anchor, undefined));
+    functionAnchors.forEach(anchor => assignFromAnchor(anchor, anchor.id));
+
+    let changed = false;
+    const nextNodes = nodes.map(node => {
+        if (node.system) return node;
+        const scopeId = resolvedScopes.has(node.id)
+            ? resolvedScopes.get(node.id)
+            : node.scopeId && localFunctionIds.has(node.scopeId) ? node.scopeId : undefined;
+        if ((scopeId ?? null) === (node.scopeId ?? null)) return node;
+        changed = true;
+        return { ...node, scopeId };
+    });
+
+    return changed ? nextNodes : nodes;
+}
+
 export function collectDownstreamNodeIds(edges: CanvasEdge[], startNodeId: string, excludedNodeIds = new Set<string>()): Set<string> {
     const downstreamNodeIds = new Set<string>();
     const queue = [startNodeId];
