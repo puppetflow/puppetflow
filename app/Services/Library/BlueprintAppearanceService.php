@@ -16,6 +16,7 @@ final class BlueprintAppearanceService
         'cyan' => '#0891b2',
         'purple' => '#7c3aed',
         'pink' => '#db2777',
+        'red' => '#dc2626',
         'orange' => '#ea580c',
         'amber' => '#d97706',
         'slate' => '#475569',
