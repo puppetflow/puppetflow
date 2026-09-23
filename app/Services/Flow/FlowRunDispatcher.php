@@ -38,6 +38,7 @@ final class FlowRunDispatcher
     /**
      * @param  array<string, mixed>  $input
      * @param  array<string, mixed>|null  $webhookInfo
+     * @param  FlowRunProxyOverride|null  $proxyOverride  Explicit per-run proxy; defaults to the trigger proxy when a trigger fires.
      */
     public function dispatch(
         Flow $flow,
@@ -47,13 +48,17 @@ final class FlowRunDispatcher
         ?string $codeOverride = null,
         ?string $triggerId = null,
         ?array $webhookInfo = null,
+        ?FlowRunProxyOverride $proxyOverride = null,
     ): FlowRun {
         $this->licenseGuard->ensure('flow runner');
         $input = $this->effectiveInput($flow, $input);
 
         Gate::forUser($user)->authorize($this->executionAbility($triggerType)->value, $flow);
         $this->variableResolver->resolve($input, $user->id, $flow->workspace_id);
-        $this->authorizeTriggerExecution($triggerId, $user, $flow);
+        $trigger = $this->authorizeTriggerExecution($triggerId, $user, $flow);
+        if ($proxyOverride === null && $trigger instanceof FlowTrigger) {
+            $proxyOverride = FlowRunProxyOverride::fromTrigger($trigger);
+        }
 
         $flowVersionId = null;
         // Repository flows keep the repository as their source of truth and are not versioned.
@@ -73,7 +78,7 @@ final class FlowRunDispatcher
         $codeToRun = $this->runProgressInstrumenter->instrument($resolvedCode);
         $flow->refresh();
         $productionDecision = $this->productionRuns->decide($flow, $triggerType);
-        $proxySnapshot = $this->proxyRouter->resolve($flow, $user);
+        $proxySnapshot = $this->proxyRouter->resolve($flow, $user, $proxyOverride);
 
         $run = $this->createPendingRun(
             $flow,
@@ -184,10 +189,10 @@ final class FlowRunDispatcher
         ]);
     }
 
-    private function authorizeTriggerExecution(?string $triggerId, User $user, Flow $flow): void
+    private function authorizeTriggerExecution(?string $triggerId, User $user, Flow $flow): ?FlowTrigger
     {
         if ($triggerId === null) {
-            return;
+            return null;
         }
 
         $trigger = FlowTrigger::query()
@@ -200,6 +205,8 @@ final class FlowRunDispatcher
         }
 
         Gate::forUser($user)->authorize(Ability::USE->value, $trigger);
+
+        return $trigger;
     }
 
     private function executionAbility(string $triggerType): Ability

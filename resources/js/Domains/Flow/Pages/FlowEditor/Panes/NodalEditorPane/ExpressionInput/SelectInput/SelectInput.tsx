@@ -72,11 +72,12 @@ export default function SelectInput({
         return options.filter(option => (
             option.label.toLowerCase().includes(normalizedQuery)
             || option.value.toLowerCase().includes(normalizedQuery)
+            || (option.description?.toLowerCase().includes(normalizedQuery) ?? false)
         ));
     }, [options, query]);
     const selectableOptions = useMemo(() => {
         const customValue = query.trim();
-        const customOption = allowCustomValue
+        const customOption: NodalSelectOption | null = allowCustomValue
             && customValue
             && !options.some(option => option.value === customValue)
             ? {
@@ -274,8 +275,17 @@ export default function SelectInput({
                                 onClick={() => selectOption(option)}
                             >
                                 <OptionIcon option={option} />
-                                <strong>{option.label}</strong>
-                                {option.detail && <span>{option.detail}</span>}
+                                {option.description ? (
+                                    <>
+                                        <strong data-select-description>{option.description}</strong>
+                                        <span data-select-value>{option.label}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <strong>{option.label}</strong>
+                                        {option.detail && <span>{option.detail}</span>}
+                                    </>
+                                )}
                                 {option.value === value && (
                                     <span data-select-check>
                                         <Icon icon="lucide:check" width={13} height={13} />

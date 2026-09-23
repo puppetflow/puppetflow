@@ -104,7 +104,7 @@ const browserCode = (action: ActionLogEntry, args: Record<string, unknown>) => {
                 `await element.type(${json(args.value)}, { delay: ${Number(args.delay) || 20} });`,
             ].filter(Boolean).join('\n');
         case 'press':
-            return `await $page.keyboard.press(${json(args.key)});`;
+            return `await $keyboardShortcut(${json(args.key)});`;
         case 'hover':
             return `await $page.hover(${json(args.selector)});`;
         case 'select': {
@@ -153,6 +153,15 @@ const mapActionToNode = (action: ActionLogEntry) => {
             return {
                 name: '$sleep',
                 values: scalarValues({ milliseconds: Number(args.milliseconds) || 500 }),
+            };
+        }
+        if (action.action === 'press' && typeof args.key === 'string' && args.key) {
+            return {
+                name: '$keyboardShortcut',
+                values: {
+                    key: fixed(args.key),
+                    options: object({ cmdOrCtrl: false, control: false, meta: false, shift: false, alt: false, repeat: 1 }),
+                },
             };
         }
         return codeNode(browserCode(action, args));

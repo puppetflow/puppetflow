@@ -14,6 +14,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Flow;
 use App\Models\FlowTrigger;
 use App\Models\User;
+use App\Services\Flow\FlowRunProxyOverride;
+use App\Services\Workspace\WorkspaceProxyAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class FlowTriggerController extends Controller
 {
     public function __construct(
         private readonly ResourceAssignmentValidator $assignments,
+        private readonly WorkspaceProxyAccess $proxyAccess,
     ) {}
 
     public function store(Request $request, Flow $flow): RedirectResponse
@@ -36,6 +39,8 @@ class FlowTriggerController extends Controller
          *     group?: string|null,
          *     input_template?: array<string, mixed>|null,
          *     config?: array<string, mixed>|null,
+         *     proxy_mode?: string|null,
+         *     workspace_proxy_id?: int|null,
          *     scope?: string,
          *     team_id?: string|null
          * } $validated
@@ -46,6 +51,8 @@ class FlowTriggerController extends Controller
             'group' => 'nullable|string|max:100',
             'input_template' => 'nullable|array',
             'config' => 'nullable|array',
+            'proxy_mode' => ['nullable', 'string', 'in:'.implode(',', FlowRunProxyOverride::MODES)],
+            'workspace_proxy_id' => ['nullable', 'integer', 'required_if:proxy_mode,specific'],
             'scope' => 'sometimes|in:'.implode(',', app(\App\Services\FeatureFlags\FeatureFlagService::class)->allowedScopes()),
             'team_id' => 'nullable|string',
         ]);
@@ -58,6 +65,7 @@ class FlowTriggerController extends Controller
         /** @var User $user */
         $user = $request->user();
         $this->assignments->ensureOwnerSatisfiesScope($flow->workspace_id, $user->id, $scope, $teamId);
+        $this->normalizeProxyOverride($validated, $flow, $user);
 
         FlowTrigger::create([
             ...$validated,
@@ -80,6 +88,8 @@ class FlowTriggerController extends Controller
          *     group?: string|null,
          *     input_template?: array<string, mixed>|null,
          *     config?: array<string, mixed>|null,
+         *     proxy_mode?: string|null,
+         *     workspace_proxy_id?: int|null,
          *     is_active?: bool,
          *     scope?: string,
          *     team_id?: string|null,
@@ -91,6 +101,8 @@ class FlowTriggerController extends Controller
             'group' => 'nullable|string|max:100',
             'input_template' => 'nullable|array',
             'config' => 'nullable|array',
+            'proxy_mode' => ['nullable', 'string', 'in:'.implode(',', FlowRunProxyOverride::MODES)],
+            'workspace_proxy_id' => ['nullable', 'integer', 'required_if:proxy_mode,specific'],
             'is_active' => 'sometimes|boolean',
             'scope' => 'sometimes|in:'.implode(',', app(\App\Services\FeatureFlags\FeatureFlagService::class)->allowedScopes()),
             'team_id' => 'nullable|string',
@@ -113,10 +125,44 @@ class FlowTriggerController extends Controller
         abort_unless(is_string($teamId) || $teamId === null, 500, 'The trigger team is invalid.');
         $validated['team_id'] = $teamId;
         $this->assignments->ensureOwnerSatisfiesScope($workspaceId, $ownerId, $scope, $teamId);
+        if (array_key_exists('proxy_mode', $validated)) {
+            // The trigger owner is the user the run executes as, so the proxy must be visible to them.
+            $owner = $ownerId === $trigger->user_id ? $trigger->user : User::query()->find($ownerId);
+            abort_unless($owner instanceof User, 422, 'The trigger owner could not be resolved.');
+            $this->normalizeProxyOverride($validated, $flow, $owner);
+        }
 
         $trigger->update($validated);
 
         return back()->with('success', 'Trigger updated.');
+    }
+
+    /**
+     * Clears the proxy id unless a specific proxy is requested, and checks that proxy is usable by the owner.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function normalizeProxyOverride(array &$validated, Flow $flow, User $owner): void
+    {
+        $mode = $validated['proxy_mode'] ?? null;
+        if ($mode === null) {
+            $validated['proxy_mode'] = null;
+            $validated['workspace_proxy_id'] = null;
+
+            return;
+        }
+        if ($mode !== 'specific') {
+            $validated['workspace_proxy_id'] = null;
+
+            return;
+        }
+
+        $proxyId = $validated['workspace_proxy_id'] ?? null;
+        $this->proxyAccess->ensureUsable(
+            is_numeric($proxyId) ? (int) $proxyId : null,
+            $flow->workspace_id,
+            $owner,
+        );
     }
 
     public function destroy(Request $request, FlowTrigger $trigger): RedirectResponse

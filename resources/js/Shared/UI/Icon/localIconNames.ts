@@ -78,6 +78,7 @@ export const localIconNames = new Set<string>([
     "lucide:code",
     "lucide:code-2",
     "lucide:code-xml",
+    "lucide:command",
     "lucide:compass",
     "lucide:contact-round",
     "lucide:cookie",

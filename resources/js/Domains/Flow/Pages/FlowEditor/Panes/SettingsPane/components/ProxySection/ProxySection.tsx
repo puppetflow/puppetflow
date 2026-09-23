@@ -1,13 +1,12 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
+import { Fragment, useMemo } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
+import ProxyPicker from '@/Domains/Flow/Pages/FlowEditor/components/ProxyPicker/ProxyPicker';
+import { fromProxyChoice, toProxyChoice, type ProxyChoice } from '@/Domains/Flow/Pages/FlowEditor/components/ProxyPicker/proxyChoice';
 import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { ProxyFilterRule } from '@/Domains/Flow/types';
 import type { SettingsForm } from '@/Domains/Flow/Pages/FlowEditor/Panes/SettingsPane/types';
-import WorkspaceProxyFormModal from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/ProxiesSection/WorkspaceProxyFormModal';
 import { countryFlag, getCountryName } from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/ProxiesSection/countries';
-import type { WorkspaceProxy } from '@/Domains/Workspace/types';
 import * as S from './styled';
 
 interface ProxySectionProps {
@@ -33,16 +32,7 @@ export default function ProxySection({
     teams,
     canManageWorkspaceProxies,
 }: ProxySectionProps) {
-    const [refreshingProxies, setRefreshingProxies] = useState(false);
-    const [proxyModalOpen, setProxyModalOpen] = useState(false);
-    const createResolverRef = useRef<((value: string | null) => void) | null>(null);
-    const selectedProxyUnavailable = form.data.proxy_mode === 'specific'
-        && form.data.workspace_proxy_id !== null
-        && !workspaceProxies.some(proxy => proxy.id === form.data.workspace_proxy_id);
-    const selectedProxyValue = form.data.proxy_mode === 'specific'
-        && form.data.workspace_proxy_id !== null
-        ? `proxy:${form.data.workspace_proxy_id}`
-        : form.data.proxy_mode;
+    const selectedProxyValue = toProxyChoice(form.data.proxy_mode, form.data.workspace_proxy_id);
     const countries = useMemo(
         () => Array.from(new Set(
             workspaceProxies
@@ -59,32 +49,6 @@ export default function ProxySection({
         )).sort((a, b) => a.localeCompare(b)),
         [workspaceProxies],
     );
-    const proxyOptions = useMemo(() => [
-        {
-            value: 'none',
-            label: 'None',
-            detail: 'Connect directly without a proxy',
-            icon: 'lucide:ban',
-        },
-        {
-            value: 'auto',
-            label: 'Auto (round-robin)',
-            detail: 'Rotate through the available proxy pool',
-            icon: 'lucide:refresh-cw',
-        },
-        ...(selectedProxyUnavailable ? [{
-            value: `proxy:${form.data.workspace_proxy_id}`,
-            label: 'Unavailable proxy',
-            detail: 'This proxy is no longer available to you',
-            icon: 'lucide:triangle-alert',
-        }] : []),
-        ...workspaceProxies.map(proxy => ({
-            value: `proxy:${proxy.id}`,
-            label: proxy.label,
-            detail: proxy.group ?? '',
-            iconText: proxy.country_code ? countryFlag(proxy.country_code) : '🌐',
-        })),
-    ], [form.data.workspace_proxy_id, selectedProxyUnavailable, workspaceProxies]);
     const groupedRules = useMemo(() => {
         const grouped = new Map<number, { rule: ProxyFilterRule; index: number }[]>();
         form.data.proxy_filter_rules.forEach((rule, index) => {
@@ -96,54 +60,8 @@ export default function ProxySection({
         return Array.from(grouped.entries()).sort(([a], [b]) => a - b);
     }, [form.data.proxy_filter_rules]);
 
-    useEffect(() => () => {
-        createResolverRef.current?.(null);
-        createResolverRef.current = null;
-    }, []);
-
-    const refreshProxies = () => new Promise<void>(resolve => {
-        setRefreshingProxies(true);
-        router.reload({
-            only: ['workspaceProxies'],
-            onFinish: () => {
-                setRefreshingProxies(false);
-                resolve();
-            },
-        });
-    });
-
-    const createProxy = () => new Promise<string | null>(resolve => {
-        createResolverRef.current = resolve;
-        setProxyModalOpen(true);
-    });
-
-    const closeProxyModal = () => {
-        setProxyModalOpen(false);
-        createResolverRef.current?.(null);
-        createResolverRef.current = null;
-    };
-
-    const handleProxySaved = async (proxy: WorkspaceProxy) => {
-        setProxyModalOpen(false);
-        await refreshProxies();
-        createResolverRef.current?.(`proxy:${proxy.id}`);
-        createResolverRef.current = null;
-    };
-
-    const handleProxyChange = (value: string) => {
-        if (value.startsWith('proxy:')) {
-            form.setData(data => ({
-                ...data,
-                proxy_mode: 'specific',
-                workspace_proxy_id: Number(value.slice(6)),
-            }));
-            return;
-        }
-        form.setData(data => ({
-            ...data,
-            proxy_mode: value as 'none' | 'auto',
-            workspace_proxy_id: null,
-        }));
+    const handleProxyChange = (value: ProxyChoice) => {
+        form.setData(data => ({ ...data, ...fromProxyChoice(value) }));
     };
 
     const optionsForField = (field: ProxyFilterRule['field'], currentValue = '') => {
@@ -231,21 +149,13 @@ export default function ProxySection({
         <>
             <S.ProxyField>
                 <S.ProxyLabel>Mode</S.ProxyLabel>
-                <CustomSelect
+                <ProxyPicker
                     value={selectedProxyValue}
-                    options={proxyOptions}
-                    searchThreshold={0}
-                    showOptionValue={false}
-                    placeholder="Select a proxy..."
-                    ariaLabel="Proxy"
+                    workspaceProxies={workspaceProxies}
+                    teams={teams}
+                    canManageWorkspaceProxies={canManageWorkspaceProxies}
                     invalid={Boolean(form.errors.proxy_mode || form.errors.workspace_proxy_id)}
                     onChange={handleProxyChange}
-                    onRefresh={refreshProxies}
-                    refreshing={refreshingProxies}
-                    actionSlot={canManageWorkspaceProxies ? {
-                        label: '+ Add proxy',
-                        onAction: createProxy,
-                    } : undefined}
                 />
                 {(form.errors.proxy_mode || form.errors.workspace_proxy_id) && (
                     <S.ProxyError>{form.errors.proxy_mode || form.errors.workspace_proxy_id}</S.ProxyError>
@@ -348,15 +258,6 @@ export default function ProxySection({
                     <S.Summary>{summary}</S.Summary>
                 </S.RulesWrap>
             )}
-
-            <WorkspaceProxyFormModal
-                isOpen={proxyModalOpen}
-                teams={teams}
-                groups={groups}
-                zIndex={1050}
-                onClose={closeProxyModal}
-                onSaved={proxy => { void handleProxySaved(proxy); }}
-            />
         </>
     );
 }

@@ -19,7 +19,7 @@ const __normalizeBrowserTabName = function(tabName, helperName) {
  * @desc Open a URL in a named browser tab with configurable wait strategy, headers and CSP bypass. Creates the tab when needed and returns the Puppeteer HTTPResponse from page.goto.
  * @nodal-desc Open a URL in a named browser tab and wait for the page to be ready.
  * @nodal-output httpResponse
- * @opt waitUntil: "networkidle0"|"domcontentloaded"|"networkidle2"|"load"|"commit", timeout: flow timeout, headers: {}, bypassCSP: true, settleDelay: 2000
+ * @opt waitUntil: "networkidle2"|"networkidle0"|"load"|"domcontentloaded"|"commit", timeout: flow timeout, headers: {}, bypassCSP: true, settleDelay: 2000
  * @nodal-param url [string, required]: Web page URL to open.
  * @nodal-param tabName [tab-name]: Browser tab to create or reuse.
  * @nodal-param options: Navigation options.
@@ -63,7 +63,7 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
   const defaultNavigationTimeout = parseInt(process.env.FLOW_NAVIGATION_TIMEOUT_MS || '30000', 10);
 
   const {
-    waitUntil = 'networkidle0',
+    waitUntil = 'networkidle2',
     timeout = Number.isFinite(defaultNavigationTimeout) && defaultNavigationTimeout > 0 ? defaultNavigationTimeout : 30000,
     headers = {},
     bypassCSP = true,

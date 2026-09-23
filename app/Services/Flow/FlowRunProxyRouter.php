@@ -21,10 +21,16 @@ final class FlowRunProxyRouter
         private readonly ManagedWorkspaceProxyService $managedProxies,
     ) {}
 
-    /** @return array<string, mixed> */
-    public function resolve(Flow $flow, User $user): array
+    /**
+     * Resolves the proxy for a run. When an override is given (manual run form or trigger
+     * configuration) it replaces the flow proxy mode and proxy id; auto mode still applies the
+     * flow pool filters.
+     *
+     * @return array<string, mixed>
+     */
+    public function resolve(Flow $flow, User $user, ?FlowRunProxyOverride $override = null): array
     {
-        $mode = $flow->proxy_mode ?: 'none';
+        $mode = $override instanceof FlowRunProxyOverride ? $override->mode : ($flow->proxy_mode ?: 'none');
         if ($mode === 'none') {
             return ['mode' => 'none'];
         }
@@ -35,7 +41,8 @@ final class FlowRunProxyRouter
         }
         $this->managedProxies->syncForWorkspace($workspace);
         $flow->refresh();
-        $mode = $flow->proxy_mode ?: 'none';
+        // Syncing managed proxies may have reset the flow proxy settings.
+        $mode = $override instanceof FlowRunProxyOverride ? $override->mode : ($flow->proxy_mode ?: 'none');
         if ($mode === 'none') {
             return ['mode' => 'none'];
         }
@@ -43,21 +50,26 @@ final class FlowRunProxyRouter
         $context = $this->contexts->for($user, $flow->workspace_id);
 
         if ($mode === 'specific') {
-            $query = WorkspaceProxy::query()->whereKey($flow->workspace_proxy_id);
+            $proxyId = $override instanceof FlowRunProxyOverride
+                ? $override->workspaceProxyId
+                : $flow->workspace_proxy_id;
+            $query = WorkspaceProxy::query()->whereKey($proxyId);
             $this->visibility->applyUse(
                 $query,
                 $context,
                 scopeColumn: 'visibility',
                 alwaysVisibleColumn: 'managed_by_env',
             );
-            $proxy = $query->first();
+            $proxy = $proxyId === null ? null : $query->first();
             if (! $proxy instanceof WorkspaceProxy) {
                 throw ValidationException::withMessages([
-                    'proxy' => 'The proxy assigned to this flow is not available to the user running it.',
+                    'proxy' => $override instanceof FlowRunProxyOverride
+                        ? 'The proxy selected for this run is not available to the user running it.'
+                        : 'The proxy assigned to this flow is not available to the user running it.',
                 ]);
             }
 
-            return $this->snapshot($proxy);
+            return $this->snapshot($proxy, $override !== null);
         }
 
         if ($mode !== 'auto') {
@@ -104,11 +116,11 @@ final class FlowRunProxyRouter
             throw new \LogicException('Proxy routing lock returned an invalid result.');
         }
 
-        return $this->snapshot($proxy);
+        return $this->snapshot($proxy, $override !== null);
     }
 
     /** @return array<string, mixed> */
-    private function snapshot(WorkspaceProxy $proxy): array
+    private function snapshot(WorkspaceProxy $proxy, bool $overridden): array
     {
         return [
             'mode' => 'proxy',
@@ -117,6 +129,7 @@ final class FlowRunProxyRouter
             'server' => $proxy->server(),
             'username' => $proxy->username,
             'password' => $proxy->password,
+            'overridden' => $overridden,
         ];
     }
 }

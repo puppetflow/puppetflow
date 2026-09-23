@@ -71,6 +71,23 @@ const __selectorButtonType = function(value) {
   return buttonType;
 };
 
+// Reads offsetX / offsetY from click options. Returns null when neither is set
+// (null, undefined, empty or 0), which keeps the regular click on the element.
+// Numeric strings coming from the nodal editor are accepted.
+const __clickOffset = function(options, helperName) {
+  const parse = (value, key) => {
+    if (value === null || value === undefined || value === '') return 0;
+    const number = typeof value === 'string' ? Number(value.trim()) : value;
+    if (typeof number !== 'number' || !Number.isFinite(number)) {
+      throw new TypeError(helperName + ': ' + key + ' must be a finite number of pixels (got ' + JSON.stringify(value) + ').');
+    }
+    return number;
+  };
+  const x = parse(options.offsetX, 'offsetX');
+  const y = parse(options.offsetY, 'offsetY');
+  return x === 0 && y === 0 ? null : { x, y };
+};
+
 const __internalSelect = async function(selectorOrHandle, options = {}) {
   const { textMatch, textFilter, textCaseSensitive } = __selectorTextOptions(options);
   const isDeepSelector = typeof selectorOrHandle === 'string'
@@ -342,14 +359,16 @@ const $extractAttributes = async function(selectorOrHandle, getters) {
 /* @help Interaction
  * @sig $clickElement(selectorOrHandle, options?)
  * @aliases click button, press element
- * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. Throws StopRun if not found.
+ * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. With offsetX or offsetY set, clicks at the element center shifted by that many pixels instead of on the element itself. Throws StopRun if not found.
  * @nodal-desc Find and click an element after an optional delay.
  * @nodal-output boolean
- * @opt delay: 1000, buttonType: left, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
+ * @opt delay: 1000, buttonType: left, offsetX: 0, offsetY: 0, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle for the element to click.
  * @nodal-param options: Click and selection options.
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
+ * @nodal-param options.offsetX [number]: Horizontal shift in pixels from the element center. When offsetX or offsetY is set, the click lands on that shifted point instead of the element.
+ * @nodal-param options.offsetY [number]: Vertical shift in pixels from the element center. Positive moves down, negative moves up.
  * @nodal-param options.timeout [number]: Maximum time to wait for the element, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the element cannot be clicked.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
@@ -361,17 +380,24 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
   const isHandle = typeof selectorOrHandle === 'object' && selectorOrHandle !== null;
   const textOptions = __selectorTextOptions(options);
   const buttonType = __selectorButtonType(options.buttonType);
+  const offset = __clickOffset(options, '$clickElement');
   const textLabel = textOptions.textMatch ? '[text:' + textOptions.textFilter + '="' + textOptions.textMatch + '"]' : '';
-  __emitAction('click', (isHandle ? '(handle)' : selectorOrHandle + textLabel) + ' [' + buttonType + ']');
+  const offsetLabel = offset ? ' [offset ' + offset.x + ',' + offset.y + ']' : '';
+  __emitAction('click', (isHandle ? '(handle)' : selectorOrHandle + textLabel) + ' [' + buttonType + ']' + offsetLabel);
   const { delay = 1000, continueOnError = false, timeout = 30000, visibleOnly = false } = options;
-  console.debug('Click on element', isHandle ? '(handle)' : selectorOrHandle, textLabel, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'));
+  console.debug('Click on element', isHandle ? '(handle)' : selectorOrHandle, textLabel, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'), offset ? 'at center offset ' + offset.x + ',' + offset.y : '');
   await __internalSleep(delay);
 
   const result = await __internalSelect(selectorOrHandle, { ...textOptions, visibleOnly, index: 0, timeout, continueOnError, timeoutLabel: isHandle ? '(handle)' : selectorOrHandle });
   if (!result) return null;
 
   const { handle } = result;
-  await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
+  if (offset) {
+    const point = await __retryOnContextDestroyed(() => __humanClickElementWithOffset(handle, offset.x, offset.y, { button: buttonType }));
+    console.debug('Clicked at', point.x, point.y);
+  } else {
+    await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
+  }
   await __internalSleep(delay);
   return true;
 };

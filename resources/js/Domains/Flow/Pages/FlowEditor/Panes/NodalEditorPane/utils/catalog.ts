@@ -1,5 +1,5 @@
 import { ALL_HELP_ENTRIES } from '@/Domains/Flow/Pages/FlowEditor/utils/helpCatalog';
-import type { HelpEntryDef, NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
+import type { HelpEntryDef, NodalParamDef, NodalSelectOption } from '@/Domains/Flow/Pages/FlowEditor/types';
 import {
     CODE_NODE_ENTRY,
     CODE_NODE_NAME,
@@ -73,7 +73,9 @@ const ACTION_NODE_ENTRY_BY_ACTION: Record<string, string> = {
     notify: '$notify',
     pdfGetText: '$pdfGetText',
     pdfSearch: '$pdfSearch',
-    press: '$fillInput',
+    press: '$keyboardShortcut',
+    shortcut: '$keyboardShortcut',
+    type: '$keyboardPress',
     scroll: '$scrollByPixels',
     scrollByPixels: '$scrollByPixels',
     scrollToElement: '$scrollToElement',
@@ -174,6 +176,8 @@ const OPTION_DESCRIPTIONS: Record<string, string> = {
     visibleOnly: 'Only use elements that are visible on the page.',
     index: 'Position to use when several elements match. Use -1 for the last match, -2 for the previous one.',
     tabCount: 'Number of Tab key presses to send after filling the input.',
+    offsetX: 'Horizontal shift in pixels from the element center. When set, the click lands on that point instead of the element.',
+    offsetY: 'Vertical shift in pixels from the element center. Positive moves down, negative moves up.',
     rootSelector: 'CSS selector for the shadow DOM root to search inside.',
     output: 'Include this generated file or artifact in the flow output.',
     store: 'Keep extracted files after the run instead of cleaning them up automatically.',
@@ -190,7 +194,7 @@ const OPTION_DESCRIPTIONS: Record<string, string> = {
     password: 'Password value to use for the login recipe.',
 };
 
-const OPTION_SELECT_CHOICES: Record<string, { value: string; label: string }[]> = {
+const OPTION_SELECT_CHOICES: Record<string, NodalSelectOption[]> = {
     format: [
         { value: 'text', label: 'Text' },
         { value: 'json', label: 'JSON' },
@@ -219,11 +223,11 @@ const OPTION_SELECT_CHOICES: Record<string, { value: string; label: string }[]> 
         // { value: 'file', label: 'File' },
     ],
     waitUntil: [
-        { value: 'networkidle0', label: 'networkidle0' },
-        { value: 'domcontentloaded', label: 'domcontentloaded' },
-        { value: 'networkidle2', label: 'networkidle2' },
-        { value: 'load', label: 'load' },
-        { value: 'commit', label: 'commit' },
+        { value: 'networkidle2', label: 'networkidle2', description: 'Max 2 connections for 500 ms' },
+        { value: 'networkidle0', label: 'networkidle0', description: 'No network activity for 500 ms' },
+        { value: 'load', label: 'load', description: 'Page and all assets loaded' },
+        { value: 'domcontentloaded', label: 'domcontentloaded', description: 'HTML parsed, assets still loading' },
+        { value: 'commit', label: 'commit', description: 'First response received' },
     ],
 };
 

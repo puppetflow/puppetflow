@@ -6,6 +6,7 @@ use App\Authorization\ResourceAssignmentValidator;
 use App\Enums\Authorization\Ability;
 use App\Http\Controllers\Controller;
 use App\Models\Flow;
+use App\Models\FlowTrigger;
 use App\Models\Workspace;
 use App\Models\WorkspaceProxy;
 use Illuminate\Database\QueryException;
@@ -125,13 +126,9 @@ class WorkspaceProxyController extends Controller
             $assignmentChanged = $ownerId !== $lockedProxy->user_id
                 || $teamId !== $lockedProxy->team_id
                 || $visibility !== $lockedProxy->visibility;
-            if ($assignmentChanged && Flow::query()
-                ->where('workspace_id', $workspace->id)
-                ->where('proxy_mode', 'specific')
-                ->where('workspace_proxy_id', $lockedProxy->id)
-                ->exists()) {
+            if ($assignmentChanged && $this->isAssigned($lockedProxy, $workspace->id)) {
                 throw ValidationException::withMessages([
-                    'proxy' => 'This proxy is assigned to one or more flows. Reassign those flows before changing its owner or visibility.',
+                    'proxy' => 'This proxy is assigned to one or more flows or triggers. Reassign them before changing its owner or visibility.',
                 ]);
             }
             $this->assignments->validate($workspace->id, $ownerId, $visibility, $teamId, null, null);
@@ -163,13 +160,9 @@ class WorkspaceProxyController extends Controller
                     ->lockForUpdate()
                     ->firstOrFail();
                 abort_if($lockedProxy->managed_by_env, 403, 'Managed proxies are read-only.');
-                if (Flow::query()
-                    ->where('workspace_id', $workspace->id)
-                    ->where('proxy_mode', 'specific')
-                    ->where('workspace_proxy_id', $lockedProxy->id)
-                    ->exists()) {
+                if ($this->isAssigned($lockedProxy, $workspace->id)) {
                     throw ValidationException::withMessages([
-                        'proxy' => 'This proxy is assigned to one or more flows. Reassign those flows before deleting it.',
+                        'proxy' => 'This proxy is assigned to one or more flows or triggers. Reassign them before deleting it.',
                     ]);
                 }
 
@@ -178,7 +171,7 @@ class WorkspaceProxyController extends Controller
         } catch (QueryException $exception) {
             if (in_array((string) $exception->getCode(), ['23000', '23503'], true)) {
                 throw ValidationException::withMessages([
-                    'proxy' => 'This proxy was assigned to a flow while it was being deleted. Reassign that flow and try again.',
+                    'proxy' => 'This proxy was assigned to a flow or trigger while it was being deleted. Reassign it and try again.',
                 ]);
             }
 
@@ -186,6 +179,25 @@ class WorkspaceProxyController extends Controller
         }
 
         return response()->json(['message' => 'Proxy deleted.']);
+    }
+
+    /** True when a flow or a trigger in the workspace is pinned to this proxy. */
+    private function isAssigned(WorkspaceProxy $proxy, string $workspaceId): bool
+    {
+        $flowAssigned = Flow::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('proxy_mode', 'specific')
+            ->where('workspace_proxy_id', $proxy->id)
+            ->exists();
+        if ($flowAssigned) {
+            return true;
+        }
+
+        return FlowTrigger::query()
+            ->where('proxy_mode', 'specific')
+            ->where('workspace_proxy_id', $proxy->id)
+            ->whereHas('flow', fn ($query) => $query->where('workspace_id', $workspaceId))
+            ->exists();
     }
 
     private function detectProxyCountry(

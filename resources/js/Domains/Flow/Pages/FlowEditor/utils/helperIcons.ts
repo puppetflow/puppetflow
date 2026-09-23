@@ -18,6 +18,8 @@ export const HELPER_ICON_BY_NAME: Record<string, string> = {
     $stopFail: 'lucide:octagon-alert',
     $stopSuccess: 'lucide:badge-check',
     $fillInput: 'lucide:keyboard',
+    $keyboardPress: 'lucide:type',
+    $keyboardShortcut: 'lucide:command',
     $clickElement: 'lucide:mouse-pointer-click',
     $clickElementAtIndex: 'lucide:list-ordered',
     $clickAtCoordinates: 'lucide:locate-fixed',

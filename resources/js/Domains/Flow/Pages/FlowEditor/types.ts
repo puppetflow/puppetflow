@@ -21,6 +21,8 @@ export interface NodalSelectOption {
     value: string;
     label: string;
     detail?: string;
+    /** Short explanation shown as the main text of the dropdown item, with the label pushed to the right. */
+    description?: string;
     icon?: string;
     iconColor?: string;
     /** Image rendered instead of the icon (thumbnails). */

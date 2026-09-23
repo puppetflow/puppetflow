@@ -21,6 +21,7 @@ use App\Services\BrowserStream\BrowserStreamTokenService;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\ArtifactCleanupService;
 use App\Services\Flow\FlowRunnerService;
+use App\Services\Flow\FlowRunProxyOverride;
 use App\Services\Flow\FlowRunTerminalizer;
 use App\Services\Flow\Query\FlowRunProjection;
 use App\Services\Flow\Query\FlowTreeBuilder;
@@ -81,6 +82,8 @@ class FlowRunController extends Controller
             'input' => 'nullable|array',
             'code_override' => 'nullable|string|max:2000000',
             'is_rerun' => 'nullable|boolean',
+            'proxy_mode' => ['nullable', 'string', 'in:'.implode(',', FlowRunProxyOverride::MODES)],
+            'workspace_proxy_id' => ['nullable', 'integer', 'required_if:proxy_mode,specific'],
         ]);
         if (isset($validated['code_override'])) {
             $this->authorizeFlowAccess($flow, Ability::UPDATE);
@@ -98,12 +101,14 @@ class FlowRunController extends Controller
             );
         }
 
+        // The proxy router checks that the selected proxy is visible to the running user.
         $this->runner->dispatch(
             $flow,
             $user,
             $input,
             'manual',
             $validated['code_override'] ?? null,
+            proxyOverride: FlowRunProxyOverride::fromRequest($validated),
         );
 
         return back()->with('success', 'Flow run queued.');

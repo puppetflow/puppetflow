@@ -11,7 +11,7 @@ const DOCUMENTATION_PAGE_GROUPS = [
     {
         path: '/reference/flow-api/interaction',
         names: new Set([
-            '$keyboardSpeed', '$fillInput', '$clickElement', '$clickElementAtIndex',
+            '$keyboardSpeed', '$fillInput', '$keyboardPress', '$keyboardShortcut', '$clickElement', '$clickElementAtIndex',
             '$clickAtCoordinates', '$scrollByPixels', '$scrollToElement', '$selectElement',
             '$selectManyElements', '$selectAtIndex', '$extractAttribute', '$extractAttributes',
             '$waitForSelectorCondition', '$selectShadow', '$shadowInputFill',

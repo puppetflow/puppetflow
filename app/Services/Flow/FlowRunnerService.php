@@ -32,6 +32,7 @@ class FlowRunnerService
         ?string $codeOverride = null,
         ?string $triggerId = null,
         ?array $webhookInfo = null,
+        ?FlowRunProxyOverride $proxyOverride = null,
     ): FlowRun {
         return $this->dispatcher->dispatch(
             $flow,
@@ -41,6 +42,7 @@ class FlowRunnerService
             $codeOverride,
             $triggerId,
             $webhookInfo,
+            $proxyOverride,
         );
     }
 

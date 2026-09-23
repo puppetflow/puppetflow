@@ -69,6 +69,23 @@ export const SelectOption = styled(Option)<{ $active?: boolean; $selected?: bool
         pointer-events: none;
     }
 
+    /* Explanation on the left, real value as a code tag on the right. */
+    > [data-select-description] {
+        font-weight: ${({ $selected }) => ($selected ? 600 : 400)};
+        color: ${({ theme }) => theme.colors.text.secondary};
+        white-space: normal;
+        line-height: 1.3;
+    }
+
+    > [data-select-value] {
+        padding: 1px 6px;
+        border-radius: ${({ theme }) => theme.radius.sm};
+        background: ${({ theme }) => theme.colors.bg.hover};
+        color: ${({ theme }) => theme.colors.text.primary};
+        font-family: ${({ theme }) => theme.font.mono};
+        font-size: 11px;
+    }
+
     > [data-select-check] {
         flex: 0 0 auto;
         display: inline-flex;

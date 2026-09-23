@@ -1638,6 +1638,23 @@ const __humanClickElement = async function(handle, options = {}) {
   await __humanClickAt(page, target.x, target.y, options);
 };
 
+// Click at the element's center shifted by (offsetX, offsetY) pixels. Used to
+// hit something drawn next to the element (a canvas region, an overlay icon)
+// that has no selector of its own. Unlike __humanClickElement the point may
+// land outside the element's box, so no random spread is applied.
+const __humanClickElementWithOffset = async function(handle, offsetX, offsetY, options = {}) {
+  const page = __humanPageOf(handle);
+  await __humanScrollIntoView(handle);
+  const box = await handle.boundingBox();
+  if (!box) {
+    throw new Error('Cannot click with an offset: the element has no layout box (hidden or detached).');
+  }
+  const x = Math.round(box.x + box.width / 2 + offsetX);
+  const y = Math.round(box.y + box.height / 2 + offsetY);
+  await __humanClickAt(page, x, y, options);
+  return { x, y };
+};
+
 const __humanHoverElement = async function(handle) {
   const page = __humanPageOf(handle);
   await __humanScrollIntoView(handle);
@@ -1660,16 +1677,9 @@ const __humanTakesFocus = async function(handle) {
 
 // Keystrokes at an irregular rhythm around the requested speed: a longer
 // pause after spaces and punctuation, an occasional hesitation. Speed 0 keeps
-// instant typing, as before.
-const __humanType = async function(handle, text, speed) {
+// instant typing, as before. Keys go to whatever currently holds focus.
+const __humanKeystrokes = async function(page, text, speed) {
   const value = String(text);
-  // Keystrokes go to whatever holds focus: if the element did not take it,
-  // they would land on the page (select-all, backspace, text) and the value
-  // would silently never be entered.
-  if (!(await __humanTakesFocus(handle))) {
-    throw new Error('Element cannot take focus (hidden or disabled); nothing was typed.');
-  }
-  const page = __humanPageOf(handle);
   if (!(speed > 0)) {
     await page.keyboard.type(value);
     return;
@@ -1691,6 +1701,16 @@ const __humanType = async function(handle, text, speed) {
     if (Math.random() < 0.03) delay *= __humanRandom(3, 6);
     await __internalSleep(Math.round(delay));
   }
+};
+
+const __humanType = async function(handle, text, speed) {
+  // Keystrokes go to whatever holds focus: if the element did not take it,
+  // they would land on the page (select-all, backspace, text) and the value
+  // would silently never be entered.
+  if (!(await __humanTakesFocus(handle))) {
+    throw new Error('Element cannot take focus (hidden or disabled); nothing was typed.');
+  }
+  await __humanKeystrokes(__humanPageOf(handle), text, speed);
 };
 
 /* @help Navigation
@@ -2112,18 +2132,19 @@ const $stopSuccess = function(successMessage, responseData) {
  * @nodal-output number
  * @nodal-param keyboardSpeedValue [number, required]: Delay in milliseconds between keystrokes and low-level input actions.
  */
-// Which accelerator selects all text: Cmd+A on Apple platforms, Ctrl+A
-// elsewhere. Read once from the page so a spoofed platform stays consistent.
-let __selectAllModifierCache = null;
-const __selectAllModifier = async function(handle) {
-  if (__selectAllModifierCache) return __selectAllModifierCache;
+// The platform's primary accelerator: Cmd on Apple platforms, Ctrl elsewhere
+// (Cmd+A / Ctrl+A selects all, Cmd+C / Ctrl+C copies). Read once from the
+// page so a spoofed platform stays consistent.
+let __primaryModifierCache = null;
+const __primaryModifier = async function(handle) {
+  if (__primaryModifierCache) return __primaryModifierCache;
   let platform = '';
   try {
     platform = await __humanPageOf(handle).evaluate(() =>
       navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || '');
   } catch (_) {}
-  __selectAllModifierCache = /mac|iphone|ipad|ipod/i.test(platform) ? 'Meta' : 'Control';
-  return __selectAllModifierCache;
+  __primaryModifierCache = /mac|iphone|ipad|ipod/i.test(platform) ? 'Meta' : 'Control';
+  return __primaryModifierCache;
 };
 
 const $keyboardSpeed = function(keyboardSpeedValue) {
@@ -2222,7 +2243,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
       // "a" keydown (ctrlKey/metaKey set) instead of a bare "a" that no human
       // would use to clear a field. The selectAll command still guarantees the
       // selection regardless of the browser's own OS shortcut.
-      const modifier = await __selectAllModifier(handle);
+      const modifier = await __primaryModifier(handle);
       const keyboard = __humanPageOf(handle).keyboard;
       await keyboard.down(modifier);
       try {
@@ -2271,6 +2292,110 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
     }
   }
   await __internalSleep(sleep);
+};
+
+/* @help Interaction
+ * @sig $keyboardPress(text, options?)
+ * @aliases type text, keystrokes, type characters, keyboard type, press keys
+ * @desc Type text one keystroke at a time into the focused element, or into an element focused first through options.selector. Newlines press Enter. Uses the flow keyboard speed unless options.speed is set.
+ * @nodal-desc Type text key by key into the focused element, or into an input selected first.
+ * @opt selector: null, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
+ * @nodal-param text [string, required]: Text to type, one keystroke per character. A newline presses Enter.
+ * @nodal-param options: Target and typing options.
+ * @nodal-param options.selector [string, selector]: Optional CSS selector to focus before typing. Leave empty to type into whatever currently has focus.
+ * @nodal-param options.speed [number]: Typing speed, in milliseconds between keystrokes. 0 types instantly.
+ * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
+ * @nodal-param options.continueOnError [boolean]: Continue the flow if the selector cannot be found.
+ * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
+ * @nodal-param options.index [number]: Zero-based position to use when several elements match the selector.
+ */
+const $keyboardPress = async function(text, options) {
+  const {
+    selector = null,
+    speed = __keyboardSpeedValue,
+    timeout = 30000,
+    continueOnError = false,
+    visibleOnly = false,
+    index = 0,
+  } = options || {};
+  const value = text === null || text === undefined ? '' : String(text);
+  __emitAction('type', value);
+  console.debug('Typing keys:', value, selector ? 'into ' + selector : 'into the focused element');
+
+  if (typeof selector === 'string' && selector.trim() !== '') {
+    const result = await __internalSelect(selector, { timeout, continueOnError, visibleOnly, index });
+    if (!result) return;
+    await __retryOnContextDestroyed(() => __humanHoverElement(result.handle)).catch(() => {});
+    await __humanType(result.handle, value, speed);
+    return;
+  }
+  await __humanKeystrokes($page, value, speed);
+};
+
+// Puppeteer key names for the characters a shortcut is usually written with,
+// so "cmd+enter" style inputs work without knowing the KeyInput spelling.
+const __shortcutKeyAliases = {
+  enter: 'Enter', return: 'Enter', tab: 'Tab', esc: 'Escape', escape: 'Escape', space: 'Space', spacebar: 'Space',
+  backspace: 'Backspace', delete: 'Delete', del: 'Delete', insert: 'Insert', home: 'Home', end: 'End',
+  pageup: 'PageUp', pagedown: 'PageDown', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
+  arrowup: 'ArrowUp', arrowdown: 'ArrowDown', arrowleft: 'ArrowLeft', arrowright: 'ArrowRight',
+};
+const __normalizeShortcutKey = function(key) {
+  const raw = key === null || key === undefined ? '' : String(key).trim();
+  if (raw === '') throw new Error('Keyboard shortcut requires a key (a single character or a key name such as Enter).');
+  if ([...raw].length === 1) return raw;
+  const alias = __shortcutKeyAliases[raw.toLowerCase()];
+  if (alias) return alias;
+  if (/^f([1-9]|1[0-9]|2[0-4])$/i.test(raw)) return raw.toUpperCase();
+  return raw;
+};
+
+/* @help Interaction
+ * @sig $keyboardShortcut(key, options?)
+ * @aliases hotkey, key combination, press key, ctrl, cmd, shortcut
+ * @desc Press one key with optional modifiers held (Cmd/Ctrl, Ctrl, Meta, Shift, Alt). key is a single character or a key name such as Enter, Tab, Escape, ArrowDown or F5. options.cmdOrCtrl holds Cmd on macOS and Ctrl elsewhere.
+ * @nodal-desc Press a key while holding the selected modifiers.
+ * @opt cmdOrCtrl: false, control: false, meta: false, shift: false, alt: false, repeat: 1
+ * @nodal-param key [string, required]: Single character or key name to press (a, Enter, Tab, Escape, ArrowDown, F5).
+ * @nodal-param options: Modifiers held while the key is pressed.
+ * @nodal-param options.cmdOrCtrl [boolean]: Hold the platform shortcut key: Cmd on macOS, Ctrl elsewhere.
+ * @nodal-param options.control [boolean]: Hold Ctrl.
+ * @nodal-param options.meta [boolean]: Hold Meta (Cmd on macOS, Windows key elsewhere).
+ * @nodal-param options.shift [boolean]: Hold Shift.
+ * @nodal-param options.alt [boolean]: Hold Alt (Option on macOS).
+ * @nodal-param options.repeat [number]: Number of times to press the shortcut.
+ */
+const $keyboardShortcut = async function(key, options) {
+  const {
+    cmdOrCtrl = false,
+    control = false,
+    meta = false,
+    shift = false,
+    alt = false,
+    repeat = 1,
+  } = options || {};
+  const pressKey = __normalizeShortcutKey(key);
+  const modifiers = [];
+  if (cmdOrCtrl) modifiers.push(await __primaryModifier($page));
+  if (control && !modifiers.includes('Control')) modifiers.push('Control');
+  if (meta && !modifiers.includes('Meta')) modifiers.push('Meta');
+  if (shift) modifiers.push('Shift');
+  if (alt) modifiers.push('Alt');
+  const count = Math.max(1, Math.floor(Number(repeat) || 1));
+  const label = [...modifiers, pressKey].join('+');
+  __emitAction('shortcut', label);
+  console.debug('Pressing shortcut:', label, count > 1 ? 'x' + count : '');
+
+  const keyboard = $page.keyboard;
+  for (let iteration = 0; iteration < count; iteration++) {
+    for (const modifier of modifiers) await keyboard.down(modifier);
+    try {
+      await keyboard.press(pressKey, { delay: __humanJitterMs(55, 0.5) });
+    } finally {
+      for (const modifier of [...modifiers].reverse()) await keyboard.up(modifier);
+    }
+    if (iteration < count - 1) await __internalSleep(__humanJitterMs(120, 0.4));
+  }
 };
 
 /* @help Utility
@@ -2460,7 +2585,7 @@ const __normalizeBrowserTabName = function(tabName, helperName) {
  * @desc Open a URL in a named browser tab with configurable wait strategy, headers and CSP bypass. Creates the tab when needed and returns the Puppeteer HTTPResponse from page.goto.
  * @nodal-desc Open a URL in a named browser tab and wait for the page to be ready.
  * @nodal-output httpResponse
- * @opt waitUntil: "networkidle0"|"domcontentloaded"|"networkidle2"|"load"|"commit", timeout: flow timeout, headers: {}, bypassCSP: true, settleDelay: 2000
+ * @opt waitUntil: "networkidle2"|"networkidle0"|"load"|"domcontentloaded"|"commit", timeout: flow timeout, headers: {}, bypassCSP: true, settleDelay: 2000
  * @nodal-param url [string, required]: Web page URL to open.
  * @nodal-param tabName [tab-name]: Browser tab to create or reuse.
  * @nodal-param options: Navigation options.
@@ -2504,7 +2629,7 @@ const $gotoUrl = async function(url, tabName = 'Default', options = {}) {
   const defaultNavigationTimeout = parseInt(process.env.FLOW_NAVIGATION_TIMEOUT_MS || '30000', 10);
 
   const {
-    waitUntil = 'networkidle0',
+    waitUntil = 'networkidle2',
     timeout = Number.isFinite(defaultNavigationTimeout) && defaultNavigationTimeout > 0 ? defaultNavigationTimeout : 30000,
     headers = {},
     bypassCSP = true,
@@ -4269,6 +4394,23 @@ const __selectorButtonType = function(value) {
   return buttonType;
 };
 
+// Reads offsetX / offsetY from click options. Returns null when neither is set
+// (null, undefined, empty or 0), which keeps the regular click on the element.
+// Numeric strings coming from the nodal editor are accepted.
+const __clickOffset = function(options, helperName) {
+  const parse = (value, key) => {
+    if (value === null || value === undefined || value === '') return 0;
+    const number = typeof value === 'string' ? Number(value.trim()) : value;
+    if (typeof number !== 'number' || !Number.isFinite(number)) {
+      throw new TypeError(helperName + ': ' + key + ' must be a finite number of pixels (got ' + JSON.stringify(value) + ').');
+    }
+    return number;
+  };
+  const x = parse(options.offsetX, 'offsetX');
+  const y = parse(options.offsetY, 'offsetY');
+  return x === 0 && y === 0 ? null : { x, y };
+};
+
 const __internalSelect = async function(selectorOrHandle, options = {}) {
   const { textMatch, textFilter, textCaseSensitive } = __selectorTextOptions(options);
   const isDeepSelector = typeof selectorOrHandle === 'string'
@@ -4540,14 +4682,16 @@ const $extractAttributes = async function(selectorOrHandle, getters) {
 /* @help Interaction
  * @sig $clickElement(selectorOrHandle, options?)
  * @aliases click button, press element
- * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. Throws StopRun if not found.
+ * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. With offsetX or offsetY set, clicks at the element center shifted by that many pixels instead of on the element itself. Throws StopRun if not found.
  * @nodal-desc Find and click an element after an optional delay.
  * @nodal-output boolean
- * @opt delay: 1000, buttonType: left, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
+ * @opt delay: 1000, buttonType: left, offsetX: 0, offsetY: 0, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle for the element to click.
  * @nodal-param options: Click and selection options.
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
+ * @nodal-param options.offsetX [number]: Horizontal shift in pixels from the element center. When offsetX or offsetY is set, the click lands on that shifted point instead of the element.
+ * @nodal-param options.offsetY [number]: Vertical shift in pixels from the element center. Positive moves down, negative moves up.
  * @nodal-param options.timeout [number]: Maximum time to wait for the element, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the element cannot be clicked.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
@@ -4559,17 +4703,24 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
   const isHandle = typeof selectorOrHandle === 'object' && selectorOrHandle !== null;
   const textOptions = __selectorTextOptions(options);
   const buttonType = __selectorButtonType(options.buttonType);
+  const offset = __clickOffset(options, '$clickElement');
   const textLabel = textOptions.textMatch ? '[text:' + textOptions.textFilter + '="' + textOptions.textMatch + '"]' : '';
-  __emitAction('click', (isHandle ? '(handle)' : selectorOrHandle + textLabel) + ' [' + buttonType + ']');
+  const offsetLabel = offset ? ' [offset ' + offset.x + ',' + offset.y + ']' : '';
+  __emitAction('click', (isHandle ? '(handle)' : selectorOrHandle + textLabel) + ' [' + buttonType + ']' + offsetLabel);
   const { delay = 1000, continueOnError = false, timeout = 30000, visibleOnly = false } = options;
-  console.debug('Click on element', isHandle ? '(handle)' : selectorOrHandle, textLabel, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'));
+  console.debug('Click on element', isHandle ? '(handle)' : selectorOrHandle, textLabel, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'), offset ? 'at center offset ' + offset.x + ',' + offset.y : '');
   await __internalSleep(delay);
 
   const result = await __internalSelect(selectorOrHandle, { ...textOptions, visibleOnly, index: 0, timeout, continueOnError, timeoutLabel: isHandle ? '(handle)' : selectorOrHandle });
   if (!result) return null;
 
   const { handle } = result;
-  await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
+  if (offset) {
+    const point = await __retryOnContextDestroyed(() => __humanClickElementWithOffset(handle, offset.x, offset.y, { button: buttonType }));
+    console.debug('Clicked at', point.x, point.y);
+  } else {
+    await __retryOnContextDestroyed(() => __humanClickElement(handle, { button: buttonType }));
+  }
   await __internalSleep(delay);
   return true;
 };

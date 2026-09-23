@@ -101,6 +101,8 @@ export default tseslint.config(
                 __humanClickAt: 'readonly',
                 __humanClickElement: 'readonly',
                 __humanHoverElement: 'readonly',
+                __humanKeystrokes: 'readonly',
+                __humanClickElementWithOffset: 'readonly',
                 __humanScrollBy: 'readonly',
                 __humanScrollIntoView: 'readonly',
                 __humanTakesFocus: 'readonly',

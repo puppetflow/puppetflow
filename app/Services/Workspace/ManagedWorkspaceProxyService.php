@@ -3,6 +3,7 @@
 namespace App\Services\Workspace;
 
 use App\Models\Flow;
+use App\Models\FlowTrigger;
 use App\Models\Workspace;
 use App\Models\WorkspaceProxy;
 use Illuminate\Support\Facades\DB;
@@ -67,6 +68,13 @@ final class ManagedWorkspaceProxyService
                     ->whereIn('workspace_proxy_id', $staleIds)
                     ->update([
                         'proxy_mode' => 'none',
+                        'workspace_proxy_id' => null,
+                    ]);
+                // Triggers pinned to a stale proxy fall back to the flow proxy settings.
+                FlowTrigger::query()
+                    ->whereIn('workspace_proxy_id', $staleIds)
+                    ->update([
+                        'proxy_mode' => null,
                         'workspace_proxy_id' => null,
                     ]);
                 WorkspaceProxy::query()->whereIn('id', $staleIds)->delete();

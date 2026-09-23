@@ -233,6 +233,23 @@ const __humanClickElement = async function(handle, options = {}) {
   await __humanClickAt(page, target.x, target.y, options);
 };
 
+// Click at the element's center shifted by (offsetX, offsetY) pixels. Used to
+// hit something drawn next to the element (a canvas region, an overlay icon)
+// that has no selector of its own. Unlike __humanClickElement the point may
+// land outside the element's box, so no random spread is applied.
+const __humanClickElementWithOffset = async function(handle, offsetX, offsetY, options = {}) {
+  const page = __humanPageOf(handle);
+  await __humanScrollIntoView(handle);
+  const box = await handle.boundingBox();
+  if (!box) {
+    throw new Error('Cannot click with an offset: the element has no layout box (hidden or detached).');
+  }
+  const x = Math.round(box.x + box.width / 2 + offsetX);
+  const y = Math.round(box.y + box.height / 2 + offsetY);
+  await __humanClickAt(page, x, y, options);
+  return { x, y };
+};
+
 const __humanHoverElement = async function(handle) {
   const page = __humanPageOf(handle);
   await __humanScrollIntoView(handle);
@@ -255,16 +272,9 @@ const __humanTakesFocus = async function(handle) {
 
 // Keystrokes at an irregular rhythm around the requested speed: a longer
 // pause after spaces and punctuation, an occasional hesitation. Speed 0 keeps
-// instant typing, as before.
-const __humanType = async function(handle, text, speed) {
+// instant typing, as before. Keys go to whatever currently holds focus.
+const __humanKeystrokes = async function(page, text, speed) {
   const value = String(text);
-  // Keystrokes go to whatever holds focus: if the element did not take it,
-  // they would land on the page (select-all, backspace, text) and the value
-  // would silently never be entered.
-  if (!(await __humanTakesFocus(handle))) {
-    throw new Error('Element cannot take focus (hidden or disabled); nothing was typed.');
-  }
-  const page = __humanPageOf(handle);
   if (!(speed > 0)) {
     await page.keyboard.type(value);
     return;
@@ -286,5 +296,15 @@ const __humanType = async function(handle, text, speed) {
     if (Math.random() < 0.03) delay *= __humanRandom(3, 6);
     await __internalSleep(Math.round(delay));
   }
+};
+
+const __humanType = async function(handle, text, speed) {
+  // Keystrokes go to whatever holds focus: if the element did not take it,
+  // they would land on the page (select-all, backspace, text) and the value
+  // would silently never be entered.
+  if (!(await __humanTakesFocus(handle))) {
+    throw new Error('Element cannot take focus (hidden or disabled); nothing was typed.');
+  }
+  await __humanKeystrokes(__humanPageOf(handle), text, speed);
 };
 

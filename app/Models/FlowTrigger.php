@@ -19,6 +19,8 @@ use Illuminate\Support\Str;
  * @property array<array-key, mixed>|null $input_template
  * @property string $scope
  * @property string|null $team_id
+ * @property string|null $proxy_mode
+ * @property int|null $workspace_proxy_id
  */
 class FlowTrigger extends Model
 {
@@ -38,6 +40,8 @@ class FlowTrigger extends Model
         'group',
         'input_template',
         'config',
+        'proxy_mode',
+        'workspace_proxy_id',
         'is_active',
         'is_public',
         'scope',
@@ -51,6 +55,7 @@ class FlowTrigger extends Model
         return [
             'input_template' => 'array',
             'config' => 'array',
+            'workspace_proxy_id' => 'integer',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
             'last_triggered_at' => 'datetime',

@@ -3,6 +3,7 @@ import type {
     HelpEntryDef,
     NodalFlowPortDef,
     NodalParamDef,
+    NodalSelectOption,
     SiteUrlContextDef,
 } from '@/Domains/Flow/Pages/FlowEditor/types';
 import runHeaderRaw from '@/../../src/sandbox/run-header.js?raw';
@@ -120,7 +121,7 @@ function parseSiteUrlContexts(body: string): SiteUrlContextDef[] {
     );
 }
 
-const PARAM_SELECT_CHOICES: Record<string, { value: string; label: string }[]> = {
+const PARAM_SELECT_CHOICES: Record<string, NodalSelectOption[]> = {
     format: [
         { value: 'text', label: 'Text' },
         { value: 'json', label: 'JSON' },
@@ -185,11 +186,11 @@ const PARAM_SELECT_CHOICES: Record<string, { value: string; label: string }[]> =
         { value: 'prepend', label: 'Prepend' },
     ],
     waitUntil: [
-        { value: 'networkidle0', label: 'networkidle0' },
-        { value: 'domcontentloaded', label: 'domcontentloaded' },
-        { value: 'networkidle2', label: 'networkidle2' },
-        { value: 'load', label: 'load' },
-        { value: 'commit', label: 'commit' },
+        { value: 'networkidle2', label: 'networkidle2', description: 'Max 2 connections for 500 ms' },
+        { value: 'networkidle0', label: 'networkidle0', description: 'No network activity for 500 ms' },
+        { value: 'load', label: 'load', description: 'Page and all assets loaded' },
+        { value: 'domcontentloaded', label: 'domcontentloaded', description: 'HTML parsed, assets still loading' },
+        { value: 'commit', label: 'commit', description: 'First response received' },
     ],
 };
 

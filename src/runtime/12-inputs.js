@@ -8,18 +8,19 @@
  * @nodal-output number
  * @nodal-param keyboardSpeedValue [number, required]: Delay in milliseconds between keystrokes and low-level input actions.
  */
-// Which accelerator selects all text: Cmd+A on Apple platforms, Ctrl+A
-// elsewhere. Read once from the page so a spoofed platform stays consistent.
-let __selectAllModifierCache = null;
-const __selectAllModifier = async function(handle) {
-  if (__selectAllModifierCache) return __selectAllModifierCache;
+// The platform's primary accelerator: Cmd on Apple platforms, Ctrl elsewhere
+// (Cmd+A / Ctrl+A selects all, Cmd+C / Ctrl+C copies). Read once from the
+// page so a spoofed platform stays consistent.
+let __primaryModifierCache = null;
+const __primaryModifier = async function(handle) {
+  if (__primaryModifierCache) return __primaryModifierCache;
   let platform = '';
   try {
     platform = await __humanPageOf(handle).evaluate(() =>
       navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || '');
   } catch (_) {}
-  __selectAllModifierCache = /mac|iphone|ipad|ipod/i.test(platform) ? 'Meta' : 'Control';
-  return __selectAllModifierCache;
+  __primaryModifierCache = /mac|iphone|ipad|ipod/i.test(platform) ? 'Meta' : 'Control';
+  return __primaryModifierCache;
 };
 
 const $keyboardSpeed = function(keyboardSpeedValue) {
@@ -118,7 +119,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
       // "a" keydown (ctrlKey/metaKey set) instead of a bare "a" that no human
       // would use to clear a field. The selectAll command still guarantees the
       // selection regardless of the browser's own OS shortcut.
-      const modifier = await __selectAllModifier(handle);
+      const modifier = await __primaryModifier(handle);
       const keyboard = __humanPageOf(handle).keyboard;
       await keyboard.down(modifier);
       try {
@@ -167,6 +168,110 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
     }
   }
   await __internalSleep(sleep);
+};
+
+/* @help Interaction
+ * @sig $keyboardPress(text, options?)
+ * @aliases type text, keystrokes, type characters, keyboard type, press keys
+ * @desc Type text one keystroke at a time into the focused element, or into an element focused first through options.selector. Newlines press Enter. Uses the flow keyboard speed unless options.speed is set.
+ * @nodal-desc Type text key by key into the focused element, or into an input selected first.
+ * @opt selector: null, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
+ * @nodal-param text [string, required]: Text to type, one keystroke per character. A newline presses Enter.
+ * @nodal-param options: Target and typing options.
+ * @nodal-param options.selector [string, selector]: Optional CSS selector to focus before typing. Leave empty to type into whatever currently has focus.
+ * @nodal-param options.speed [number]: Typing speed, in milliseconds between keystrokes. 0 types instantly.
+ * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
+ * @nodal-param options.continueOnError [boolean]: Continue the flow if the selector cannot be found.
+ * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
+ * @nodal-param options.index [number]: Zero-based position to use when several elements match the selector.
+ */
+const $keyboardPress = async function(text, options) {
+  const {
+    selector = null,
+    speed = __keyboardSpeedValue,
+    timeout = 30000,
+    continueOnError = false,
+    visibleOnly = false,
+    index = 0,
+  } = options || {};
+  const value = text === null || text === undefined ? '' : String(text);
+  __emitAction('type', value);
+  console.debug('Typing keys:', value, selector ? 'into ' + selector : 'into the focused element');
+
+  if (typeof selector === 'string' && selector.trim() !== '') {
+    const result = await __internalSelect(selector, { timeout, continueOnError, visibleOnly, index });
+    if (!result) return;
+    await __retryOnContextDestroyed(() => __humanHoverElement(result.handle)).catch(() => {});
+    await __humanType(result.handle, value, speed);
+    return;
+  }
+  await __humanKeystrokes($page, value, speed);
+};
+
+// Puppeteer key names for the characters a shortcut is usually written with,
+// so "cmd+enter" style inputs work without knowing the KeyInput spelling.
+const __shortcutKeyAliases = {
+  enter: 'Enter', return: 'Enter', tab: 'Tab', esc: 'Escape', escape: 'Escape', space: 'Space', spacebar: 'Space',
+  backspace: 'Backspace', delete: 'Delete', del: 'Delete', insert: 'Insert', home: 'Home', end: 'End',
+  pageup: 'PageUp', pagedown: 'PageDown', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
+  arrowup: 'ArrowUp', arrowdown: 'ArrowDown', arrowleft: 'ArrowLeft', arrowright: 'ArrowRight',
+};
+const __normalizeShortcutKey = function(key) {
+  const raw = key === null || key === undefined ? '' : String(key).trim();
+  if (raw === '') throw new Error('Keyboard shortcut requires a key (a single character or a key name such as Enter).');
+  if ([...raw].length === 1) return raw;
+  const alias = __shortcutKeyAliases[raw.toLowerCase()];
+  if (alias) return alias;
+  if (/^f([1-9]|1[0-9]|2[0-4])$/i.test(raw)) return raw.toUpperCase();
+  return raw;
+};
+
+/* @help Interaction
+ * @sig $keyboardShortcut(key, options?)
+ * @aliases hotkey, key combination, press key, ctrl, cmd, shortcut
+ * @desc Press one key with optional modifiers held (Cmd/Ctrl, Ctrl, Meta, Shift, Alt). key is a single character or a key name such as Enter, Tab, Escape, ArrowDown or F5. options.cmdOrCtrl holds Cmd on macOS and Ctrl elsewhere.
+ * @nodal-desc Press a key while holding the selected modifiers.
+ * @opt cmdOrCtrl: false, control: false, meta: false, shift: false, alt: false, repeat: 1
+ * @nodal-param key [string, required]: Single character or key name to press (a, Enter, Tab, Escape, ArrowDown, F5).
+ * @nodal-param options: Modifiers held while the key is pressed.
+ * @nodal-param options.cmdOrCtrl [boolean]: Hold the platform shortcut key: Cmd on macOS, Ctrl elsewhere.
+ * @nodal-param options.control [boolean]: Hold Ctrl.
+ * @nodal-param options.meta [boolean]: Hold Meta (Cmd on macOS, Windows key elsewhere).
+ * @nodal-param options.shift [boolean]: Hold Shift.
+ * @nodal-param options.alt [boolean]: Hold Alt (Option on macOS).
+ * @nodal-param options.repeat [number]: Number of times to press the shortcut.
+ */
+const $keyboardShortcut = async function(key, options) {
+  const {
+    cmdOrCtrl = false,
+    control = false,
+    meta = false,
+    shift = false,
+    alt = false,
+    repeat = 1,
+  } = options || {};
+  const pressKey = __normalizeShortcutKey(key);
+  const modifiers = [];
+  if (cmdOrCtrl) modifiers.push(await __primaryModifier($page));
+  if (control && !modifiers.includes('Control')) modifiers.push('Control');
+  if (meta && !modifiers.includes('Meta')) modifiers.push('Meta');
+  if (shift) modifiers.push('Shift');
+  if (alt) modifiers.push('Alt');
+  const count = Math.max(1, Math.floor(Number(repeat) || 1));
+  const label = [...modifiers, pressKey].join('+');
+  __emitAction('shortcut', label);
+  console.debug('Pressing shortcut:', label, count > 1 ? 'x' + count : '');
+
+  const keyboard = $page.keyboard;
+  for (let iteration = 0; iteration < count; iteration++) {
+    for (const modifier of modifiers) await keyboard.down(modifier);
+    try {
+      await keyboard.press(pressKey, { delay: __humanJitterMs(55, 0.5) });
+    } finally {
+      for (const modifier of [...modifiers].reverse()) await keyboard.up(modifier);
+    }
+    if (iteration < count - 1) await __internalSleep(__humanJitterMs(120, 0.4));
+  }
 };
 
 /* @help Utility
