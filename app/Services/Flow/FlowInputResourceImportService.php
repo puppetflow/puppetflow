@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 final class FlowInputResourceImportService
 {
     private const KIND_BY_NAMESPACE = [
+        'vars' => 'variables',
         'channels' => 'notification_channels',
         'mailboxWatchers' => 'mailbox_watchers',
         'aiModels' => 'ai_models',
@@ -102,15 +103,18 @@ final class FlowInputResourceImportService
     {
         if (
             ! is_string($value)
-            || preg_match('/^\$\{(channels|mailboxWatchers|aiModels|dataTables|mediaAssets)\.([a-zA-Z0-9_.-]+)\}$/', $value, $matches) !== 1
+            || preg_match('/^\$\{(vars|channels|mailboxWatchers|aiModels|dataTables|mediaAssets)\.([a-zA-Z0-9_.-]+)\}$/', $value, $matches) !== 1
         ) {
             return null;
         }
 
+        // Variable references may target a nested path (${vars.<id>.path}); only the id has to exist.
+        $id = $matches[1] === 'vars' ? explode('.', $matches[2], 2)[0] : $matches[2];
+
         return [
             'namespace' => $matches[1],
             'kind' => self::KIND_BY_NAMESPACE[$matches[1]],
-            'id' => $matches[2],
+            'id' => $id,
         ];
     }
 }

@@ -18,7 +18,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Flow;
 use App\Models\Snippet;
 use App\Models\User;
+use App\Models\Workspace;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Flow\FlowInputResourceImportService;
 use App\Services\Library\BlueprintAppearanceService;
 use App\Services\Library\LibraryCatalogService;
 use App\Services\Library\LibraryExternalClient;
@@ -42,6 +44,7 @@ class LibraryController extends Controller
         private readonly LibrarySnippetReferenceRewriter $snippetReferences,
         private readonly IdentityRows $identityRows,
         private readonly SnippetVersionService $snippetVersions,
+        private readonly FlowInputResourceImportService $inputResourceImports,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -318,7 +321,7 @@ class LibraryController extends Controller
                 $this->snippetVersions->publish($snippet, $user->id);
             });
             $flows = $selectedFlows
-                ->map(fn (LibraryFlowItem $item): Flow => $this->importFlow($item, $blueprint, $workspaceId, $user->id, $externalId, $overrides, $snippetRewrites))
+                ->map(fn (LibraryFlowItem $item): Flow => $this->importFlow($item, $blueprint, $workspaceId, $user, $externalId, $overrides, $snippetRewrites))
                 ->values();
 
             return [$snippets, $flows];
@@ -387,8 +390,9 @@ class LibraryController extends Controller
     }
 
     /** @param array<string, string> $snippetRewrites */
-    private function importFlow(LibraryFlowItem $item, LibraryBlueprint $blueprint, string $workspaceId, string $userId, ?int $externalId, LibraryImportOverrides $overrides, array $snippetRewrites = []): Flow
+    private function importFlow(LibraryFlowItem $item, LibraryBlueprint $blueprint, string $workspaceId, User $user, ?int $externalId, LibraryImportOverrides $overrides, array $snippetRewrites = []): Flow
     {
+        $userId = $user->id;
         $visibility = $overrides->flowVisibility();
 
         $namespace = $item->namespace ?: 'library';
@@ -425,6 +429,17 @@ class LibraryController extends Controller
             'library_source_url' => $item->sourceUrl,
             'library_imported_at' => now(),
         ]);
+
+        // Blueprint defaults carry resource ids from the publishing workspace; reset the ones this user cannot use.
+        $defaultInputs = $this->inputResourceImports->clearUnavailable(
+            is_array($flow->default_inputs) ? $flow->default_inputs : null,
+            $flow,
+            $user,
+            Workspace::findOrFail($workspaceId),
+        );
+        if ($defaultInputs !== $flow->default_inputs) {
+            $flow->update(['default_inputs' => $defaultInputs]);
+        }
 
         $this->appearance->apply($flow, $blueprint);
 
