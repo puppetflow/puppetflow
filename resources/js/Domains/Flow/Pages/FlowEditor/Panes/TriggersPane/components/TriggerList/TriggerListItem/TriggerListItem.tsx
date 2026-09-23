@@ -90,6 +90,7 @@ export default function TriggerListItem({
                         {trigger.type === 'cron' && trigger.config && (
                             <> - {(trigger.config as { cron_expression?: string }).cron_expression}</>
                         )}
+                        {trigger.proxy_mode && <> - Custom proxy</>}
                     </TriggerItemInfo>
                 </TriggerItemMeta>
                 <TriggerItemActions onClick={event => event.stopPropagation()}>

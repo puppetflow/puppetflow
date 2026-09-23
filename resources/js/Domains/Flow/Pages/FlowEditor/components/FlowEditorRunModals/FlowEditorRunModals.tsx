@@ -1,16 +1,22 @@
+import { useMemo } from 'react';
 import { usePage } from '@inertiajs/react';
 import type { PageProps } from '@/App/types';
 import type { FlowRun } from '@/Domains/Flow/types';
 import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { buildRerunInput } from '@/Domains/Flow/Hooks/useRunAgainModal/utils';
+import { toProxyChoice } from '@/Domains/Flow/Pages/FlowEditor/components/ProxyPicker/proxyChoice';
 import RunDetailModal from '@/Domains/Flow/Pages/FlowEditor/Modals/RunDetailModal/RunDetailModal';
 import RunModal from '@/Domains/Flow/Pages/FlowEditor/Modals/RunModal/RunModal';
+import type { RunProxyContext, RunSubmitHandler } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunModal/types';
 import SaveBeforeRunModal from '@/Domains/Flow/Pages/FlowEditor/Modals/SaveBeforeRunModal/SaveBeforeRunModal';
 import ClearRunsModal from '@/Domains/Flow/Pages/FlowEditor/Modals/ClearRunsModal/ClearRunsModal';
 
 interface FlowEditorRunModalsProps {
     flow: FlowEditorProps['flow'];
+    workspaceProxies: FlowEditorProps['workspaceProxies'];
+    teams: FlowEditorProps['teams'];
+    canManageWorkspaceProxies: boolean;
     runsTotal: number;
     navigationRuns: FlowRun[];
     detailRun: FlowRun | null;
@@ -29,7 +35,7 @@ interface FlowEditorRunModalsProps {
     onCloseRunModal: () => void;
     onCloseSaveBeforeRun: () => void;
     onCloseClearModal: () => void;
-    onRunFromModal: (parsedInput: Record<string, unknown>, useOldCode: boolean) => void;
+    onRunFromModal: RunSubmitHandler;
     onSaveInput: (input: Record<string, unknown>) => void;
     onSaveAndRun: () => void;
     onRunWithoutSaving: () => void;
@@ -40,6 +46,9 @@ interface FlowEditorRunModalsProps {
 
 export default function FlowEditorRunModals({
     flow,
+    workspaceProxies,
+    teams,
+    canManageWorkspaceProxies,
     runsTotal,
     navigationRuns,
     detailRun,
@@ -67,6 +76,12 @@ export default function FlowEditorRunModals({
     onRerunFromDetail,
 }: FlowEditorRunModalsProps) {
     const { currentWorkspace } = usePage<PageProps>().props;
+    const proxyContext = useMemo<RunProxyContext>(() => ({
+        flowChoice: toProxyChoice(flow.proxy_mode, flow.workspace_proxy_id),
+        workspaceProxies,
+        teams,
+        canManageWorkspaceProxies,
+    }), [canManageWorkspaceProxies, flow.proxy_mode, flow.workspace_proxy_id, teams, workspaceProxies]);
 
     return (
         <>
@@ -96,6 +111,7 @@ export default function FlowEditorRunModals({
                 initialInput={runInitialInput}
                 codeSnapshot={rerunCodeSnapshot}
                 rerunData={rerunData}
+                proxyContext={proxyContext}
                 onRun={onRunFromModal}
                 onSaveInput={onSaveInput}
             />

@@ -4,6 +4,7 @@ import { router } from '@inertiajs/react';
 import type { FlowRun } from '@/Domains/Flow/types';
 import type { useToast } from '@/App/Hooks/useToast';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { RunSubmitHandler } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunModal/types';
 import { compileNodalGraphToCode } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
@@ -91,7 +92,7 @@ export function useFlowRunActions({
 
     openRunModalRef.current = openRunModal;
 
-    const handleRunFromModal = useCallback((parsedInput: Record<string, unknown>, useOldCode: boolean) => {
+    const handleRunFromModal = useCallback<RunSubmitHandler>((parsedInput, useOldCode, proxyOverride) => {
         let codeOverride: string;
         try {
             codeOverride = useOldCode && rerunCodeSnapshot
@@ -114,7 +115,16 @@ export function useFlowRunActions({
         if (rerunData) {
             payload.is_rerun = true;
         }
+        if (proxyOverride) {
+            payload.proxy_mode = proxyOverride.proxy_mode;
+            payload.workspace_proxy_id = proxyOverride.workspace_proxy_id;
+        }
         router.post(`/flows/${flowId}/run`, payload, {
+            onError: errors => {
+                // The modal is already closed, so surface validation failures (for example an unavailable proxy).
+                const message = Object.values(errors)[0];
+                if (message) toast(message, 'error');
+            },
             onFinish: () => setRunning(false),
         });
     }, [code, flowId, isNodalFlow, nodalGraphRef, pendingRunOpenRef, rerunCodeSnapshot, rerunData, setRunning, toast]);

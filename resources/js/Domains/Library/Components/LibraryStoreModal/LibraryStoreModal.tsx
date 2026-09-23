@@ -8,6 +8,7 @@ import { useLibraryStoreItems } from './useLibraryStoreItems';
 import { useLibraryStoreMutations } from './useLibraryStoreMutations';
 import { useLibraryStoreSelection } from './useLibraryStoreSelection';
 import type { LibraryTeamOption } from './types';
+import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
 import * as S from './styled';
 
 export {
@@ -20,9 +21,20 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     teams?: LibraryTeamOption[];
+    /** Folder trees for the destination picker. Pages without them fall back to root-only targets. */
+    personalTree?: FolderTree[];
+    workspaceTree?: FolderTree[];
+    teamTrees?: TeamTree[];
 }
 
-export default function LibraryStoreModal({ isOpen, onClose, teams = [] }: Props) {
+export default function LibraryStoreModal({
+    isOpen,
+    onClose,
+    teams = [],
+    personalTree = [],
+    workspaceTree = [],
+    teamTrees,
+}: Props) {
     const store = useLibraryStoreItems(isOpen);
     const selection = useLibraryStoreSelection(isOpen, store.items, onClose);
     const mutations = useLibraryStoreMutations({
@@ -88,6 +100,9 @@ export default function LibraryStoreModal({ isOpen, onClose, teams = [] }: Props
                     collection={selection.pendingUse.collection}
                     child={selection.pendingUse.child}
                     teams={teams}
+                    personalTree={personalTree}
+                    workspaceTree={workspaceTree}
+                    teamTrees={teamTrees}
                     submitting={mutations.busyKey === `${selection.pendingUse.item.key}:${selection.pendingUse.collection}:${selection.pendingUse.child.reference}`}
                     error={store.error}
                     onClose={() => selection.setPendingUse(null)}

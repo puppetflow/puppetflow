@@ -50,6 +50,8 @@ export function useTriggerActions({
             group: trigger.group,
             config: trigger.config || {},
             input_template: trigger.input_template,
+            proxy_mode: trigger.proxy_mode,
+            workspace_proxy_id: trigger.proxy_mode === 'specific' ? trigger.workspace_proxy_id : null,
             is_active: trigger.is_active,
             scope: trigger.scope,
             team_id: trigger.team_id,

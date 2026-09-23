@@ -194,6 +194,9 @@ export default function FlowEditorView({
 
             <FlowEditorRunModals
                 flow={flow}
+                workspaceProxies={workspaceProxies}
+                teams={teams}
+                canManageWorkspaceProxies={canManageWorkspaceProxies}
                 runsTotal={c.runs.total}
                 navigationRuns={c.runs.data}
                 detailRun={c.detailRun}
@@ -225,6 +228,9 @@ export default function FlowEditorView({
                 isOpen={c.showLibraryStore}
                 onClose={() => c.setShowLibraryStore(false)}
                 teams={teams}
+                personalTree={personalTree}
+                workspaceTree={workspaceTree}
+                teamTrees={teamTrees}
             />
 
             <DuplicateFlowModal

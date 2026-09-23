@@ -69,7 +69,7 @@ class LibraryController extends Controller
             $user->id,
         );
 
-        return response()->json($this->withLocalUsage($catalog->toArray(), $sort));
+        return response()->json($this->withLocalUsage($this->withSnippetDependencyLists($catalog->toArray()), $sort));
     }
 
     public function import(Request $request, string $namespace): JsonResponse
@@ -86,16 +86,20 @@ class LibraryController extends Controller
          *         visibility?: string|null,
          *         scope?: string|null,
          *         team_id?: string|null,
-         *         owner_id?: string|null
+         *         owner_id?: string|null,
+         *         folder_id?: string|null,
+         *         workspace_folder_id?: string|null
          *     }|null,
          *     scope?: string|null,
-         *     team_id?: string|null
+         *     team_id?: string|null,
+         *     include_snippets?: bool|null
          * } $validated */
         $validated = $request->validate([
             'flows' => ['array'],
             'flows.*' => ['string'],
             'snippets' => ['array'],
             'snippets.*' => ['string'],
+            'include_snippets' => ['nullable', 'boolean'],
             'overrides' => ['nullable', 'array'],
             'overrides.name' => ['nullable', 'string', 'max:128'],
             'overrides.label' => ['nullable', 'string', 'max:255'],
@@ -105,6 +109,8 @@ class LibraryController extends Controller
             'overrides.scope' => ['nullable', 'in:'.implode(',', app(FeatureFlagService::class)->allowedScopes())],
             'overrides.team_id' => ['nullable', 'string'],
             'overrides.owner_id' => ['nullable', 'string', 'exists:users,id'],
+            'overrides.folder_id' => ['nullable', 'string'],
+            'overrides.workspace_folder_id' => ['nullable', 'string'],
             'scope' => ['nullable', 'in:'.implode(',', app(FeatureFlagService::class)->allowedScopes())],
             'team_id' => ['nullable', 'string'],
         ]);
@@ -124,6 +130,22 @@ class LibraryController extends Controller
                 $workspaceId,
             );
         }
+        if (isset($validated['overrides']) && array_key_exists('folder_id', $validated['overrides'])) {
+            $validated['overrides']['folder_id'] = $this->resolveWorkspaceFolderId(
+                $validated['overrides']['folder_id'],
+                $workspaceId,
+            );
+        }
+        if (isset($validated['overrides']) && array_key_exists('workspace_folder_id', $validated['overrides'])) {
+            $validated['overrides']['workspace_folder_id'] = $this->resolveWorkspaceFolderId(
+                $validated['overrides']['workspace_folder_id'],
+                $workspaceId,
+                'workspace_folder_id',
+            );
+        }
+        // Snippet dependencies are pulled in by default; the modal lets the
+        // user opt out and wire snippets up manually afterwards.
+        $includeSnippets = $validated['include_snippets'] ?? true;
         /** @var User $user */
         $user = $request->user();
         $blueprint = $this->catalog->findBlueprint($namespace, workspaceId: $workspaceId, userId: $user->id);
@@ -152,16 +174,18 @@ class LibraryController extends Controller
             : ($validated['team_id'] ?? null);
         $snippetScope = $overrides->snippetScope($snippetDefaultScope);
         $snippetTeamId = $overrides->snippetTeamId($snippetScope, $snippetDefaultTeamId);
-        $selectedSnippets = $this->withSnippetDependencies(
-            $blueprint,
-            $selectedFlows,
-            $selectedSnippets,
-            $workspaceId,
-            $user,
-            $ownerId,
-            $snippetScope,
-            $snippetTeamId,
-        );
+        if ($includeSnippets) {
+            $selectedSnippets = $this->withSnippetDependencies(
+                $blueprint,
+                $selectedFlows,
+                $selectedSnippets,
+                $workspaceId,
+                $user,
+                $ownerId,
+                $snippetScope,
+                $snippetTeamId,
+            );
+        }
         if ($selectedSnippets->isNotEmpty()) {
             app(FeatureFlagService::class)->abortIfDisabled('snippets_enabled');
         }
@@ -173,6 +197,8 @@ class LibraryController extends Controller
                 $ownerId,
                 $overrides->flowVisibility(),
                 $overrides->flowTeamId(),
+                $overrides->flowFolderId(),
+                $overrides->flowWorkspaceFolderId(),
             );
         }
         if ($selectedSnippets->isNotEmpty()) {
@@ -225,6 +251,8 @@ class LibraryController extends Controller
                     $ownerId,
                     $overrides->flowVisibility(),
                     $overrides->flowTeamId(),
+                    $overrides->flowFolderId(),
+                    $overrides->flowWorkspaceFolderId(),
                 );
             }
             if ($selectedSnippets->isNotEmpty()) {
@@ -385,6 +413,8 @@ class LibraryController extends Controller
             'owner_id' => $overrides->ownerId($userId),
             'visibility' => $visibility,
             'team_id' => $overrides->flowTeamId(),
+            'folder_id' => $overrides->flowFolderId(),
+            'workspace_folder_id' => $overrides->flowWorkspaceFolderId(),
             'is_published' => true,
             'library_external_id' => $externalId,
             'library_external_key' => $item->key,
@@ -782,6 +812,86 @@ class LibraryController extends Controller
         $payload['items'] = $items->values()->all();
 
         return $payload;
+    }
+
+    /**
+     * Annotates every flow and snippet child with `snippet_dependencies`: the
+     * references of the blueprint snippets it calls, directly or through other
+     * snippets. The modal uses it to show what the import will pull in.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function withSnippetDependencyLists(array $payload): array
+    {
+        /** @var list<array<string, mixed>> $payloadItems */
+        $payloadItems = is_array($payload['items'] ?? null) ? array_values($payload['items']) : [];
+
+        $payload['items'] = array_map(function (array $item): array {
+            /** @var list<array<string, mixed>> $snippets */
+            $snippets = is_array($item['snippets'] ?? null) ? array_values($item['snippets']) : [];
+            /** @var array<string, array<string, mixed>> $byConvention */
+            $byConvention = [];
+            foreach ($snippets as $snippet) {
+                $namespace = is_string($snippet['namespace'] ?? null) && $snippet['namespace'] !== '' ? $snippet['namespace'] : 'library';
+                $reference = is_string($snippet['reference'] ?? null) ? $snippet['reference'] : '';
+                $byConvention[$this->snippetReferences->convention($namespace, $reference)] = $snippet;
+            }
+
+            $dependenciesOf = function (array $child) use ($byConvention): array {
+                $found = [];
+                $queue = $this->childSnippetReferences($child);
+                while ($queue !== []) {
+                    $convention = array_shift($queue);
+                    $dependency = $byConvention[$convention] ?? null;
+                    if ($dependency === null || isset($found[$convention])) {
+                        continue;
+                    }
+                    $found[$convention] = is_string($dependency['reference'] ?? null) ? $dependency['reference'] : $convention;
+                    array_push($queue, ...$this->childSnippetReferences($dependency));
+                }
+
+                return array_values($found);
+            };
+
+            /** @var list<array<string, mixed>> $flows */
+            $flows = is_array($item['flows'] ?? null) ? array_values($item['flows']) : [];
+            $item['flows'] = array_map(
+                fn (array $flow): array => [...$flow, 'snippet_dependencies' => $dependenciesOf($flow)],
+                $flows,
+            );
+            $item['snippets'] = array_map(
+                function (array $snippet) use ($dependenciesOf): array {
+                    $reference = is_string($snippet['reference'] ?? null) ? $snippet['reference'] : '';
+
+                    return [
+                        ...$snippet,
+                        'snippet_dependencies' => array_values(array_filter(
+                            $dependenciesOf($snippet),
+                            fn (string $dependency): bool => $dependency !== $reference,
+                        )),
+                    ];
+                },
+                $snippets,
+            );
+
+            return $item;
+        }, $payloadItems);
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>  $child
+     * @return list<string>
+     */
+    private function childSnippetReferences(array $child): array
+    {
+        $code = is_string($child['code'] ?? null) ? $child['code'] : null;
+        /** @var array<string, mixed>|null $graph */
+        $graph = is_array($child['nodal_graph'] ?? null) ? $child['nodal_graph'] : null;
+
+        return $this->snippetReferences->references($code, $graph);
     }
 
     private function currentWorkspaceId(): string

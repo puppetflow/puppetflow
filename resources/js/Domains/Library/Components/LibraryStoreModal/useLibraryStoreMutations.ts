@@ -105,6 +105,7 @@ export function useLibraryStoreMutations({
                     method: 'POST',
                     body: JSON.stringify({
                         ...selection,
+                        include_snippets: data.include_snippets,
                         overrides: collection === 'flows'
                             ? {
                                 name: data.name,
@@ -112,6 +113,8 @@ export function useLibraryStoreMutations({
                                 visibility: data.scope,
                                 team_id: data.scope === 'team' ? data.team_id : null,
                                 owner_id: data.owner_id,
+                                folder_id: data.scope === 'owner' ? data.folder_id : null,
+                                workspace_folder_id: data.scope === 'owner' ? null : data.workspace_folder_id,
                             }
                             : {
                                 label: data.label,

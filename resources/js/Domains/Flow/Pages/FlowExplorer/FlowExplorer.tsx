@@ -75,6 +75,9 @@ export default function FlowExplorer(props: Props) {
                 isOpen={showLibraryStore}
                 onClose={() => setShowLibraryStore(false)}
                 teams={teamTrees.map(team => ({ id: team.id, name: team.name }))}
+                personalTree={folderTree}
+                workspaceTree={workspaceTree}
+                teamTrees={teamTrees}
             />
             <FlowImportModal
                 isOpen={showImportModal}

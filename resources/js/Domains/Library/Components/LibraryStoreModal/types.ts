@@ -17,6 +17,12 @@ export interface LibraryUseFormData {
     scope: 'owner' | 'workspace' | 'team';
     team_id: Id | null;
     owner_id: Id | null;
+    /** Personal folder for owner visibility (flows only). */
+    folder_id: Id | null;
+    /** Workspace or team folder for shared visibilities (flows only). */
+    workspace_folder_id: Id | null;
+    /** Whether blueprint snippets referenced by the item are imported with it. */
+    include_snippets: boolean;
 }
 
 export interface LibraryStats {
@@ -46,6 +52,8 @@ export interface LibraryStoreChild {
     installed_url?: string | null;
     source_kind?: LibrarySourceKind;
     private_library_id?: number | null;
+    /** References of the blueprint snippets this item calls, directly or transitively. */
+    snippet_dependencies?: string[];
 }
 
 export interface LibraryStoreItem {

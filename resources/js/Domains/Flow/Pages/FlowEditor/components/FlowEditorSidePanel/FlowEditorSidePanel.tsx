@@ -143,11 +143,13 @@ export default function FlowEditorSidePanel({
                 <S.SplitPane>
                     <S.SplitPaneHalf>
                         <TriggersPane
-                            flowId={flow.id}
+                            flow={flow}
                             triggers={myTriggers}
                             otherTriggers={otherTriggers}
                             teams={teams}
                             groups={triggerGroups}
+                            workspaceProxies={workspaceProxies}
+                            canManageWorkspaceProxies={canManageWorkspaceProxies}
                         />
                     </S.SplitPaneHalf>
                     <S.SplitPaneDivider />

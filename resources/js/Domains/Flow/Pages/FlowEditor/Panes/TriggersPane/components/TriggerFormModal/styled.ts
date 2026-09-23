@@ -12,6 +12,22 @@ export const Actions = styled.div`
     justify-content: flex-end;
 `;
 
+export const ProxyField = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+`;
+
+export const ProxyHint = styled.span`
+    font-size: 11px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+`;
+
+export const ProxyError = styled.span`
+    font-size: 11px;
+    color: ${({ theme }) => theme.colors.accent.error};
+`;
+
 export const CopyInputGroup = styled.div`
     position: relative;
 

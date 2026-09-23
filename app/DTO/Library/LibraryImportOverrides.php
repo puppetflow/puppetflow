@@ -13,6 +13,8 @@ final readonly class LibraryImportOverrides
         public ?string $scope,
         public ?string $teamId,
         public ?string $ownerId,
+        public ?string $folderId,
+        public ?string $workspaceFolderId,
         public bool $hasDescription,
         public bool $hasGroup,
     ) {}
@@ -26,7 +28,9 @@ final readonly class LibraryImportOverrides
      *     visibility?: string|null,
      *     scope?: string|null,
      *     team_id?: string|null,
-     *     owner_id?: string|null
+     *     owner_id?: string|null,
+     *     folder_id?: string|null,
+     *     workspace_folder_id?: string|null
      * } $values
      */
     public static function fromValidated(array $values): self
@@ -40,6 +44,8 @@ final readonly class LibraryImportOverrides
             scope: $values['scope'] ?? null,
             teamId: $values['team_id'] ?? null,
             ownerId: $values['owner_id'] ?? null,
+            folderId: $values['folder_id'] ?? null,
+            workspaceFolderId: $values['workspace_folder_id'] ?? null,
             hasDescription: array_key_exists('description', $values),
             hasGroup: array_key_exists('group', $values),
         );
@@ -58,6 +64,18 @@ final readonly class LibraryImportOverrides
     public function flowTeamId(): ?string
     {
         return $this->flowVisibility() === 'team' ? $this->teamId : null;
+    }
+
+    /** Personal folder, only meaningful for owner visibility. */
+    public function flowFolderId(): ?string
+    {
+        return $this->flowVisibility() === 'owner' ? $this->folderId : null;
+    }
+
+    /** Workspace or team folder, only meaningful for shared visibilities. */
+    public function flowWorkspaceFolderId(): ?string
+    {
+        return $this->flowVisibility() === 'owner' ? null : $this->workspaceFolderId;
     }
 
     public function snippetScope(string $default): string

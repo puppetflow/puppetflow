@@ -102,6 +102,9 @@ export interface FlowTrigger {
     group: string | null;
     input_template: Record<string, unknown> | null;
     config: Record<string, unknown> | null;
+    /** Null means the trigger inherits the flow proxy settings. */
+    proxy_mode: 'none' | 'auto' | 'specific' | null;
+    workspace_proxy_id: number | null;
     is_active: boolean;
     is_public: boolean;
     scope: IntegrationScope;

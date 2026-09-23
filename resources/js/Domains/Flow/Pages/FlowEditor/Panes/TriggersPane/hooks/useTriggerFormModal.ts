@@ -51,6 +51,8 @@ export function useTriggerFormModal({
         merge_post_data: true,
         cron_expression: DEFAULT_CRON_EXPRESSION,
         cron_preset: DEFAULT_CRON_EXPRESSION,
+        proxy_mode: null,
+        workspace_proxy_id: null,
     });
     const ownershipDisabled = editing ? !canEditOwnership({
         currentUserId,
@@ -80,6 +82,8 @@ export function useTriggerFormModal({
             merge_post_data: type === 'webhook',
             cron_expression: DEFAULT_CRON_EXPRESSION,
             cron_preset: DEFAULT_CRON_EXPRESSION,
+            proxy_mode: null,
+            workspace_proxy_id: null,
         });
         form.clearErrors();
         setShowModal(true);
@@ -109,6 +113,8 @@ export function useTriggerFormModal({
             cron_preset: CRON_PRESETS.some(preset => preset.value === cronExpression)
                 ? cronExpression
                 : 'custom',
+            proxy_mode: trigger.proxy_mode ?? null,
+            workspace_proxy_id: trigger.proxy_mode === 'specific' ? trigger.workspace_proxy_id : null,
         });
         form.clearErrors();
         setShowModal(true);
@@ -172,6 +178,8 @@ export function useTriggerFormModal({
             group: group || null,
             input_template: inputTemplate,
             config,
+            proxy_mode: form.data.proxy_mode,
+            workspace_proxy_id: form.data.proxy_mode === 'specific' ? form.data.workspace_proxy_id : null,
             scope,
             team_id: scope === 'team' ? teamId : null,
         };
@@ -182,6 +190,10 @@ export function useTriggerFormModal({
             preserveState: true,
             onSuccess: () => {
                 closeModal();
+            },
+            onError: (errors: Record<string, string>) => {
+                form.clearErrors();
+                form.setError(errors as Partial<Record<keyof TriggerFormData, string>>);
             },
         };
         if (editing) {

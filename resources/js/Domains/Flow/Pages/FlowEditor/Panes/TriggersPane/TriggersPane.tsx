@@ -6,6 +6,8 @@ import Button from '@/Shared/UI/Button/Button';
 import BulkDeleteConfirmation from '@/Shared/UI/BulkDeleteConfirmation/BulkDeleteConfirmation';
 import * as Layout from '@/Domains/Flow/Pages/FlowEditor/shared/paneLayout.styled';
 import type { FlowTrigger } from '@/Domains/Flow/types';
+import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
+import { toProxyChoice } from '@/Domains/Flow/Pages/FlowEditor/components/ProxyPicker/proxyChoice';
 import TriggerFormModal from './components/TriggerFormModal/TriggerFormModal';
 import TriggerList from './components/TriggerList/TriggerList';
 import TriggerTypePicker from './components/TriggerTypePicker/TriggerTypePicker';
@@ -13,14 +15,25 @@ import type { TeamOption } from './types';
 import { useTriggersPane } from './useTriggersPane';
 
 interface TriggersPaneProps {
-    flowId: Id;
+    flow: Pick<FlowEditorProps['flow'], 'id' | 'proxy_mode' | 'workspace_proxy_id'>;
     triggers: FlowTrigger[];
     otherTriggers: FlowTrigger[];
     teams: TeamOption[];
     groups: string[];
+    workspaceProxies: FlowEditorProps['workspaceProxies'];
+    canManageWorkspaceProxies: boolean;
 }
 
-export default function TriggersPane({ flowId, triggers, otherTriggers, teams, groups }: TriggersPaneProps) {
+export default function TriggersPane({
+    flow,
+    triggers,
+    otherTriggers,
+    teams,
+    groups,
+    workspaceProxies,
+    canManageWorkspaceProxies,
+}: TriggersPaneProps) {
+    const flowId = flow.id;
     const [selectedIds, setSelectedIds] = useState<Set<Id>>(() => new Set());
     const [deletingSelected, setDeletingSelected] = useState(false);
     const {
@@ -161,6 +174,7 @@ export default function TriggersPane({ flowId, triggers, otherTriggers, teams, g
                     isOpen={showModal}
                     editing={editing}
                     data={form.data}
+                    errors={form.errors}
                     processing={form.processing}
                     group={group}
                     groups={allGroups}
@@ -168,6 +182,9 @@ export default function TriggersPane({ flowId, triggers, otherTriggers, teams, g
                     teamId={teamId}
                     ownerId={ownerId}
                     teams={teams}
+                    workspaceProxies={workspaceProxies}
+                    canManageWorkspaceProxies={canManageWorkspaceProxies}
+                    flowProxyChoice={toProxyChoice(flow.proxy_mode, flow.workspace_proxy_id)}
                     ownershipDisabled={ownershipDisabled}
                     showInputTemplate={showInputTemplate}
                     timezone={userTz}
@@ -175,6 +192,7 @@ export default function TriggersPane({ flowId, triggers, otherTriggers, teams, g
                     onClose={closeModal}
                     onSubmit={handleSubmit}
                     onFieldChange={form.setData}
+                    onProxyChange={selection => form.setData(previous => ({ ...previous, ...selection }))}
                     onGroupChange={setGroup}
                     onScopeChange={(newScope, newTeamId) => {
                         setScope(newScope);

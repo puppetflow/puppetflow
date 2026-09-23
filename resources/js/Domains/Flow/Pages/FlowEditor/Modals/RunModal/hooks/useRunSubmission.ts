@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fromProxyChoice, type ProxyChoice } from '@/Domains/Flow/Pages/FlowEditor/components/ProxyPicker/proxyChoice';
+import type { RunSubmitHandler } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunModal/types';
 
 interface UseRunSubmissionOptions {
     isOpen: boolean;
     initialInput: string;
     rerunData?: string | null;
-    onRun: (parsedInput: Record<string, unknown>, useOldCode: boolean) => void;
+    onRun: RunSubmitHandler;
     onSaveInput: (parsedInput: Record<string, unknown>) => void;
 }
 
@@ -29,6 +31,8 @@ export function useRunSubmission({
     const [rerunInput, setRerunInput] = useState(rerunData || '{}');
     const [inputError, setInputError] = useState('');
     const [showEditor, setShowEditor] = useState(false);
+    // Null means the run uses the flow proxy settings.
+    const [proxyChoice, setProxyChoice] = useState<ProxyChoice | null>(null);
     const onSaveInputRef = useRef(onSaveInput);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     onSaveInputRef.current = onSaveInput;
@@ -61,11 +65,11 @@ export function useRunSubmission({
         try {
             const parsedInput = JSON.parse(rawInput);
             setInputError('');
-            onRun(parsedInput, useOldCode);
+            onRun(parsedInput, useOldCode, proxyChoice ? fromProxyChoice(proxyChoice) : null);
         } catch {
             setInputError('Invalid JSON');
         }
-    }, [input, onRun, rerunData, rerunInput, showEditor]);
+    }, [input, onRun, proxyChoice, rerunData, rerunInput, showEditor]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -74,6 +78,7 @@ export function useRunSubmission({
         setRerunInput(rerunData || '{}');
         setInputError('');
         setShowEditor(hasNonEmptyInput(initialInput));
+        setProxyChoice(null);
     }, [isOpen, initialInput, rerunData]);
 
     useEffect(() => () => {
@@ -85,9 +90,11 @@ export function useRunSubmission({
         rerunInput,
         inputError,
         showEditor,
+        proxyChoice,
         handleInputChange,
         handleRun,
         handleShowEditorChange,
+        setProxyChoice,
         setRerunInput,
     };
 }

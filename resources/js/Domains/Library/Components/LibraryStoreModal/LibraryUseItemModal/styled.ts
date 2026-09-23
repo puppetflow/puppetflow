@@ -9,14 +9,35 @@ export {
     PreviewPanel,
 } from '@/Shared/UI/PreviewModalLayout/styled';
 
-export const DestinationFields = styled.div`
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+export const OwnerSection = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+`;
 
-    @media (max-width: 680px) {
-        grid-template-columns: 1fr;
-    }
+export const OwnerLabel = styled.span`
+    color: ${({ theme }) => theme.colors.text.secondary};
+    font-size: 12px;
+    font-weight: 600;
+`;
+
+export const DependencyIcon = styled.span`
+    display: inline-flex;
+    margin-right: 6px;
+    color: ${({ theme }) => theme.colors.accent.primary};
+    vertical-align: -2px;
+`;
+
+export const DependencyState = styled.span<{ $installed: boolean }>`
+    flex-shrink: 0;
+    padding: 2px 7px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme, $installed }) => ($installed ? theme.colors.accent.success : theme.colors.accent.info)}22;
+    color: ${({ theme, $installed }) => ($installed ? theme.colors.accent.success : theme.colors.accent.info)};
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 `;
 
 export const ErrorBox = styled.div`
