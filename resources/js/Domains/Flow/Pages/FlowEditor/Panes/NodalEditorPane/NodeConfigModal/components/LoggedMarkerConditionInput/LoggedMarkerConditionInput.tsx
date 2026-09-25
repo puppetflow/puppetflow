@@ -17,6 +17,9 @@ import {
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import ExpressionInput from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/ExpressionInput/ExpressionInput';
 import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
+import CascadingSelect, {
+    type CascadingSelectGroup,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CascadingSelect/CascadingSelect';
 import {
     IF_CATEGORY_ICONS,
     IF_CATEGORY_LABELS,
@@ -43,18 +46,14 @@ const TEXT_FILTER_OPTIONS = [
     { value: 'startsWith', label: 'starts with' },
     { value: 'endsWith', label: 'ends with' },
 ];
-const MARKER_OPERATOR_OPTIONS = (['boolean', 'number'] as IfConditionCategory[]).flatMap(category => (
-    IF_OPERATORS[category]
+const MARKER_OPERATOR_GROUPS: CascadingSelectGroup[] = (['boolean', 'number'] as IfConditionCategory[]).map(category => ({
+    value: category,
+    label: IF_CATEGORY_LABELS[category],
+    icon: IF_CATEGORY_ICONS[category],
+    options: IF_OPERATORS[category]
         .filter(operator => MARKER_OPERATORS[category]?.includes(operator.value))
-        .map(operator => ({
-            value: operator.value,
-            label: operator.label,
-            icon: IF_CATEGORY_ICONS[category],
-            group: category,
-            groupLabel: IF_CATEGORY_LABELS[category],
-            groupIcon: IF_CATEGORY_ICONS[category],
-        }))
-));
+        .map(operator => ({ value: operator.value, label: operator.label })),
+}));
 
 interface LoggedMarkerConditionInputProps {
     meta: NodalParamDef;
@@ -246,14 +245,13 @@ export default function LoggedMarkerConditionInput({
             />
             <S.ConditionBlock>
                 <S.ConditionLabel>Selector Operator</S.ConditionLabel>
-                <CustomSelect
-                    value={operator}
-                    options={MARKER_OPERATOR_OPTIONS}
-                    showOptionValue={false}
-                    searchThreshold={0}
+                <CascadingSelect
+                    value={{ group: category, option: operator }}
+                    groups={MARKER_OPERATOR_GROUPS}
+                    ariaLabel="Selector operator"
                     disabled={readOnly}
-                    onChange={nextOperator => updateOperator(
-                        NUMBER_OPERATORS.has(nextOperator) ? 'number' : 'boolean',
+                    onChange={(nextCategory, nextOperator) => updateOperator(
+                        nextCategory as IfConditionCategory,
                         nextOperator,
                     )}
                 />

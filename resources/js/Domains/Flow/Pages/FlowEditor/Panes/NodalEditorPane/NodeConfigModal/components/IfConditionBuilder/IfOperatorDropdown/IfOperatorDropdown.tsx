@@ -1,5 +1,7 @@
 import type { IfConditionCategory } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
-import CustomSelect from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
+import CascadingSelect, {
+    type CascadingSelectGroup,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CascadingSelect/CascadingSelect';
 import {
     IF_CATEGORIES,
     IF_CATEGORY_ICONS,
@@ -8,16 +10,15 @@ import {
     type IfOperatorDef,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/utils/ifConditions';
 
-const OPERATOR_OPTIONS = IF_CATEGORIES.flatMap(category => (
-    IF_OPERATORS[category].map(operator => ({
-        value: `${category}:${operator.value}`,
+const OPERATOR_GROUPS: CascadingSelectGroup[] = IF_CATEGORIES.map(category => ({
+    value: category,
+    label: IF_CATEGORY_LABELS[category],
+    icon: IF_CATEGORY_ICONS[category],
+    options: IF_OPERATORS[category].map(operator => ({
+        value: operator.value,
         label: operator.label,
-        icon: IF_CATEGORY_ICONS[category],
-        group: category,
-        groupLabel: IF_CATEGORY_LABELS[category],
-        groupIcon: IF_CATEGORY_ICONS[category],
-    }))
-));
+    })),
+}));
 
 interface IfOperatorDropdownProps {
     category: IfConditionCategory;
@@ -33,18 +34,12 @@ export default function IfOperatorDropdown({
     onChange,
 }: IfOperatorDropdownProps) {
     return (
-        <CustomSelect
-            value={`${category}:${operator.value}`}
-            options={OPERATOR_OPTIONS}
+        <CascadingSelect
+            value={{ group: category, option: operator.value }}
+            groups={OPERATOR_GROUPS}
+            ariaLabel="Operator"
             disabled={readOnly}
-            showOptionValue={false}
-            searchThreshold={0}
-            onChange={nextValue => {
-                const separatorIndex = nextValue.indexOf(':');
-                const nextCategory = nextValue.slice(0, separatorIndex) as IfConditionCategory;
-                const nextOperator = nextValue.slice(separatorIndex + 1);
-                onChange(nextCategory, nextOperator);
-            }}
+            onChange={(nextCategory, nextOperator) => onChange(nextCategory as IfConditionCategory, nextOperator)}
         />
     );
 }
