@@ -45,6 +45,28 @@ Puppetflow provides the [`n8n-nodes-puppetflow`](https://www.npmjs.com/package/n
 
 Install the package from **Settings > Community Nodes** on a self-hosted n8n instance, then connect it with your Puppetflow instance URL and an API key from **Profile > API Keys**. See the [n8n integration guide](https://docs.puppetflow.com/guide/integrations#n8n) for setup details.
 
+## 🤖 MCP server for AI clients
+
+Every Puppetflow instance exposes a remote [Model Context Protocol](https://modelcontextprotocol.io/) server over Streamable HTTP. Connect Cline, Cursor, Claude, Claude Code, or any other MCP client to search, inspect, create, and run browser automation flows, follow runs, and retrieve results, screenshots, and recordings.
+
+Nothing runs locally. Enable MCP under **Workspace > Settings > Instance MCP**, create an access token, then add the endpoint to your client:
+
+```json
+{
+  "mcpServers": {
+    "puppetflow": {
+      "type": "streamableHttp",
+      "url": "https://your-puppetflow.example/api/mcp-server/http",
+      "headers": {
+        "Authorization": "Bearer mcp_your_token_here"
+      }
+    }
+  }
+}
+```
+
+An OAuth endpoint with PKCE and Dynamic Client Registration is also available for clients that support remote MCP OAuth. See [`llms-install.md`](llms-install.md) for step-by-step client setup and the [MCP guide](https://docs.puppetflow.com/guide/mcp) for the complete tool list.
+
 ## Puppetflow in action
 
 <div align="center">
