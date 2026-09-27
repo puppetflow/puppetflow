@@ -12,7 +12,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class McpBrokerController extends Controller
 {
@@ -20,7 +22,7 @@ class McpBrokerController extends Controller
         private readonly McpBrokerDelegationService $delegation,
     ) {}
 
-    public function showAuthorization(McpBrokerAuthorizationRequest $request): View|RedirectResponse
+    public function showAuthorization(McpBrokerAuthorizationRequest $request): InertiaResponse|RedirectResponse
     {
         $this->delegation->ensureAvailable();
 
@@ -31,19 +33,26 @@ class McpBrokerController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        return view('mcp-broker.authorize', [
-            'user' => $user,
-            'workspaces' => $this->delegation->eligibleWorkspaces($user),
+        return Inertia::render('Auth/McpBrokerAuthorize/McpBrokerAuthorize', [
+            'workspaces' => $this->delegation->eligibleWorkspaces($user)
+                ->map(fn ($workspace): array => [
+                    'id' => (string) $workspace->id,
+                    'name' => $workspace->name,
+                    'slug' => $workspace->slug,
+                ])
+                ->values(),
             'parameters' => $request->safe()->only([
                 'redirect_uri',
                 'state',
                 'code_challenge',
                 'code_challenge_method',
             ]),
+            'userEmail' => $user->email,
+            'submitUrl' => route('mcp.broker.approve'),
         ]);
     }
 
-    public function approve(McpBrokerAuthorizationRequest $request): RedirectResponse
+    public function approve(McpBrokerAuthorizationRequest $request): SymfonyResponse
     {
         $this->delegation->ensureAvailable();
         /** @var array{workspace_id: string, redirect_uri: string, state: string, code_challenge: string} $validated */
@@ -64,7 +73,9 @@ class McpBrokerController extends Controller
             'state' => $validated['state'],
         ], '', '&', PHP_QUERY_RFC3986);
 
-        return redirect()->away($validated['redirect_uri'].$separator.$query);
+        // The page submits through Inertia (XHR): the redirect to the broker is
+        // cross-origin, so it must be a full-page navigation via Inertia::location.
+        return Inertia::location($validated['redirect_uri'].$separator.$query);
     }
 
     public function token(McpBrokerTokenRequest $request): JsonResponse
