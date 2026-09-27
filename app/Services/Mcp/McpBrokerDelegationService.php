@@ -155,12 +155,11 @@ class McpBrokerDelegationService
             $setting->where('enabled', true)->where('stale', false);
         });
 
-        if (! $user->isAdmin()) {
-            $query->where(function (Builder $workspace): void {
-                $workspace->whereNull('workspaces.expires_at')
-                    ->orWhere('workspaces.expires_at', '>', now());
-            });
-        }
+        // Expired workspaces are never eligible, including for instance admins.
+        $query->where(function (Builder $workspace): void {
+            $workspace->whereNull('workspaces.expires_at')
+                ->orWhere('workspaces.expires_at', '>', now());
+        });
 
         return $query;
     }
