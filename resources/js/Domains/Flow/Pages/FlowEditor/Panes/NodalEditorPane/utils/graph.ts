@@ -74,6 +74,16 @@ const dynamicCallEntry = (node: NodalGraph['nodes'][number]): HelpEntryDef | nul
     return null;
 };
 
+// Snippet and private function calls are not part of the static catalog, so
+// every path that turns a graph node into a canvas node must resolve them here
+// or they fall back to the gray "Custom" entry.
+export const resolveGraphNodeEntry = (node: NodalGraph['nodes'][number]): HelpEntryDef => {
+    if (node.kind === 'stickyNote') return STICKY_NOTE_ENTRY;
+    if (node.system) return SYSTEM_NODE_ENTRIES[node.system];
+
+    return dynamicCallEntry(node) ?? getEntryByName(node.name);
+};
+
 // Private function names double as JavaScript identifiers in the generated
 // code. Graphs saved with a free-form label as the name are repaired on load.
 const repairFunctionNodeValues = (node: NodalGraph['nodes'][number]): NodalGraph['nodes'][number]['values'] => {
@@ -91,11 +101,7 @@ export const graphToCanvasNodes = (graph: NodalGraph): CanvasNode[] => {
     const canvasNodes = graph.nodes.reduce<CanvasNode[]>((acc, rawNode) => {
         const node = { ...rawNode, values: repairFunctionNodeValues(rawNode) };
         const isStickyNote = node.kind === 'stickyNote';
-        const entry = isStickyNote
-            ? STICKY_NOTE_ENTRY
-            : node.system
-                ? SYSTEM_NODE_ENTRIES[node.system]
-                : dynamicCallEntry(node) ?? getEntryByName(node.name);
+        const entry = resolveGraphNodeEntry(node);
         const fallbackLabel = node.localFunctionId
             ? `Call ${formatNodeLabel(node.name)}`
             : formatEntryLabel(entry);

@@ -36,7 +36,9 @@ export function useInertiaPolling({
             clearInterval(interval);
             interval = null;
         };
-        const poll = () => router.reload({ only: onlyRef.current });
+        // Inertia rewrites the URL with the one captured when the request started. A background
+        // poll must not undo query params written meanwhile (URL-synced modals, run detail).
+        const poll = () => router.reload({ only: onlyRef.current, preserveUrl: true });
         const start = () => {
             stop();
             interval = setInterval(poll, delay);

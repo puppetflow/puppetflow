@@ -27,7 +27,16 @@ export function useUrlSyncedModal<T extends Identifiable>(items: T[], param: str
 
     useEffect(() => {
         const syncFromUrl = () => setSelectedItem(readItemFromUrl(items, param));
-        syncFromUrl();
+        // Item updates only refresh the selected instance. Losing the URL param is not a close
+        // signal here: other code may rewrite the URL while the modal is open. Only history
+        // navigation (popstate) and closeModal dismiss it.
+        setSelectedItem(current => {
+            const fromUrl = readItemFromUrl(items, param);
+            if (fromUrl) return fromUrl;
+            if (!current) return null;
+
+            return items.find(item => String(item.id) === String(current.id)) ?? null;
+        });
         window.addEventListener('popstate', syncFromUrl);
         return () => window.removeEventListener('popstate', syncFromUrl);
     }, [items, param]);

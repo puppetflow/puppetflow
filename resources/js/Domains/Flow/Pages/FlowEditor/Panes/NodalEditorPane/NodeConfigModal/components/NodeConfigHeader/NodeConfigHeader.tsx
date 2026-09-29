@@ -103,7 +103,7 @@ export default function NodeConfigHeader({
                     {entry.snippetHasUnpublishedChanges && (
                         <S.SnippetDraftBadge title="The snippet has edits that are not published yet. This node keeps using the published version until they are.">
                             <Icon icon="lucide:file-pen" width={11} height={11} />
-                            Unsaved Draft
+                            Unpublished Draft
                         </S.SnippetDraftBadge>
                     )}
                     <code title={entry.signature}>{entry.signature}</code>

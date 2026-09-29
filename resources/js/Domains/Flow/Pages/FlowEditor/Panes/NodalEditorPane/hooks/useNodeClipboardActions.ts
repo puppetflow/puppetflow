@@ -1,16 +1,15 @@
 import type React from 'react';
 import { useCallback, useRef, useState } from 'react';
-import { formatEntryLabel, getEntryByName } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
+import { formatEntryLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
 import {
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
-    STICKY_NOTE_ENTRY,
     STICKY_NOTE_NODE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
     normalizeStructuredEdges,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
-import { parseClipboardGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/graph';
+import { parseClipboardGraph, resolveGraphNodeEntry } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/graph';
 import { snapCanvasPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/grid';
 import { uniqueNodeLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import { sanitizeNodeValuesForEntry } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/nodeValues';
@@ -108,7 +107,7 @@ export function useNodeClipboardActions({
         const labelMap = new Map<string, string>();
         const pastedNodes = pastedGraph.nodes.reduce<CanvasNode[]>((acc, node) => {
             const isStickyNote = node.kind === 'stickyNote';
-            const entry = isStickyNote ? STICKY_NOTE_ENTRY : getEntryByName(node.name);
+            const entry = resolveGraphNodeEntry(node);
             const previousLabel = node.label?.trim() || formatEntryLabel(entry);
             const nextLabel = isStickyNote
                 ? node.label
