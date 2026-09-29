@@ -2,6 +2,7 @@ import { useToast } from '@/App/Hooks/useToast';
 import * as SharedS from '@/Domains/Workspace/Pages/WorkspaceSettings/shared.styled';
 import { usePersistedAccordion } from '@/Domains/Workspace/Pages/WorkspaceSettings/Sections/InstanceMcpSection/usePersistedAccordion';
 import Button from '@/Shared/UI/Button/Button';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Input from '@/Shared/UI/Input/Input';
 import * as S from './styled';
@@ -31,6 +32,10 @@ export default function BrokerCard({ endpoint }: Props) {
                     <SharedS.CardTitle>
                         <Icon icon="lucide:radio-tower" width={15} height={15} />
                         Universal MCP Connection
+                        <DocHelpLink
+                            path="/guide/mcp/connection-modes#universal-mcp-connection-recommended"
+                            label="Open universal MCP connection documentation"
+                        />
                     </SharedS.CardTitle>
                     <S.SectionHint>
                         Use this single public address when connecting from the Puppetflow catalog listing.

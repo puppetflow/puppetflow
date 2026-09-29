@@ -100,7 +100,7 @@ export default function TokensCard({ endpoint, tokens, busy, tokenBusy, readOnly
                             <Icon icon="lucide:key-round" width={15} height={15} />
                             Manual Access Token
                             <DocHelpLink
-                                path="/guide/mcp#create-an-access-token"
+                                path="/guide/mcp/connection-modes#manual-access-token"
                                 label="Open access token documentation"
                             />
                         </SharedS.CardTitle>

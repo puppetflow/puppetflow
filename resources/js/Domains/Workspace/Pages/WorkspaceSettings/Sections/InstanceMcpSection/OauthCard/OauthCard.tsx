@@ -117,7 +117,7 @@ export default function OauthCard({ instanceEndpoint, endpoint, authorizeUrl, to
                             <Icon icon="lucide:shield-check" width={15} height={15} />
                             Direct OAuth
                             <DocHelpLink
-                                path="/guide/mcp#use-the-oauth-mcp-endpoint"
+                                path="/guide/mcp/connection-modes#direct-oauth"
                                 label="Open OAuth MCP endpoint documentation"
                             />
                         </SharedS.CardTitle>
