@@ -2,6 +2,13 @@ export function hasOpenModal(): boolean {
     return document.querySelector('[data-modal-overlay]') !== null;
 }
 
+// Modals stacked above the pane block its shortcuts. A modal hosting the pane itself (run
+// detail snapshot) does not: its read-only canvas must keep selection and copy shortcuts.
+export function hasBlockingModal(canvas: Element | null): boolean {
+    return Array.from(document.querySelectorAll('[data-modal-overlay]'))
+        .some(overlay => !canvas || !overlay.contains(canvas));
+}
+
 const EDITABLE_TARGET_SELECTOR = [
     'input',
     'textarea',

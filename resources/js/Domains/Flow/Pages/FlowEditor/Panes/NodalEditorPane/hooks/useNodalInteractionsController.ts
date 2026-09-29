@@ -152,6 +152,7 @@ export function useNodalInteractionsController({
 
     useNodalEditorEffects({
         canvasMode,
+        canvasRef,
         contextMenu,
         editingNodeCurrent: editingContext.editingNodeCurrent,
         edges,

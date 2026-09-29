@@ -7,6 +7,7 @@ import type { UseNodalEditorEffectsOptions } from './useNodalEditorEffects.types
 // Synchronizes external graph revisions and runtime progress with the nodal editor.
 export function useNodalEditorEffects({
     canvasMode,
+    canvasRef,
     contextMenu,
     editingNodeCurrent,
     edges,
@@ -59,6 +60,7 @@ export function useNodalEditorEffects({
 
     useNodalKeyboardShortcuts({
         canvasMode,
+        canvasRef,
         contextMenu,
         copySelectedNodes,
         deleteNodes,

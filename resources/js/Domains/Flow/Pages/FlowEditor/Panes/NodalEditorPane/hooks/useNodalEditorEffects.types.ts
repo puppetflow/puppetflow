@@ -11,6 +11,7 @@ import type {
 
 export interface UseNodalEditorEffectsOptions {
     canvasMode: 'canvas' | 'code';
+    canvasRef: React.RefObject<HTMLDivElement | null>;
     contextMenu: ContextMenuState | null;
     editingNodeCurrent: CanvasNode | null;
     edges: CanvasEdge[];
