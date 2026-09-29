@@ -45,6 +45,7 @@ export function useFlowEditorController({
     const [contentUpdatedAt, setContentUpdatedAt] = useState<string | null>(flow.content_updated_at ?? flow.updated_at);
     const [isPublished, setIsPublished] = useState(flow.is_published);
     const [publishedVersion, setPublishedVersion] = useState<number | null>(flow.published_version_number ?? null);
+    const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(flow.has_unpublished_changes ?? false);
     const [savingPublication, setSavingPublication] = useState(false);
     const [showVersionTimeline, setShowVersionTimeline] = useState(initialVersionId !== null);
     const [timelineVersionId, setTimelineVersionId] = useState<number | null>(initialVersionId);
@@ -83,6 +84,9 @@ export function useFlowEditorController({
     const conflictReadOnly = Boolean(conflictVersion);
     const codeReadOnly = baseCodeReadOnly || conflictReadOnly;
     const handleSavedVersionUpdate = useCallback((savedAt?: string | null) => {
+        // A saved draft on a published flow is out of sync until the next publication. The
+        // server prop corrects the rare case where the draft was reverted to the published content.
+        if (isPublished) setHasUnpublishedChanges(true);
         if (savedAt) {
             setContentUpdatedAt(savedAt);
             clearConflict();
@@ -97,7 +101,7 @@ export function useFlowEditorController({
                 setContentUpdatedAt(new Date().toISOString());
                 clearConflict();
             });
-    }, [clearConflict, fetchLatestVersion]);
+    }, [clearConflict, fetchLatestVersion, isPublished]);
     const handleVersionConflict = useCallback(() => {
         void checkNow();
     }, [checkNow]);
@@ -203,6 +207,7 @@ export function useFlowEditorController({
 
             setIsPublished(true);
             setPublishedVersion(result.published_version ?? null);
+            setHasUnpublishedChanges(false);
             showToast(`Flow published as version ${result.published_version}.`, 'success');
         } catch {
             showToast('Flow could not be published. Check your connection and try again.', 'error');
@@ -241,12 +246,16 @@ export function useFlowEditorController({
         preloadVariableSuggestions();
     }, [flow.id]);
 
+    // Mirror server props only when they actually change. Re-running this on the publication
+    // flag flip would clobber the optimistic state with stale props until the next poll.
     useEffect(() => {
-        if (!savingPublication) {
-            setIsPublished(flow.is_published);
-            setPublishedVersion(flow.published_version_number ?? null);
-        }
-    }, [flow.is_published, flow.published_version_number, savingPublication]);
+        setIsPublished(flow.is_published);
+        setPublishedVersion(flow.published_version_number ?? null);
+    }, [flow.is_published, flow.published_version_number]);
+
+    useEffect(() => {
+        setHasUnpublishedChanges(flow.has_unpublished_changes ?? false);
+    }, [flow.has_unpublished_changes]);
 
     useEffect(() => {
         if (flowIdentityRef.current.id === flow.id) return;
@@ -256,11 +265,12 @@ export function useFlowEditorController({
         setContentUpdatedAt(nextContentUpdatedAt);
         setIsPublished(flow.is_published);
         setPublishedVersion(flow.published_version_number ?? null);
+        setHasUnpublishedChanges(flow.has_unpublished_changes ?? false);
         setSavingPublication(false);
         setShowVersionTimeline(false);
         setTimelineVersionId(null);
         clearConflict();
-    }, [clearConflict, flow.content_updated_at, flow.is_published, flow.published_version_number, flow.id, flow.updated_at]);
+    }, [clearConflict, flow.content_updated_at, flow.has_unpublished_changes, flow.is_published, flow.published_version_number, flow.id, flow.updated_at]);
 
     const runningRuns = runController.runs.data
         .filter(run => run.status === 'running')
@@ -285,6 +295,7 @@ export function useFlowEditorController({
         saved,
         isPublished,
         publishedVersion,
+        hasUnpublishedChanges,
         savingPublication,
         showVersionTimeline,
         setShowVersionTimeline,

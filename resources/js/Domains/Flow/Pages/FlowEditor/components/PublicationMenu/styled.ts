@@ -5,6 +5,7 @@ export const Wrapper = styled.div`
 `;
 
 export const Trigger = styled.button<{ $error: boolean }>`
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -25,6 +26,69 @@ export const Trigger = styled.button<{ $error: boolean }>`
     &:disabled {
         cursor: default;
         opacity: 0.7;
+    }
+`;
+
+// Keeps the regular content in the layout so the trigger width does not change while busy.
+export const TriggerContent = styled.span<{ $hidden: boolean }>`
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    visibility: ${({ $hidden }) => ($hidden ? 'hidden' : 'visible')};
+`;
+
+export const Spinner = styled.span`
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: publication-spin 0.6s linear infinite;
+
+    @keyframes publication-spin {
+        from { transform: translate(-50%, -50%) rotate(0deg); }
+        to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+`;
+
+export const OutOfSyncDot = styled.span`
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: ${({ theme }) => theme.colors.accent.warning};
+    flex-shrink: 0;
+`;
+
+// Read-only status row explaining why the trigger shows the out-of-sync dot.
+export const StatusItem = styled.div`
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 9px;
+    border-radius: 6px;
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+    color: ${({ theme }) => theme.colors.accent.warning};
+    font-size: 12px;
+    line-height: 1.35;
+
+    svg {
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+`;
+
+export const StatusText = styled.span`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: ${({ theme }) => theme.colors.text.primary};
+
+    small {
+        color: ${({ theme }) => theme.colors.text.secondary};
+        font-size: 11px;
     }
 `;
 

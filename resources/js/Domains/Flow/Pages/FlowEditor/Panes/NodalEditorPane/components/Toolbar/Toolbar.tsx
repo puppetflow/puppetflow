@@ -16,6 +16,7 @@ interface ToolbarProps {
     isPublished?: boolean;
     saveStatus?: DraftSaveStatus;
     publishedVersion?: number | null;
+    hasUnpublishedChanges?: boolean;
     onPublish?: () => void;
     onUnpublish?: () => void;
     onViewTimeline?: () => void;
@@ -41,6 +42,7 @@ export default function Toolbar({
     isPublished,
     saveStatus = 'saved',
     publishedVersion = null,
+    hasUnpublishedChanges = false,
     onPublish,
     onUnpublish,
     onViewTimeline,
@@ -103,6 +105,7 @@ export default function Toolbar({
                     <PublicationMenu
                         isPublished={isPublished}
                         publishedVersion={publishedVersion}
+                        hasUnpublishedChanges={hasUnpublishedChanges}
                         saveStatus={saveStatus}
                         draftEditable={!readOnly}
                         publicationEditable={publicationEditable}

@@ -19,6 +19,7 @@ interface FlowEditorMainPaneProps {
     saveStatus: DraftSaveStatus;
     isPublished: boolean;
     publishedVersion: number | null;
+    hasUnpublishedChanges: boolean;
     savingPublication: boolean;
     code: string;
     nodalGraph: NodalGraph;
@@ -60,6 +61,7 @@ export default function FlowEditorMainPane({
     saveStatus,
     isPublished,
     publishedVersion,
+    hasUnpublishedChanges,
     savingPublication,
     code,
     nodalGraph,
@@ -119,6 +121,7 @@ export default function FlowEditorMainPane({
                     onSave={onSave}
                     saveStatus={saveStatus}
                     publishedVersion={publishedVersion}
+                    hasUnpublishedChanges={hasUnpublishedChanges}
                     onPublish={onPublish}
                     onUnpublish={onUnpublish}
                     onViewTimeline={onViewTimeline}
@@ -144,6 +147,7 @@ export default function FlowEditorMainPane({
                     onSave={onSave}
                     saveStatus={saveStatus}
                     publishedVersion={publishedVersion}
+                    hasUnpublishedChanges={hasUnpublishedChanges}
                     onPublish={onPublish}
                     onUnpublish={onUnpublish}
                     onViewTimeline={onViewTimeline}

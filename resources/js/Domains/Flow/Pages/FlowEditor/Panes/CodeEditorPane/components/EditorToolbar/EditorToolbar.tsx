@@ -13,6 +13,7 @@ interface EditorToolbarProps {
     onSave: () => void;
     isPublished: boolean;
     publishedVersion: number | null;
+    hasUnpublishedChanges?: boolean;
     saveStatus: DraftSaveStatus;
     onPublish: () => void;
     onUnpublish: () => void;
@@ -36,6 +37,7 @@ export function EditorToolbar({
     onSave,
     isPublished,
     publishedVersion,
+    hasUnpublishedChanges = false,
     saveStatus,
     onPublish,
     onUnpublish,
@@ -79,6 +81,7 @@ export function EditorToolbar({
                 <PublicationMenu
                     isPublished={isPublished}
                     publishedVersion={publishedVersion}
+                    hasUnpublishedChanges={hasUnpublishedChanges}
                     saveStatus={saveStatus}
                     draftEditable={!readOnly}
                     publicationEditable={publicationEditable}

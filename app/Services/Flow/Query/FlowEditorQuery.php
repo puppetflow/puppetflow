@@ -58,9 +58,12 @@ final class FlowEditorQuery
             'owner:id,name', 'folder:id,name,parent_id,owner_id,is_shared,team_id',
             'workspaceFolder:id,name,parent_id,owner_id,is_shared,team_id', 'team:id,name',
             'repositoryLink.integration',
-            'publishedVersion:id,version',
+            'publishedVersion:id,version,flow_type,code,nodal_graph',
         ]);
         $flow->setAttribute('published_version_number', $flow->publishedVersion?->version);
+        $flow->setAttribute('has_unpublished_changes', $flow->hasUnpublishedChanges());
+        // The snapshot content is only needed for the comparison above, keep it out of the page props.
+        $flow->publishedVersion?->makeHidden(['flow_type', 'code', 'nodal_graph']);
         $flow->owner_workspace_role = $this->roles->one($flow->owner_id, $flow->workspace_id);
         $this->libraryState($flow);
         $runData = $this->runs->get($request, $flow, $user, $canViewRuns);

@@ -31,6 +31,7 @@ use Illuminate\Validation\ValidationException;
  * @property string|null $owner_workspace_role
  * @property string|null $library_latest_source_sha
  * @property bool $library_update_available
+ * @property bool $has_unpublished_changes
  * @property string $id
  * @property string $name
  * @property string $visibility
@@ -474,6 +475,26 @@ class Flow extends Model
     public function publishedVersion(): BelongsTo
     {
         return $this->belongsTo(FlowVersion::class, 'published_version_id');
+    }
+
+    /**
+     * Whether the editable draft differs from the published version. Only the fields
+     * snapshotted by a publication count. Requires flow_type, code and nodal_graph to be
+     * loaded on the published version.
+     */
+    public function hasUnpublishedChanges(): bool
+    {
+        $version = $this->publishedVersion;
+        if (! $version instanceof FlowVersion) {
+            return false;
+        }
+
+        return ($version->flow_type ?? $this->flow_type) !== $this->flow_type
+            || ($version->code ?? '') !== ($this->code ?? '')
+            || (
+                $this->flow_type === 'nodal'
+                && json_encode($version->nodal_graph) !== json_encode($this->nodal_graph)
+            );
     }
 
     /** @return HasOne<FlowRun, $this> */

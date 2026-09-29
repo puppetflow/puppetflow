@@ -35,6 +35,8 @@ export interface Flow {
     is_published: boolean;
     published_version_id: number | null;
     published_version_number?: number | null;
+    /** The saved draft differs from the published version (flow editor only). */
+    has_unpublished_changes?: boolean;
     available_in_mcp: boolean;
     queue_index: number | null;
     proxy_mode: 'none' | 'auto' | 'specific';

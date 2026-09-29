@@ -7,6 +7,8 @@ import * as S from './styled';
 interface PublicationMenuProps {
     isPublished: boolean;
     publishedVersion: number | null;
+    /** The saved draft differs from the published version. */
+    hasUnpublishedChanges?: boolean;
     saveStatus: DraftSaveStatus;
     disabled?: boolean;
     draftEditable?: boolean;
@@ -21,6 +23,7 @@ interface PublicationMenuProps {
 export default function PublicationMenu({
     isPublished,
     publishedVersion,
+    hasUnpublishedChanges = false,
     saveStatus,
     disabled = false,
     draftEditable = true,
@@ -37,19 +40,19 @@ export default function PublicationMenu({
     const menuRef = useRef<HTMLDivElement>(null);
     const busy = saveStatus === 'saving' || savingPublication;
     const error = saveStatus === 'error' || saveStatus === 'conflict';
-    const label = savingPublication
-        ? 'Publishing...'
-        : saveStatus === 'saving'
-            ? 'Draft saving...'
-            : saveStatus === 'error'
-                ? 'Draft save failed'
-                : saveStatus === 'conflict'
-                    ? 'Draft conflict'
-                    : saveStatus === 'unsaved'
-                        ? 'Unsaved changes'
-                        : isPublished && publishedVersion
-                            ? `Published v${publishedVersion}`
-                            : 'Draft saved';
+    // Only meaningful once the draft is persisted: unsaved edits already have their own label.
+    const outOfSync = isPublished && hasUnpublishedChanges && saveStatus === 'saved';
+    const label = saveStatus === 'saving'
+        ? 'Draft saving...'
+        : saveStatus === 'error'
+            ? 'Draft save failed'
+            : saveStatus === 'conflict'
+                ? 'Draft conflict'
+                : saveStatus === 'unsaved'
+                    ? 'Unsaved changes'
+                    : isPublished && publishedVersion
+                        ? `Published v${publishedVersion}`
+                        : 'Draft saved';
 
     useEffect(() => {
         if (!open) return;
@@ -92,14 +95,32 @@ export default function PublicationMenu({
                 type="button"
                 $error={error}
                 disabled={disabled}
+                aria-busy={savingPublication}
+                title={outOfSync ? 'The saved draft differs from the published version' : undefined}
                 onClick={() => setOpen(value => !value)}
             >
-                <Icon icon={error ? 'lucide:triangle-alert' : isPublished ? 'lucide:badge-check' : 'lucide:file-pen'} />
-                {label}
-                {!disabled && <Icon icon="lucide:chevron-down" />}
+                <S.TriggerContent $hidden={savingPublication}>
+                    <Icon icon={error ? 'lucide:triangle-alert' : isPublished ? 'lucide:badge-check' : 'lucide:file-pen'} />
+                    {label}
+                    {outOfSync && <S.OutOfSyncDot aria-label="Unpublished changes" />}
+                    {!disabled && <Icon icon="lucide:chevron-down" />}
+                </S.TriggerContent>
+                {savingPublication && <S.Spinner aria-label="Publishing" />}
             </S.Trigger>
             {open && !disabled && createPortal(
                 <S.Menu ref={menuRef} style={menuPosition}>
+                    {outOfSync && (
+                        <>
+                            <S.StatusItem role="status">
+                                <Icon icon="lucide:git-compare-arrows" width={14} height={14} />
+                                <S.StatusText>
+                                    Draft differs from v{publishedVersion}
+                                    <small>Runs keep using the published version until you publish again.</small>
+                                </S.StatusText>
+                            </S.StatusItem>
+                            <S.Divider />
+                        </>
+                    )}
                     <S.MenuItem type="button" onClick={() => run(onViewTimeline)}>
                         <Icon icon="lucide:history" />
                         View timeline

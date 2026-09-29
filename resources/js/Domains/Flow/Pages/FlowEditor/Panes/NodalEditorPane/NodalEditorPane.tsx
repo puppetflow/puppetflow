@@ -19,6 +19,7 @@ function NodalEditorPane(props: NodalEditorPaneProps) {
         onSave,
         saveStatus = 'saved',
         publishedVersion = null,
+        hasUnpublishedChanges = false,
         onPublish,
         onUnpublish,
         onViewTimeline,
@@ -46,6 +47,7 @@ function NodalEditorPane(props: NodalEditorPaneProps) {
                         isPublished={flow.is_published}
                         saveStatus={saveStatus}
                         publishedVersion={publishedVersion}
+                        hasUnpublishedChanges={hasUnpublishedChanges}
                         onPublish={onPublish}
                         onUnpublish={onUnpublish}
                         onViewTimeline={onViewTimeline}

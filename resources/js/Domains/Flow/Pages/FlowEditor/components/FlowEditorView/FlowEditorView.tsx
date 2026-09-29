@@ -109,6 +109,7 @@ export default function FlowEditorView({
                     saveStatus={c.saveStatus}
                     isPublished={c.isPublished}
                     publishedVersion={c.publishedVersion}
+                    hasUnpublishedChanges={c.hasUnpublishedChanges}
                     savingPublication={c.savingPublication}
                     code={c.code}
                     nodalGraph={c.nodalGraph}

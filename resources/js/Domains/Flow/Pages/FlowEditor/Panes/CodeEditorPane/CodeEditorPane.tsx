@@ -23,6 +23,7 @@ function CodeEditorPane({
     onSave,
     saveStatus,
     publishedVersion,
+    hasUnpublishedChanges = false,
     onPublish,
     onUnpublish,
     onViewTimeline,
@@ -70,6 +71,7 @@ function CodeEditorPane({
                     onSave={onSave}
                     isPublished={flow.is_published}
                     publishedVersion={publishedVersion}
+                    hasUnpublishedChanges={hasUnpublishedChanges}
                     saveStatus={saveStatus}
                     onPublish={onPublish}
                     onUnpublish={onUnpublish}
@@ -155,6 +157,7 @@ export default React.memo(CodeEditorPane, (previous, next) =>
     && previous.onSave === next.onSave
     && previous.saveStatus === next.saveStatus
     && previous.publishedVersion === next.publishedVersion
+    && previous.hasUnpublishedChanges === next.hasUnpublishedChanges
     && previous.onPublish === next.onPublish
     && previous.onUnpublish === next.onUnpublish
     && previous.onViewTimeline === next.onViewTimeline

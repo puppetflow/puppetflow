@@ -11,6 +11,7 @@ export interface CodeEditorPaneProps {
     onSave: () => void;
     saveStatus: DraftSaveStatus;
     publishedVersion: number | null;
+    hasUnpublishedChanges?: boolean;
     onPublish: () => void;
     onUnpublish: () => void;
     onViewTimeline: () => void;
