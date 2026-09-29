@@ -61,7 +61,6 @@ const $breakpoint = async function(label, context = {}) {
     $generateResponse,
     $generateResponseError, 
     $generateResponseSuccess,
-    $selectAtIndex,
     $bridgeEvaluate,
     $injectScriptLibrary,
     $scanDirectory,

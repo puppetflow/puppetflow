@@ -648,7 +648,7 @@ export function getMissingRequiredParameters(
         }
     }
 
-    if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {
+    if (entry.name === '$attributesFromOne' || entry.name === '$attributesFromMany') {
         const getters = normalizeParameterValue(values.getters);
         if (getters.mode === 'object' && getters.inputMode === 'form') {
             const seenKeys = new Set<string>();

@@ -165,7 +165,7 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
         };
     }
 
-    if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {
+    if (entry.name === '$attributesFromOne' || entry.name === '$attributesFromMany') {
         return {
             getters: {
                 mode: 'object' as const,

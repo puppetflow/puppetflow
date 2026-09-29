@@ -1,4 +1,4 @@
-/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue, __humanJitterMs */
+/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectOneElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue, __humanJitterMs */
 
 const __aiMaxImageBytes = 5 * 1024 * 1024;
 
@@ -667,7 +667,7 @@ const __aiExecutePuppetflowAction = async function(call) {
         console.debug('Click on element', selector, textLabel, 'with', clickOptions.buttonType, 'button after', ((clickOptions.delay / 1000).toFixed(2) + 's'));
       }
       await __internalSleep(clickOptions.delay);
-      const target = await $selectElement(selector, {
+      const target = await $selectOneElement(selector, {
         textMatch: clickOptions.textMatch,
         textFilter: clickOptions.textFilter,
         visibleOnly: true,
@@ -711,7 +711,7 @@ const __aiExecutePuppetflowAction = async function(call) {
       break;
     case 'wait':
       if (typeof args.selector === 'string' && args.selector) {
-        const element = await $selectElement(args.selector, {
+        const element = await $selectOneElement(args.selector, {
           textMatch: typeof args.text === 'string' ? args.text : null,
           textFilter: 'contains',
           visibleOnly: args.visible !== false,

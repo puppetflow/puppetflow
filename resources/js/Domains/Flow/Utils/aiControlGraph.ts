@@ -92,7 +92,7 @@ const browserCode = (action: ActionLogEntry, args: Record<string, unknown>) => {
                 return `await $page.mouse.click(${args.x}, ${args.y});`;
             }
             return [
-                `const element = await $selectElement(${json(typeof args.selector === 'string' && args.selector ? args.selector : 'button, [role="button"], input[type="button"], input[type="submit"], a')}, ${json(withoutUndefined({ textMatch: args.text, textFilter: 'contains', timeout: clampedNumber(args.timeout, 10000, 500, 30000) }))});`,
+                `const element = await $selectOneElement(${json(typeof args.selector === 'string' && args.selector ? args.selector : 'button, [role="button"], input[type="button"], input[type="submit"], a')}, ${json(withoutUndefined({ textMatch: args.text, textFilter: 'contains', index: isFiniteNumber(args.index) && Number.isInteger(args.index) ? Math.max(0, args.index) : undefined, timeout: clampedNumber(args.timeout, 10000, 500, 30000) }))});`,
                 'if (!element) throw new Error(\'AI browser click target was not found.\');',
                 `await element.click(${json({ button: ['left', 'middle', 'right'].includes(String(args.button)) ? args.button : 'left' })});`,
             ].join('\n');
@@ -245,7 +245,7 @@ const mapActionToNode = (action: ActionLogEntry) => {
         case 'wait':
             if (typeof args.selector === 'string' && args.selector) {
                 return {
-                    name: '$selectElement',
+                    name: '$selectOneElement',
                     values: {
                         selectorOrHandle: fixed(args.selector),
                         options: object(withoutUndefined({

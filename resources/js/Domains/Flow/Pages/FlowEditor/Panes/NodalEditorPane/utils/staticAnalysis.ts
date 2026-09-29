@@ -650,7 +650,7 @@ const upstreamInDependencyOrder = (
 const unresolvedNodeResultPreview = (node: NodalGraph['nodes'][number]) => {
     const label = node.label?.trim() || node.name || node.id;
     const entry = getEntryByName(node.name);
-    if (entry.name === '$extractAttribute' || entry.name === '$extractAttributes') {
+    if (entry.name === '$attributesFromOne' || entry.name === '$attributesFromMany') {
         const getters = node.values?.getters;
         let keys: string[] = [];
         if (getters && typeof getters === 'object' && getters.mode === 'object') {
@@ -667,7 +667,7 @@ const unresolvedNodeResultPreview = (node: NodalGraph['nodes'][number]) => {
         }
         if (keys.length > 0) {
             const objectPreview = Object.fromEntries(keys.map(key => [key, `[Needs run: ${label}]`]));
-            return entry.name === '$extractAttributes' ? [objectPreview] : objectPreview;
+            return entry.name === '$attributesFromMany' ? [objectPreview] : objectPreview;
         }
     }
     return createNodalOutputPreview(entry, label);

@@ -1,4 +1,4 @@
-/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectElement, __humanPageOf, __humanJitterMs */
+/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectOneElement, __humanPageOf, __humanJitterMs */
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
@@ -342,7 +342,7 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
 const $selectShadow = async function(cssSelector, shadowRootSelector, options = {}) {
   console.debug('Shadow selecting:', cssSelector, 'with shadowRootSelector:', shadowRootSelector);
   if (cssSelector.includes('>>>') || cssSelector.includes('>>iframe>>')) {
-    return $selectElement(cssSelector, options);
+    return $selectOneElement(cssSelector, options);
   }
 
   const { timeout = 5000, continueOnError = true, ...selectionOptions } = options || {};

@@ -135,7 +135,6 @@ export default tseslint.config(
                 $bridgeEvaluate: 'readonly',
                 $injectScriptLibrary: 'readonly',
                 $legend: 'readonly',
-                $selectAtIndex: 'readonly',
                 $scanDirectory: 'readonly',
                 $scanDownloadsDirectory: 'readonly',
                 $screenshot: 'readonly',

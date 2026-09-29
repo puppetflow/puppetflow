@@ -224,10 +224,10 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
 };
 
 /* @help Selectors
- * @sig $selectElement(selectorOrHandle, options?)
- * @aliases find element, query element
- * @desc Get an ElementHandle matching a selector with optional text and visibility filtering. Accepts a CSS selector string or an ElementHandle. Returns ElementHandle or null.
- * @nodal-desc Find one element on the page, with optional text and visibility filters.
+ * @sig $selectOneElement(selectorOrHandle, options?)
+ * @aliases find element, query element, select nth element
+ * @desc Get one ElementHandle matching a selector with optional text, visibility, and index filtering. Accepts a CSS selector string or an ElementHandle. Returns ElementHandle or null.
+ * @nodal-desc Find one element on the page, with optional text, visibility, and position filters.
  * @nodal-output element
  * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0, timeout: 30000
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle to search from.
@@ -236,11 +236,11 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
  * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
- * @nodal-param options.index [number]: Position to use when several elements match. Use -1 for the last match, -2 for the previous one.
+ * @nodal-param options.index [number]: Position to use when several elements match. Use 0 for the first match, -1 for the last, -2 for the previous one.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $selectElement = async function(selectorOrHandle, options = {}) {
-  const result = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options });
+const $selectOneElement = async function(selectorOrHandle, options = {}) {
+  const result = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, all: false });
   return result ? result.handle : null;
 };
 
@@ -283,7 +283,7 @@ const __validateElementGetters = function(getters) {
 const __extractElementAttributes = async function(handle, getters) {
   if (!handle) return null;
   if (typeof handle.evaluate !== 'function') {
-    throw new TypeError('Extract Attribute expects an ElementHandle.');
+    throw new TypeError('Attribute extraction expects an ElementHandle.');
   }
 
   return handle.evaluate((element, getterMap) => {
@@ -328,30 +328,45 @@ const __extractElementAttributes = async function(handle, getters) {
 };
 
 /* @help Selectors
- * @sig $extractAttribute(selectorOrHandle, getters)
+ * @sig $attributesFromOne(selectorOrHandle, getters, options?)
  * @aliases read attribute, get element value
- * @desc Extract named, JSON-compatible values from an element. Accepts a CSS selector string or an ElementHandle.
- * @nodal-desc Extract attributes and values from an element selected by CSS selector or provided as an ElementHandle.
+ * @desc Extract named, JSON-compatible values from one matching element. Accepts a CSS selector string or an ElementHandle. Returns an object or null.
+ * @nodal-desc Extract attributes and values from one matching element, with optional text, visibility, and position filters.
  * @nodal-output object
+ * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0, timeout: 30000
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle to extract from.
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
+ * @nodal-param options: Selection options.
+ * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
+ * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
+ * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
+ * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
+ * @nodal-param options.index [number]: Position to use when several elements match. Use 0 for the first match, -1 for the last, -2 for the previous one.
+ * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $extractAttribute = async function(selectorOrHandle, getters) {
-  const selection = await __internalSelect(selectorOrHandle, { continueOnError: true });
+const $attributesFromOne = async function(selectorOrHandle, getters, options = {}) {
+  const selection = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, all: false });
   return __extractElementAttributes(selection ? selection.handle : null, __validateElementGetters(getters));
 };
 
 /* @help Selectors
- * @sig $extractAttributes(selectorOrHandle, getters)
+ * @sig $attributesFromMany(selectorOrHandle, getters, options?)
  * @aliases scrape attributes, read element values
- * @desc Extract named, JSON-compatible values from elements. Accepts a CSS selector string, an ElementHandle, or an array of ElementHandle.
- * @nodal-desc Extract attributes and values from each element selected by CSS selector or provided as ElementHandles.
+ * @desc Extract named, JSON-compatible values from all matching elements. Accepts a CSS selector string, an ElementHandle, or an array of ElementHandle.
+ * @nodal-desc Extract attributes and values from all matching elements, with optional text and visibility filters.
  * @nodal-output array<object>
+ * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, timeout: 30000
  * @nodal-param selectorOrHandle [string, selector]: CSS selector, ElementHandle, or ElementHandle array to extract from.
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
+ * @nodal-param options: Selection options.
+ * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
+ * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
+ * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
+ * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
+ * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $extractAttributes = async function(selectorOrHandle, getters) {
-  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, all: true });
+const $attributesFromMany = async function(selectorOrHandle, getters, options = {}) {
+  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, all: true });
   const getterMap = __validateElementGetters(getters);
   return Promise.all(handles.map(handle => __extractElementAttributes(handle, getterMap)));
 };
