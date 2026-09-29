@@ -13,6 +13,7 @@ import { requestJson } from './utils';
 interface Props {
     brokerEndpoint: string;
     endpoint: string;
+    instanceOauthEndpoint: string;
     oauthEndpoint: string;
     oauthAuthorizeUrl: string;
     oauthTokenUrl: string;
@@ -28,6 +29,7 @@ interface Props {
 export default function InstanceMcpSection({
     brokerEndpoint,
     endpoint,
+    instanceOauthEndpoint,
     oauthEndpoint,
     oauthAuthorizeUrl,
     oauthTokenUrl,
@@ -78,6 +80,7 @@ export default function InstanceMcpSection({
             <S.ConnectionModeGrid>
                 <BrokerCard endpoint={brokerEndpoint} />
                 <OauthCard
+                    instanceEndpoint={instanceOauthEndpoint}
                     endpoint={oauthEndpoint}
                     authorizeUrl={oauthAuthorizeUrl}
                     tokenUrl={oauthTokenUrl}

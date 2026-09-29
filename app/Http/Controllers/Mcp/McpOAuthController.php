@@ -4,20 +4,42 @@ namespace App\Http\Controllers\Mcp;
 
 use App\Contracts\BrandingProvider;
 use App\Http\Controllers\Controller;
+use App\Models\McpOauthClient;
+use App\Models\McpOauthWorkspaceGrant;
+use App\Models\User;
 use App\Models\Workspace;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Mcp\McpBrokerDelegationService;
 use App\Services\Mcp\McpOauthClientService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Laravel\Passport\Client;
+use Laravel\Passport\Http\Controllers\ConvertsPsrResponses;
+use Laravel\Passport\Http\Controllers\HandlesOAuthErrors;
+use Laravel\Passport\Http\Controllers\RetrievesAuthRequestFromSession;
+use League\OAuth2\Server\AuthorizationServer;
+use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * OAuth discovery, dynamic client registration and consent for the Passport-backed MCP endpoints.
+ *
+ * Two flavours share this controller: workspace-scoped (the workspace is part of the URL) and
+ * instance-level (`/mcp`, the user picks the workspace on the consent screen).
+ */
 class McpOAuthController extends Controller
 {
+    use ConvertsPsrResponses, HandlesOAuthErrors, RetrievesAuthRequestFromSession;
+
     public function __construct(
         private readonly McpOauthClientService $oauthClients,
+        private readonly McpBrokerDelegationService $delegation,
         private readonly FeatureFlagService $features,
     ) {}
 
-    public function protectedResource(Request $request, string $workspace): JsonResponse
+    public function protectedResource(Request $request, ?string $workspace = null): JsonResponse
     {
         $this->enabledWorkspace($workspace);
         $origin = $request->getSchemeAndHttpHost();
@@ -31,7 +53,7 @@ class McpOAuthController extends Controller
         ]);
     }
 
-    public function authorizationServer(Request $request, string $workspace): JsonResponse
+    public function authorizationServer(Request $request, ?string $workspace = null): JsonResponse
     {
         $this->enabledWorkspace($workspace);
         $origin = $request->getSchemeAndHttpHost();
@@ -40,7 +62,7 @@ class McpOAuthController extends Controller
             'issuer' => $this->issuerUrl($origin, $workspace),
             'authorization_endpoint' => $origin.'/oauth/authorize',
             'token_endpoint' => $origin.'/oauth/token',
-            'registration_endpoint' => $origin.'/oauth/register/'.rawurlencode($workspace),
+            'registration_endpoint' => $origin.'/oauth/register'.($workspace === null ? '' : '/'.rawurlencode($workspace)),
             'scopes_supported' => ['mcp'],
             'response_types_supported' => ['code'],
             'response_modes_supported' => ['query'],
@@ -50,7 +72,7 @@ class McpOAuthController extends Controller
         ]);
     }
 
-    public function register(Request $request, string $workspace): JsonResponse
+    public function register(Request $request, ?string $workspace = null): JsonResponse
     {
         $resolvedWorkspace = $this->enabledWorkspace($workspace);
         $payload = $request->json()->all();
@@ -102,9 +124,82 @@ class McpOAuthController extends Controller
         ], 201);
     }
 
-    private function enabledWorkspace(string $reference): Workspace
+    /**
+     * Passport authorization view: workspace consent for workspace-bound clients,
+     * the shared workspace picker for instance-level clients.
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    public function consent(array $parameters): Response
+    {
+        /** @var Client $client */
+        $client = $parameters['client'];
+        /** @var User $user */
+        $user = $parameters['user'];
+        $mcpClient = McpOauthClient::with('workspace')->where('oauth_client_id', $client->id)->first();
+
+        if ($mcpClient === null || $mcpClient->workspace_id !== null) {
+            return response()->view('oauth.authorize', [...$parameters, 'mcpClient' => $mcpClient]);
+        }
+
+        return Inertia::render('Auth/McpBrokerAuthorize/McpBrokerAuthorize', [
+            'workspaces' => $this->delegation->eligibleWorkspaces($user),
+            'parameters' => ['auth_token' => $parameters['authToken']],
+            'clientName' => $client->name,
+            'userEmail' => $user->email,
+            'submitUrl' => route('mcp.oauth.approve'),
+        ])->toResponse(request());
+    }
+
+    /** Approve an instance-level authorization with the workspace picked by the user. */
+    public function approve(Request $request, AuthorizationServer $server, ResponseInterface $psrResponse): Response
+    {
+        $this->features->abortIfDisabled('mcp_enabled');
+        /** @var array{workspace_id: string, auth_token: string} $validated */
+        $validated = $request->validate([
+            'workspace_id' => ['required', 'string', 'max:32'],
+            'auth_token' => ['required', 'string'],
+        ]);
+        /** @var User $user */
+        $user = $request->user();
+
+        // Validate before pulling the request from the session so a bad pick can be corrected.
+        $workspace = $this->delegation->eligibleWorkspace($user, $validated['workspace_id']);
+        if ($workspace === null) {
+            throw ValidationException::withMessages(['workspace_id' => 'This workspace is not available for MCP access.']);
+        }
+
+        $authRequest = $this->getAuthRequestFromSession($request);
+        $clientId = $authRequest->getClient()->getIdentifier();
+        abort_unless(
+            McpOauthClient::where('oauth_client_id', $clientId)->whereNull('workspace_id')->whereNull('revoked_at')->exists(),
+            403,
+        );
+
+        McpOauthWorkspaceGrant::updateOrCreate(
+            ['user_id' => $user->id, 'oauth_client_id' => $clientId],
+            ['workspace_id' => $workspace->id],
+        );
+
+        $authRequest->setAuthorizationApproved(true);
+        $response = $this->withErrorHandling(fn (): Response => $this->convertResponse(
+            $server->completeAuthorizationRequest($authRequest, $psrResponse)
+        ));
+
+        // The picker submits through Inertia (XHR): the redirect to the client is
+        // cross-origin, so it must be a full-page navigation via Inertia::location.
+        $location = $response->headers->get('Location');
+
+        return is_string($location) ? Inertia::location($location) : $response;
+    }
+
+    private function enabledWorkspace(?string $reference): ?Workspace
     {
         abort_unless($this->features->enabled('mcp_enabled'), 404);
+
+        if ($reference === null) {
+            return null;
+        }
 
         $workspace = Workspace::query()
             ->where('id', $reference)
@@ -180,13 +275,15 @@ class McpOAuthController extends Controller
         ], 400);
     }
 
-    private function resourceUrl(string $origin, string $workspace): string
+    private function resourceUrl(string $origin, ?string $workspace): string
     {
-        return $origin.'/api/workspaces/'.rawurlencode($workspace).'/mcp-server/http';
+        return $workspace === null
+            ? $origin.'/mcp'
+            : $origin.'/api/workspaces/'.rawurlencode($workspace).'/mcp-server/http';
     }
 
-    private function issuerUrl(string $origin, string $workspace): string
+    private function issuerUrl(string $origin, ?string $workspace): string
     {
-        return $origin.'/workspaces/'.rawurlencode($workspace);
+        return $workspace === null ? $origin : $origin.'/workspaces/'.rawurlencode($workspace);
     }
 }

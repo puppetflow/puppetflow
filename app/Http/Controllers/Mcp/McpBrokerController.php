@@ -33,20 +33,18 @@ class McpBrokerController extends Controller
         /** @var User $user */
         $user = $request->user();
 
+        /** @var string $redirectUri */
+        $redirectUri = $request->validated('redirect_uri');
+
         return Inertia::render('Auth/McpBrokerAuthorize/McpBrokerAuthorize', [
-            'workspaces' => $this->delegation->eligibleWorkspaces($user)
-                ->map(fn ($workspace): array => [
-                    'id' => (string) $workspace->id,
-                    'name' => $workspace->name,
-                    'slug' => $workspace->slug,
-                ])
-                ->values(),
+            'workspaces' => $this->delegation->eligibleWorkspaces($user),
             'parameters' => $request->safe()->only([
                 'redirect_uri',
                 'state',
                 'code_challenge',
                 'code_challenge_method',
             ]),
+            'clientName' => parse_url($redirectUri, PHP_URL_HOST) ?: 'The MCP broker',
             'userEmail' => $user->email,
             'submitUrl' => route('mcp.broker.approve'),
         ]);

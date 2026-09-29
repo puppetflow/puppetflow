@@ -11,29 +11,16 @@ interface Workspace {
     slug: string | null;
 }
 
-interface AuthorizationParameters {
-    redirect_uri: string;
-    state: string;
-    code_challenge: string;
-    code_challenge_method: string;
-}
-
 interface Props {
     workspaces: Workspace[];
-    parameters: AuthorizationParameters;
+    /** Hidden fields forwarded as-is to the submit URL (broker OAuth params or the Passport auth token). */
+    parameters: Record<string, string>;
+    clientName: string;
     userEmail: string;
     submitUrl: string;
 }
 
-function brokerHost(redirectUri: string): string {
-    try {
-        return new URL(redirectUri).host;
-    } catch {
-        return 'the MCP broker';
-    }
-}
-
-export default function McpBrokerAuthorize({ workspaces, parameters, userEmail, submitUrl }: Props) {
+export default function McpBrokerAuthorize({ workspaces, parameters, clientName, userEmail, submitUrl }: Props) {
     const form = useForm({
         ...parameters,
         workspace_id: workspaces[0]?.id ?? '',
@@ -48,7 +35,7 @@ export default function McpBrokerAuthorize({ workspaces, parameters, userEmail, 
     return (
         <AuthLayout
             title="Authorize MCP access"
-            subtitle={`Choose the workspace that ${brokerHost(parameters.redirect_uri)} may access on your behalf.`}
+            subtitle={`Choose the workspace that ${clientName} may access on your behalf.`}
             footer={(
                 <S.Identity>
                     Signed in as <strong>{userEmail}</strong>
@@ -85,7 +72,7 @@ export default function McpBrokerAuthorize({ workspaces, parameters, userEmail, 
                 )}
                 {error && <S.ErrorText role="alert">{error}</S.ErrorText>}
                 <S.Notice>
-                    The broker will receive a revocable MCP access token tied to your account and the selected workspace.
+                    {clientName} will receive a revocable MCP access token tied to your account and the selected workspace.
                     You can revoke it at any time from the workspace MCP settings.
                 </S.Notice>
                 <Button type="submit" fullWidth disabled={form.processing || workspaces.length === 0}>

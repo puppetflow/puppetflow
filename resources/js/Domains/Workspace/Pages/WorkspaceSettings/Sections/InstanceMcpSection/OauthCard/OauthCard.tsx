@@ -11,6 +11,7 @@ import { formatDate, requestJson } from '@/Domains/Workspace/Pages/WorkspaceSett
 import * as S from './styled';
 
 interface Props {
+    instanceEndpoint: string;
     endpoint: string;
     authorizeUrl: string;
     tokenUrl: string;
@@ -24,7 +25,7 @@ interface Props {
     setError: (error: string | null) => void;
 }
 
-export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClients, oauthConnections, busy, clientBusy, readOnly, setBusy, setClientBusy, setError }: Props) {
+export default function OauthCard({ instanceEndpoint, endpoint, authorizeUrl, tokenUrl, oauthClients, oauthConnections, busy, clientBusy, readOnly, setBusy, setClientBusy, setError }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
     const [expanded, setExpanded] = usePersistedAccordion('oauth');
     const [currentClients, setCurrentClients] = useState(oauthClients);
@@ -114,14 +115,14 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
                         <S.ModeLabel>Direct connection with automatic sign-in</S.ModeLabel>
                         <SharedS.CardTitle>
                             <Icon icon="lucide:shield-check" width={15} height={15} />
-                            Direct Workspace OAuth
+                            Direct OAuth
                             <DocHelpLink
                                 path="/guide/mcp#use-the-oauth-mcp-endpoint"
                                 label="Open OAuth MCP endpoint documentation"
                             />
                         </SharedS.CardTitle>
                         <S.SectionHint>
-                            Use this workspace-specific endpoint for a private or custom connector. The client handles OAuth and asks the user to approve this exact workspace without copying an access token.
+                            Connect directly to this instance without copying an access token. The instance endpoint lets the user pick a workspace at sign-in, while the workspace endpoint locks the connector to this exact workspace.
                         </S.SectionHint>
                     </SharedS.AccordionSummaryContent>
                     <SharedS.AccordionToggle data-accordion-toggle>
@@ -131,9 +132,10 @@ export default function OauthCard({ endpoint, authorizeUrl, tokenUrl, oauthClien
                 </SharedS.AccordionSummary>
                 <SharedS.AccordionBody>
                     <S.EndpointGrid>
-                    <Input label="Workspace OAuth MCP endpoint" value={endpoint} readOnly />
-                    <Input label="Authorize URL" value={authorizeUrl} readOnly />
-                    <Input label="Token URL" value={tokenUrl} readOnly />
+                        <Input label="Instance OAuth MCP endpoint (pick the workspace at sign-in)" value={instanceEndpoint} readOnly />
+                        <Input label="Workspace OAuth MCP endpoint (this workspace only)" value={endpoint} readOnly />
+                        <Input label="Authorize URL" value={authorizeUrl} readOnly />
+                        <Input label="Token URL" value={tokenUrl} readOnly />
                     </S.EndpointGrid>
 
                 {!readOnly && (

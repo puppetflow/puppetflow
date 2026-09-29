@@ -20,12 +20,27 @@ class McpBrokerDelegationService
         private readonly FeatureFlagService $features,
     ) {}
 
-    /** @return Collection<int, Workspace> */
+    /**
+     * Workspace picker options shared by the broker and instance-level OAuth authorization screens.
+     *
+     * @return Collection<int, array{id: string, name: string, slug: string}>
+     */
     public function eligibleWorkspaces(User $user): Collection
     {
         return $this->eligibleWorkspaceQuery($user)
             ->orderBy('workspaces.name')
-            ->get(['workspaces.id', 'workspaces.name', 'workspaces.slug', 'workspaces.lookup_key']);
+            ->get(['workspaces.id', 'workspaces.name', 'workspaces.slug'])
+            ->map(fn (Workspace $workspace): array => [
+                'id' => (string) $workspace->id,
+                'name' => $workspace->name,
+                'slug' => $workspace->slug,
+            ])
+            ->values();
+    }
+
+    public function eligibleWorkspace(User $user, string $workspaceId): ?Workspace
+    {
+        return $this->eligibleWorkspaceQuery($user)->whereKey($workspaceId)->first();
     }
 
     public function createAuthorizationCode(
@@ -36,7 +51,8 @@ class McpBrokerDelegationService
     ): string {
         $this->ensureAvailable();
 
-        $workspace = $this->eligibleWorkspaceQuery($user)->whereKey($workspaceId)->firstOrFail();
+        $workspace = $this->eligibleWorkspace($user, $workspaceId);
+        abort_unless($workspace !== null, 404);
         $plainCode = 'mcp_ac_'.Str::random(64);
 
         McpBrokerAuthorizationCode::query()->where('expires_at', '<=', now())->delete();
@@ -78,7 +94,7 @@ class McpBrokerDelegationService
                 return null;
             }
 
-            $workspace = $this->eligibleWorkspaceQuery($user)->whereKey($authorization->workspace_id)->first();
+            $workspace = $this->eligibleWorkspace($user, $authorization->workspace_id);
             if (! $workspace) {
                 return null;
             }

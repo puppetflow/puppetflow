@@ -7,6 +7,7 @@ use App\Models\FlowRun;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\FlowRunSearchService;
 use App\Services\Storage\RunArtifactStorage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /** @phpstan-type Arguments array<string, mixed> */
@@ -115,20 +116,27 @@ final class ArtifactMcpTools implements McpToolHandler
             throw ValidationException::withMessages(['run_id' => $lastshot ? 'Recording lastshot not found.' : 'Recording not found.']);
         }
 
-        $oauth = str_starts_with($context->artifactRouteName, 'mcp.oauth.');
-        $routeName = $oauth
-            ? ($lastshot ? 'mcp.oauth.recording.lastshot' : 'mcp.oauth.recording')
-            : ($lastshot ? 'mcp.recording.lastshot' : 'mcp.recording');
-        $parameters = ['id' => $flow->id, 'run' => $run->id];
-        if ($oauth) {
-            $parameters['workspace'] = $context->workspace->id;
-        }
+        // Recording routes live next to the artifact route of the current endpoint (mcp., mcp.oauth., mcp.instance.).
+        $routeName = Str::beforeLast($context->artifactRouteName, 'artifacts.download').($lastshot ? 'recording.lastshot' : 'recording');
 
         return [
             'run_id' => $run->id,
-            'url' => route($routeName, $parameters),
+            'url' => route($routeName, $this->routeParameters($context, ['id' => $flow->id, 'run' => $run->id])),
             'authorization' => 'Use the same Bearer MCP token when downloading this URL.',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $parameters
+     * @return array<string, mixed>
+     */
+    private function routeParameters(McpToolContext $context, array $parameters): array
+    {
+        if (str_starts_with($context->artifactRouteName, 'mcp.oauth.')) {
+            $parameters['workspace'] = $context->workspace->id;
+        }
+
+        return $parameters;
     }
 
     private function type(mixed $type): string
@@ -147,13 +155,8 @@ final class ArtifactMcpTools implements McpToolHandler
             return [];
         }
 
-        $oauth = str_starts_with($context->artifactRouteName, 'mcp.oauth.');
-
-        return array_map(function (array $file) use ($flow, $run, $type, $context, $oauth) {
-            $parameters = ['id' => $flow->id, 'run' => $run->id, 'type' => $type, 'filename' => $file['name']];
-            if ($oauth) {
-                $parameters['workspace'] = $context->workspace->id;
-            }
+        return array_map(function (array $file) use ($flow, $run, $type, $context) {
+            $parameters = $this->routeParameters($context, ['id' => $flow->id, 'run' => $run->id, 'type' => $type, 'filename' => $file['name']]);
 
             return [...$file, 'url' => route($context->artifactRouteName, $parameters)];
         }, $this->storage->artifactFiles($run, $type));

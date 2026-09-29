@@ -72,6 +72,17 @@ Route::get('.well-known/oauth-authorization-server/workspaces/{workspace}', [Mcp
 Route::post('oauth/register/{workspace}', [McpOAuthController::class, 'register'])
     ->middleware('throttle:20,1')
     ->name('mcp.oauth.register');
+// Instance-level OAuth MCP endpoint ({origin}/mcp): the workspace is picked during authorization.
+Route::get('.well-known/oauth-protected-resource/mcp', [McpOAuthController::class, 'protectedResource'])
+    ->name('mcp.instance.protected-resource');
+Route::get('.well-known/oauth-authorization-server', [McpOAuthController::class, 'authorizationServer'])
+    ->name('mcp.instance.authorization-server');
+Route::post('oauth/register', [McpOAuthController::class, 'register'])
+    ->middleware('throttle:20,1')
+    ->name('mcp.instance.register');
+Route::post('oauth/authorize/workspace', [McpOAuthController::class, 'approve'])
+    ->middleware(['auth', 'throttle:10,1'])
+    ->name('mcp.oauth.approve');
 Route::get('mcp/broker/authorize', [McpBrokerController::class, 'showAuthorization'])
     ->middleware('throttle:30,1')
     ->name('mcp.broker.authorize');

@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\FeatureFlags\RunQuotaExceededException;
+use App\Http\Controllers\Mcp\McpServerController;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Services\Auth\SafeModeAuthenticator;
 use App\Services\Variable\UnresolvedVariableException;
@@ -11,6 +12,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Env;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,6 +22,20 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // Instance-level MCP endpoint served at the root ({origin}/mcp) with the API middleware group.
+        then: function (): void {
+            Route::middleware(['api', \App\Http\Middleware\AuthenticateMcpOAuth::class])
+                ->prefix('mcp')
+                ->name('mcp.instance.')
+                ->group(function (): void {
+                    Route::post('/', McpServerController::class)->name('http');
+                    Route::get('flows/{id}/runs/{run}/artifacts/{type}/{filename}', [McpServerController::class, 'downloadArtifact'])
+                        ->where('filename', '.*')
+                        ->name('artifacts.download');
+                    Route::get('flows/{id}/runs/{run}/recording', [McpServerController::class, 'downloadRecording'])->name('recording');
+                    Route::get('flows/{id}/runs/{run}/recording/lastshot', [McpServerController::class, 'downloadRecordingLastshot'])->name('recording.lastshot');
+                });
+        },
     )
     ->withCommands([
         \App\Console\Commands\LicenseActivate::class,
@@ -48,6 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(\App\Http\Middleware\AddSecurityHeaders::class);
         $middleware->validateCsrfTokens(except: [
             'sso/saml/acs',
+            'oauth/register',
             'oauth/register/*',
         ]);
         $middleware->web(append: [

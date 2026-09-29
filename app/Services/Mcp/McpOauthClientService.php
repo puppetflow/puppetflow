@@ -16,11 +16,13 @@ final class McpOauthClientService
     ) {}
 
     /**
+     * A null workspace registers an instance-level client: the workspace is picked during authorization.
+     *
      * @param  list<string>  $redirectUris
      * @return array{client: Client, registration: McpOauthClient}
      */
     public function create(
-        Workspace $workspace,
+        ?Workspace $workspace,
         string $name,
         array $redirectUris,
         ?User $owner = null,
@@ -35,7 +37,7 @@ final class McpOauthClientService
             );
 
             $registration = McpOauthClient::create([
-                'workspace_id' => $workspace->id,
+                'workspace_id' => $workspace?->id,
                 'user_id' => $owner?->id,
                 'oauth_client_id' => $client->id,
                 'name' => $name,

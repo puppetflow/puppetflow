@@ -249,6 +249,7 @@ class WorkspaceController extends Controller
                 : [],
             'mcpBrokerEndpoint' => $mcpBrokerEndpoint,
             'mcpEndpoint' => url('/api/mcp-server/http'),
+            'mcpInstanceOauthEndpoint' => url('/mcp'),
             'mcpOauthEndpoint' => url("/api/workspaces/{$workspace->id}/mcp-server/http"),
             'mcpOauthAuthorizeUrl' => url('/oauth/authorize'),
             'mcpOauthTokenUrl' => url('/oauth/token'),

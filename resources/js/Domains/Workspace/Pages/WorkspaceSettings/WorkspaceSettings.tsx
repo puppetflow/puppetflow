@@ -27,6 +27,7 @@ interface Props {
     teams: { id: Id; name: string }[];
     mcpBrokerEndpoint: string;
     mcpEndpoint: string;
+    mcpInstanceOauthEndpoint: string;
     mcpOauthEndpoint: string;
     mcpOauthAuthorizeUrl: string;
     mcpOauthTokenUrl: string;
@@ -38,7 +39,7 @@ interface Props {
     mcpFlows: McpFlow[];
 }
 
-export default function WorkspaceSettings({ workspace, isWorkspaceAdmin, isOwner, proxies, privateLibrariesEnabled, mcpEnabled, privateLibraries, teams, mcpBrokerEndpoint, mcpEndpoint, mcpOauthEndpoint, mcpOauthAuthorizeUrl, mcpOauthTokenUrl, mcpSettings, mcpTools, mcpTokens, mcpOauthClients, mcpOauthConnections, mcpFlows }: Props) {
+export default function WorkspaceSettings({ workspace, isWorkspaceAdmin, isOwner, proxies, privateLibrariesEnabled, mcpEnabled, privateLibraries, teams, mcpBrokerEndpoint, mcpEndpoint, mcpInstanceOauthEndpoint, mcpOauthEndpoint, mcpOauthAuthorizeUrl, mcpOauthTokenUrl, mcpSettings, mcpTools, mcpTokens, mcpOauthClients, mcpOauthConnections, mcpFlows }: Props) {
     const { activeTab, handleTabChange } = useWorkspaceSettingsTab(privateLibrariesEnabled, mcpEnabled);
     return (
         <AppLayout
@@ -73,6 +74,7 @@ export default function WorkspaceSettings({ workspace, isWorkspaceAdmin, isOwner
                 <InstanceMcpSection
                     brokerEndpoint={mcpBrokerEndpoint}
                     endpoint={mcpEndpoint}
+                    instanceOauthEndpoint={mcpInstanceOauthEndpoint}
                     oauthEndpoint={mcpOauthEndpoint}
                     oauthAuthorizeUrl={mcpOauthAuthorizeUrl}
                     oauthTokenUrl={mcpOauthTokenUrl}

@@ -112,6 +112,14 @@ class Workspace extends Model
             }
         });
 
+        // MCP is enabled by default, but every MCP access check (broker picker,
+        // instance OAuth, token auth) requires a settings row to exist. Create
+        // it with the workspace instead of waiting for an admin to open the
+        // workspace settings page, which used to be the only creation point.
+        static::created(function (Workspace $workspace) {
+            $workspace->mcpSetting()->firstOrCreate(['workspace_id' => $workspace->id]);
+        });
+
         static::deleting(function (Workspace $workspace) {
             $workspace->dataTables->each->delete();
             $workspace->mediaAssets->each->delete();

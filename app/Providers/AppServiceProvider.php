@@ -191,7 +191,9 @@ class AppServiceProvider extends ServiceProvider
         Passport::tokensCan([
             'mcp' => 'Use Puppetflow instance-level MCP tools.',
         ]);
-        Passport::authorizationView('oauth.authorize');
+        Passport::authorizationView(
+            fn (array $parameters) => app(\App\Http\Controllers\Mcp\McpOAuthController::class)->consent($parameters)
+        );
 
         Passport::tokensExpireIn(now()->addHours(8));
         Passport::refreshTokensExpireIn(now()->addDays(30));
