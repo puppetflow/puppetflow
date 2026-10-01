@@ -145,8 +145,7 @@ services:
 
   # Pinokio (Chromium gateway)
   pinokio:
-    build:
-      context: ../pinokio
+    image: "${PINOKIO_IMAGE:-ghcr.io/puppetflow/pinokio:latest}"
     restart: unless-stopped
     depends_on:
       init-volumes:

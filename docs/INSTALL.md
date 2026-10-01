@@ -8,20 +8,11 @@ This guide installs Puppetflow on a self-hosted server with Docker Compose. For 
 - Docker with Docker Compose
 - At least 4 GB of available memory
 
-Puppetflow Core expects the `pinokio` repository beside it:
-
-```text
-puppetflow/
-├── pinokio/
-└── puppetflow-core/
-```
+The Chromium gateway (Pinokio) is pulled as a prebuilt image from `ghcr.io/puppetflow/pinokio`; set `PINOKIO_IMAGE` in `.env` to pin another tag.
 
 ## 1. Get the source
 
 ```bash
-mkdir puppetflow
-cd puppetflow
-git clone https://github.com/puppetflow/pinokio.git
 git clone https://github.com/puppetflow/puppetflow.git puppetflow-core
 cd puppetflow-core
 ```
