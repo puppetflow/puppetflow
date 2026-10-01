@@ -219,6 +219,7 @@ export const localIconNames = new Set<string>([
     "lucide:power",
     "lucide:power-off",
     "lucide:puzzle",
+    "lucide:qr-code",
     "lucide:radio-tower",
     "lucide:refresh-cw",
     "lucide:repeat",
