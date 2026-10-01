@@ -136,13 +136,11 @@ jobs:
           docker buildx imagetools create \
             --tag "${app_image}:latest" \
             --tag "${app_image}:v${VERSION}" \
-            --tag "${app_image}:${GITHUB_SHA}" \
             "${app_sources[@]}"
 
           docker buildx imagetools create \
             --tag "${stream_image}:latest" \
             --tag "${stream_image}:v${VERSION}" \
-            --tag "${stream_image}:${GITHUB_SHA}" \
             "${stream_sources[@]}"
 
   release:
