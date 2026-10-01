@@ -25,10 +25,10 @@ export const FILE_HELPER_NAMES = [
     '$pdfGetText',
 ];
 
-const EXTRACT_DATA_HELPER_NAMES = ['$attributesFromOne', '$attributesFromMany', '$selectOneElement', '$selectManyElements', '$selectShadow'];
+const EXTRACT_DATA_HELPER_NAMES = ['$attributesFromOne', '$attributesFromMany', '$selectOneElement', '$selectManyElements', '$selectShadow', '$scanQrcode'];
 const ADVANCED_EVAL_HELPER_NAMES = ['$bridgeEvaluate', '$injectScriptLibrary'];
 const BROWSER_HELPER_NAMES = [
-    '$gotoUrl', '$gotoTab', '$loginRemember', '$screenshot', '$scanQrcode', '$page', '$client',
+    '$gotoUrl', '$gotoTab', '$loginRemember', '$screenshot', '$page', '$client',
     '$setViewport', '$viewportWidth', '$viewportHeight',
 ];
 export const HIDDEN_TOOLBOX_ENTRY_NAMES = new Set(['$input', '$vars']);
@@ -50,7 +50,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Navigate pages, capture state, and access browser-level objects.',
         icon: 'lucide:panel-top',
         color: '#0ea5e9',
-        priority: ['$gotoUrl', '$gotoTab', '$loginRemember', '$screenshot', '$scanQrcode', '$setViewport', '$page', '$client'],
+        priority: ['$gotoUrl', '$gotoTab', '$loginRemember', '$screenshot', '$setViewport', '$page', '$client'],
         match: entry => BROWSER_HELPER_NAMES.includes(entry.name) || entry.category === 'Navigation',
     },
     {
@@ -86,7 +86,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Select elements, parse content, and transform values.',
         icon: 'lucide:scan-search',
         color: '#8b5cf6',
-        priority: ['$selectOneElement', '$selectManyElements', '$selectShadow', '$attributesFromOne', '$attributesFromMany'],
+        priority: ['$selectOneElement', '$selectManyElements', '$selectShadow', '$scanQrcode', '$attributesFromOne', '$attributesFromMany'],
         match: entry => entry.category === 'Extract Data' || EXTRACT_DATA_HELPER_NAMES.includes(entry.name),
     },
     {

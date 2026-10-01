@@ -1,24 +1,28 @@
 /* @help Navigation
  * @sig $screenshot(screenshotName?, options?)
  * @aliases capture screen, take screenshot, screen capture
- * @desc Take a screenshot. If no name given, auto-increments (screenshot_00, screenshot_01...).
- * @nodal-desc Capture the current page as a screenshot artifact.
- * @opt output: true - include this screenshot in $artifacts output
+ * @desc Take a viewport or full-page screenshot. If no name given, auto-increments (screenshot_00, screenshot_01...).
+ * @nodal-desc Capture the current viewport or full page as a screenshot artifact.
+ * @opt output: true, fullPage: false
  * @nodal-param screenshotName [string]: Screenshot filename or label. Leave empty to auto-generate a name.
  * @nodal-param options [object]: Screenshot options.
  * @nodal-param options.output [boolean]: Include this screenshot in the flow output artifacts.
+ * @nodal-param options.fullPage [boolean]: Capture the entire page instead of only the current viewport. Defaults to false.
+ * @nodal-param options.viewportWidth [integer]: Temporary viewport width in pixels for this screenshot.
+ * @nodal-param options.viewportHeight [integer]: Temporary viewport height in pixels for this screenshot. Ignored for full-page captures.
  */
 const $screenshot = async function(screenshotName, options = {}) {
   __emitAction('screenshot', typeof screenshotName === 'string' ? screenshotName : '');
-  const defaultOptions = {
-    output: true,
-  };
-  const opts = { ...defaultOptions, ...(options || {}) };
   let shotname = screenshotName;
-  if (typeof screenshotName === 'object' && screenshotName !== null && !opts) {
+  if (typeof screenshotName === 'object' && screenshotName !== null) {
     options = screenshotName;
     shotname = null;
   }
+  const defaultOptions = {
+    output: true,
+    fullPage: false,
+  };
+  const opts = { ...defaultOptions, ...(options || {}) };
   if (!shotname) {
     shotname = 'screenshot_' + SCREENSHOT_CPT.toString().padStart(2, '0');
     SCREENSHOT_CPT++;
@@ -33,7 +37,39 @@ const $screenshot = async function(screenshotName, options = {}) {
   if (_shotDir !== paths.screenshots) {
     fs.mkdirSync(_shotDir, { recursive: true });
   }
-  await __retryOnContextDestroyed(() => $page.screenshot({ path: _shotPath }));
+  const originalViewport = $page.viewport();
+  const parseViewportDimension = (name, value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const dimension = Number(value);
+    if (!Number.isInteger(dimension) || dimension <= 0) {
+      throw new Error('$screenshot: ' + name + ' must be a positive integer');
+    }
+    return dimension;
+  };
+  const viewportWidth = parseViewportDimension('viewportWidth', opts.viewportWidth);
+  const viewportHeight = opts.fullPage
+    ? undefined
+    : parseViewportDimension('viewportHeight', opts.viewportHeight);
+  const shouldResizeViewport = originalViewport
+    && (viewportWidth !== undefined || viewportHeight !== undefined);
+
+  try {
+    if (shouldResizeViewport) {
+      await $page.setViewport({
+        ...originalViewport,
+        width: viewportWidth ?? originalViewport.width,
+        height: viewportHeight ?? originalViewport.height,
+      });
+    }
+    await __retryOnContextDestroyed(() => $page.screenshot({
+      path: _shotPath,
+      fullPage: Boolean(opts.fullPage),
+    }));
+  } finally {
+    if (shouldResizeViewport && !$page.isClosed()) {
+      await $page.setViewport(originalViewport).catch(() => {});
+    }
+  }
   if (!opts.output) {
     _artifactExcluded.screenshots.add(_shotRelativePath);
   }

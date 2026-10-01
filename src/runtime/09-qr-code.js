@@ -1,4 +1,4 @@
-/* @help Navigation
+/* @help Selectors
  * @sig $scanQrcode(options?)
  * @aliases scan qr code, read qr code, detect qr codes
  * @desc Capture the page in memory and return every QR code found. Scans the full page by default. Returns an empty array when none are found or the timeout is reached.
