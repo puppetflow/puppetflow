@@ -143,7 +143,12 @@ function ConsoleLogContent({
         estimateSize: () => ESTIMATED_LINE_HEIGHT,
         getItemKey,
         overscan: OVERSCAN,
+        directDomUpdates: true,
     });
+    const setContentRef = useCallback((element: HTMLDivElement | null) => {
+        contentRef.current = element;
+        rowVirtualizer.containerRef(element);
+    }, [rowVirtualizer]);
 
     const scrollToBottom = useCallback(() => {
         const el = containerRef.current;
@@ -220,8 +225,6 @@ function ConsoleLogContent({
     }, [disableAutoScroll]);
 
     const virtualItems = rowVirtualizer.getVirtualItems();
-    const firstVirtualItem = virtualItems[0];
-    const lastVirtualItem = virtualItems[virtualItems.length - 1];
 
     return (
         <S.ConsoleLogPanel>
@@ -282,12 +285,7 @@ function ConsoleLogContent({
             >
                 {filtered.length > 0 ? (
                     <S.ConsoleVirtualContent
-                        ref={contentRef}
-                        $paddingTop={firstVirtualItem?.start ?? 0}
-                        $paddingBottom={Math.max(
-                            0,
-                            rowVirtualizer.getTotalSize() - (lastVirtualItem?.end ?? 0),
-                        )}
+                        ref={setContentRef}
                         $wrap={wrapMode}
                     >
                         {virtualItems.map(virtualRow => {
