@@ -36,20 +36,22 @@ export const ConsoleContainer = styled.div`
     padding: 6px 0;
 `;
 
-export const ConsoleVirtualContent = styled.div<{ $wrap: boolean }>`
-    position: relative;
+export const ConsoleVirtualContent = styled.div<{
+    $paddingTop: number;
+    $paddingBottom: number;
+    $wrap: boolean;
+}>`
     width: ${({ $wrap }) => $wrap ? '100%' : 'max-content'};
     min-width: 100%;
     box-sizing: border-box;
+    padding-top: ${({ $paddingTop }) => $paddingTop}px;
+    padding-bottom: ${({ $paddingBottom }) => $paddingBottom}px;
 `;
 
 export const ConsoleLine = styled.div<{
     $level: 'debug' | 'info' | 'warn' | 'error';
     $wrap: boolean;
 }>`
-    position: absolute;
-    top: 0;
-    left: 0;
     width: ${({ $wrap }) => $wrap ? '100%' : 'max-content'};
     min-width: 100%;
     box-sizing: border-box;

@@ -21,6 +21,9 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
     const { toast } = useToast();
     const { openRunAgainModal, runAgainModal } = useRunAgainModal();
     const [detailRun, setDetailRun] = useState<FlowRun | null>(null);
+    // Read by the list-sync effect so it reacts to list refreshes only, not to its own updates.
+    const detailRunRef = useRef<FlowRun | null>(null);
+    detailRunRef.current = detailRun;
     const [loading, setLoading] = useState(false);
     const [perPage, setPerPage] = useState(filters.per_page ?? 50);
     const filtersRef = useRef<RunsFiltersHandle>(null);
@@ -54,30 +57,60 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
     const waitingHumanIds = useRunsPolling(allRuns, runningRuns.data.length);
     const { deletingSelected, deleteSelectedRuns, ConfirmModal } = useBatchRunDeletion(removeRunIdsFromSelection);
 
-    useEffect(() => {
-        setDetailRun(current => {
-            if (!current) return current;
+    const fetchRunDetail = useCallback(async (run: FlowRun): Promise<FlowRun | null> => {
+        if (!run.flow) return null;
 
-            const freshRun = displayedAllRuns.find(run => run.id === current.id);
-            return freshRun ? { ...current, ...freshRun } : null;
+        const response = await fetch(`/flows/${encodeURIComponent(String(run.flow.id))}/runs/${run.id}`, {
+            headers: { Accept: 'application/json' },
         });
-    }, [displayedAllRuns]);
+        if (!response.ok) throw new Error(`Failed to load run ${run.id}`);
+
+        const detail = await response.json() as FlowRun;
+        return { ...run, ...detail };
+    }, []);
+
+    // The list only carries lightweight columns. Merge them into the open detail without
+    // letting absent fields erase hydrated data, and reload the full detail when the run
+    // changes status so final logs and output show up.
+    useEffect(() => {
+        const current = detailRunRef.current;
+        if (!current) return;
+
+        const freshRun = displayedAllRuns.find(run => run.id === current.id);
+        if (!freshRun) {
+            setDetailRun(null);
+            return;
+        }
+
+        const listFields = Object.fromEntries(
+            Object.entries(freshRun).filter(([, value]) => value !== undefined && value !== null),
+        ) as Partial<FlowRun>;
+        const merged = { ...current, ...listFields, flow: freshRun.flow ?? current.flow };
+        setDetailRun(merged);
+
+        if (freshRun.status === current.status) return;
+
+        let cancelled = false;
+        fetchRunDetail(merged)
+            .then(detail => {
+                if (cancelled || !detail) return;
+                setDetailRun(previous => previous?.id === detail.id ? detail : previous);
+            })
+            .catch(() => {});
+
+        return () => {
+            cancelled = true;
+        };
+    }, [displayedAllRuns, fetchRunDetail]);
 
     const openRunDetail = useCallback(async (run: FlowRun) => {
-        if (!run.flow) return;
-
         try {
-            const response = await fetch(`/flows/${encodeURIComponent(String(run.flow.id))}/runs/${run.id}`, {
-                headers: { Accept: 'application/json' },
-            });
-            if (!response.ok) throw new Error(`Failed to load run ${run.id}`);
-
-            const detail = await response.json() as FlowRun;
-            setDetailRun({ ...run, ...detail });
+            const detail = await fetchRunDetail(run);
+            if (detail) setDetailRun(detail);
         } catch {
             toast('Unable to load run details');
         }
-    }, [toast]);
+    }, [fetchRunDetail, toast]);
 
     const handleKillRun = useCallback((run: FlowRun) => {
         if (!run.flow) return;

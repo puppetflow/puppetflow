@@ -303,6 +303,13 @@ class FlowRun extends Model
         $attributes = $includeInternalMeta
             ? self::REDACTED_ATTRIBUTES
             : array_values(array_diff(self::REDACTED_ATTRIBUTES, ['internal_meta']));
+        // Only touch loaded columns. Writing to an unselected attribute would add it as null
+        // to the payload, and lightweight list projections would then overwrite details
+        // already hydrated on the client.
+        $attributes = array_values(array_filter(
+            $attributes,
+            fn (string $attribute): bool => array_key_exists($attribute, $this->getAttributes()),
+        ));
 
         $this->setAttribute('secrets_redacted', true);
 
