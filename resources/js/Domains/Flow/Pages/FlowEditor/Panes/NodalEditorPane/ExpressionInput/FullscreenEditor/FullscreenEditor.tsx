@@ -2,6 +2,8 @@ import { useMemo, type DragEvent } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import DataInspector from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/DataInspector';
+import PreviewSection from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/PreviewSection/PreviewSection';
+import { useNodePreviewPanels } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/NodePreviewContext';
 import type { ScalarNodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { RenderedExpression } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
@@ -38,6 +40,7 @@ export default function FullscreenEditor({
     onChange,
     onDropPath,
 }: FullscreenEditorProps) {
+    const previewPanels = useNodePreviewPanels();
     // Memoized so the scope inspector keeps its expand/collapse state while typing.
     const scopeValue = useMemo(() => {
         const inputData = autocompleteContext.inputData && typeof autocompleteContext.inputData === 'object'
@@ -83,13 +86,17 @@ export default function FullscreenEditor({
                         <Icon icon="lucide:x" width={16} height={16} />
                     </S.ClosePicker>
                 </S.ExpressionFullscreenHeader>
-                <S.ExpressionFullscreenBody $codeInput={inputType === 'code'}>
-                    <DataInspector
-                        title="Scope"
-                        value={scopeValue}
-                        rootPath="$"
-                        emptyText="No scope data yet."
-                    />
+                <S.ExpressionFullscreenBody $codeInput={inputType === 'code' && !previewPanels}>
+                    {previewPanels ? (
+                        <PreviewSection {...previewPanels.before} />
+                    ) : (
+                        <DataInspector
+                            title="Scope"
+                            value={scopeValue}
+                            rootPath="$"
+                            emptyText="No scope data yet."
+                        />
+                    )}
                     <S.ExpressionFullscreenEditor
                         onDragOver={event => {
                             event.preventDefault();
@@ -118,7 +125,9 @@ export default function FullscreenEditor({
                             onChange={nextValue => onChange(nextValue ?? '')}
                         />
                     </S.ExpressionFullscreenEditor>
-                    {inputType !== 'code' && (
+                    {previewPanels ? (
+                        <PreviewSection {...previewPanels.after} />
+                    ) : inputType !== 'code' && (
                         <S.ExpressionRenderPanel>
                             <S.ExpressionRenderHeader>
                                 <strong>Result</strong>

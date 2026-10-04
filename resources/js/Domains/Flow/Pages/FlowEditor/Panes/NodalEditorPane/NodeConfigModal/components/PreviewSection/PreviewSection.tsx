@@ -32,7 +32,7 @@ export interface PreviewExecution {
     loopIndex?: number;
 }
 
-interface PreviewSectionProps {
+export interface PreviewSectionProps {
     title: 'Before' | 'After';
     value: unknown;
     copyValue: unknown;

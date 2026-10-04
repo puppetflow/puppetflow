@@ -4,10 +4,16 @@ import { formatRunStorage } from '@/Domains/Flow/Pages/FlowEditor/utils/format';
 import type { CanvasNode, NodeParameterValue } from '../types';
 import type { NodalAutocompleteContext } from '../utils/staticAnalysis';
 import { EMPTY_OUTPUT_PORT_SET } from '../utils/node';
+import {
+    NodePreviewProvider,
+    type NodePreviewPanels,
+} from '../contexts/NodePreviewContext';
 import ConnectedNodesRail from './components/ConnectedNodesRail/ConnectedNodesRail';
 import NodeConfigHeader from './components/NodeConfigHeader/NodeConfigHeader';
 import NodeParameters from './components/NodeParameters/NodeParameters';
-import PreviewSection from './components/PreviewSection/PreviewSection';
+import PreviewSection, {
+    type PreviewSectionProps,
+} from './components/PreviewSection/PreviewSection';
 import useHydratedSniffValue from './hooks/useHydratedSniffValue';
 import useNodeConfigModal, { resolveNodeConfigEntry } from './hooks/useNodeConfigModal';
 import useNodeLabelDraft from './hooks/useNodeLabelDraft';
@@ -220,6 +226,40 @@ export default function NodeConfigModal({
         [hydrated, previewLoading],
     );
     const previewOmitted = previewRun?.internal_meta?.nodal_preview?.omitted;
+    const beforePreview: PreviewSectionProps = {
+        title: 'Before',
+        loading: previewLoading,
+        value: hydrated.value.before,
+        copyValue: hydrated.value.before,
+        rootPath: selectedPreviewSource?.rootPath ?? '$run',
+        sources: previewSources,
+        selectedSourceId: selectedPreviewSourceId,
+        onSelectSource: setSelectedPreviewSourceId,
+        executions: selectedPreviewSource?.executions,
+        executionStatus: selectedPreviewSource?.executionStatus,
+        selectedExecutionIndex: selectedPreviewSource?.executionIndex,
+        onSelectExecution: selectBeforeExecution,
+        emptyText: 'No static output is available. Run the flow to capture runtime data.',
+        flowId,
+    };
+    const afterPreview: PreviewSectionProps = {
+        title: 'After',
+        loading: previewLoading,
+        value: hydrated.value.after,
+        copyValue: hydrated.value.after,
+        rootPath: currentNodePreviewSource.rootPath,
+        draggable: false,
+        executions: currentNodeExecutions,
+        executionStatus: currentNodeExecutionStatus,
+        selectedExecutionIndex: selectedAfterExecutionIndex,
+        onSelectExecution: selectAfterExecution,
+        emptyText: 'No static output is available. Run the flow to capture runtime data.',
+        flowId,
+    };
+    const previewPanels: NodePreviewPanels = {
+        before: beforePreview,
+        after: afterPreview,
+    };
 
     return (
         <S.NodeConfigBackdrop
@@ -264,52 +304,26 @@ export default function NodeConfigModal({
                         onCommitLabel={commitLabel}
                         onClose={handleClose}
                     />
-                    <S.NodeConfigBody>
-                        <S.NodeConfigLayout>
-                            <PreviewSection
-                                title="Before"
-                                loading={previewLoading}
-                                value={hydrated.value.before}
-                                copyValue={hydrated.value.before}
-                                rootPath={selectedPreviewSource?.rootPath ?? '$run'}
-                                sources={previewSources}
-                                selectedSourceId={selectedPreviewSourceId}
-                                onSelectSource={setSelectedPreviewSourceId}
-                                executions={selectedPreviewSource?.executions}
-                                executionStatus={selectedPreviewSource?.executionStatus}
-                                selectedExecutionIndex={selectedPreviewSource?.executionIndex}
-                                onSelectExecution={selectBeforeExecution}
-                                emptyText="No static output is available. Run the flow to capture runtime data."
-                                flowId={flowId}
-                            />
-                            <NodeParameters
-                                node={node}
-                                entry={entry}
-                                args={visibleArgs}
-                                expressionOutputData={expressionOutputData}
-                                autocompleteContext={hydratedContext}
-                                connectedOutputPorts={connectedOutputPorts}
-                                currentSiteUrl={currentSiteUrl}
-                                flowId={flowId}
-                                readOnly={readOnly}
-                                onUpdateValue={onUpdateValue}
-                            />
-                            <PreviewSection
-                                title="After"
-                                loading={previewLoading}
-                                value={hydrated.value.after}
-                                copyValue={hydrated.value.after}
-                                rootPath={currentNodePreviewSource.rootPath}
-                                draggable={false}
-                                executions={currentNodeExecutions}
-                                executionStatus={currentNodeExecutionStatus}
-                                selectedExecutionIndex={selectedAfterExecutionIndex}
-                                onSelectExecution={selectAfterExecution}
-                                emptyText="No static output is available. Run the flow to capture runtime data."
-                                flowId={flowId}
-                            />
-                        </S.NodeConfigLayout>
-                    </S.NodeConfigBody>
+                    <NodePreviewProvider value={previewPanels}>
+                        <S.NodeConfigBody>
+                            <S.NodeConfigLayout>
+                                <PreviewSection {...beforePreview} />
+                                <NodeParameters
+                                    node={node}
+                                    entry={entry}
+                                    args={visibleArgs}
+                                    expressionOutputData={expressionOutputData}
+                                    autocompleteContext={hydratedContext}
+                                    connectedOutputPorts={connectedOutputPorts}
+                                    currentSiteUrl={currentSiteUrl}
+                                    flowId={flowId}
+                                    readOnly={readOnly}
+                                    onUpdateValue={onUpdateValue}
+                                />
+                                <PreviewSection {...afterPreview} />
+                            </S.NodeConfigLayout>
+                        </S.NodeConfigBody>
+                    </NodePreviewProvider>
                     <S.NodeConfigFooter>
                         {latestRun ? (
                             <S.PreviewSourceBanner $active={useRunPreview}>
