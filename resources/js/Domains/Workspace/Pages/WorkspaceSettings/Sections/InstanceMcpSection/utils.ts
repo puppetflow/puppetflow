@@ -2,22 +2,22 @@ import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { McpFlow } from '@/Domains/Workspace/types';
 
-export type McpToolCategory = 'all' | 'flows' | 'data_tables' | 'mailboxes' | 'channels' | 'media_library' | 'ai_models' | 'automation' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams';
+export type McpToolCategory = 'all' | 'flows' | 'automation' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams' | 'data_tables' | 'mailboxes' | 'channels' | 'media_library' | 'ai_models';
 
 export const MCP_TOOL_CATEGORIES: { key: McpToolCategory; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'flows', label: 'Flows' },
-    { key: 'data_tables', label: 'Data Tables' },
-    { key: 'mailboxes', label: 'Mailboxes' },
-    { key: 'channels', label: 'Channels' },
-    { key: 'media_library', label: 'Media Library' },
-    { key: 'ai_models', label: 'AI Models' },
     { key: 'automation', label: 'Automation' },
     { key: 'snippets', label: 'Snippets' },
     { key: 'runs', label: 'Runs' },
     { key: 'artifacts', label: 'Artifacts' },
     { key: 'workspace', label: 'Workspace' },
     { key: 'teams', label: 'Teams' },
+    { key: 'data_tables', label: 'Data Tables' },
+    { key: 'mailboxes', label: 'Mailboxes' },
+    { key: 'channels', label: 'Channels' },
+    { key: 'media_library', label: 'Media Library' },
+    { key: 'ai_models', label: 'AI Models' },
 ];
 
 export const ALWAYS_AVAILABLE_MCP_TOOLS = new Set(['get_nodal_catalog']);
