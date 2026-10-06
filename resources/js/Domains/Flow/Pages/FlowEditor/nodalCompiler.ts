@@ -323,7 +323,7 @@ const assignNodeResult = (
     recordExecution = true,
 ) => [
     `${indent}const ${resultName}State = $mergeNodeState($run, ${resultName});`,
-    `${indent}await __describeNodeResultPreview(${resultName});`,
+    `${indent}await __describeNodeResultPreview(${resultName}).catch(() => {});`,
     `${indent}__recordNodePreview(${safeNodeId}, ${resultName}State, ${recordExecution});`,
     `${indent}$nodes[${safeNodeId}] = ${resultName}State;`,
     `${indent}$nodes[${JSON.stringify(nodeLabel)}] = ${resultName}State;`,
@@ -367,19 +367,88 @@ const __isPlainNodeResult = (value) => {
     if (proto === null) return true;
     return Object.getPrototypeOf(proto) === null && proto.constructor?.name === 'Object';
 };
+// Snapshot regular containers without converting nested runtime instances into plain JSON.
+// Circular references are retained and class instances keep their identity and prototype.
+const __cloneNodalStateValue = (value, seen = new WeakMap()) => {
+    if (!value || typeof value !== 'object') return value;
+    if (!Array.isArray(value) && !__isPlainNodeResult(value)) return value;
+    if (seen.has(value)) return seen.get(value);
+    const clone = Array.isArray(value)
+        ? new Array(value.length)
+        : Object.create(Object.getPrototypeOf(value));
+    seen.set(value, clone);
+    for (const key of Reflect.ownKeys(value)) {
+        if (Array.isArray(value) && key === 'length') continue;
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor) continue;
+        if ('value' in descriptor) descriptor.value = __cloneNodalStateValue(descriptor.value, seen);
+        Object.defineProperty(clone, key, descriptor);
+    }
+    return clone;
+};
+const __copyNodalEnumerableProperties = (target, source) => {
+    if (!source || typeof source !== 'object') return target;
+    for (const key of Reflect.ownKeys(source)) {
+        const descriptor = Object.getOwnPropertyDescriptor(source, key);
+        if (!descriptor?.enumerable) continue;
+        const propertyValue = 'value' in descriptor ? descriptor.value : Reflect.get(source, key);
+        Object.defineProperty(target, key, {
+            value: propertyValue,
+            enumerable: true,
+            configurable: true,
+            writable: true,
+        });
+    }
+    return target;
+};
+const __withNodalProperty = (source, key, value) => {
+    const target = source && typeof source === 'object' && !Array.isArray(source)
+        ? Object.create(Object.getPrototypeOf(source))
+        : {};
+    if (source && typeof source === 'object' && !Array.isArray(source)) {
+        const descriptors = Object.getOwnPropertyDescriptors(source);
+        delete descriptors[key];
+        Object.defineProperties(target, descriptors);
+    }
+    Object.defineProperty(target, key, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+    });
+    return target;
+};
 const $mergeNodeState = (previous, result) => {
     const previousState = previous && typeof previous === 'object' && !Array.isArray(previous)
         ? previous
         : $runRoot;
     const { $result: _previousResult, ...base } = previousState;
-    const merged = __isPlainNodeResult(result)
+    const mergedValue = __isPlainNodeResult(result)
         ? { ...base, ...result }
         : result === undefined ? base : { ...base, $result: result };
-    merged.$input = __nopSerializePreview($runRoot.$input) ?? $runRoot.$input;
-    merged.$output = __nopSerializePreview($runRoot.$output) ?? $runRoot.$output;
-    merged.$context = __nopSerializePreview($runRoot.$context) ?? $runRoot.$context;
-    if ($runRoot.$loop === undefined) delete merged.$loop;
-    else merged.$loop = __nopSerializePreview($runRoot.$loop) ?? $runRoot.$loop;
+    const stateSeen = new WeakMap();
+    const inputSnapshot = __cloneNodalStateValue($runRoot.$input, stateSeen);
+    const outputSnapshot = __cloneNodalStateValue($runRoot.$output, stateSeen);
+    const contextSnapshot = __cloneNodalStateValue($runRoot.$context, stateSeen);
+    const loopSnapshot = $runRoot.$loop === undefined
+        ? undefined
+        : __cloneNodalStateValue($runRoot.$loop, stateSeen);
+    for (const [previousValue, snapshot] of [
+        [previousState.$input, inputSnapshot],
+        [previousState.$output, outputSnapshot],
+        [previousState.$context, contextSnapshot],
+        [previousState.$loop, loopSnapshot],
+    ]) {
+        if (snapshot !== undefined && previousValue && typeof previousValue === 'object') {
+            stateSeen.set(previousValue, snapshot);
+        }
+    }
+    const merged = __cloneNodalStateValue(mergedValue, stateSeen);
+    merged.$input = inputSnapshot;
+    merged.$output = outputSnapshot;
+    merged.$context = contextSnapshot;
+    if (loopSnapshot === undefined) delete merged.$loop;
+    else merged.$loop = loopSnapshot;
     return merged;
 };
 const $userOutput = {};
@@ -429,37 +498,47 @@ const __pfRenderExpression = async (template, $locals = {}) => {
     return renderedTemplate + template.slice(lastIndex);
 };
 const $renderExpression = __pfRenderExpression;
-const __nopSerializePreview = (value) => {
-    try { return JSON.parse(JSON.stringify(value)); } catch (_) { return undefined; }
-};
 // Puppeteer instances cannot be serialized as-is: previews show a readable summary instead.
 // Summaries computed asynchronously (DOM inspection) are cached per instance so the
 // synchronous serializer can pick them up.
 const __nodalPreviewDescriptions = new WeakMap();
 const __nodalPreviewMaxDescribedHandles = 25;
+const __hasNodalPreviewMethod = (value, methodName) => {
+    let current = value;
+    try {
+        while (current && typeof current === 'object') {
+            const descriptor = Object.getOwnPropertyDescriptor(current, methodName);
+            if (descriptor) return 'value' in descriptor && typeof descriptor.value === 'function';
+            current = Object.getPrototypeOf(current);
+        }
+    } catch (_) {
+        return false;
+    }
+    return false;
+};
 const __isNodalPreviewHandle = (value) => (
     !!value && typeof value === 'object'
-    && typeof value.remoteObject === 'function'
-    && typeof value.evaluate === 'function'
+    && __hasNodalPreviewMethod(value, 'remoteObject')
+    && __hasNodalPreviewMethod(value, 'evaluate')
 );
 const __isNodalPreviewHttpResponse = (value) => (
     !!value && typeof value === 'object'
-    && typeof value.status === 'function'
-    && typeof value.url === 'function'
-    && typeof value.headers === 'function'
-    && typeof value.request === 'function'
+    && __hasNodalPreviewMethod(value, 'status')
+    && __hasNodalPreviewMethod(value, 'url')
+    && __hasNodalPreviewMethod(value, 'headers')
+    && __hasNodalPreviewMethod(value, 'request')
 );
 const __isNodalPreviewPage = (value) => (
     !!value && typeof value === 'object'
-    && typeof value.url === 'function'
-    && typeof value.mainFrame === 'function'
-    && typeof value.goto === 'function'
+    && __hasNodalPreviewMethod(value, 'url')
+    && __hasNodalPreviewMethod(value, 'mainFrame')
+    && __hasNodalPreviewMethod(value, 'goto')
 );
 const __describeNodalPreviewHandleSync = (handle) => {
     let remote = null;
     try { remote = handle.remoteObject(); } catch (_) { remote = null; }
     let isElement = false;
-    try { isElement = typeof handle.asElement === 'function' && handle.asElement() !== null; } catch (_) { isElement = false; }
+    try { isElement = __hasNodalPreviewMethod(handle, 'asElement') && handle.asElement() !== null; } catch (_) { isElement = false; }
     const summary = { $runtime: isElement ? 'element' : 'handle' };
     if (remote && typeof remote.description === 'string' && remote.description) summary.description = remote.description;
     if (remote && typeof remote.className === 'string' && remote.className) summary.className = remote.className;
@@ -557,10 +636,14 @@ const __nodalPreviewMaxStringChars = __nodalPreviewLimit(
     500,
 );
 const __serializeNodalPreview = (value) => {
-    return __compactNodalExecutionValue(
-        value,
-        { remaining: __nodalPreviewMaxHistoryBytes },
-    );
+    try {
+        return __compactNodalExecutionValue(
+            value,
+            { remaining: __nodalPreviewMaxHistoryBytes },
+        );
+    } catch (_) {
+        return undefined;
+    }
 };
 const __nodalPreviewMaxExecutionBytes = Math.max(
     8192,
@@ -672,32 +755,42 @@ const __compactNodalExecutionValue = (value, state, depth = 0) => {
     }
     const compacted = {};
     state.remaining -= 2;
-    const priority = (key) => {
-        if (key === '$loop') return 0;
-        if (key === '$result') return 1;
-        if (!key.startsWith('$') && key !== 'captures') return 2;
-        if (['$input', '$output', '$context'].includes(key)) return 3;
-        if (key === '$capture') return 4;
-        return 5;
-    };
-    const entries = Object.entries(value)
-        .filter(([key]) => key !== 'captures')
-        .sort(([left], [right]) => priority(left) - priority(right));
     const marker = '[Preview properties omitted]';
-    const releaseMarker = entries.length > 0
-        ? __reserveNodalPreviewMarker(state, marker, __nodalPreviewValueBytes('$preview') + 2)
-        : null;
-    let compactedEntries = 0;
-    for (const [key, item] of entries) {
+    const releaseMarker = __reserveNodalPreviewMarker(
+        state,
+        marker,
+        __nodalPreviewValueBytes('$preview') + 2,
+    );
+    let omitted = false;
+    const visited = new Set();
+    const compactProperty = (key) => {
+        if (key === 'captures' || visited.has(key) || !Object.prototype.hasOwnProperty.call(value, key)) return true;
+        visited.add(key);
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor?.enumerable || !('value' in descriptor)) return true;
         const keyBytes = __nodalPreviewValueBytes(key) + 2;
-        if (keyBytes >= state.remaining) break;
+        if (keyBytes >= state.remaining) return false;
         state.remaining -= keyBytes;
-        const next = __compactNodalExecutionValue(item, state, depth + 1);
-        if (next === undefined) break;
+        const next = __compactNodalExecutionValue(descriptor.value, state, depth + 1);
+        if (next === undefined) return false;
         compacted[key] = next;
-        compactedEntries += 1;
+        return true;
+    };
+    for (const key of ['$loop', '$result']) {
+        if (!compactProperty(key)) {
+            omitted = true;
+            break;
+        }
     }
-    if (compactedEntries === entries.length) releaseMarker?.();
+    if (!omitted) {
+        for (const key in value) {
+            if (!compactProperty(key)) {
+                omitted = true;
+                break;
+            }
+        }
+    }
+    if (!omitted) releaseMarker?.();
     else if (releaseMarker) compacted.$preview = marker;
     return compacted;
 };
@@ -835,10 +928,10 @@ const injectFlowCallbackSource = (baseSource: string, path: string[], callbackSo
 
     const [key, ...rest] = path;
     const objectSource = `(__pfValue && typeof __pfValue === 'object' && !Array.isArray(__pfValue) ? __pfValue : {})`;
-    const nestedBase = `${objectSource}[${JSON.stringify(key)}]`;
+    const nestedBase = `__pfObject[${JSON.stringify(key)}]`;
     const nestedSource = injectFlowCallbackSource(nestedBase, rest, callbackSource);
 
-    return `((__pfValue) => ({ ...${objectSource}, ${JSON.stringify(key)}: ${nestedSource} }))(${baseSource})`;
+    return `((__pfValue) => { const __pfObject = ${objectSource}; return __withNodalProperty(__pfObject, ${JSON.stringify(key)}, ${nestedSource}); })(${baseSource})`;
 };
 
 interface CompileNodalGraphOptions {
@@ -1330,7 +1423,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = $run;`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName, false),
                 `${indent}if (${loopContextName} !== undefined) {`,
-                `${indent}    const ${resultName}LoopState = { ...${resultName}State, $loop: __nopSerializePreview(${loopContextName}) ?? ${loopContextName} };`,
+                `${indent}    const ${resultName}LoopState = { ...${resultName}State, $loop: ${loopContextName} };`,
                 `${indent}    __recordNodePreview(${safeNodeId}, ${resultName}LoopState, false);`,
                 `${indent}    $nodes[${safeNodeId}] = ${resultName}LoopState;`,
                 `${indent}    $nodes[${JSON.stringify(nodeResultLabel(node))}] = ${resultName}LoopState;`,
@@ -1386,6 +1479,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
 
         if (node.name === SET_OUTPUT_NODE_NAME) {
             const resultName = nextResultName();
+            const outputSnapshotName = `${resultName}Output`;
             const legacyKey = rawValue(node.values, 'keyOrObject', '').trim();
             const variablesSource = node.values?.variables
                 ? formatParameterForCompiler(node.values.variables, { awaitExpressions: true })
@@ -1395,9 +1489,10 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 ...markNodeStart(indent, safeNodeId),
                 `${indent}const ${resultName} = ${variablesSource};`,
                 `${indent}if (${resultName} && typeof ${resultName} === 'object' && !Array.isArray(${resultName})) {`,
-                `${indent}    Object.entries(${resultName}).forEach(([key, value]) => { $runRoot.$output[key] = value; });`,
-                `${indent}    Object.entries(${resultName}).forEach(([key, value]) => { $userOutput[key] = value; });`,
-                `${indent}    $setOutput(${resultName});`,
+                `${indent}    const ${outputSnapshotName} = __copyNodalEnumerableProperties({}, ${resultName});`,
+                `${indent}    __copyNodalEnumerableProperties($runRoot.$output, ${outputSnapshotName});`,
+                `${indent}    __copyNodalEnumerableProperties($userOutput, ${outputSnapshotName});`,
+                `${indent}    $setOutput(${outputSnapshotName});`,
                 `${indent}}`,
                 `${indent}const ${resultName}Snapshot = $run;`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), `${resultName}Snapshot`),
@@ -1430,7 +1525,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             const sources = (incoming.get(node.id) ?? []).map(edge => `$nodes[${JSON.stringify(edge.sourceNodeId)}]`);
             const strategy = rawValue(node.values, 'strategy', 'append');
             const mergedSource = strategy === 'objectAssign'
-                ? `Object.assign({}, ...[${sources.join(', ')}].filter(item => item && typeof item === 'object' && !Array.isArray(item)))`
+                ? `[${sources.join(', ')}].filter(item => item && typeof item === 'object' && !Array.isArray(item)).reduce((target, item) => __copyNodalEnumerableProperties(target, item), {})`
                 : strategy === 'firstNonEmpty'
                     ? `[${sources.join(', ')}].find(item => Array.isArray(item) ? item.length > 0 : item != null)`
                     : `[${sources.join(', ')}].flatMap(item => Array.isArray(item) ? item : item == null ? [] : [item])`;
@@ -1515,7 +1610,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                     && (node.name === '$aiMessage' || node.name === '$aiControl')
                     && mcpServerSources.length > 0
                 ) {
-                    source = `((__pfOptions) => ({ ...(__pfOptions && typeof __pfOptions === 'object' && !Array.isArray(__pfOptions) ? __pfOptions : {}), mcpServers: [${mcpServerSources.join(', ')}] }))(${source})`;
+                    source = `__withNodalProperty(${source}, 'mcpServers', [${mcpServerSources.join(', ')}])`;
                 }
 
                 for (const callbackPort of callbackPorts.filter(candidate => candidate.parameter.argument === arg)) {
@@ -1579,7 +1674,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             ...(collectsNetworkPayloads
                 ? [
                     `${indent}const ${resultName}Start = await ${node.name}(${callArgs});`,
-                    `${indent}const ${resultName} = { ...${resultName}Start, captures: ${callbackPayloadsName} };`,
+                    `${indent}const ${resultName} = __withNodalProperty(${resultName}Start, 'captures', ${callbackPayloadsName});`,
                 ]
                 : [`${indent}const ${resultName} = await ${node.name}(${callArgs});`]),
             ...assignNodeResult(

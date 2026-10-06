@@ -1245,17 +1245,58 @@ module.exports = async function(appDir, flowId, quiet) {
         }
         : preview;
     };
-    const _stripInternalOutputFields = (value) => {
+    const _copyOutputFields = (target, source) => {
+      if (!source || typeof source !== 'object') return target;
+      for (const _key of Reflect.ownKeys(source)) {
+        const _descriptor = Object.getOwnPropertyDescriptor(source, _key);
+        if (!_descriptor?.enumerable) continue;
+        const _value = 'value' in _descriptor ? _descriptor.value : Reflect.get(source, _key);
+        Object.defineProperty(target, _key, {
+          value: _value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      }
+      return target;
+    };
+    const _stripInternalOutputFields = (value, seen = new WeakMap()) => {
       if (!value || typeof value !== 'object') return value;
-      if (Array.isArray(value)) return value.map(_stripInternalOutputFields);
-      const _clean = {};
-      for (const [_key, _item] of Object.entries(value)) {
+      if (seen.has(value)) return seen.get(value);
+      if (Array.isArray(value)) {
+        const _clean = new Array(value.length);
+        seen.set(value, _clean);
+        for (const _key of Reflect.ownKeys(value)) {
+          if (_key === 'length') continue;
+          const _descriptor = Object.getOwnPropertyDescriptor(value, _key);
+          if (!_descriptor) continue;
+          if ('value' in _descriptor) {
+            _descriptor.value = _stripInternalOutputFields(_descriptor.value, seen);
+          }
+          Object.defineProperty(_clean, _key, _descriptor);
+        }
+        return _clean;
+      }
+      const _prototype = Object.getPrototypeOf(value);
+      const _isPlainObject = _prototype === null
+        || (Object.getPrototypeOf(_prototype) === null && _prototype.constructor?.name === 'Object');
+      if (!_isPlainObject) return value;
+      const _clean = Object.create(_prototype);
+      seen.set(value, _clean);
+      for (const _key of Reflect.ownKeys(value)) {
+        const _descriptor = Object.getOwnPropertyDescriptor(value, _key);
+        if (!_descriptor) continue;
         if (_key === '__nodal_preview') {
           _internalOutput = _internalOutput && typeof _internalOutput === 'object' ? _internalOutput : {};
-          _internalOutput.nodal_preview = _stripInternalOutputFields(_item);
+          if ('value' in _descriptor) {
+            _internalOutput.nodal_preview = _stripInternalOutputFields(_descriptor.value, seen);
+          }
           continue;
         }
-        _clean[_key] = _stripInternalOutputFields(_item);
+        if ('value' in _descriptor) {
+          _descriptor.value = _stripInternalOutputFields(_descriptor.value, seen);
+        }
+        Object.defineProperty(_clean, _key, _descriptor);
       }
       return _clean;
     };
@@ -1380,7 +1421,7 @@ module.exports = async function(appDir, flowId, quiet) {
             ? 'error'
             : (_result && typeof _result === 'object' && typeof _result.status === 'string' ? _result.status : 'success');
           if (!_result || typeof _result !== 'object') _result = {};
-          Object.assign(_result, _outputData);
+          _copyOutputFields(_result, _outputData);
           if (typeof _result.status === 'undefined') _result.status = _terminateStatus;
           _result = _stripInternalOutputFields(_result);
           await _terminate($page, __runInput, _result, __runContext, $client);
@@ -1533,7 +1574,7 @@ module.exports = async function(appDir, flowId, quiet) {
 
       if (!_runError && _result !== undefined) {
         if (typeof _result === 'object' && _result !== null) {
-          Object.assign(_result, _outputData);
+          _copyOutputFields(_result, _outputData);
           _result = _stripInternalOutputFields(_result);
           if (_builtArtifacts) _result.$artifacts = _builtArtifacts;
         }

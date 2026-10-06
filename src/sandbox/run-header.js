@@ -1888,13 +1888,26 @@ const $meta = function(metadataKey, metadataValue) {
  * @nodal-param outputKeyOrObject: Output key to set, or an object containing several output keys.
  * @nodal-param outputValue: Value to store when the first input is a single key.
  */
+const __setOutputProperty = function(key, value) {
+  Object.defineProperty(_outputData, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+};
+
 const $setOutput = function(outputKeyOrObject, outputValue) {
   __emitAction('set', outputKeyOrObject && typeof outputKeyOrObject === 'object' && !Array.isArray(outputKeyOrObject) ? Object.keys(outputKeyOrObject).join(', ') : String(outputKeyOrObject));
   if (outputKeyOrObject && typeof outputKeyOrObject === 'object' && !Array.isArray(outputKeyOrObject)) {
-    Object.assign(_outputData, outputKeyOrObject);
+    for (const key of Reflect.ownKeys(outputKeyOrObject)) {
+      const descriptor = Object.getOwnPropertyDescriptor(outputKeyOrObject, key);
+      if (!descriptor?.enumerable) continue;
+      __setOutputProperty(key, 'value' in descriptor ? descriptor.value : Reflect.get(outputKeyOrObject, key));
+    }
     return;
   }
-  _outputData[outputKeyOrObject] = outputValue;
+  __setOutputProperty(outputKeyOrObject, outputValue);
 };
 
 /* @help Selectors
@@ -4601,6 +4614,20 @@ const __selectorButtonType = function(value) {
   return buttonType;
 };
 
+const __isElementHandle = function(value) {
+  return !!value
+    && typeof value === 'object'
+    && typeof value.evaluate === 'function'
+    && typeof value.isVisible === 'function';
+};
+
+const __assertElementHandles = function(values) {
+  const invalidIndex = values.findIndex(value => !__isElementHandle(value));
+  if (invalidIndex >= 0) {
+    throw new TypeError('selectorOrHandle contains a value at index ' + invalidIndex + ' that is not an ElementHandle.');
+  }
+};
+
 // Reads offsetX / offsetY from click options. Returns null when neither is set
 // (null, undefined, empty or 0), which keeps the regular click on the element.
 // Numeric strings coming from the nodal editor are accepted.
@@ -4675,13 +4702,21 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   };
 
   if (Array.isArray(selectorOrHandle)) {
+    __assertElementHandles(selectorOrHandle);
     const candidates = await __filterCandidates(selectorOrHandle.slice());
     return __pickFromCandidates(candidates, '(handle array)');
   }
 
   if (typeof selectorOrHandle === 'object' && selectorOrHandle !== null) {
+    if (!__isElementHandle(selectorOrHandle)) {
+      throw new TypeError('selectorOrHandle must be a CSS selector, an ElementHandle, or an array of ElementHandle.');
+    }
     const visible = await selectorOrHandle.isVisible().catch(() => true);
     return many ? [selectorOrHandle] : { handle: selectorOrHandle, visible };
+  }
+
+  if (typeof selectorOrHandle !== 'string') {
+    throw new TypeError('selectorOrHandle must be a CSS selector, an ElementHandle, or an array of ElementHandle.');
   }
 
   const selector = selectorOrHandle;

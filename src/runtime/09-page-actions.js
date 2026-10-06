@@ -173,12 +173,25 @@ const $meta = function(metadataKey, metadataValue) {
  * @nodal-param outputKeyOrObject: Output key to set, or an object containing several output keys.
  * @nodal-param outputValue: Value to store when the first input is a single key.
  */
+const __setOutputProperty = function(key, value) {
+  Object.defineProperty(_outputData, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+};
+
 const $setOutput = function(outputKeyOrObject, outputValue) {
   __emitAction('set', outputKeyOrObject && typeof outputKeyOrObject === 'object' && !Array.isArray(outputKeyOrObject) ? Object.keys(outputKeyOrObject).join(', ') : String(outputKeyOrObject));
   if (outputKeyOrObject && typeof outputKeyOrObject === 'object' && !Array.isArray(outputKeyOrObject)) {
-    Object.assign(_outputData, outputKeyOrObject);
+    for (const key of Reflect.ownKeys(outputKeyOrObject)) {
+      const descriptor = Object.getOwnPropertyDescriptor(outputKeyOrObject, key);
+      if (!descriptor?.enumerable) continue;
+      __setOutputProperty(key, 'value' in descriptor ? descriptor.value : Reflect.get(outputKeyOrObject, key));
+    }
     return;
   }
-  _outputData[outputKeyOrObject] = outputValue;
+  __setOutputProperty(outputKeyOrObject, outputValue);
 };
 

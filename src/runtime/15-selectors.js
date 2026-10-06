@@ -71,6 +71,20 @@ const __selectorButtonType = function(value) {
   return buttonType;
 };
 
+const __isElementHandle = function(value) {
+  return !!value
+    && typeof value === 'object'
+    && typeof value.evaluate === 'function'
+    && typeof value.isVisible === 'function';
+};
+
+const __assertElementHandles = function(values) {
+  const invalidIndex = values.findIndex(value => !__isElementHandle(value));
+  if (invalidIndex >= 0) {
+    throw new TypeError('selectorOrHandle contains a value at index ' + invalidIndex + ' that is not an ElementHandle.');
+  }
+};
+
 // Reads offsetX / offsetY from click options. Returns null when neither is set
 // (null, undefined, empty or 0), which keeps the regular click on the element.
 // Numeric strings coming from the nodal editor are accepted.
@@ -145,13 +159,21 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   };
 
   if (Array.isArray(selectorOrHandle)) {
+    __assertElementHandles(selectorOrHandle);
     const candidates = await __filterCandidates(selectorOrHandle.slice());
     return __pickFromCandidates(candidates, '(handle array)');
   }
 
   if (typeof selectorOrHandle === 'object' && selectorOrHandle !== null) {
+    if (!__isElementHandle(selectorOrHandle)) {
+      throw new TypeError('selectorOrHandle must be a CSS selector, an ElementHandle, or an array of ElementHandle.');
+    }
     const visible = await selectorOrHandle.isVisible().catch(() => true);
     return many ? [selectorOrHandle] : { handle: selectorOrHandle, visible };
+  }
+
+  if (typeof selectorOrHandle !== 'string') {
+    throw new TypeError('selectorOrHandle must be a CSS selector, an ElementHandle, or an array of ElementHandle.');
   }
 
   const selector = selectorOrHandle;

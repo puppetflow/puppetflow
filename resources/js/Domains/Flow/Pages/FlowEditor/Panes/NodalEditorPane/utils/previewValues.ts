@@ -67,12 +67,28 @@ export const parseLiteralPreviewValue = (value: string) => {
     }
 };
 
-export const coerceJsonPreviewValue = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(coerceJsonPreviewValue);
-    if (isRecord(value)) {
-        return Object.fromEntries(
-            Object.entries(value).map(([key, item]) => [key, coerceJsonPreviewValue(item)]),
-        );
+export const coerceJsonPreviewValue = (
+    value: unknown,
+    seen = new WeakMap<object, unknown>(),
+): unknown => {
+    if (value && typeof value === 'object') {
+        const prototype = Object.getPrototypeOf(value);
+        const isPlainObject = prototype === null
+            || (Object.getPrototypeOf(prototype) === null && prototype.constructor?.name === 'Object');
+        if (!Array.isArray(value) && !isPlainObject) return value;
+        const cached = seen.get(value);
+        if (cached !== undefined) return cached;
+        const clone: unknown[] | Record<PropertyKey, unknown> = Array.isArray(value)
+            ? new Array(value.length)
+            : Object.create(prototype);
+        seen.set(value, clone);
+        for (const key of Reflect.ownKeys(value)) {
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (!descriptor?.enumerable) continue;
+            if ('value' in descriptor) descriptor.value = coerceJsonPreviewValue(descriptor.value, seen);
+            Object.defineProperty(clone, key, descriptor);
+        }
+        return clone;
     }
     if (typeof value !== 'string') return value;
 
@@ -82,5 +98,5 @@ export const coerceJsonPreviewValue = (value: unknown): unknown => {
     if (trimmed === 'null') return null;
     if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed);
     const parsedLiteral = parseLiteralPreviewValue(trimmed);
-    return parsedLiteral === undefined ? value : coerceJsonPreviewValue(parsedLiteral);
+    return parsedLiteral === undefined ? value : coerceJsonPreviewValue(parsedLiteral, seen);
 };

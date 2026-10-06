@@ -508,7 +508,7 @@ export const formatParameterForCompiler = (
                 return formatJsonExpressionForCompiler(normalized.value, options);
             }
 
-            return formatFixedLiteral(normalized.value || '{}');
+            return `JSON.parse(${JSON.stringify(normalized.value || '{}')})`;
         }
 
         const fields = normalized.fields
@@ -543,10 +543,25 @@ export const formatParameterForCompiler = (
 const formatJsonExpressionForCompiler = (value: string, options: { awaitExpressions?: boolean } = {}) => {
     const rendered = `(async () => {
         const rendered = await $renderExpression(${JSON.stringify(value || '{}')});
+        const seen = new WeakMap();
         const coerceJsonValue = (item) => {
-            if (Array.isArray(item)) return item.map(coerceJsonValue);
             if (item && typeof item === 'object') {
-                return Object.fromEntries(Object.entries(item).map(([key, value]) => [key, coerceJsonValue(value)]));
+                const prototype = Object.getPrototypeOf(item);
+                const isPlainObject = prototype === null
+                    || (Object.getPrototypeOf(prototype) === null && prototype.constructor?.name === 'Object');
+                if (!Array.isArray(item) && !isPlainObject) return item;
+                if (seen.has(item)) return seen.get(item);
+                const clone = Array.isArray(item)
+                    ? new Array(item.length)
+                    : Object.create(prototype);
+                seen.set(item, clone);
+                for (const key of Reflect.ownKeys(item)) {
+                    const descriptor = Object.getOwnPropertyDescriptor(item, key);
+                    if (!descriptor?.enumerable) continue;
+                    if ('value' in descriptor) descriptor.value = coerceJsonValue(descriptor.value);
+                    Object.defineProperty(clone, key, descriptor);
+                }
+                return clone;
             }
             if (typeof item !== 'string') return item;
             const trimmed = item.trim();
