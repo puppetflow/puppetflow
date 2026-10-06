@@ -4,6 +4,7 @@ import {
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import { analyzeStructuredGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import {
     getEdgePolyline,
     getPointDistance,
@@ -189,7 +190,10 @@ export function useCanvasPointerSelectionInteractions({
                     if (edgeIndex >= 0) nextEdges.splice(edgeIndex, 1);
                 });
 
-                if (nextEdges.length !== edges.length) {
+                if (
+                    nextEdges.length !== edges.length
+                    && analyzeStructuredGraph(nodes, nextEdges).valid
+                ) {
                     recordHistory();
                     setEdges(nextEdges);
                 }

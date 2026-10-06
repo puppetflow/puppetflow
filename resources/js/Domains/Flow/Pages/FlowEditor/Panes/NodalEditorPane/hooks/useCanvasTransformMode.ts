@@ -8,6 +8,7 @@ import type {
     Point,
     TransformMode,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import { BREAK_LOOP_NODE_NAME } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import { getNodeStartPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/movement';
 import { isSingleHandleNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 
@@ -81,7 +82,11 @@ export function useCanvasTransformMode({
         if (readOnly || canvasMode !== 'canvas') return;
 
         const selectedNodes = nodes.filter(node => selectedNodeIds.has(node.id) && !node.system);
-        if (selectedNodes.length !== 2 || !selectedNodes.every(isSingleHandleNode)) return;
+        if (
+            selectedNodes.length !== 2
+            || !selectedNodes.every(isSingleHandleNode)
+            || selectedNodes.some(node => node.entry.name === BREAK_LOOP_NODE_NAME)
+        ) return;
 
         const [firstNode, secondNode] = selectedNodes;
         const dx = secondNode.x - firstNode.x;

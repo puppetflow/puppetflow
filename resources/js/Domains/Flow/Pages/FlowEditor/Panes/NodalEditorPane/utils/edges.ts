@@ -1,5 +1,7 @@
 import type { CanvasEdge, CanvasNode, Point } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import {
+    AI_TOOL_PORT,
+    BREAK_LOOP_NODE_NAME,
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
     isConditionalBranchNodeName,
@@ -26,7 +28,7 @@ export function edgeTargetPort(edge: Pick<CanvasEdge, 'targetPort'>): string {
     return edge.targetPort ?? DEFAULT_INPUT_PORT;
 }
 
-type TopologyNode = Pick<CanvasNode, 'id' | 'entry' | 'scopeId'> | {
+export type TopologyNode = Pick<CanvasNode, 'id' | 'entry' | 'scopeId'> | {
     id: string;
     name: string;
     scopeId?: string;
@@ -43,6 +45,10 @@ export type StructuredGraphAnalysis = {
     valid: boolean;
     joinsByIfNodeId: Map<string, string>;
     joinsByBranchPort: Map<string, string>;
+};
+
+type StructuredGraphAnalysisOptions = {
+    validateBreakPlacement?: boolean;
 };
 
 const nodeName = (node: TopologyNode): string => 'name' in node ? node.name : node.entry.name;
@@ -103,10 +109,63 @@ const reachable = (topology: Topology, start: string | null, stop?: string, incl
         const nodeId = queue[index];
         if (!nodeId || nodeId === stop || seen.has(nodeId)) continue;
         seen.add(nodeId);
-        const outgoing = includeBranches ? topology.outgoing.get(nodeId) ?? [] : executionOutgoing(topology, nodeId);
+        const outgoing = includeBranches
+            ? (topology.outgoing.get(nodeId) ?? []).filter(edge => !edgeSourcePort(edge).startsWith('flow-'))
+            : executionOutgoing(topology, nodeId);
         outgoing.forEach(edge => queue.push(edge.targetNodeId));
     }
     return seen;
+};
+
+const collectLoopBodies = (topology: Topology): Map<string, Set<string>> => {
+    const bodies = new Map<string, Set<string>>();
+    topology.nodes.forEach(node => {
+        if (nodeName(node) !== LOOP_NODE_NAME) return;
+        const bodyStart = topology.edgeByOutput.get(outputKey(node.id, 'loop'))?.targetNodeId ?? null;
+        const doneStart = topology.edgeByOutput.get(outputKey(node.id, 'done'))?.targetNodeId;
+        bodies.set(node.id, reachable(topology, bodyStart, doneStart, true));
+    });
+    return bodies;
+};
+
+const collectLoopBodyNodeIds = (topology: Topology): Set<string> => {
+    const bodyNodeIds = new Set<string>();
+    collectLoopBodies(topology).forEach(body => body.forEach(nodeId => bodyNodeIds.add(nodeId)));
+    return bodyNodeIds;
+};
+
+export const getLoopBodyNodeIds = (nodes: TopologyNode[], edges: CanvasEdge[]): Set<string> => {
+    return collectLoopBodyNodeIds(buildTopology(nodes, edges).topology);
+};
+
+export const getLoopOwnerNodeIds = (nodes: TopologyNode[], edges: CanvasEdge[]): Map<string, string> => {
+    const topology = buildTopology(nodes, edges).topology;
+    const bodies = collectLoopBodies(topology);
+    const ownerByNodeId = new Map<string, string>();
+    const bodyNodeIds = new Set<string>();
+    bodies.forEach(body => body.forEach(nodeId => bodyNodeIds.add(nodeId)));
+
+    bodyNodeIds.forEach(nodeId => {
+        const candidates = [...bodies.entries()].filter(([, body]) => body.has(nodeId));
+        const owner = candidates.find(([loopId, body]) => (
+            !candidates.some(([otherLoopId]) => otherLoopId !== loopId && body.has(otherLoopId))
+        ));
+        if (owner) ownerByNodeId.set(nodeId, owner[0]);
+    });
+
+    return ownerByNodeId;
+};
+
+export const isLoopBodyEdge = (
+    nodes: TopologyNode[],
+    edges: CanvasEdge[],
+    edge: Pick<CanvasEdge, 'sourceNodeId' | 'sourcePort'>,
+): boolean => {
+    const sourcePort = edge.sourcePort ?? DEFAULT_OUTPUT_PORT;
+    if (sourcePort.startsWith('flow-') || sourcePort === AI_TOOL_PORT) return false;
+    const source = nodes.find(node => node.id === edge.sourceNodeId);
+    return (source && nodeName(source) === LOOP_NODE_NAME && sourcePort === 'loop')
+        || getLoopBodyNodeIds(nodes, edges).has(edge.sourceNodeId);
 };
 
 const firstCommonJoin = (topology: Topology, left: string | null, right: string | null): string | null => {
@@ -141,9 +200,22 @@ const everyPathReaches = (topology: Topology, start: string | null, join: string
     return visit(start);
 };
 
-export function analyzeStructuredGraph(nodes: TopologyNode[], edges: CanvasEdge[]): StructuredGraphAnalysis {
+export function analyzeStructuredGraph(
+    nodes: TopologyNode[],
+    edges: CanvasEdge[],
+    options: StructuredGraphAnalysisOptions = {},
+): StructuredGraphAnalysis {
     const { topology, valid: indexedGraphIsValid } = buildTopology(nodes, edges);
     let valid = indexedGraphIsValid;
+    const loopBodyNodeIds = collectLoopBodyNodeIds(topology);
+    if (options.validateBreakPlacement !== false) {
+        topology.nodes.forEach(node => {
+            if (
+                nodeName(node) === BREAK_LOOP_NODE_NAME
+                && !loopBodyNodeIds.has(node.id)
+            ) valid = false;
+        });
+    }
     const joinsByIfNodeId = new Map<string, string>();
     const joinsByBranchPort = new Map<string, string>();
     const allowedPortsByJoin = new Map<string, Map<string, Set<string>>>();
@@ -211,6 +283,7 @@ export function replaceEdgesWithStructuredJoins(
     edges: CanvasEdge[],
     additions: CanvasEdge[],
     removeIds = new Set<string>(),
+    analysisOptions: StructuredGraphAnalysisOptions = {},
 ): CanvasEdge[] {
     const base = edges.filter(edge => (
         !removeIds.has(edge.id)
@@ -220,7 +293,7 @@ export function replaceEdgesWithStructuredJoins(
         ))
     ));
     const appended = [...base, ...additions];
-    if (analyzeStructuredGraph(nodes, appended).valid) return appended;
+    if (analyzeStructuredGraph(nodes, appended, analysisOptions).valid) return appended;
 
     if (additions.some(addition => base.filter(edge => edge.targetNodeId === addition.targetNodeId).length >= 2)) {
         return edges;
@@ -229,7 +302,7 @@ export function replaceEdgesWithStructuredJoins(
         ...base.filter(edge => !additions.some(addition => edge.targetNodeId === addition.targetNodeId)),
         ...additions,
     ];
-    return analyzeStructuredGraph(nodes, replaced).valid ? replaced : edges;
+    return analyzeStructuredGraph(nodes, replaced, analysisOptions).valid ? replaced : edges;
 }
 
 // Connecting onto a busy handle replaces what was there, on either side: the
@@ -272,9 +345,16 @@ export function insertNodeIntoEdge(
 }
 
 export function normalizeStructuredEdges(nodes: TopologyNode[], edges: CanvasEdge[]): CanvasEdge[] {
-    if (analyzeStructuredGraph(nodes, edges).valid) return edges;
+    const analysisOptions = { validateBreakPlacement: false };
+    if (analyzeStructuredGraph(nodes, edges, analysisOptions).valid) return edges;
     return edges.reduce<CanvasEdge[]>((accepted, edge) => (
-        connectEdgeWithStructuredJoins(nodes, accepted, edge)
+        replaceEdgesWithStructuredJoins(
+            nodes,
+            accepted,
+            [edge],
+            new Set(),
+            analysisOptions,
+        )
     ), []);
 }
 

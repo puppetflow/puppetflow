@@ -20,7 +20,7 @@ import {
     getUnavailableSniffProfileIssue,
     getUnavailableStopwatchIssue,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
-import { canDeactivateNode, EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
+import { canDeactivateNode, canDuplicateNode, EMPTY_OUTPUT_PORT_SET } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import { useNodeValidationResources } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/NodeValidationContext';
 import type { ReferenceDisplay } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/DataInspector/referenceDisplays';
 import type { EditableFlowResourceKind } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/contexts/QuickRequirementCreationContext';
@@ -298,16 +298,18 @@ export default function CanvasNodeCard({
                                         <kbd><b>M</b></kbd>
                                     </SharedS.NodeHoverDropdownItem>
                                 )}
-                                <SharedS.NodeHoverDropdownItem
-                                    type="button"
-                                    onClick={() => onDuplicate(node)}
-                                >
-                                    <span>
-                                        <Icon icon="lucide:copy" width={12} height={12} />
-                                        Duplicate
-                                    </span>
-                                    <kbd><b>D</b></kbd>
-                                </SharedS.NodeHoverDropdownItem>
+                                {canDuplicateNode(node) && (
+                                    <SharedS.NodeHoverDropdownItem
+                                        type="button"
+                                        onClick={() => onDuplicate(node)}
+                                    >
+                                        <span>
+                                            <Icon icon="lucide:copy" width={12} height={12} />
+                                            Duplicate
+                                        </span>
+                                        <kbd><b>D</b></kbd>
+                                    </SharedS.NodeHoverDropdownItem>
+                                )}
                                 <SharedS.NodeHoverDropdownItem
                                     type="button"
                                     $danger

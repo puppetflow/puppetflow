@@ -5,6 +5,7 @@ import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { useActiveOptionScroll } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/hooks/useActiveOptionScroll';
 import {
+    BREAK_LOOP_NODE_NAME,
     getNodeInputPorts,
     getNodeOutputPorts,
     NODE_CATEGORIES,
@@ -16,14 +17,17 @@ import {
     VISUAL_HELP_ENTRIES,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
 import { getHelpEntryActionsWidth, getHelpEntryDocumentationPath } from '@/Domains/Flow/Pages/FlowEditor/utils/helpDocumentation';
-import type { PendingConnectionTarget, PendingEdgeInsertion } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { CanvasEdge, CanvasNode, PendingConnectionTarget, PendingEdgeInsertion } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { isEdgeInsertableEntry } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
+import { isLoopBodyEdge } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import * as S from './styled';
 
 interface NodePickerProps {
     search: string;
     activeCategoryKey: string;
     visibleEntries: HelpEntryDef[];
+    nodes: CanvasNode[];
+    edges: CanvasEdge[];
     pendingConnectionTarget: PendingConnectionTarget | null;
     pendingEdgeInsertion: PendingEdgeInsertion | null;
     onSearchChange: (value: string) => void;
@@ -36,6 +40,8 @@ export default function NodePicker({
     search,
     activeCategoryKey,
     visibleEntries,
+    nodes,
+    edges,
     pendingConnectionTarget,
     pendingEdgeInsertion,
     onSearchChange,
@@ -45,10 +51,19 @@ export default function NodePicker({
 }: NodePickerProps) {
     const hasSearch = Boolean(search.trim());
     const toolConnection = pendingConnectionTarget?.connectionType === 'ai_tool';
+    const breakLoopAllowed = useMemo(() => {
+        if (!pendingEdgeInsertion) return false;
+        return isLoopBodyEdge(nodes, edges, pendingEdgeInsertion);
+    }, [edges, nodes, pendingEdgeInsertion]);
     const compatibleEntries = useMemo(() => {
-        if (pendingEdgeInsertion) return visibleEntries.filter(isEdgeInsertableEntry);
-        if (!pendingConnectionTarget) return visibleEntries;
-        const candidates = toolConnection ? VISUAL_HELP_ENTRIES : visibleEntries;
+        const contextEntries = visibleEntries.filter(entry => (
+            entry.name !== BREAK_LOOP_NODE_NAME || breakLoopAllowed
+        ));
+        if (pendingEdgeInsertion) return contextEntries.filter(isEdgeInsertableEntry);
+        if (!pendingConnectionTarget) return contextEntries;
+        const candidates = toolConnection
+            ? VISUAL_HELP_ENTRIES.filter(entry => entry.name !== BREAK_LOOP_NODE_NAME)
+            : contextEntries;
         const matchingPorts = (entry: HelpEntryDef) => (
             pendingConnectionTarget.fromSide === 'output'
                 ? getNodeInputPorts(entry.name)
@@ -65,7 +80,7 @@ export default function NodePicker({
             || entry.name.toLowerCase().includes(query)
             || (entry.nodalDesc ?? entry.desc).toLowerCase().includes(query)
         ));
-    }, [pendingConnectionTarget, pendingEdgeInsertion, search, toolConnection, visibleEntries]);
+    }, [breakLoopAllowed, pendingConnectionTarget, pendingEdgeInsertion, search, toolConnection, visibleEntries]);
     const pickerCategories = toolConnection
         ? NODE_CATEGORIES.filter(category => category.key === 'ai')
         : NODE_CATEGORIES;

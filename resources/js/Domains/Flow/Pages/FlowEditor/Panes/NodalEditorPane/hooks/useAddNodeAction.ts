@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import {
     AI_TOOL_PORT,
+    BREAK_LOOP_NODE_NAME,
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
     FUNCTION_DECLARATION_NODE_NAME,
@@ -20,6 +21,7 @@ import {
     connectEdgeWithStructuredJoins,
     getEdgeInsertionLayout,
     insertNodeIntoEdge,
+    isLoopBodyEdge,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { snapCanvasPoint } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/grid';
 import { EMPTY_FUNCTION_ARGUMENTS } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/functionArguments';
@@ -77,6 +79,9 @@ export function useAddNodeAction({
 }: UseAddNodeActionOptions) {
     return useCallback((entry: HelpEntryDef) => {
         if (readOnly) return;
+        if (entry.name === BREAK_LOOP_NODE_NAME) {
+            if (!pendingEdgeInsertion || !isLoopBodyEdge(nodes, edges, pendingEdgeInsertion)) return;
+        }
         const rect = canvasRef.current?.getBoundingClientRect();
         const centerX = rect ? rect.width / 2 : 360;
         const centerY = rect ? rect.height / 2 : 240;

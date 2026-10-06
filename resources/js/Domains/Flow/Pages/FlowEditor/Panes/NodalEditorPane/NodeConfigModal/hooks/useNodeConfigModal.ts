@@ -11,6 +11,7 @@ import {
 import {
     getLoopParameterKeysForMode,
     LOOP_NODE_NAME,
+    normalizeLoopMode,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import {
@@ -104,7 +105,7 @@ export const resolveNodeConfigEntry = (node: CanvasNode) => {
     const entry = !node.system && catalogEntry.category === 'Custom' ? node.entry : catalogEntry;
     const args = getSignatureArgs(entry.signature);
     const loopMode = entry.name === LOOP_NODE_NAME
-        ? normalizeScalarParameterValue(node.values.mode).value || 'items'
+        ? normalizeLoopMode(normalizeScalarParameterValue(node.values.mode).value)
         : null;
     const visibleArgs = entry.name === LOOP_NODE_NAME
         ? args.filter(arg => getLoopParameterKeysForMode(loopMode ?? 'items').includes(
@@ -280,7 +281,10 @@ export default function useNodeConfigModal({
                 && asRecord(staticPreviewNodes?.[sourceNode.id])?.$loop !== undefined
             ));
             const loopNode = previewNodes[loopIndex]?.node;
-            if (!loopNode || (normalizeScalarParameterValue(loopNode.values.mode).value || 'items') !== 'items') {
+            if (
+                !loopNode
+                || normalizeLoopMode(normalizeScalarParameterValue(loopNode.values.mode).value) !== 'items'
+            ) {
                 return undefined;
             }
             const { $loop: _loop, ...loopBase } = asRecord(staticValues[loopIndex]) ?? {};

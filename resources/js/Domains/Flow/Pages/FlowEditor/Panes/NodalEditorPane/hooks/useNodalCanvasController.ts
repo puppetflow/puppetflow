@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { BREAK_LOOP_NODE_NAME } from '../utils/constants';
 import { isSingleHandleNode } from '../utils/node';
 import { useCanvasViewActions } from './useCanvasViewActions';
 import type { NodalGraphController } from './useNodalGraphController';
@@ -90,7 +91,8 @@ export function useNodalCanvasController({
     );
     const canCopySelection = selectedEditableNodes.length > 0;
     const canSwapSelection = selectedEditableNodes.length === 2
-        && selectedEditableNodes.every(isSingleHandleNode);
+        && selectedEditableNodes.every(isSingleHandleNode)
+        && selectedEditableNodes.every(node => node.entry.name !== BREAK_LOOP_NODE_NAME);
 
     return {
         canvasViewActions,

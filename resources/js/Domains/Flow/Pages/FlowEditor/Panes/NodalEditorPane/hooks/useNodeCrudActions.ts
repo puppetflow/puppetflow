@@ -1,7 +1,11 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import { formatEntryLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
-import { collectAttachedNodeIds } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
+import { BREAK_LOOP_NODE_NAME } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
+import {
+    collectAttachedNodeIds,
+    getLoopOwnerNodeIds,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { normalizeScalarParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/expression';
 import { nodeDisplayLabel, uniqueNodeLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 import { toFunctionIdentifier } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
@@ -107,11 +111,30 @@ export function useNodeCrudActions({
         });
         if (removableIds.size === 0) return;
 
+        const previousLoopOwnerByNodeId = getLoopOwnerNodeIds(nodes, edges);
+        let nextEdges = reconnectDeletedLinearNodes(nodes, edges, removableIds);
+        const remainingNodes = nodes.filter(node => !removableIds.has(node.id));
+        const loopOwnerByNodeId = getLoopOwnerNodeIds(remainingNodes, nextEdges);
+        let removedOrphanBreak = false;
+        remainingNodes.forEach(node => {
+            if (
+                node.entry.name === BREAK_LOOP_NODE_NAME
+                && previousLoopOwnerByNodeId.has(node.id)
+                && previousLoopOwnerByNodeId.get(node.id) !== loopOwnerByNodeId.get(node.id)
+            ) {
+                removableIds.add(node.id);
+                removedOrphanBreak = true;
+            }
+        });
+        if (removedOrphanBreak) {
+            nextEdges = reconnectDeletedLinearNodes(nodes, edges, removableIds);
+        }
+
         recordHistory();
         setNodes(current => current
             .filter(node => !removableIds.has(node.id))
             .map(node => orphanedIds.has(node.id) ? { ...node, scopeId: undefined } : node));
-        setEdges(current => reconnectDeletedLinearNodes(nodes, current, removableIds));
+        setEdges(nextEdges);
         setSelectedNodeIds(current => new Set(
             [...current].filter(nodeId => !removableIds.has(nodeId)),
         ));

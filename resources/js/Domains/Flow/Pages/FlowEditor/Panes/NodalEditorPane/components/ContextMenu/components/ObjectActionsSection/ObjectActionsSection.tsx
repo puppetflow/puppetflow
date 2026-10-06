@@ -7,7 +7,7 @@ import {
     EditNodeShortcut,
     DeactivateShortcut,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/components/ContextMenu/components/MenuShortcuts/MenuShortcuts';
-import { canDeactivateNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
+import { canDeactivateNode, canDuplicateNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
 
 interface ObjectActionsSectionProps {
     node: CanvasNode;
@@ -61,7 +61,7 @@ export default function ObjectActionsSection({
                     onSelect={() => run(onCopySelection)}
                 />
             )}
-            {!readOnly && (
+            {!readOnly && canDuplicateNode(node) && (
                 <MenuItem
                     icon="lucide:copy-plus"
                     label="Duplicate"

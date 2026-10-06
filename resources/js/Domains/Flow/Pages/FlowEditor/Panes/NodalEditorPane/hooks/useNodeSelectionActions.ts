@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import {
+    BREAK_LOOP_NODE_NAME,
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
@@ -34,7 +35,11 @@ export function useNodeSelectionActions({
         if (readOnly) return;
 
         const selectedNodes = nodes.filter(node => selectedNodeIds.has(node.id) && !node.system);
-        if (selectedNodes.length !== 2 || !selectedNodes.every(isSingleHandleNode)) return;
+        if (
+            selectedNodes.length !== 2
+            || !selectedNodes.every(isSingleHandleNode)
+            || selectedNodes.some(node => node.entry.name === BREAK_LOOP_NODE_NAME)
+        ) return;
 
         const [firstNode, secondNode] = selectedNodes;
         recordHistory();

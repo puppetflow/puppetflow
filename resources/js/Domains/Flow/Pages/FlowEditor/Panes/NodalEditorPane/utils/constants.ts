@@ -21,6 +21,7 @@ export const isConditionalBranchNodeName = (name: string): boolean => (
     || name === DATA_TABLE_ROW_DOES_NOT_EXIST_NODE_NAME
 );
 export const LOOP_NODE_NAME = 'Loop';
+export const BREAK_LOOP_NODE_NAME = 'Break Loop';
 export const MERGE_NODE_NAME = 'Merge';
 export const NO_OP_NODE_NAME = 'No-op';
 export const FILTER_NODE_NAME = 'Filter';
@@ -35,13 +36,21 @@ export const DEFAULT_INPUT_PORT = 'input';
 export const DEFAULT_OUTPUT_PORT = 'output';
 
 const LOOP_PARAMETER_KEYS_BY_MODE = {
-    items: ['mode', 'items'],
-    iterations: ['mode', 'iterations'],
-    condition: ['mode', 'condition', 'maxIterations'],
+    items: ['mode', 'items', 'options'],
+    iterations: ['mode', 'iterations', 'options'],
+    condition: ['mode', 'condition', 'maxIterations', 'options'],
 } as const;
 
+export type LoopMode = keyof typeof LOOP_PARAMETER_KEYS_BY_MODE;
+
+export const normalizeLoopMode = (mode: string | null | undefined): LoopMode => {
+    return typeof mode === 'string' && Object.prototype.hasOwnProperty.call(LOOP_PARAMETER_KEYS_BY_MODE, mode)
+        ? mode as LoopMode
+        : 'items';
+};
+
 export const getLoopParameterKeysForMode = (mode: string): readonly string[] => {
-    return LOOP_PARAMETER_KEYS_BY_MODE[mode as keyof typeof LOOP_PARAMETER_KEYS_BY_MODE] ?? LOOP_PARAMETER_KEYS_BY_MODE.items;
+    return LOOP_PARAMETER_KEYS_BY_MODE[normalizeLoopMode(mode)];
 };
 
 export const NODE_CARD_WIDTH = 72;
@@ -137,7 +146,7 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
     },
     {
         name: LOOP_NODE_NAME,
-        signature: `${LOOP_NODE_NAME}(mode, items, iterations, condition, maxIterations)`,
+        signature: `${LOOP_NODE_NAME}(mode, items, iterations, condition, maxIterations, options?)`,
         desc: 'Repeat a branch over items, a fixed iteration count, or until a condition stops it.',
         aliases: ['repeat items', 'iterate', 'for each'],
         category: 'Control',
@@ -181,7 +190,38 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
                 valueType: 'number',
                 required: false,
             },
+            options: {
+                label: 'Options',
+                description: 'Configure optional limits for this loop.',
+                input: 'object',
+                valueType: 'object',
+                required: false,
+                objectFields: {
+                    timeout: {
+                        label: 'Timeout',
+                        description: 'Stop the loop after this duration in milliseconds. The timeout is checked between iterations.',
+                        placeholder: '30000',
+                        valueType: 'number',
+                        required: false,
+                    },
+                    limits: {
+                        label: 'Limits',
+                        description: 'Items mode only. Stop after this number of iterations.',
+                        placeholder: '100',
+                        valueType: 'number',
+                        required: false,
+                    },
+                },
+            },
         },
+    },
+    {
+        name: BREAK_LOOP_NODE_NAME,
+        signature: `${BREAK_LOOP_NODE_NAME}()`,
+        desc: 'Stop the nearest active loop and continue through its Done path.',
+        aliases: ['break loop', 'exit loop', 'stop loop'],
+        category: 'Control',
+        availability: 'nodal',
     },
     {
         name: MERGE_NODE_NAME,
@@ -352,7 +392,7 @@ const CONTROL_NODE_CATEGORY: NodeCategory = {
     description: 'Branch, loop, and shape run paths.',
     icon: 'lucide:git-branch',
     color: '#22c55e',
-    priority: [IF_ELSE_NODE_NAME, LOOP_NODE_NAME, NO_OP_NODE_NAME],
+    priority: [IF_ELSE_NODE_NAME, LOOP_NODE_NAME, BREAK_LOOP_NODE_NAME, NO_OP_NODE_NAME],
     match: entry => entry.category === 'Control',
 };
 
@@ -397,6 +437,7 @@ export const NODE_ICON_BY_NAME: Record<string, string> = {
     Code: 'lucide:code-2',
     [IF_ELSE_NODE_NAME]: 'lucide:git-branch',
     [LOOP_NODE_NAME]: 'lucide:repeat',
+    [BREAK_LOOP_NODE_NAME]: 'lucide:circle-stop',
     [MERGE_NODE_NAME]: 'lucide:merge',
     [NO_OP_NODE_NAME]: 'lucide:chevrons-right',
     [FILTER_NODE_NAME]: 'lucide:filter',

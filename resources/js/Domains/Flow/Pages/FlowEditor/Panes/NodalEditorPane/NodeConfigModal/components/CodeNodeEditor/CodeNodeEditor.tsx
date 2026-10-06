@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, type DragEvent } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue';
@@ -30,6 +30,9 @@ const CODE_NODE_EDITOR_OPTIONS = {
     padding: { top: 10, bottom: 10 },
     fixedOverflowWidgets: true,
     contextmenu: false,
+    // Monaco's drop handler runs dropped text through its snippet escaper ("\$run...$0").
+    // Drops from the data inspector are inserted verbatim by the wrapper below instead.
+    dropIntoEditor: { enabled: false },
     bracketPairColorization: { enabled: true },
     wordBasedSuggestions: 'off' as const,
     quickSuggestions: { strings: true, other: true, comments: false },
@@ -99,9 +102,41 @@ export default function CodeNodeEditor({
         registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
     };
 
+    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+        if (readOnly) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+    };
+
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const text = event.dataTransfer.getData('text/plain');
+        const editorInstance = editorRef.current;
+        const model = editorInstance?.getModel();
+        if (readOnly || !text || !editorInstance || !model) return;
+
+        const position = editorInstance.getTargetAtClientPoint(event.clientX, event.clientY)?.position
+            ?? editorInstance.getPosition()
+            ?? model.getFullModelRange().getEndPosition();
+        editorInstance.pushUndoStop();
+        editorInstance.executeEdits('drop-path', [{
+            range: {
+                startLineNumber: position.lineNumber,
+                startColumn: position.column,
+                endLineNumber: position.lineNumber,
+                endColumn: position.column,
+            },
+            text,
+        }]);
+        editorInstance.pushUndoStop();
+        editorInstance.focus();
+    };
+
     return (
         <S.CodeNodeField>
-            <S.CodeNodeEditor>
+            <S.CodeNodeEditor onDragOver={handleDragOver} onDrop={handleDrop}>
                 <Editor
                     height="100%"
                     defaultLanguage="javascript"

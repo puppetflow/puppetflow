@@ -13,6 +13,7 @@ import CanvasMiniMap from './Canvas/CanvasMiniMap';
 import ContextMenu from './ContextMenu/ContextMenu';
 import NodePicker from './NodePicker/NodePicker';
 import type { NodalEditorPaneController } from '../hooks/useNodalEditorPaneController';
+import { analyzeStructuredGraph } from '../utils/edges';
 
 interface NodalEditorOverlaysProps {
     controller: NodalEditorPaneController;
@@ -120,6 +121,14 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
     const selectionDeactivationAction = selectedDeactivatableNodes.length === 0
         ? null
         : shouldDeactivateNodes(selectedDeactivatableNodes) ? 'deactivate' as const : 'activate' as const;
+    const canDuplicateSelection = useMemo(() => {
+        if (!canCopySelection) return false;
+        const selectedIds = new Set(selectedEditableNodes.map(node => node.id));
+        const selectedEdges = edges.filter(edge => (
+            selectedIds.has(edge.sourceNodeId) && selectedIds.has(edge.targetNodeId)
+        ));
+        return analyzeStructuredGraph(selectedEditableNodes, selectedEdges).valid;
+    }, [canCopySelection, edges, selectedEditableNodes]);
 
     return (
         <>
@@ -129,7 +138,7 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                     contextNode={contextNode}
                     canSelectAll={nodes.length > 0}
                     canCopySelection={canCopySelection}
-                    canDuplicateSelection={canCopySelection}
+                    canDuplicateSelection={canDuplicateSelection}
                     canDeleteSelection={canCopySelection}
                     canPasteHere={canPasteNodes}
                     selectionDeactivationAction={selectionDeactivationAction}
@@ -201,6 +210,8 @@ export default function NodalEditorOverlays({ controller }: NodalEditorOverlaysP
                     search={search}
                     activeCategoryKey={activeCategoryKey}
                     visibleEntries={visibleEntries}
+                    nodes={nodes}
+                    edges={edges}
                     pendingConnectionTarget={pendingConnectionTarget}
                     pendingEdgeInsertion={pendingEdgeInsertion}
                     onSearchChange={setSearch}

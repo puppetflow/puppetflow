@@ -72,7 +72,7 @@ const DOCUMENTATION_PAGE_GROUPS = [
 ];
 
 const CORE_VISUAL_NODE_NAMES = new Set([
-    'RUN', 'TERMINATE', 'FUNCTION', 'Code', 'Set', 'If / Else', 'Loop',
+    'RUN', 'TERMINATE', 'FUNCTION', 'Code', 'Set', 'If / Else', 'Loop', 'Break Loop',
     'Filter', 'Limit', 'Merge', 'No-op', 'Function', '__sticky_note',
 ]);
 

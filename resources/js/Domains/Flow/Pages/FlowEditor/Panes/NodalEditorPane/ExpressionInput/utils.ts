@@ -37,6 +37,9 @@ export const EXPRESSION_EDITOR_OPTIONS = {
     },
     fixedOverflowWidgets: true,
     contextmenu: false,
+    // Monaco's standalone build inserts dropped text through its snippet escaper ("\$run...$0").
+    // Drops from the data inspector are handled by the wrapping element instead.
+    dropIntoEditor: { enabled: false },
     guides: { indentation: false },
     bracketPairColorization: { enabled: true },
     wordBasedSuggestions: 'off' as const,

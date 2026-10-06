@@ -1,6 +1,6 @@
 import type { CanvasEdge, CanvasNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
-import { getNodeInputPorts, getNodeOutputPorts } from './constants';
+import { BREAK_LOOP_NODE_NAME, getNodeInputPorts, getNodeOutputPorts } from './constants';
 import { formatEntryLabel } from './catalog';
 
 export const EMPTY_OUTPUT_PORT_SET: ReadonlySet<string> = new Set();
@@ -8,6 +8,10 @@ export const EMPTY_OUTPUT_PORT_SET: ReadonlySet<string> = new Set();
 export function canDeactivateNode(node: CanvasNode): boolean {
     return !node.system
         && node.kind !== 'stickyNote';
+}
+
+export function canDuplicateNode(node: CanvasNode): boolean {
+    return !node.system && node.entry.name !== BREAK_LOOP_NODE_NAME;
 }
 
 export function shouldDeactivateNodes(nodes: readonly CanvasNode[]): boolean {

@@ -7,6 +7,7 @@ import {
     STICKY_NOTE_NODE_NAME,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
+    analyzeStructuredGraph,
     normalizeStructuredEdges,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { parseClipboardGraph, resolveGraphNodeEntry } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/graph';
@@ -76,6 +77,10 @@ export function useNodeClipboardActions({
                     && selectedEditableIds.has(edge.targetNodeId),
             ),
         };
+        if (!analyzeStructuredGraph(selectedGraph.nodes, selectedGraph.edges).valid) {
+            toast('The selected nodes cannot be copied outside their current flow context.', 'error');
+            return;
+        }
 
         copiedGraphRef.current = selectedGraph;
         setCanPasteNodes(true);
@@ -135,7 +140,6 @@ export function useNodeClipboardActions({
             ...node,
             values: remapNodeValuesReferences(node.values, idMap, labelMap),
         }));
-        const topologyNodes = [...nodes, ...nextNodes];
         const mappedEdges = pastedGraph.edges.flatMap<CanvasEdge>(edge => {
             const sourceNodeId = idMap.get(edge.sourceNodeId);
             const targetNodeId = idMap.get(edge.targetNodeId);
@@ -151,7 +155,11 @@ export function useNodeClipboardActions({
                 targetPort,
             }];
         });
-        const nextEdges = normalizeStructuredEdges(topologyNodes, mappedEdges);
+        const nextEdges = normalizeStructuredEdges(nextNodes, mappedEdges);
+        if (!analyzeStructuredGraph([...nodes, ...nextNodes], [...edges, ...nextEdges]).valid) {
+            toast('The pasted nodes are not valid in this flow context.', 'error');
+            return;
+        }
 
         recordHistory();
         setNodes(current => [...current, ...nextNodes]);
@@ -159,6 +167,7 @@ export function useNodeClipboardActions({
         setSelectedNodeIds(new Set(nextNodes.map(node => node.id)));
         toast(`${nextNodes.length} node${nextNodes.length > 1 ? 's' : ''} pasted`);
     }, [
+        edges,
         nodes,
         readOnly,
         recordHistory,

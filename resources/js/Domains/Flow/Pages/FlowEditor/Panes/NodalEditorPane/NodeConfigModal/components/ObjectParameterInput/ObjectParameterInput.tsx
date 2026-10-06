@@ -45,6 +45,7 @@ interface ObjectParameterInputProps {
     errorMessage?: string;
     validationIssues?: NodeValidationIssue[];
     addCustomFieldLabel?: string;
+    hiddenFieldKeys?: readonly string[];
     onRemove?: () => void;
     onChange: (value: ObjectNodeParameterValue) => void;
 }
@@ -64,6 +65,7 @@ export default function ObjectParameterInput({
     errorMessage,
     validationIssues = [],
     addCustomFieldLabel,
+    hiddenFieldKeys = [],
     onRemove,
     onChange,
 }: ObjectParameterInputProps) {
@@ -72,10 +74,14 @@ export default function ObjectParameterInput({
     const pendingFocusFieldIdRef = useRef<string | null>(null);
     const objectValue = normalizeObjectParameterValue(value, meta);
     const fields = getObjectFields(objectValue, meta);
+    const visibleFields = hiddenFieldKeys.length > 0
+        ? fields.filter(field => !hiddenFieldKeys.includes(field.key))
+        : fields;
     const allowCustomFields = allowsCustomObjectFields(meta);
     const functionMap = isFunctionMap(meta);
     const formSupported = supportsObjectForm(meta);
-    const availableFieldKeys = getAvailableObjectFieldKeys(fields, meta);
+    const availableFieldKeys = getAvailableObjectFieldKeys(fields, meta)
+        .filter(key => !hiddenFieldKeys.includes(key));
     const jsonValidationIssues = objectValue.inputMode === 'json' ? validationIssues : [];
     const flowValidationIssues = validationIssues.filter(issue => issue.kind === 'connect-flow');
     const objectInvalid = Boolean(invalid || jsonValidationIssues.length > 0 || flowValidationIssues.length > 0);
@@ -253,7 +259,7 @@ export default function ObjectParameterInput({
                             onAddCustomField={addCustomField}
                         />
                         <ObjectRows
-                            fields={fields}
+                            fields={visibleFields}
                             path={path}
                             meta={meta}
                             validationIssues={validationIssues}

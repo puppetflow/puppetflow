@@ -2,10 +2,12 @@ import type React from 'react';
 import { useCallback } from 'react';
 import { formatEntryLabel } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
 import {
+    BREAK_LOOP_NODE_NAME,
     DEFAULT_INPUT_PORT,
     DEFAULT_OUTPUT_PORT,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
+    analyzeStructuredGraph,
     normalizeStructuredEdges,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { snapCanvasPosition } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/grid';
@@ -42,7 +44,7 @@ export function useNodeDuplicationActions({
     setOpenNodeMenuId,
 }: UseNodeDuplicationActionsOptions) {
     const duplicateNode = useCallback((node: CanvasNode) => {
-        if (readOnly || node.system) return;
+        if (readOnly || node.system || node.entry.name === BREAK_LOOP_NODE_NAME) return;
         recordHistory();
 
         const nextNode: CanvasNode = {
@@ -101,7 +103,6 @@ export function useNodeDuplicationActions({
             ...node,
             values: remapNodeValuesReferences(node.values, idMap, labelMap),
         }));
-        const topologyNodes = [...nodes, ...nextNodes];
         const mappedEdges = edges.flatMap<CanvasEdge>(edge => {
             if (
                 !selectedEditableIds.has(edge.sourceNodeId)
@@ -122,7 +123,8 @@ export function useNodeDuplicationActions({
                 targetPort,
             }];
         });
-        const nextEdges = normalizeStructuredEdges(topologyNodes, mappedEdges);
+        const nextEdges = normalizeStructuredEdges(nextNodes, mappedEdges);
+        if (!analyzeStructuredGraph([...nodes, ...nextNodes], [...edges, ...nextEdges]).valid) return;
 
         recordHistory();
         setNodes(current => [...current, ...nextNodes]);

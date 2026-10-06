@@ -1,6 +1,7 @@
 import { ALL_HELP_ENTRIES } from './utils/helpCatalog';
 import type { IfConditionCategory, NodalGraph, NodalGraphContext, RawNodeParameterValue, ScalarNodeParameterValue } from './Panes/NodalEditorPane/types';
 import {
+    BREAK_LOOP_NODE_NAME,
     CODE_NODE_NAME,
     CODE_NODE_VALUE_KEY,
     DEFAULT_INPUT_PORT,
@@ -13,6 +14,7 @@ import {
     META_NODE_NAME,
     MERGE_NODE_NAME,
     NO_OP_NODE_NAME,
+    normalizeLoopMode,
     SET_NODE_NAME,
     SET_OUTPUT_NODE_NAME,
     STICKY_NOTE_NODE_NAME,
@@ -322,7 +324,7 @@ const assignNodeResult = (
     resultName: string,
     recordExecution = true,
 ) => [
-    `${indent}const ${resultName}State = $mergeNodeState($run, ${resultName});`,
+    `${indent}const ${resultName}State = $mergeNodeState($run, ${resultName}, $runRoot);`,
     `${indent}await __describeNodeResultPreview(${resultName}).catch(() => {});`,
     `${indent}__recordNodePreview(${safeNodeId}, ${resultName}State, ${recordExecution});`,
     `${indent}$nodes[${safeNodeId}] = ${resultName}State;`,
@@ -418,21 +420,21 @@ const __withNodalProperty = (source, key, value) => {
     });
     return target;
 };
-const $mergeNodeState = (previous, result) => {
+const $mergeNodeState = (previous, result, $stateRoot = $runRoot) => {
     const previousState = previous && typeof previous === 'object' && !Array.isArray(previous)
         ? previous
-        : $runRoot;
+        : $stateRoot;
     const { $result: _previousResult, ...base } = previousState;
     const mergedValue = __isPlainNodeResult(result)
         ? { ...base, ...result }
         : result === undefined ? base : { ...base, $result: result };
     const stateSeen = new WeakMap();
-    const inputSnapshot = __cloneNodalStateValue($runRoot.$input, stateSeen);
-    const outputSnapshot = __cloneNodalStateValue($runRoot.$output, stateSeen);
-    const contextSnapshot = __cloneNodalStateValue($runRoot.$context, stateSeen);
-    const loopSnapshot = $runRoot.$loop === undefined
+    const inputSnapshot = __cloneNodalStateValue($stateRoot.$input, stateSeen);
+    const outputSnapshot = __cloneNodalStateValue($stateRoot.$output, stateSeen);
+    const contextSnapshot = __cloneNodalStateValue($stateRoot.$context, stateSeen);
+    const loopSnapshot = $stateRoot.$loop === undefined
         ? undefined
-        : __cloneNodalStateValue($runRoot.$loop, stateSeen);
+        : __cloneNodalStateValue($stateRoot.$loop, stateSeen);
     for (const [previousValue, snapshot] of [
         [previousState.$input, inputSnapshot],
         [previousState.$output, outputSnapshot],
@@ -454,11 +456,15 @@ const $mergeNodeState = (previous, result) => {
 const $userOutput = {};
 const __pfRenderExpression = async (template, $locals = {}) => {
     const $scopeRun = $locals && typeof $locals === 'object' && $locals.$run ? $locals.$run : $run;
+    const $scopeNodes = $locals && typeof $locals === 'object' && $locals.$nodes ? $locals.$nodes : $nodes;
+    const $scopeNodeLookup = $locals && typeof $locals === 'object' && typeof $locals.$ === 'function'
+        ? $locals.$
+        : nodeName => $scopeNodes[nodeName];
     // Run data is only reachable through $run ($run.$input, $run.myVar) or $('Node').
     const $scope = {
-        $nodes,
+        $nodes: $scopeNodes,
         $run: $scopeRun,
-        $loop: $runRoot.$loop,
+        $loop: Object.prototype.hasOwnProperty.call($locals, '$loop') ? $locals.$loop : $runRoot.$loop,
         $capture: $scopeRun.$capture,
         $viewportWidth,
         $viewportHeight,
@@ -477,9 +483,9 @@ const __pfRenderExpression = async (template, $locals = {}) => {
         $currentDatePlusOneMonth,
         $matchSequence,
         ...($locals && typeof $locals === 'object' ? $locals : {}),
-        $,
+        $: $scopeNodeLookup,
     };
-    const renderSource = (source) => Function('$page', '$nodes', '$run', '$vars', '$totp', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($page, $nodes, $scope.$run, typeof $vars === 'function' ? $vars : undefined, typeof $totp === 'function' ? $totp : undefined, $viewportWidth, $viewportHeight, $scope);
+    const renderSource = (source) => Function('$page', '$nodes', '$run', '$vars', '$totp', '$viewportWidth', '$viewportHeight', '$scope', 'with ($scope) { return (async () => (' + source + '))(); }')($page, $scopeNodes, $scope.$run, typeof $vars === 'function' ? $vars : undefined, typeof $totp === 'function' ? $totp : undefined, $viewportWidth, $viewportHeight, $scope);
     const templateParts = [...template.matchAll(/\\{\\{([\\s\\S]*?)\\}\\}/g)];
     const pureExpression = templateParts.length === 1 && template.trim() === templateParts[0][0] ? templateParts[0] : null;
 
@@ -1242,11 +1248,12 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
         visited: Set<string>,
         stopAtNodeId: string | null = null,
         allowedNodeIds: Set<string> | null = null,
+        loopDepth = 0,
     ): string[] {
         const edge = nextEdge(sourceNodeId, sourcePort);
         return [
             ...markEdge(makeIndent(indentLevel), edge),
-            ...compileFrom(edge?.targetNodeId ?? null, indentLevel, visited, stopAtNodeId, allowedNodeIds),
+            ...compileFrom(edge?.targetNodeId ?? null, indentLevel, visited, stopAtNodeId, allowedNodeIds, loopDepth),
         ];
     }
 
@@ -1256,6 +1263,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
         visited: Set<string>,
         stopAtNodeId: string | null = null,
         allowedNodeIds: Set<string> | null = null,
+        loopDepth = 0,
     ): string[] => {
         if (!nodeId || nodeId === stopAtNodeId) return [];
         const node = nodesById.get(nodeId);
@@ -1280,7 +1288,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                     : DEFAULT_OUTPUT_PORT;
             return [
                 `${indent}// Deactivated node: ${node.id}`,
-                ...compileNext(node.id, continuationPort, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, continuationPort, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1295,7 +1303,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}})();`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1307,7 +1315,18 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = $run;`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
+            ];
+        }
+
+        if (node.name === BREAK_LOOP_NODE_NAME) {
+            if (loopDepth === 0) {
+                throw new Error('Break Loop must be placed inside a Loop branch.');
+            }
+            return [
+                ...markNodeStart(indent, safeNodeId),
+                ...markNodeEnd(indent, safeNodeId),
+                `${indent}break;`,
             ];
         }
 
@@ -1318,9 +1337,9 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = Boolean(await $renderExpression(${ifConditionTemplate(node.values)}));`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 `${indent}if (${resultName}) {`,
-                ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
+                ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds, loopDepth),
                 `${indent}} else {`,
-                ...compileNext(node.id, 'false', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
+                ...compileNext(node.id, 'false', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds, loopDepth),
                 `${indent}}`,
             ];
 
@@ -1328,7 +1347,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 ...markNodeStart(indent, safeNodeId),
                 ...lines,
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileFrom(mergeNodeId, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileFrom(mergeNodeId, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1350,70 +1369,120 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = await ${node.name}(${callArgs});`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 `${indent}if (${resultName}) {`,
-                ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
+                ...compileNext(node.id, 'true', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds, loopDepth),
                 `${indent}} else {`,
-                ...compileNext(node.id, 'false', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds),
+                ...compileNext(node.id, 'false', indentLevel + 1, nextVisited, mergeNodeId, allowedNodeIds, loopDepth),
                 `${indent}}`,
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileFrom(mergeNodeId, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileFrom(mergeNodeId, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
         if (node.name === LOOP_NODE_NAME) {
-            const mode = rawValue(node.values, 'mode', 'items');
+            const mode = normalizeLoopMode(rawValue(node.values, 'mode', 'items'));
             const doneStart = nextNodeId(node.id, 'done');
             const maxIterations = numericExpression(node.values, 'maxIterations', '100');
+            const rawLoopOptions = node.values?.options;
+            const loopOptionsValue = (
+                rawLoopOptions
+                && typeof rawLoopOptions === 'object'
+                && rawLoopOptions.mode === 'object'
+            ) ? {
+                    ...rawLoopOptions,
+                    fields: rawLoopOptions.fields.map(field => (
+                        field.key === 'timeout' || field.key === 'limits'
+                            ? { ...field, valueType: undefined }
+                            : field
+                    )),
+                }
+                : rawLoopOptions;
+            const loopOptions = formatParameterForCompiler(loopOptionsValue, {
+                awaitExpressions: true,
+                valueType: 'object',
+            });
             const loopIndex = ++compiledCounters.loop;
             const previousLoopName = `previousLoop${loopIndex}`;
             const loopContextName = `loopContext${loopIndex}`;
             const loopSnapshotName = `loopSnapshot${loopIndex}`;
+            const loopOptionsName = `loopOptions${loopIndex}`;
+            const loopTimeoutValueName = `loopTimeoutValue${loopIndex}`;
+            const loopTimeoutName = `loopTimeout${loopIndex}`;
+            const loopStartedAtName = `loopStartedAt${loopIndex}`;
             const resultName = nextResultName();
-            const loopLines: string[] = [`${indent}let ${loopContextName};`];
+            const loopIndent = `${indent}    `;
+            const iterationIndent = `${indent}        `;
+            const timeoutCheck = `${iterationIndent}if (Number.isFinite(${loopTimeoutName}) && ${loopTimeoutName} >= 0 && Date.now() - ${loopStartedAtName} >= ${loopTimeoutName}) break;`;
+            const loopLines: string[] = [
+                `${indent}let ${loopContextName};`,
+                `${indent}const ${loopOptionsName} = (${loopOptions}) ?? {};`,
+                `${indent}const ${loopTimeoutValueName} = ${loopOptionsName}.timeout;`,
+                `${indent}const ${loopTimeoutName} = ${loopTimeoutValueName} == null || (typeof ${loopTimeoutValueName} === 'string' && ${loopTimeoutValueName}.trim() === '') ? NaN : Number(${loopTimeoutValueName});`,
+                `${indent}if (${loopTimeoutValueName} != null && !(typeof ${loopTimeoutValueName} === 'string' && ${loopTimeoutValueName}.trim() === '') && ((typeof ${loopTimeoutValueName} !== 'number' && typeof ${loopTimeoutValueName} !== 'string') || !Number.isFinite(${loopTimeoutName}) || ${loopTimeoutName} < 0)) throw new Error('Loop timeout must be a finite number greater than or equal to 0.');`,
+                `${indent}const ${loopStartedAtName} = Date.now();`,
+            ];
             const captureLoopSnapshot = [
-                `${indent}    ${loopContextName} = $runRoot.$loop;`,
-                `${indent}    const ${loopSnapshotName} = $mergeNodeState($run, {});`,
-                `${indent}    __recordNodePreview(${safeNodeId}, ${loopSnapshotName});`,
-                `${indent}    $nodes[${safeNodeId}] = ${loopSnapshotName};`,
-                `${indent}    $nodes[${JSON.stringify(nodeResultLabel(node))}] = ${loopSnapshotName};`,
-                `${indent}    $nodes.last = ${loopSnapshotName};`,
-                `${indent}    $run = ${loopSnapshotName};`,
+                `${iterationIndent}${loopContextName} = $runRoot.$loop;`,
+                `${iterationIndent}const ${loopSnapshotName} = $mergeNodeState($run, {}, $runRoot);`,
+                `${iterationIndent}__recordNodePreview(${safeNodeId}, ${loopSnapshotName});`,
+                `${iterationIndent}$nodes[${safeNodeId}] = ${loopSnapshotName};`,
+                `${iterationIndent}$nodes[${JSON.stringify(nodeResultLabel(node))}] = ${loopSnapshotName};`,
+                `${iterationIndent}$nodes.last = ${loopSnapshotName};`,
+                `${iterationIndent}$run = ${loopSnapshotName};`,
             ];
 
             if (mode === 'iterations') {
                 loopLines.push(
                     `${indent}const ${previousLoopName} = $runRoot.$loop;`,
-                    `${indent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${numericExpression(node.values, 'iterations', '1')}) || 0; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
-                    `${indent}    const $item = loopIndex${loopIndex};`,
-                    `${indent}    const $index = loopIndex${loopIndex};`,
-                    `${indent}    $runRoot.$loop = { index: $index };`,
+                    `${indent}try {`,
+                    `${loopIndent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${numericExpression(node.values, 'iterations', '1')}) || 0; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
+                    timeoutCheck,
+                    `${iterationIndent}const $item = loopIndex${loopIndex};`,
+                    `${iterationIndent}const $index = loopIndex${loopIndex};`,
+                    `${iterationIndent}$runRoot.$loop = { index: $index };`,
                     ...captureLoopSnapshot,
-                    ...compileNext(node.id, 'loop', indentLevel + 1, nextVisited, doneStart, allowedNodeIds),
+                    ...compileNext(node.id, 'loop', indentLevel + 2, nextVisited, doneStart, allowedNodeIds, loopDepth + 1),
+                    `${loopIndent}}`,
+                    `${indent}} finally {`,
+                    `${loopIndent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                     `${indent}}`,
-                    `${indent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                 );
             } else if (mode === 'condition') {
                 loopLines.push(
                     `${indent}const ${previousLoopName} = $runRoot.$loop;`,
-                    `${indent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${maxIterations}) || 100; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
-                    `${indent}    const $item = loopIndex${loopIndex};`,
-                    `${indent}    const $index = loopIndex${loopIndex};`,
-                    `${indent}    $runRoot.$loop = { index: $index };`,
+                    `${indent}try {`,
+                    `${loopIndent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${maxIterations}) || 100; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
+                    timeoutCheck,
+                    `${iterationIndent}const $item = loopIndex${loopIndex};`,
+                    `${iterationIndent}const $index = loopIndex${loopIndex};`,
+                    `${iterationIndent}$runRoot.$loop = { index: $index };`,
                     ...captureLoopSnapshot,
-                    `${indent}    if (await $renderExpression(${expressionTemplate(node.values, 'condition', '{{ false }}')})) break;`,
-                    ...compileNext(node.id, 'loop', indentLevel + 1, nextVisited, doneStart, allowedNodeIds),
+                    `${iterationIndent}if (await $renderExpression(${expressionTemplate(node.values, 'condition', '{{ false }}')})) break;`,
+                    ...compileNext(node.id, 'loop', indentLevel + 2, nextVisited, doneStart, allowedNodeIds, loopDepth + 1),
+                    `${loopIndent}}`,
+                    `${indent}} finally {`,
+                    `${loopIndent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                     `${indent}}`,
-                    `${indent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                 );
             } else {
+                const loopLimitValueName = `loopLimitValue${loopIndex}`;
+                const loopLimitName = `loopLimit${loopIndex}`;
                 loopLines.push(
                     `${indent}const loopItems${loopIndex} = await $renderExpression(${expressionTemplate(node.values, 'items', '{{ [] }}')});`,
+                    `${indent}const ${loopLimitValueName} = ${loopOptionsName}.limits;`,
+                    `${indent}const ${loopLimitName} = ${loopLimitValueName} == null || (typeof ${loopLimitValueName} === 'string' && ${loopLimitValueName}.trim() === '') ? NaN : Number(${loopLimitValueName});`,
+                    `${indent}if (${loopLimitValueName} != null && !(typeof ${loopLimitValueName} === 'string' && ${loopLimitValueName}.trim() === '') && ((typeof ${loopLimitValueName} !== 'number' && typeof ${loopLimitValueName} !== 'string') || !Number.isFinite(${loopLimitName}) || ${loopLimitName} < 0)) throw new Error('Loop limits must be a finite number greater than or equal to 0.');`,
                     `${indent}const ${previousLoopName} = $runRoot.$loop;`,
-                    `${indent}for (const [$index, $item] of (Array.isArray(loopItems${loopIndex}) ? loopItems${loopIndex} : []).entries()) {`,
-                    `${indent}    $runRoot.$loop = { index: $index, item: $item };`,
+                    `${indent}try {`,
+                    `${loopIndent}for (const [$index, $item] of (Array.isArray(loopItems${loopIndex}) ? loopItems${loopIndex} : []).entries()) {`,
+                    timeoutCheck,
+                    `${iterationIndent}if (Number.isFinite(${loopLimitName}) && ${loopLimitName} >= 0 && $index >= Math.floor(${loopLimitName})) break;`,
+                    `${iterationIndent}$runRoot.$loop = { index: $index, item: $item };`,
                     ...captureLoopSnapshot,
-                    ...compileNext(node.id, 'loop', indentLevel + 1, nextVisited, doneStart, allowedNodeIds),
+                    ...compileNext(node.id, 'loop', indentLevel + 2, nextVisited, doneStart, allowedNodeIds, loopDepth + 1),
+                    `${loopIndent}}`,
+                    `${indent}} finally {`,
+                    `${loopIndent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                     `${indent}}`,
-                    `${indent}if (${previousLoopName} === undefined) delete $runRoot.$loop; else $runRoot.$loop = ${previousLoopName};`,
                 );
             }
 
@@ -1429,7 +1498,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}    $nodes[${JSON.stringify(nodeResultLabel(node))}] = ${resultName}LoopState;`,
                 `${indent}}`,
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, 'done', indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, 'done', indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1444,7 +1513,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}}`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1458,7 +1527,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = (Array.isArray(${resultName}Source) ? ${resultName}Source : []).slice(${resultName}Offset, ${resultName}Offset + ${resultName}Count);`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1473,7 +1542,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = ${variablesSource};`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1497,7 +1566,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName}Snapshot = $run;`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), `${resultName}Snapshot`),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1516,7 +1585,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}}`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1535,7 +1604,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = ${mergedSource};`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1550,14 +1619,14 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 `${indent}const ${resultName} = await ${localFunctionSymbol(node.localFunctionId)}($page${callArgs ? `, ${callArgs}` : ''});`,
                 ...assignNodeResult(indent, safeNodeId, nodeResultLabel(node), resultName),
                 ...markNodeEnd(indent, safeNodeId),
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
         if (!/^[A-Za-z_$][\w$]*$/.test(node.name)) {
             return [
                 `${indent}// Skipping node ${node.id}: invalid helper name.`,
-                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+                ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
             ];
         }
 
@@ -1627,6 +1696,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                         nextVisited,
                         convergenceNodeId,
                         allowedNodeIds,
+                        0,
                     );
                     const isNetworkSniffingCallback = node.name === '$sniffNetwork'
                         && parameter.path.join('.') === 'options.sniffing';
@@ -1634,15 +1704,19 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                         ? callbackLines.join('\n')
                         : `${makeIndent(indentLevel + 1)}// Empty ${callbackPort.label} flow.`;
                     // Sniffing callbacks run concurrently with the main flow: keep their state local
-                    // (shadowed $run / $renderExpression) instead of mutating and restoring the shared state.
+                    // instead of mutating and restoring shared run or node state.
                     const callbackSource = isNetworkSniffingCallback
                         ? [
-                            'async (__pfSniffingPayload) => {',
+                            'async (__pfSniffingPayload, __pfParentNodes = $nodes) => {',
                             // Spills the body so previews serialize a reference; flow code keeps the full payload.
                             `${makeIndent(indentLevel + 1)}__networkSniffingSpillBody(__pfSniffingPayload);`,
                             `${makeIndent(indentLevel + 1)}${callbackPayloadsName}.push(__pfSniffingPayload);`,
-                            `${makeIndent(indentLevel + 1)}let $run = $mergeNodeState($nodes[${safeNodeId}] ?? ${resultName}Base, { $capture: __pfSniffingPayload });`,
-                            `${makeIndent(indentLevel + 1)}const $renderExpression = (template, $locals = {}) => __pfRenderExpression(template, { $run, $capture: __pfSniffingPayload, ...$locals });`,
+                            `${makeIndent(indentLevel + 1)}const $nodes = { ...__pfParentNodes };`,
+                            `${makeIndent(indentLevel + 1)}const $ = nodeName => $nodes[nodeName];`,
+                            `${makeIndent(indentLevel + 1)}const $runRoot = $mergeNodeState($nodes[${safeNodeId}] ?? ${resultName}Base, { $capture: __pfSniffingPayload });`,
+                            `${makeIndent(indentLevel + 1)}$nodes.last = $runRoot;`,
+                            `${makeIndent(indentLevel + 1)}let $run = $runRoot;`,
+                            `${makeIndent(indentLevel + 1)}const $renderExpression = (template, $locals = {}) => __pfRenderExpression(template, { $nodes, $, $run, $loop: $runRoot.$loop, $capture: __pfSniffingPayload, ...$locals });`,
                             `${makeIndent(indentLevel + 1)}try {`,
                             callbackBody.split('\n').map(line => `    ${line}`).join('\n'),
                             `${makeIndent(indentLevel + 1)}} finally {`,
@@ -1685,7 +1759,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 !collectsNetworkPayloads,
             ),
             ...markNodeEnd(indent, safeNodeId),
-            ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds),
+            ...compileNext(node.id, DEFAULT_OUTPUT_PORT, indentLevel, nextVisited, stopAtNodeId, allowedNodeIds, loopDepth),
         ];
     };
 

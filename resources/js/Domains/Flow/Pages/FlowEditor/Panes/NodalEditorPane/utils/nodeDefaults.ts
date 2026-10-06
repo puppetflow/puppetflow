@@ -68,6 +68,13 @@ export const getInitialNodeValues = (entry: HelpEntryDef): Record<string, NodePa
             iterations: { mode: 'fixed' as const, value: '3' },
             condition: { mode: 'expression' as const, value: '{{ false }}' },
             maxIterations: { mode: 'fixed' as const, value: '100' },
+            options: {
+                mode: 'object' as const,
+                inputMode: 'form' as const,
+                jsonMode: 'fixed' as const,
+                value: '{}',
+                fields: [],
+            },
         };
     }
 

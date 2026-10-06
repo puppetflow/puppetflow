@@ -14,6 +14,7 @@ import {
     canArrangeSelection,
     getNodesCenter,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/layout';
+import { analyzeStructuredGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import { hasOpenModal } from './nodalKeyboardShortcuts.utils';
 
 const STICKY_NOTE_BUTTON_RANDOM_OFFSET = 96;
@@ -263,8 +264,10 @@ export function useCanvasViewActions({
             setPickerOpen(true);
         },
         removeEdge: (edgeId: string) => {
+            const nextEdges = edges.filter(item => item.id !== edgeId);
+            if (nextEdges.length === edges.length || !analyzeStructuredGraph(nodes, nextEdges).valid) return;
             recordHistory();
-            setEdges(current => current.filter(item => item.id !== edgeId));
+            setEdges(nextEdges);
         },
         reorderGraph,
         selectAllNodes: () => setSelectedNodeIds(new Set(visibleNodes.map(node => node.id))),

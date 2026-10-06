@@ -14,6 +14,7 @@ import {
     IF_ELSE_NODE_NAME,
     LOOP_NODE_NAME,
     MERGE_NODE_NAME,
+    normalizeLoopMode,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/constants';
 import {
     evaluateExpressionPreview,
@@ -90,11 +91,14 @@ export default function NodeParameterField({
     readOnly,
     onUpdateValue,
 }: NodeParameterFieldProps) {
+    const cleanArg = arg.replace(/\?$/, '').replace(/^\.\.\./, '');
     const hint = getParameterHint(entry, arg);
     const meta = getParameterMeta(entry, arg);
+    const loopMode = entry.name === LOOP_NODE_NAME
+        ? normalizeLoopMode(normalizeScalarParameterValue(node.values.mode).value)
+        : null;
     const validationResources = useNodeValidationResources();
     const refreshValidationResources = useRefreshNodeValidationResources();
-    const cleanArg = arg.replace(/\?$/, '').replace(/^\.\.\./, '');
     const credentialVariables = useVariableSuggestions(
         entry.name === '$mcpClientTool'
         && cleanArg === 'credentialId',
@@ -332,7 +336,7 @@ export default function NodeParameterField({
                 <label>{fieldLabel}</label>
                 {hint && <S.FieldHelp>{hint}</S.FieldHelp>}
                 <CustomSelect
-                    value={normalizeScalarParameterValue(node.values[cleanArg]).value || 'items'}
+                    value={loopMode ?? 'items'}
                     disabled={readOnly}
                     options={LOOP_MODE_OPTIONS}
                     onChange={value => onUpdateValue(node.id, cleanArg, { mode: 'fixed', value })}
@@ -500,6 +504,13 @@ export default function NodeParameterField({
                 invalid={Boolean(missingRequiredIssue)}
                 errorMessage={missingRequiredIssue?.message}
                 validationIssues={nestedRequiredIssues}
+                hiddenFieldKeys={
+                    entry.name === LOOP_NODE_NAME
+                    && cleanArg === 'options'
+                    && loopMode !== 'items'
+                        ? ['limits']
+                        : undefined
+                }
                 onChange={value => onUpdateValue(node.id, cleanArg, value)}
             />
         );

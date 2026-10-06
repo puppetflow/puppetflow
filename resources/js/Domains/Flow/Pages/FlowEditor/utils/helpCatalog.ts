@@ -548,6 +548,9 @@ function getParameterDeclaration(entry: HelpEntryDef, arg: string): string {
     if (entry.name === '$sniffNetwork' && paramName === 'options') {
         return 'options?: { sniffing?: (payload: PuppetflowNetworkSniffingPayload) => void | Promise<void>; timeout?: number; limit?: number; showUnfilteredInLogs?: boolean; }';
     }
+    if (paramName === 'scope') {
+        return 'scope?: string | ElementHandle';
+    }
     const paramMeta = entry.nodalParams?.[paramName];
     const paramType = toTypeScriptType(paramMeta);
 
@@ -710,8 +713,19 @@ type PuppetflowNetworkSniffingPayload = {
                 lines.push('declare const $vars: any;');
                 continue;
             }
-            const typedArgs = args.split(',').filter(Boolean).map(arg => getParameterDeclaration(entry, arg)).join(', ');
-            lines.push(`declare function ${name}(${typedArgs}): ${nodalOutputToTypeScript(entry.nodalOutput)};`);
+            const signatureArgs = args.split(',').filter(Boolean);
+            const returnType = nodalOutputToTypeScript(entry.nodalOutput);
+            const hasScopeOptionsOverload = signatureArgs.some(arg => arg.trim().replace(/\?$/, '') === 'scope')
+                && signatureArgs.some(arg => arg.trim().replace(/\?$/, '') === 'options');
+            if (hasScopeOptionsOverload) {
+                const legacyArgs = signatureArgs
+                    .filter(arg => arg.trim().replace(/\?$/, '') !== 'scope')
+                    .map(arg => getParameterDeclaration(entry, arg))
+                    .join(', ');
+                lines.push(`declare function ${name}(${legacyArgs}): ${returnType};`);
+            }
+            const typedArgs = signatureArgs.map(arg => getParameterDeclaration(entry, arg)).join(', ');
+            lines.push(`declare function ${name}(${typedArgs}): ${returnType};`);
         }
     }
     return lines.join('\n');

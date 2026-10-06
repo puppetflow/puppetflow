@@ -31,6 +31,7 @@ import {
     LOOP_NODE_NAME,
     META_NODE_NAME,
     NO_OP_NODE_NAME,
+    normalizeLoopMode,
     SET_NODE_NAME,
     SET_OUTPUT_NODE_NAME,
 } from './constants';
@@ -905,7 +906,7 @@ export function analyzeNodalAutocompleteContext(
         const bodyNodeIds = reachableFrom(bodyStart, outgoing, doneStart);
         if (!bodyNodeIds.has(targetNodeId)) return;
 
-        const mode = readFixedScalar(node.values?.mode) || 'items';
+        const mode = normalizeLoopMode(readFixedScalar(node.values?.mode));
         const loopContext: Record<string, unknown> = { index: 0 };
         if (mode === 'items') loopContext.item = undefined;
         runData.$loop = loopContext;

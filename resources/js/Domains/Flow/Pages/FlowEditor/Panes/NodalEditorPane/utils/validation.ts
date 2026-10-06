@@ -2,7 +2,7 @@ import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { DataTableColumnType } from '@/Domains/DataTable/types';
 import type { NodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { getParameterMeta, getSignatureArgs } from './catalog';
-import { getLoopParameterKeysForMode, LOOP_NODE_NAME } from './constants';
+import { getLoopParameterKeysForMode, LOOP_NODE_NAME, normalizeLoopMode } from './constants';
 import { normalizeParameterValue, normalizeScalarParameterValue } from './expression';
 import { normalizeHttpUrl } from './site';
 import { getFunctionArgumentNames } from './functionArguments';
@@ -601,7 +601,9 @@ export function getMissingRequiredParameters(
 ): NodeValidationIssue[] {
     const args = getSignatureArgs(entry.signature);
     const effectiveArgs = entry.name === LOOP_NODE_NAME
-        ? args.filter(arg => getLoopParameterKeysForMode(normalizeScalarParameterValue(values.mode).value || 'items').includes(cleanArgName(arg)))
+        ? args.filter(arg => getLoopParameterKeysForMode(
+            normalizeLoopMode(normalizeScalarParameterValue(values.mode).value),
+        ).includes(cleanArgName(arg)))
         : args;
 
     const issues: NodeValidationIssue[] = effectiveArgs.flatMap(arg => {
@@ -629,6 +631,48 @@ export function getMissingRequiredParameters(
         issues.push(...getMissingRequiredObjectFieldIssues(key, meta, values[key]));
         issues.push(...getMissingRequiredOneOfIssues(key, meta, values[key]));
         issues.push(...getUnavailableFixedValueIssue(entry, key, meta, values, resources));
+    }
+
+    if (entry.name === LOOP_NODE_NAME) {
+        const options = normalizeParameterValue(values.options);
+        const fixedOptionValue = (key: string): unknown => {
+            if (options.mode !== 'object') return undefined;
+            if (options.inputMode === 'form') {
+                const field = options.fields.find(candidate => candidate.key === key);
+                if (!field) return undefined;
+                const scalar = normalizeScalarParameterValue(field.value);
+                return scalar.mode === 'fixed' ? scalar.value : undefined;
+            }
+            if (options.jsonMode === 'expression') return undefined;
+            try {
+                const parsed = JSON.parse(options.value || '{}');
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                    ? (parsed as Record<string, unknown>)[key]
+                    : undefined;
+            } catch {
+                return undefined;
+            }
+        };
+        const validateNonNegativeFiniteOption = (key: string, label: string) => {
+            const value = fixedOptionValue(key);
+            if (value == null || (typeof value === 'string' && value.trim() === '')) return;
+            const numericValue = Number(value);
+            if (
+                (typeof value !== 'number' && typeof value !== 'string')
+                || !Number.isFinite(numericValue)
+                || numericValue < 0
+            ) {
+                issues.push({
+                    path: `options.${key}`,
+                    label,
+                    message: `${label} must be a finite number greater than or equal to 0.`,
+                });
+            }
+        };
+        validateNonNegativeFiniteOption('timeout', 'Timeout');
+        if (normalizeLoopMode(normalizeScalarParameterValue(values.mode).value) === 'items') {
+            validateNonNegativeFiniteOption('limits', 'Limits');
+        }
     }
 
     if (entry.name === '$loginRemember') {

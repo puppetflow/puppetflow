@@ -27,7 +27,6 @@ interface SearchableConsoleLog {
 const ESTIMATED_LINE_HEIGHT = 20;
 const OVERSCAN = 12;
 const PREPARATION_BATCH_SIZE = 250;
-const SCROLL_THRESHOLD = 24;
 const WRAP_MODE_STORAGE_KEY = 'nop-run-console-wrap-mode';
 const AUTO_SCROLL_STORAGE_KEY = 'nop-run-console-auto-scroll';
 
@@ -132,7 +131,7 @@ function ConsoleLogContent({
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    const isAtBottomRef = useRef(autoScroll);
+    const autoScrollRef = useRef(autoScroll);
     const getItemKey = useCallback(
         (index: number) => filtered[index]?.key ?? index,
         [filtered],
@@ -146,16 +145,10 @@ function ConsoleLogContent({
     });
 
     const scrollToBottom = useCallback(() => {
+        if (!autoScrollRef.current) return;
+
         const el = containerRef.current;
         if (el) el.scrollTop = el.scrollHeight;
-    }, []);
-
-    const handleScroll = useCallback(() => {
-        const el = containerRef.current;
-        if (!el) return;
-
-        isAtBottomRef.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD;
     }, []);
 
     useEffect(() => {
@@ -178,12 +171,12 @@ function ConsoleLogContent({
         if (!content) return;
 
         const observer = new ResizeObserver(() => {
-            if (autoScroll || isAtBottomRef.current) scrollToBottom();
+            scrollToBottom();
         });
         observer.observe(content);
 
         return () => observer.disconnect();
-    }, [autoScroll, filtered.length, scrollToBottom]);
+    }, [filtered.length, scrollToBottom]);
 
     const toggleWrapMode = useCallback(() => {
         setWrapMode(current => {
@@ -196,18 +189,20 @@ function ConsoleLogContent({
     }, []);
 
     const toggleAutoScroll = useCallback(() => {
-        setAutoScroll(current => {
-            const next = !current;
-            try {
-                window.localStorage.setItem(AUTO_SCROLL_STORAGE_KEY, String(next));
-            } catch {}
-            return next;
-        });
+        const next = !autoScrollRef.current;
+        autoScrollRef.current = next;
+        setAutoScroll(next);
+        try {
+            window.localStorage.setItem(AUTO_SCROLL_STORAGE_KEY, String(next));
+        } catch {}
     }, []);
 
     // Manual scrolling only pauses auto-scroll for this view; the persisted preference is
     // changed through the explicit toggle.
-    const disableAutoScroll = useCallback(() => setAutoScroll(false), []);
+    const disableAutoScroll = useCallback(() => {
+        autoScrollRef.current = false;
+        setAutoScroll(false);
+    }, []);
 
     const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
         const el = event.currentTarget;
@@ -275,7 +270,6 @@ function ConsoleLogContent({
             </RunDetailPanelHeader>
             <S.ConsoleContainer
                 ref={containerRef}
-                onScroll={handleScroll}
                 onWheel={disableAutoScroll}
                 onTouchMove={disableAutoScroll}
                 onPointerDown={handlePointerDown}
