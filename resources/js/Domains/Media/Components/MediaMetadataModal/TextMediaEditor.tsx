@@ -145,7 +145,7 @@ const TextMediaEditor = forwardRef<TextMediaEditorHandle, Props>(function TextMe
                     height="100%"
                     language={language}
                     theme={resolved === 'dark' ? 'vs-dark' : 'light'}
-                    value={content}
+                    defaultValue={content}
                     onChange={value => setContent(value ?? '')}
                     options={{
                         automaticLayout: true,

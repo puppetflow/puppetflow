@@ -269,7 +269,7 @@ export default function DefaultFlowCodeSection({ workspace, readOnly, onDirtyCha
                                 height="100%"
                                 language="javascript"
                                 theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                                value={code}
+                                defaultValue={code}
                                 onChange={handleEditorChange}
                                 options={editorOptions}
                                 onMount={handleEditorMount}

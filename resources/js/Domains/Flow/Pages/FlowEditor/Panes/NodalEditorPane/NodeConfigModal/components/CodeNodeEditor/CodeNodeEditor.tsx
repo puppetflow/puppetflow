@@ -63,8 +63,9 @@ export default function CodeNodeEditor({
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
     const completionDisposablesRef = useRef<{ dispose: () => void }[]>([]);
+    const isInternalChangeRef = useRef(false);
     const { resolved: theme } = useThemeMode();
-    useSyncMonacoValue(editorRef, value);
+    useSyncMonacoValue(editorRef, value, { isInternalChange: isInternalChangeRef });
 
     useEffect(() => () => {
         completionDisposablesRef.current.forEach(item => item.dispose());
@@ -101,6 +102,11 @@ export default function CodeNodeEditor({
         registerEditorCompletions(monaco);
         registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
     };
+
+    const handleChange = useCallback((nextValue: string | undefined) => {
+        isInternalChangeRef.current = true;
+        onChange(nextValue ?? '');
+    }, [onChange]);
 
     const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
         if (readOnly) return;
@@ -140,11 +146,11 @@ export default function CodeNodeEditor({
                 <Editor
                     height="100%"
                     defaultLanguage="javascript"
-                    value={value}
+                    defaultValue={value}
                     theme={theme === 'dark' ? 'vs-dark' : 'light'}
                     options={{ ...CODE_NODE_EDITOR_OPTIONS, readOnly }}
                     onMount={handleMount}
-                    onChange={nextValue => onChange(nextValue ?? '')}
+                    onChange={handleChange}
                 />
             </S.CodeNodeEditor>
             <S.ExpressionHint>
