@@ -173,7 +173,7 @@ class McpServerController extends Controller
                 'name' => app(BrandingProvider::class)->current()['name'],
                 'version' => config('app.version', '1.0.0'),
             ],
-            'instructions' => 'When creating a flow or snippet, prefer write_nodal_flow or write_nodal_snippet. Use a code writer only when the user explicitly requests code, JavaScript, or code mode. Query get_nodal_catalog for complete definitions of each needed capability; without a query it returns a paginated compact index.',
+            'instructions' => 'When creating a flow or snippet, prefer write_nodal_flow or write_nodal_snippet. Use a code writer only when the user explicitly requests code, JavaScript, or code mode. Query get_nodal_catalog for complete definitions of each needed capability; without a query it returns a paginated compact index. Use the direct resource tools for Data Tables, Mailboxes, Notification Channels, Media Library assets and folders, and AI Models instead of creating or running a flow to inspect them. Upload media with upload_media_asset using raw base64 content. Resource tools enforce the connected user permissions and never return provider credentials.',
         ];
     }
 

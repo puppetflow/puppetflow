@@ -148,6 +148,7 @@ final class DataTableRowRepository
         ?int $limit,
         ?string $orderBy,
         string $direction,
+        int $offset = 0,
     ): array {
         $query = $this->runtimeQuery($table, $filters, $matchType);
         if ($orderBy !== null && $orderBy !== '') {
@@ -161,6 +162,9 @@ final class DataTableRowRepository
         }
         if ($limit !== null) {
             $query->limit(max(1, $limit));
+        }
+        if ($offset > 0) {
+            $query->offset($offset);
         }
 
         return array_values($query->get()

@@ -5,11 +5,16 @@ namespace App\Services\Mcp;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMcpSetting;
+use App\Services\Mcp\Tools\AiModelMcpTools;
 use App\Services\Mcp\Tools\ArtifactMcpTools;
+use App\Services\Mcp\Tools\DataTableMcpTools;
 use App\Services\Mcp\Tools\FlowAutomationMcpTools;
 use App\Services\Mcp\Tools\FlowMcpTools;
+use App\Services\Mcp\Tools\MailboxMcpTools;
 use App\Services\Mcp\Tools\McpToolContext;
 use App\Services\Mcp\Tools\McpToolHandler;
+use App\Services\Mcp\Tools\MediaLibraryMcpTools;
+use App\Services\Mcp\Tools\NotificationChannelMcpTools;
 use App\Services\Mcp\Tools\RunMcpTools;
 use App\Services\Mcp\Tools\SnippetMcpTools;
 use App\Services\Mcp\Tools\TeamMcpTools;
@@ -36,6 +41,26 @@ final class McpToolService
         'write_nodal_flow' => ['title' => 'Write Nodal Flow', 'readOnly' => false],
         'publish_flow' => ['title' => 'Publish Flow', 'readOnly' => false],
         'unpublish_flow' => ['title' => 'Unpublish Flow', 'readOnly' => false],
+        'search_data_tables' => ['title' => 'Search Data Tables', 'readOnly' => true],
+        'get_data_table' => ['title' => 'Get Data Table', 'readOnly' => true],
+        'get_data_table_rows' => ['title' => 'Get Data Table Rows', 'readOnly' => true],
+        'update_data_table' => ['title' => 'Update Data Table', 'readOnly' => false],
+        'search_mailboxes' => ['title' => 'Search Mailboxes', 'readOnly' => true],
+        'get_mailbox' => ['title' => 'Get Mailbox', 'readOnly' => true],
+        'update_mailbox' => ['title' => 'Update Mailbox', 'readOnly' => false],
+        'search_notification_channels' => ['title' => 'Search Notification Channels', 'readOnly' => true],
+        'get_notification_channel' => ['title' => 'Get Notification Channel', 'readOnly' => true],
+        'update_notification_channel' => ['title' => 'Update Notification Channel', 'readOnly' => false],
+        'search_media_assets' => ['title' => 'Search Media Assets', 'readOnly' => true],
+        'get_media_asset' => ['title' => 'Get Media Asset', 'readOnly' => true],
+        'search_media_folders' => ['title' => 'Search Media Folders', 'readOnly' => true],
+        'get_media_folder' => ['title' => 'Get Media Folder', 'readOnly' => true],
+        'upload_media_asset' => ['title' => 'Upload Media Asset', 'readOnly' => false],
+        'update_media_asset' => ['title' => 'Update Media Asset', 'readOnly' => false],
+        'update_media_folder' => ['title' => 'Update Media Folder', 'readOnly' => false],
+        'search_ai_models' => ['title' => 'Search AI Models', 'readOnly' => true],
+        'get_ai_model' => ['title' => 'Get AI Model', 'readOnly' => true],
+        'update_ai_model' => ['title' => 'Update AI Model', 'readOnly' => false],
         'list_flow_triggers' => ['title' => 'List Flow Triggers', 'readOnly' => true],
         'create_flow_trigger' => ['title' => 'Create Flow Trigger', 'readOnly' => false],
         'update_flow_trigger' => ['title' => 'Update Flow Trigger', 'readOnly' => false],
@@ -113,6 +138,37 @@ final class McpToolService
         'write_nodal_flow' => ['flow' => 'object'],
         'publish_flow' => ['flow' => 'object'],
         'unpublish_flow' => ['flow' => 'object'],
+        'search_data_tables' => ['data_tables' => 'array'],
+        'get_data_table' => ['data_table' => 'object'],
+        'get_data_table_rows' => [
+            'data_table_id' => 'string',
+            'rows' => 'array',
+            'limit' => 'integer',
+            'offset' => 'integer',
+            'has_more' => 'boolean',
+        ],
+        'update_data_table' => ['data_table' => 'object'],
+        'search_mailboxes' => ['mailboxes' => 'array'],
+        'get_mailbox' => ['mailbox' => 'object'],
+        'update_mailbox' => ['mailbox' => 'object'],
+        'search_notification_channels' => ['notification_channels' => 'array'],
+        'get_notification_channel' => ['notification_channel' => 'object'],
+        'update_notification_channel' => ['notification_channel' => 'object'],
+        'search_media_assets' => [
+            'media_assets' => 'array',
+            'limit' => 'integer',
+            'offset' => 'integer',
+            'has_more' => 'boolean',
+        ],
+        'get_media_asset' => ['media_asset' => 'object'],
+        'search_media_folders' => ['media_folders' => 'array'],
+        'get_media_folder' => ['media_folder' => 'object'],
+        'upload_media_asset' => ['media_asset' => 'object'],
+        'update_media_asset' => ['media_asset' => 'object'],
+        'update_media_folder' => ['media_folder' => 'object'],
+        'search_ai_models' => ['ai_models' => 'array'],
+        'get_ai_model' => ['ai_model' => 'object'],
+        'update_ai_model' => ['ai_model' => 'object'],
         'list_flow_triggers' => ['triggers' => 'array'],
         'create_flow_trigger' => ['trigger' => 'object'],
         'update_flow_trigger' => ['trigger' => 'object'],
@@ -165,6 +221,26 @@ final class McpToolService
         'write_nodal_flow' => 'Create or update a visual flow built from connected nodes.',
         'publish_flow' => 'Publish the current flow draft as a new version.',
         'unpublish_flow' => 'Unpublish a flow while keeping its draft and version history.',
+        'search_data_tables' => 'Find Data Tables and inspect their groups, schemas, and capabilities.',
+        'get_data_table' => 'Read Data Table metadata, schema, capabilities, and row count.',
+        'get_data_table_rows' => 'Read filtered and paginated Data Table rows directly.',
+        'update_data_table' => 'Rename or organize a Data Table without changing its rows.',
+        'search_mailboxes' => 'Find visible mailboxes with counts, groups, and scope metadata.',
+        'get_mailbox' => 'Read mailbox metadata, flow watchers, and matching rules.',
+        'update_mailbox' => 'Update a mailbox description or group without changing its address.',
+        'search_notification_channels' => 'Find notification channels without exposing provider secrets.',
+        'get_notification_channel' => 'Read safe notification channel and integration metadata.',
+        'update_notification_channel' => 'Rename, organize, enable, or disable a notification channel.',
+        'search_media_assets' => 'Find Media Library assets without downloading their content.',
+        'get_media_asset' => 'Read Media Library asset metadata and authenticated route paths.',
+        'search_media_folders' => 'Find Media Library folders with relationships and item counts.',
+        'get_media_folder' => 'Read Media Library folder metadata, scope, and permissions.',
+        'upload_media_asset' => 'Upload a Media Library file from base64 content.',
+        'update_media_asset' => 'Update Media Library asset metadata without replacing the file.',
+        'update_media_folder' => 'Rename or reorder a Media Library folder without moving it.',
+        'search_ai_models' => 'Find AI Models by name, capability, group, or scope.',
+        'get_ai_model' => 'Read AI Model provider, capabilities, and safe integration metadata.',
+        'update_ai_model' => 'Rename, organize, enable, or disable an AI Model.',
         'list_flow_triggers' => 'List the cron and webhook triggers configured for a flow.',
         'create_flow_trigger' => 'Create a cron schedule or webhook trigger for a flow.',
         'update_flow_trigger' => 'Update a cron schedule or webhook trigger.',
@@ -194,13 +270,31 @@ final class McpToolService
     public function __construct(
         FlowMcpTools $flows,
         FlowAutomationMcpTools $flowAutomations,
+        DataTableMcpTools $dataTables,
+        MailboxMcpTools $mailboxes,
+        NotificationChannelMcpTools $notificationChannels,
+        MediaLibraryMcpTools $mediaLibrary,
+        AiModelMcpTools $aiModels,
         RunMcpTools $runs,
         ArtifactMcpTools $artifacts,
         SnippetMcpTools $snippets,
         WorkspaceMcpTools $workspace,
         TeamMcpTools $teams,
     ) {
-        $this->handlers = [$flows, $flowAutomations, $snippets, $runs, $artifacts, $workspace, $teams];
+        $this->handlers = [
+            $flows,
+            $dataTables,
+            $mailboxes,
+            $notificationChannels,
+            $mediaLibrary,
+            $aiModels,
+            $flowAutomations,
+            $snippets,
+            $runs,
+            $artifacts,
+            $workspace,
+            $teams,
+        ];
     }
 
     /** @return list<McpToolDefinition> */
@@ -418,6 +512,24 @@ final class McpToolService
         }
         if (array_intersect($effective, ['write_code_snippet', 'write_nodal_snippet', 'publish_snippet', 'unpublish_snippet']) !== []) {
             $effective = [...$effective, 'search_snippets', 'get_snippet_source', 'get_snippet_creation_options', 'list_flow_resources'];
+        }
+        if (in_array('update_mailbox', $effective, true)) {
+            $effective = [...$effective, 'search_mailboxes', 'get_mailbox'];
+        }
+        if (in_array('update_notification_channel', $effective, true)) {
+            $effective = [...$effective, 'search_notification_channels', 'get_notification_channel'];
+        }
+        if (in_array('update_media_asset', $effective, true)) {
+            $effective = [...$effective, 'search_media_assets', 'get_media_asset', 'search_media_folders'];
+        }
+        if (in_array('upload_media_asset', $effective, true)) {
+            $effective = [...$effective, 'search_media_assets', 'get_media_asset', 'search_media_folders'];
+        }
+        if (in_array('update_media_folder', $effective, true)) {
+            $effective = [...$effective, 'search_media_folders', 'get_media_folder'];
+        }
+        if (in_array('update_ai_model', $effective, true)) {
+            $effective = [...$effective, 'search_ai_models', 'get_ai_model'];
         }
 
         return array_values(array_unique(array_intersect(

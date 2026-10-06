@@ -2,11 +2,16 @@ import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { McpFlow } from '@/Domains/Workspace/types';
 
-export type McpToolCategory = 'all' | 'flows' | 'automation' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams';
+export type McpToolCategory = 'all' | 'flows' | 'data_tables' | 'mailboxes' | 'channels' | 'media_library' | 'ai_models' | 'automation' | 'snippets' | 'runs' | 'artifacts' | 'workspace' | 'teams';
 
 export const MCP_TOOL_CATEGORIES: { key: McpToolCategory; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'flows', label: 'Flows' },
+    { key: 'data_tables', label: 'Data Tables' },
+    { key: 'mailboxes', label: 'Mailboxes' },
+    { key: 'channels', label: 'Channels' },
+    { key: 'media_library', label: 'Media Library' },
+    { key: 'ai_models', label: 'AI Models' },
     { key: 'automation', label: 'Automation' },
     { key: 'snippets', label: 'Snippets' },
     { key: 'runs', label: 'Runs' },
@@ -23,6 +28,14 @@ const TOOL_CATEGORIES: Record<Exclude<McpToolCategory, 'all'>, string[]> = {
         'get_flow_creation_options', 'get_nodal_catalog', 'list_flow_resources',
         'update_flow_settings', 'write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow',
     ],
+    data_tables: ['search_data_tables', 'get_data_table', 'get_data_table_rows', 'update_data_table'],
+    mailboxes: ['search_mailboxes', 'get_mailbox', 'update_mailbox'],
+    channels: ['search_notification_channels', 'get_notification_channel', 'update_notification_channel'],
+    media_library: [
+        'search_media_assets', 'get_media_asset', 'upload_media_asset', 'update_media_asset',
+        'search_media_folders', 'get_media_folder', 'update_media_folder',
+    ],
+    ai_models: ['search_ai_models', 'get_ai_model', 'update_ai_model'],
     automation: [
         'list_flow_triggers', 'create_flow_trigger', 'update_flow_trigger', 'delete_flow_trigger',
         'list_flow_actions', 'create_flow_action', 'update_flow_action', 'delete_flow_action',
