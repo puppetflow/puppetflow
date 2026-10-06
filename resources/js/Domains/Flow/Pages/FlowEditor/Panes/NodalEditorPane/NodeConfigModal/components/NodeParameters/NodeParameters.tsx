@@ -205,6 +205,7 @@ export default function NodeParameters({
                     value={normalizeScalarParameterValue(node.values[CODE_NODE_VALUE_KEY]).value}
                     outputData={expressionOutputData}
                     autocompleteContext={autocompleteContext}
+                    validationIssue={missingRequiredByPath.get(CODE_NODE_VALUE_KEY)}
                     flowId={flowId}
                     readOnly={readOnly}
                     onChange={value => onUpdateValue(node.id, CODE_NODE_VALUE_KEY, { mode: 'fixed', value })}

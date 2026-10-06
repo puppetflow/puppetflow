@@ -2,7 +2,14 @@ import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { DataTableColumnType } from '@/Domains/DataTable/types';
 import type { NodeParameterValue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { getParameterMeta, getSignatureArgs } from './catalog';
-import { getLoopParameterKeysForMode, LOOP_NODE_NAME, normalizeLoopMode } from './constants';
+import {
+    CODE_NODE_NAME,
+    CODE_NODE_VALUE_KEY,
+    getLoopParameterKeysForMode,
+    LOOP_NODE_NAME,
+    normalizeLoopMode,
+} from './constants';
+import { getCodeSyntaxIssue } from './codeSyntax';
 import { normalizeParameterValue, normalizeScalarParameterValue } from './expression';
 import { normalizeHttpUrl } from './site';
 import { getFunctionArgumentNames } from './functionArguments';
@@ -163,6 +170,8 @@ export interface NodeValidationIssue {
     label: string;
     message: string;
     kind?: 'connect-flow';
+    line?: number;
+    column?: number;
 }
 
 const getUnavailableNamedResourceIssue = (
@@ -624,6 +633,20 @@ export function getMissingRequiredParameters(
             message: `${label} is required.`,
         }];
     });
+
+    if (entry.name === CODE_NODE_NAME) {
+        const source = normalizeScalarParameterValue(values[CODE_NODE_VALUE_KEY]).value;
+        const syntaxIssue = source.trim() ? getCodeSyntaxIssue(source) : null;
+        if (syntaxIssue) {
+            issues.push({
+                path: CODE_NODE_VALUE_KEY,
+                label: 'Code',
+                message: `${syntaxIssue.message} at line ${syntaxIssue.line}, column ${syntaxIssue.column}.`,
+                line: syntaxIssue.line,
+                column: syntaxIssue.column,
+            });
+        }
+    }
 
     for (const arg of effectiveArgs) {
         const key = cleanArgName(arg);

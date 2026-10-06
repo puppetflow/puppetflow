@@ -29,6 +29,7 @@ import {
     analyzeStructuredGraph,
     structuredBranchKey,
 } from './Panes/NodalEditorPane/utils/edges';
+import { getCodeSyntaxIssue, type CodeSyntaxIssue } from './Panes/NodalEditorPane/utils/codeSyntax';
 import {
     SYSTEM_RUN_POSITION,
     SYSTEM_TERMINATE_POSITION,
@@ -38,6 +39,20 @@ import { sanitizeNodeValuesForEntry } from './Panes/NodalEditorPane/utils/nodeVa
 export const SYSTEM_RUN_NODE_ID = '__system_run';
 export const SYSTEM_TERMINATE_NODE_ID = '__system_terminate';
 export { SYSTEM_FUNCTION_NODE_ID };
+
+export class NodalCodeSyntaxError extends SyntaxError {
+    readonly nodeId: string;
+    readonly line: number;
+    readonly column: number;
+
+    constructor(nodeId: string, nodeLabel: string, issue: CodeSyntaxIssue) {
+        super(`Invalid JavaScript in "${nodeLabel}" at line ${issue.line}, column ${issue.column}: ${issue.message}.`);
+        this.name = 'NodalCodeSyntaxError';
+        this.nodeId = nodeId;
+        this.line = issue.line;
+        this.column = issue.column;
+    }
+}
 
 const normalizeEdges = (edges: Partial<NodalGraph['edges'][number]>[] | undefined): NodalGraph['edges'] => {
     return (Array.isArray(edges) ? edges : [])
@@ -1294,6 +1309,10 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
 
         if (node.name === CODE_NODE_NAME) {
             const code = normalizeScalarParameterValue(node.values?.[CODE_NODE_VALUE_KEY]).value;
+            const syntaxIssue = getCodeSyntaxIssue(code);
+            if (syntaxIssue) {
+                throw new NodalCodeSyntaxError(node.id, nodeResultLabel(node), syntaxIssue);
+            }
             const resultName = nextResultName();
             return [
                 `${indent}// Code node: ${node.id}`,

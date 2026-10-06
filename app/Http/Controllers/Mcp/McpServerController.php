@@ -28,6 +28,11 @@ use Symfony\Component\HttpFoundation\Response;
 /** @phpstan-import-type McpArguments from McpToolService */
 class McpServerController extends Controller
 {
+    private const FULL_TEXT_TOOLS = [
+        'get_flow_source',
+        'get_snippet_source',
+    ];
+
     private const SUPPORTED_PROTOCOL_VERSIONS = [
         '2025-03-26',
         '2025-06-18',
@@ -232,7 +237,10 @@ class McpServerController extends Controller
     private function toolText(string $name, array $payload): string
     {
         $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if (is_string($json) && strlen($json) <= 12000) {
+        if (
+            is_string($json)
+            && (in_array($name, self::FULL_TEXT_TOOLS, true) || strlen($json) <= 12000)
+        ) {
             return $json;
         }
 

@@ -17,7 +17,10 @@ import { registerStopwatchNameCompletions } from '@/Domains/Flow/Pages/FlowEdito
 import { registerVarsCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/variableSuggestions';
 import { registerTabNameCompletions } from '@/Domains/Flow/Pages/FlowEditor/utils/tabNameSuggestions';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
+import type { NodeValidationIssue } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/validation';
 import * as S from './styled';
+
+const CODE_SYNTAX_MARKER_OWNER = 'puppetflow-code-node-syntax';
 
 const CODE_NODE_EDITOR_OPTIONS = {
     minimap: { enabled: false },
@@ -47,6 +50,7 @@ interface CodeNodeEditorProps {
     value: string;
     outputData: unknown;
     autocompleteContext: NodalAutocompleteContext;
+    validationIssue?: NodeValidationIssue;
     flowId?: Id;
     readOnly?: boolean;
     onChange: (value: string) => void;
@@ -56,6 +60,7 @@ export default function CodeNodeEditor({
     value,
     outputData,
     autocompleteContext,
+    validationIssue,
     flowId,
     readOnly,
     onChange,
@@ -70,7 +75,35 @@ export default function CodeNodeEditor({
     useEffect(() => () => {
         completionDisposablesRef.current.forEach(item => item.dispose());
         completionDisposablesRef.current = [];
+        const model = editorRef.current?.getModel();
+        if (model && monacoRef.current) {
+            monacoRef.current.editor.setModelMarkers(model, CODE_SYNTAX_MARKER_OWNER, []);
+        }
     }, []);
+
+    const updateSyntaxMarker = useCallback((
+        editorInstance: editor.IStandaloneCodeEditor,
+        monaco: Parameters<OnMount>[1],
+    ) => {
+        const model = editorInstance.getModel();
+        if (!model) return;
+        if (!validationIssue?.line || !validationIssue.column) {
+            monaco.editor.setModelMarkers(model, CODE_SYNTAX_MARKER_OWNER, []);
+            return;
+        }
+
+        const line = Math.min(validationIssue.line, model.getLineCount());
+        const maxColumn = model.getLineMaxColumn(line);
+        const column = Math.min(validationIssue.column, maxColumn);
+        monaco.editor.setModelMarkers(model, CODE_SYNTAX_MARKER_OWNER, [{
+            severity: monaco.MarkerSeverity.Error,
+            message: validationIssue.message,
+            startLineNumber: line,
+            startColumn: column,
+            endLineNumber: line,
+            endColumn: Math.min(column + 1, maxColumn),
+        }]);
+    }, [validationIssue]);
 
     const registerEditorCompletions = useCallback((monaco: Parameters<OnMount>[1]) => {
         const modelUri = editorRef.current?.getModel()?.uri.toString() ?? null;
@@ -96,11 +129,17 @@ export default function CodeNodeEditor({
         registerEditorCompletions(monacoRef.current);
     }, [registerEditorCompletions]);
 
+    useEffect(() => {
+        if (!editorRef.current || !monacoRef.current) return;
+        updateSyntaxMarker(editorRef.current, monacoRef.current);
+    }, [updateSyntaxMarker]);
+
     const handleMount: OnMount = (editorInstance, monaco) => {
         editorRef.current = editorInstance;
         monacoRef.current = monaco;
         registerEditorCompletions(monaco);
         registerReferenceLabelDecorations(editorInstance, monaco, { flowId });
+        updateSyntaxMarker(editorInstance, monaco);
     };
 
     const handleChange = useCallback((nextValue: string | undefined) => {
@@ -142,7 +181,11 @@ export default function CodeNodeEditor({
 
     return (
         <S.CodeNodeField>
-            <S.CodeNodeEditor onDragOver={handleDragOver} onDrop={handleDrop}>
+            <S.CodeNodeEditor
+                data-invalid={Boolean(validationIssue)}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
                 <Editor
                     height="100%"
                     defaultLanguage="javascript"
@@ -153,6 +196,9 @@ export default function CodeNodeEditor({
                     onChange={handleChange}
                 />
             </S.CodeNodeEditor>
+            {validationIssue && (
+                <S.SyntaxError role="alert">{validationIssue.message}</S.SyntaxError>
+            )}
             <S.ExpressionHint>
                 This code is inserted directly in the generated run function. Use $run for the current input snapshot, $('RUN') for initial run data, $nodes for named snapshots, $vars(…) for workspace variables, and $totp(…) for a fresh TOTP code.
             </S.ExpressionHint>

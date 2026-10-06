@@ -63,7 +63,7 @@ export default function MobileCodeSnapshot({
                             nodePassCounts: preview.visualProgress.nodePassCounts,
                             passedEdgeIds: preview.visualProgress.passedEdgeIds,
                             edgePassCounts: preview.visualProgress.edgePassCounts,
-                            errorNodeId: preview.isErrorRun ? preview.visualProgress.activeNodeId : null,
+                            errorNodeId: preview.errorNodeId,
                             activeLine: preview.activeLine,
                             passedLines: preview.passedLines,
                             errorLine: preview.errorLine,

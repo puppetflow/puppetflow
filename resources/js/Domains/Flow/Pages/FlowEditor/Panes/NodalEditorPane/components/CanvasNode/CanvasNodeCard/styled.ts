@@ -163,12 +163,6 @@ export const NodeTile = styled.div`
         border-color: ${({ theme }) => theme.colors.border.light};
     }
 
-    ${CanvasNode}[data-node-card][data-invalid='true'] & {
-        border-width: 2px;
-        border-color: #ef4444;
-        box-shadow: 0 0 0 3px #ef444433, ${({ theme }) => theme.shadow.md};
-    }
-
     ${CanvasNode}[data-node-card][data-selected='true'] & {
         border-width: 2px;
         border-color: #22c55e;
@@ -192,6 +186,13 @@ export const NodeTile = styled.div`
         border-width: 2px;
         border-color: #ef4444;
         box-shadow: 0 0 0 4px #ef444433, ${({ theme }) => theme.shadow.md};
+        animation: none;
+    }
+
+    ${CanvasNode}[data-node-card][data-invalid='true'] & {
+        border-width: 2px;
+        border-color: #ef4444;
+        box-shadow: 0 0 0 3px #ef444433, ${({ theme }) => theme.shadow.md};
         animation: none;
     }
 

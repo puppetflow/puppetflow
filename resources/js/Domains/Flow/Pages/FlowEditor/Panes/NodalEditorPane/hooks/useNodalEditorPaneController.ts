@@ -1,3 +1,8 @@
+import { useEffect } from 'react';
+import {
+    FOCUS_NODAL_NODE_EVENT,
+    isFocusNodalNodeEvent,
+} from '@/Domains/Flow/Pages/FlowEditor/utils/nodalEditorEvents';
 import type { NodalEditorPaneProps } from '../NodalEditorPane.types';
 import { useNodalCanvasController } from './useNodalCanvasController';
 import { useNodalGraphController } from './useNodalGraphController';
@@ -34,6 +39,36 @@ export function useNodalEditorPaneController({
         graphController,
         interactionsController,
     });
+    const {
+        centerViewportOnNodes,
+        nodes: graphNodes,
+        setCanvasMode,
+        setEditingNode,
+        setSelectedNodeIds,
+    } = graphController;
+
+    useEffect(() => {
+        const focusNode = (event: Event) => {
+            if (!isFocusNodalNodeEvent(event) || event.detail.flowId !== String(flow.id)) return;
+            const node = graphNodes.find(candidate => candidate.id === event.detail.nodeId);
+            if (!node) return;
+
+            setCanvasMode('canvas');
+            setSelectedNodeIds(new Set([node.id]));
+            setEditingNode(node);
+            window.requestAnimationFrame(() => centerViewportOnNodes([node]));
+        };
+
+        window.addEventListener(FOCUS_NODAL_NODE_EVENT, focusNode);
+        return () => window.removeEventListener(FOCUS_NODAL_NODE_EVENT, focusNode);
+    }, [
+        centerViewportOnNodes,
+        flow.id,
+        graphNodes,
+        setCanvasMode,
+        setEditingNode,
+        setSelectedNodeIds,
+    ]);
 
     return {
         activeCategoryKey: graphController.activeCategoryKey,

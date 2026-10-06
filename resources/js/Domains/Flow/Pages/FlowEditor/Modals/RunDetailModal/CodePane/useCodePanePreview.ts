@@ -8,6 +8,10 @@ import {
     getVisibleConsoleLogs,
     getVisualRunProgressState,
 } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunDetailModal/runProgress';
+import {
+    compileNodalGraphToCode,
+    NodalCodeSyntaxError,
+} from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
 import { getRunDetailPreviewFlow } from './utils';
 
 // Chooses and prepares the code snapshot shown for the selected run step.
@@ -66,12 +70,27 @@ export function useCodePanePreview(
         () => getVisualRunProgressState(run.code_snapshot, runProgress),
         [run.code_snapshot, runProgress],
     );
+    const syntaxErrorNodeId = useMemo(() => {
+        if (!isErrorRun || !previewGraph || visualProgress.activeNodeId) return null;
+
+        try {
+            compileNodalGraphToCode(previewGraph);
+        } catch (error) {
+            if (error instanceof NodalCodeSyntaxError) return error.nodeId;
+        }
+
+        return null;
+    }, [isErrorRun, previewGraph, visualProgress.activeNodeId]);
+    const errorNodeId = isErrorRun
+        ? visualProgress.activeNodeId ?? syntaxErrorNodeId
+        : null;
 
     return {
         activeLine,
         canShowCanvas: Boolean(previewFlow && previewGraph),
         displayCodeSnapshot,
         errorLine,
+        errorNodeId,
         isActiveRun,
         isErrorRun,
         passedLines,

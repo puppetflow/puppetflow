@@ -5,7 +5,11 @@ import type { FlowRun } from '@/Domains/Flow/types';
 import type { useToast } from '@/App/Hooks/useToast';
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import type { RunSubmitHandler } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunModal/types';
-import { compileNodalGraphToCode } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
+import {
+    compileNodalGraphToCode,
+    NodalCodeSyntaxError,
+} from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
+import { dispatchNodalNodeFocus } from '@/Domains/Flow/Pages/FlowEditor/utils/nodalEditorEvents';
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
 
@@ -101,6 +105,10 @@ export function useFlowRunActions({
                     ? compileNodalGraphToCode(nodalGraphRef.current, { instrumentRunProgress: true })
                     : code;
         } catch (error) {
+            if (error instanceof NodalCodeSyntaxError) {
+                setShowRunModal(false);
+                window.requestAnimationFrame(() => dispatchNodalNodeFocus(flowId, error.nodeId));
+            }
             toast(error instanceof Error ? error.message : 'The visual flow cannot be compiled.', 'error');
             return;
         }

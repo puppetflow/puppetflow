@@ -19,9 +19,19 @@ export const CodeNodeEditor = styled.div`
     border: 1px solid ${({ theme }) => theme.colors.border.default};
     background: ${({ theme }) => theme.colors.bg.primary};
 
+    &[data-invalid='true'] {
+        border-color: #ef4444;
+        box-shadow: 0 0 0 2px #ef444426;
+    }
+
     &:focus-within {
         border-color: ${({ theme }) => theme.colors.border.default};
         box-shadow: none;
+    }
+
+    &[data-invalid='true']:focus-within {
+        border-color: #ef4444;
+        box-shadow: 0 0 0 2px #ef444426;
     }
 
     .monaco-editor,
@@ -30,6 +40,16 @@ export const CodeNodeEditor = styled.div`
     .monaco-editor .inputarea.ime-input {
         background-color: ${({ theme }) => theme.colors.bg.primary} !important;
     }
+`;
+
+export const SyntaxError = styled.div`
+    padding: 8px 10px;
+    border: 1px solid #ef444466;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: #ef444414;
+    color: #ef4444;
+    font-size: 11px;
+    line-height: 1.4;
 `;
 
 export const ExpressionHint = styled.div`

@@ -7,10 +7,15 @@ import { useToast } from '@/App/Hooks/useToast';
 import { useWaitingHumanSet } from '@/Domains/Flow/Hooks/useWaitingHuman';
 import type { Workspace } from '@/Domains/Workspace/types';
 import { csrfHeaders } from '@/Shared/Utils/csrf';
-import { compileNodalGraphToCode, normalizeNodalGraph } from '../nodalCompiler';
+import {
+    compileNodalGraphToCode,
+    NodalCodeSyntaxError,
+    normalizeNodalGraph,
+} from '../nodalCompiler';
 import type { NodalGraph } from '../Panes/NodalEditorPane/types';
 import type { FlowEditorProps } from '../types';
 import { DEFAULT_CODE } from '../types';
+import { dispatchNodalNodeFocus } from '../utils/nodalEditorEvents';
 import { invalidateVariableCache, preloadVariableSuggestions } from '../utils/variableSuggestions';
 import { useDuplicateFlow } from './useDuplicateFlow';
 import { useFlowConflictResolution } from './useFlowConflictResolution';
@@ -173,8 +178,16 @@ export function useFlowEditorController({
         if (isNodalFlow && !repositoryManaged) {
             try {
                 compileNodalGraphToCode(normalizeNodalGraph(nodalGraphRef.current));
-            } catch {
-                showToast('The visual graph cannot be compiled. Fix it before publishing.', 'error');
+            } catch (error) {
+                if (error instanceof NodalCodeSyntaxError) {
+                    dispatchNodalNodeFocus(flow.id, error.nodeId);
+                }
+                showToast(
+                    error instanceof Error
+                        ? error.message
+                        : 'The visual graph cannot be compiled. Fix it before publishing.',
+                    'error',
+                );
                 return;
             }
         }
