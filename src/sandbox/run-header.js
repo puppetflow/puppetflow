@@ -2342,7 +2342,7 @@ const $stopSuccess = function(successMessage, responseData) {
   throw new StopRun(successMessage, $generateResponseSuccess(successMessage, responseData));
 };
 
-/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectOneElement, __humanPageOf, __humanJitterMs */
+/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectOneElement, __humanPageOf, __humanJitterMs, __normalizeSelectionScopeArguments, __isElementHandle */
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
@@ -2379,13 +2379,15 @@ const $keyboardSpeed = function(keyboardSpeedValue) {
 };
 
 /* @help Interaction
- * @sig $fillInput(inputSelectorOrHandle, inputValue, options?)
+ * @sig $fillInput(inputSelectorOrHandle, inputValue, scope?, options?)
  * @aliases form, field, type, enter text, fill field
  * @desc Replace, append, or prepend text in an input. Handles detached nodes. Selector can be a CSS string or an ElementHandle.
  * @nodal-desc Find an input on the page, then replace, append, or prepend its value.
  * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param inputSelectorOrHandle [string, selector]: CSS selector or ElementHandle for the input to fill.
  * @nodal-param inputValue: Text value to type into the input.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Input selection and typing options.
  * @nodal-param options.mode [string]: How to apply the value: replace, append, or prepend.
  * @nodal-param options.tabCount [number]: Number of Tab key presses to send after filling the input.
@@ -2396,7 +2398,9 @@ const $keyboardSpeed = function(keyboardSpeedValue) {
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several inputs match.
  */
-const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
+const $fillInput = async function(inputSelectorOrHandle, inputValue, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$fillInput');
+  const { scope, options } = normalized;
   __emitAction('fill', typeof inputSelectorOrHandle === 'string' ? inputSelectorOrHandle : '(element)');
   const defaultOptions = {
     mode: 'replace',
@@ -2417,7 +2421,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
   if (!['replace', 'append', 'prepend'].includes(mode)) {
     throw new Error('Input mode must be replace, append, or prepend.');
   }
-  const selectOptions = { timeout, continueOnError, visibleOnly, index };
+  const selectOptions = { timeout, continueOnError, visibleOnly, index, scope };
   console.debug('Filling input:', inputSelectorOrHandle);
 
   const result = await __internalSelect(inputSelectorOrHandle, selectOptions);
@@ -2515,12 +2519,14 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
 };
 
 /* @help Interaction
- * @sig $keyboardPress(text, options?)
+ * @sig $keyboardPress(text, scope?, options?)
  * @aliases type text, keystrokes, type characters, keyboard type, press keys
  * @desc Type text one keystroke at a time into the focused element, or into an element focused first through options.selector. Newlines press Enter. Uses the flow keyboard speed unless options.speed is set.
  * @nodal-desc Type text key by key into the focused element, or into an input selected first.
  * @opt selector: null, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param text [string, required]: Text to type, one keystroke per character. A newline presses Enter.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root when options.selector is set. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Target and typing options.
  * @nodal-param options.selector [string, selector]: Optional CSS selector to focus before typing. Leave empty to type into whatever currently has focus.
  * @nodal-param options.speed [number]: Typing speed, in milliseconds between keystrokes. 0 types instantly.
@@ -2529,7 +2535,9 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, options) {
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several elements match the selector.
  */
-const $keyboardPress = async function(text, options) {
+const $keyboardPress = async function(text, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$keyboardPress');
+  const { scope, options } = normalized;
   const {
     selector = null,
     speed = __keyboardSpeedValue,
@@ -2543,7 +2551,7 @@ const $keyboardPress = async function(text, options) {
   console.debug('Typing keys:', value, selector ? 'into ' + selector : 'into the focused element');
 
   if (typeof selector === 'string' && selector.trim() !== '') {
-    const result = await __internalSelect(selector, { timeout, continueOnError, visibleOnly, index });
+    const result = await __internalSelect(selector, { timeout, continueOnError, visibleOnly, index, scope });
     if (!result) return;
     await __retryOnContextDestroyed(() => __humanHoverElement(result.handle)).catch(() => {});
     await __humanType(result.handle, value, speed);
@@ -2619,16 +2627,20 @@ const $keyboardShortcut = async function(key, options) {
 };
 
 /* @help Utility
- * @sig $waitForSelectorCondition(cssSelector, readinessCondition, options?)
+ * @sig $waitForSelectorCondition(cssSelector, readinessCondition, scope?, options?)
  * @aliases wait for element state, wait for element
  * @desc Wait for a selector to match a condition.
  * @opt timeout: 10000
  * @nodal-param cssSelector [string, selector]: CSS selector to watch on the page.
  * @nodal-param readinessCondition [function]: JavaScript function or expression that receives each matched element and returns true when ready.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Wait options.
  * @nodal-param options.timeout [number]: Maximum time to wait before failing, in milliseconds.
  */
-const $waitForSelectorCondition = async function(cssSelector, readinessCondition, options = {}) {
+const $waitForSelectorCondition = async function(cssSelector, readinessCondition, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$waitForSelectorCondition');
+  const { scope, options } = normalized;
   __emitAction('waitSelector', cssSelector);
   const isDeepSelector = cssSelector.includes('>>>') || cssSelector.includes('>>iframe>>');
   const defaultOptions = {
@@ -2636,28 +2648,52 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
   };
   const opts = { ...defaultOptions, ...(options || {}) };
   const { timeout } = opts;
+  const conditionSource = readinessCondition.toString();
   console.debug('Waiting for selector:', cssSelector, 'with condition:', readinessCondition);
   try {
-    if (isDeepSelector) {
-      const conditionSource = readinessCondition.toString();
-      const startedAt = Date.now();
-      while (Date.now() - startedAt <= timeout) {
-        const candidates = await __retryOnContextDestroyed(() => __queryPuppetflowLocator(cssSelector));
-        for (const candidate of candidates) {
-          const ready = await candidate.evaluate((element, source) => {
-            const condition = (0, eval)('(' + source + ')');
-            return Boolean(condition(element));
-          }, conditionSource);
-          if (ready) return;
+    if (isDeepSelector || scope) {
+      let scopeHandle = null;
+      const ownsScopeHandle = typeof scope === 'string';
+      try {
+        if (typeof scope === 'string') {
+          scopeHandle = await $selectOneElement(scope, { timeout });
+          if (!scopeHandle) throw new Error('Waiting for scope `' + scope + '` failed: timeout ' + timeout + 'ms exceeded');
+        } else if (scope) {
+          if (!__isElementHandle(scope)) throw new TypeError('$waitForSelectorCondition: scope must be a CSS selector or an ElementHandle.');
+          scopeHandle = scope;
         }
-        await __internalSleep(100);
+        const startedAt = Date.now();
+        while (Date.now() - startedAt <= timeout) {
+          const candidates = await __retryOnContextDestroyed(() => __queryPuppetflowLocator(
+            cssSelector,
+            scopeHandle ? [scopeHandle] : [$page],
+          ));
+          let conditionMet = false;
+          try {
+            for (const candidate of candidates) {
+              conditionMet = await candidate.evaluate((element, source) => {
+                const condition = (0, eval)('(' + source + ')');
+                return Boolean(condition(element));
+              }, conditionSource);
+              if (conditionMet) break;
+            }
+          } finally {
+            await Promise.all(candidates
+              .filter(candidate => candidate !== scopeHandle)
+              .map(candidate => candidate.dispose().catch(() => {})));
+          }
+          if (conditionMet) return;
+          await __internalSleep(100);
+        }
+        throw new Error('Waiting for selector condition `' + cssSelector + '` failed: timeout ' + timeout + 'ms exceeded');
+      } finally {
+        if (ownsScopeHandle && scopeHandle) await scopeHandle.dispose().catch(() => {});
       }
-      throw new Error('Waiting for selector condition `' + cssSelector + '` failed: timeout ' + timeout + 'ms exceeded');
     }
-    await __retryOnContextDestroyed(() => $page.waitForFunction(
-      () => [...document.querySelectorAll(cssSelector)].some(selection => readinessCondition(selection)),
-      { timeout }
-    ));
+    await __retryOnContextDestroyed(() => $page.waitForFunction((selector, source) => {
+      const condition = (0, eval)('(' + source + ')');
+      return [...document.querySelectorAll(selector)].some(selection => condition(selection));
+    }, { timeout }, cssSelector, conditionSource));
   } catch (error) {
     __emitAction('timeout', cssSelector);
     console.error('Error waiting for selector:', cssSelector, 'with condition:', readinessCondition);
@@ -2666,14 +2702,15 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
 };
 
 /* @help Selectors
- * @sig $selectShadow(cssSelector, shadowRootSelector?, options?)
+ * @sig $selectShadow(cssSelector, scope?, options?)
  * @aliases find shadow element, select shadow dom
  * @desc Traverse open shadow DOM roots to find an element matching selector. Returns ElementHandle or null.
  * @nodal-desc Find an element inside open shadow DOM areas.
  * @nodal-output element
  * @opt timeout: 5000, continueOnError: true, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0
  * @nodal-param cssSelector [string, selector]: CSS selector to find inside open shadow DOM roots.
- * @nodal-param shadowRootSelector [string]: Optional CSS selector that limits the search to a specific root.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle that limits the shadow search. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Element selection options.
  * @nodal-param options.timeout [number]: Maximum time to wait for the element, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Return null instead of stopping the flow when no element matches.
@@ -2683,71 +2720,124 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several elements match.
  */
-const $selectShadow = async function(cssSelector, shadowRootSelector, options = {}) {
-  console.debug('Shadow selecting:', cssSelector, 'with shadowRootSelector:', shadowRootSelector);
+const $selectShadow = async function(cssSelector, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$selectShadow');
+  const { scope, options } = normalized;
+  console.debug('Shadow selecting:', cssSelector, 'with scope:', scope || '(entire page)');
   if (cssSelector.includes('>>>') || cssSelector.includes('>>iframe>>')) {
-    return $selectOneElement(cssSelector, options);
+    return $selectOneElement(cssSelector, scope, options);
   }
 
   const { timeout = 5000, continueOnError = true, ...selectionOptions } = options || {};
+  let scopeHandle = __isElementHandle(scope) ? scope : null;
+  const ownsScopeHandle = typeof scope === 'string';
+  if (ownsScopeHandle) {
+    scopeHandle = await $selectOneElement(scope, { timeout });
+    if (!scopeHandle) {
+      if (continueOnError) return null;
+      throw new StopRun('No scope element {' + scope + '} found');
+    }
+  }
+
+  const collectFromRoot = (root, sel) => {
+    const matches = [];
+    const visitedRoots = new Set();
+    const collect = currentRoot => {
+      if (!currentRoot || visitedRoots.has(currentRoot)) return;
+      visitedRoots.add(currentRoot);
+      matches.push(...(currentRoot.querySelectorAll?.(sel) || []));
+
+      if (currentRoot.shadowRoot) collect(currentRoot.shadowRoot);
+      for (const element of currentRoot.querySelectorAll?.('*') || []) {
+        if (element.shadowRoot) collect(element.shadowRoot);
+      }
+    };
+
+    collect(root);
+    return matches;
+  };
+
   const startedAt = Date.now();
   let firstAttempt = true;
-  while (firstAttempt || Date.now() - startedAt <= timeout) {
-    firstAttempt = false;
-    const collectionHandle = await __retryOnContextDestroyed(() => $page.evaluateHandle((sel, rootSel) => {
-      const matches = [];
-      const visitedRoots = new Set();
-      const collect = root => {
-        if (!root || visitedRoots.has(root)) return;
-        visitedRoots.add(root);
-        matches.push(...(root.querySelectorAll?.(sel) || []));
-
-        if (root.shadowRoot) collect(root.shadowRoot);
-        for (const element of root.querySelectorAll?.('*') || []) {
-          if (element.shadowRoot) collect(element.shadowRoot);
+  let selectedHandle = null;
+  try {
+    while (firstAttempt || Date.now() - startedAt <= timeout) {
+      firstAttempt = false;
+      const collectionHandle = await __retryOnContextDestroyed(() => {
+        if (scopeHandle) return scopeHandle.evaluateHandle(collectFromRoot, cssSelector);
+        return $page.evaluateHandle(sel => {
+          const matches = [];
+          const visitedRoots = new Set();
+          const collect = currentRoot => {
+            if (!currentRoot || visitedRoots.has(currentRoot)) return;
+            visitedRoots.add(currentRoot);
+            matches.push(...(currentRoot.querySelectorAll?.(sel) || []));
+            if (currentRoot.shadowRoot) collect(currentRoot.shadowRoot);
+            for (const element of currentRoot.querySelectorAll?.('*') || []) {
+              if (element.shadowRoot) collect(element.shadowRoot);
+            }
+          };
+          collect(document);
+          return matches;
+        }, cssSelector);
+      });
+      const candidates = [];
+      try {
+        const properties = await collectionHandle.getProperties();
+        for (const property of properties.values()) {
+          const element = property.asElement?.();
+          if (element) candidates.push(element);
+          else await property.dispose();
         }
-      };
+      } catch (error) {
+        await Promise.all(candidates.map(candidate => candidate.dispose().catch(() => {})));
+        throw error;
+      } finally {
+        await collectionHandle.dispose().catch(() => {});
+      }
 
-      collect(rootSel ? (document.querySelector(rootSel) || document) : document);
-      return matches;
-    }, cssSelector, shadowRootSelector));
-    const properties = await collectionHandle.getProperties();
-    const candidates = [];
-    for (const property of properties.values()) {
-      const element = property.asElement?.();
-      if (element) candidates.push(element);
-      else await property.dispose();
+      let result = null;
+      try {
+        result = await __internalSelect(candidates, {
+          ...selectionOptions,
+          continueOnError: true,
+        });
+        selectedHandle = result ? result.handle : null;
+      } finally {
+        await Promise.all(candidates
+          .filter(candidate => candidate !== selectedHandle)
+          .map(candidate => candidate.dispose().catch(() => {})));
+      }
+      if (selectedHandle) return selectedHandle;
+      if (Date.now() - startedAt >= timeout) break;
+      await __internalSleep(Math.min(100, Math.max(10, timeout)));
     }
-    await collectionHandle.dispose();
 
-    const result = await __internalSelect(candidates, {
-      ...selectionOptions,
-      continueOnError: true,
-    });
-    if (result) return result.handle;
-    if (Date.now() - startedAt >= timeout) break;
-    await __internalSleep(Math.min(100, Math.max(10, timeout)));
+    if (!continueOnError) {
+      await __internalSelect([], {
+        ...selectionOptions,
+        continueOnError: false,
+      });
+    }
+    return null;
+  } finally {
+    if (ownsScopeHandle && scopeHandle && scopeHandle !== selectedHandle) {
+      await scopeHandle.dispose().catch(() => {});
+    }
   }
-
-  if (!continueOnError) {
-    await __internalSelect([], {
-      ...selectionOptions,
-      continueOnError: false,
-    });
-  }
-  return null;
 };
 
 /* @help Interaction
- * @sig $shadowInputFill(inputSelector, inputValue, options?)
+ * @sig $shadowInputFill(inputSelector, inputValue, scope?, options?)
  * @aliases form, field, type, fill shadow input, enter shadow text
- * @desc Fill an input located inside shadow DOM. Options extend $fillInput options + rootSelector.
+ * @desc Fill an input located inside shadow DOM. Options extend $fillInput options.
  * @nodal-desc Fill an input located inside a shadow DOM area.
- * @opt rootSelector: null, mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 5000, continueOnError: false, visibleOnly: false, index: 0
+ * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 5000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param inputSelector [string, selector]: CSS selector for the input inside a shadow DOM.
  * @nodal-param inputValue: Text value to type into the input.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle that limits the shadow search. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Shadow DOM and typing options.
- * @nodal-param options.rootSelector [string]: Optional CSS selector for the shadow root container.
  * @nodal-param options.mode [string]: How to apply the value: replace, append, or prepend.
  * @nodal-param options.tabCount [number]: Number of Tab key presses to send after filling the input.
  * @nodal-param options.sleep [number]: Pause duration between low-level browser actions, in milliseconds.
@@ -2757,7 +2847,9 @@ const $selectShadow = async function(cssSelector, shadowRootSelector, options = 
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several inputs match.
  */
-const $shadowInputFill = async function(inputSelector, inputValue, options = {}) {
+const $shadowInputFill = async function(inputSelector, inputValue, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$shadowInputFill');
+  const { scope, options } = normalized;
   __emitAction('fill', inputSelector);
   console.debug('Shadow filling input:', inputSelector);
   const {
@@ -2771,7 +2863,7 @@ const $shadowInputFill = async function(inputSelector, inputValue, options = {})
     visibleOnly = false,
     index = 0,
   } = options || {};
-  const input = await $selectShadow(inputSelector, rootSelector, {
+  const input = await $selectShadow(inputSelector, scope || rootSelector || null, {
     timeout,
     continueOnError,
     visibleOnly,
@@ -3607,6 +3699,8 @@ const $stopSniffing = async function(profileName = 'Default') {
   }
   return await __stopNetworkSniffingProfile(profileName, 'manual');
 };
+/* global __normalizeSelectionScopeArguments */
+
 /* @help Files
  * @sig $writeFile(fileName, content, options?)
  * @aliases create file, write file, save file
@@ -4008,20 +4102,24 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
 };
 
 /* @help Interaction
- * @sig $upload(fileInputSelectorOrHandle, uploadFilename, options?)
+ * @sig $upload(fileInputSelectorOrHandle, uploadFilename, scope?, options?)
  * @aliases attach file, upload file, choose file
  * @desc Upload a file from the run downloads or an authorized 12-character Media Library ID (`media_...`) to a file input. Media files stay staged until the run ends so delayed form submissions can still read them. Accepts a CSS selector string or an ElementHandle.
  * @nodal-desc Upload a downloaded file or an authorized Media Library item into a file input on the page.
  * @opt timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param fileInputSelectorOrHandle [string, selector]: CSS selector or ElementHandle for the file input.
  * @nodal-param uploadFilename [media]: Media Library item, media ID, or a custom file name from the run downloads.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: File input selection options.
  * @nodal-param options.timeout [number]: Maximum time to wait for the file input, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the file input cannot be found.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several file inputs match.
  */
-const $upload = async function(fileInputSelectorOrHandle, uploadFilename, options = {}) {
+const $upload = async function(fileInputSelectorOrHandle, uploadFilename, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$upload');
+  const { scope, options } = normalized;
   if (!uploadFilename || typeof uploadFilename !== 'string') {
     throw new Error('$upload: filename is required (got ' + typeof uploadFilename + ')');
   }
@@ -4051,6 +4149,7 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
     continueOnError,
     visibleOnly,
     index,
+    scope,
   });
   const input = selection?.handle;
   if (!input) {
@@ -4541,44 +4640,78 @@ const $httpRequest = async function(url, options = {}) {
   }
   return __httpParseResponse(response, options);
 };
-const __queryPuppetflowLocator = async function(selector) {
+const __queryPuppetflowLocator = async function(selector, initialScopes = [$page]) {
   const parts = selector.split(/\s*(>>>|>>iframe>>)\s*/).filter(Boolean);
-  if (parts.length === 1) return $page.$$(selector);
-
-  let scopes = [$page];
-  for (let index = 0; index < parts.length; index += 2) {
-    const cssSelector = parts[index];
-    const boundary = parts[index + 1] || null;
+  if (parts.length === 1) {
     const matches = [];
-    for (const scope of scopes) {
-      matches.push(...await scope.$$(cssSelector));
+    try {
+      for (const scope of initialScopes) matches.push(...await scope.$$(selector));
+    } catch (error) {
+      await Promise.all(matches.map(match => match.dispose().catch(() => {})));
+      throw error;
     }
-    if (!boundary) return matches;
+    return matches;
+  }
 
-    const nextScopes = [];
-    for (const match of matches) {
-      if (boundary === '>>iframe>>') {
-        const frame = await match.contentFrame();
-        if (frame) nextScopes.push(frame);
-        continue;
+  let scopes = initialScopes;
+  let ownedScopes = [];
+  try {
+    for (let index = 0; index < parts.length; index += 2) {
+      const cssSelector = parts[index];
+      const boundary = parts[index + 1] || null;
+      const matches = [];
+      try {
+        for (const scope of scopes) {
+          matches.push(...await scope.$$(cssSelector));
+        }
+      } catch (error) {
+        await Promise.all(matches.map(match => match.dispose().catch(() => {})));
+        throw error;
+      }
+      if (!boundary) return matches;
+
+      const nextScopes = [];
+      const nextOwnedScopes = [];
+      try {
+        for (const match of matches) {
+          if (boundary === '>>iframe>>') {
+            const frame = await match.contentFrame();
+            if (frame) nextScopes.push(frame);
+            continue;
+          }
+
+          const shadowRootHandle = await match.evaluateHandle(element => element.shadowRoot);
+          const shadowRoot = shadowRootHandle.asElement();
+          if (shadowRoot) {
+            nextScopes.push(shadowRoot);
+            nextOwnedScopes.push(shadowRoot);
+          } else {
+            await shadowRootHandle.dispose();
+          }
+        }
+      } catch (error) {
+        await Promise.all(nextOwnedScopes.map(scope => scope.dispose().catch(() => {})));
+        throw error;
+      } finally {
+        await Promise.all(matches.map(match => match.dispose().catch(() => {})));
       }
 
-      const shadowRootHandle = await match.evaluateHandle(element => element.shadowRoot);
-      const shadowRoot = shadowRootHandle.asElement();
-      if (shadowRoot) nextScopes.push(shadowRoot);
-      else await shadowRootHandle.dispose();
+      await Promise.all(ownedScopes.map(scope => scope.dispose().catch(() => {})));
+      scopes = nextScopes;
+      ownedScopes = nextOwnedScopes;
+      if (scopes.length === 0) return [];
     }
-    scopes = nextScopes;
-    if (scopes.length === 0) return [];
+    return [];
+  } finally {
+    await Promise.all(ownedScopes.map(scope => scope.dispose().catch(() => {})));
   }
-  return [];
 };
 
-const __waitForPuppetflowLocator = async function(selector, timeout) {
+const __waitForPuppetflowLocator = async function(selector, timeout, initialScopes = [$page]) {
   const startedAt = Date.now();
   let candidates = [];
   while (Date.now() - startedAt <= timeout) {
-    candidates = await __retryOnContextDestroyed(() => __queryPuppetflowLocator(selector));
+    candidates = await __retryOnContextDestroyed(() => __queryPuppetflowLocator(selector, initialScopes));
     if (candidates.length > 0) return candidates;
     await __internalSleep(Math.min(100, Math.max(10, timeout)));
   }
@@ -4628,6 +4761,36 @@ const __assertElementHandles = function(values) {
   }
 };
 
+const __normalizeSelectionScopeArguments = function(scopeOrOptions, maybeOptions, helperName) {
+  const isOptions = value => !!value && typeof value === 'object' && !Array.isArray(value) && !__isElementHandle(value);
+  const hasScope = (typeof scopeOrOptions === 'string' && scopeOrOptions.trim() !== '')
+    || __isElementHandle(scopeOrOptions);
+
+  if (hasScope) {
+    if (maybeOptions !== undefined && !isOptions(maybeOptions)) {
+      throw new TypeError(helperName + ': options must be an object.');
+    }
+    return { scope: scopeOrOptions, options: maybeOptions || {} };
+  }
+
+  if (
+    scopeOrOptions === undefined
+    || scopeOrOptions === null
+    || (typeof scopeOrOptions === 'string' && scopeOrOptions.trim() === '')
+  ) {
+    if (maybeOptions !== undefined && !isOptions(maybeOptions)) {
+      throw new TypeError(helperName + ': options must be an object.');
+    }
+    return { scope: null, options: maybeOptions || {} };
+  }
+
+  if (isOptions(scopeOrOptions) && maybeOptions === undefined) {
+    return { scope: null, options: scopeOrOptions };
+  }
+
+  throw new TypeError(helperName + ': scope must be a CSS selector or an ElementHandle.');
+};
+
 // Reads offsetX / offsetY from click options. Returns null when neither is set
 // (null, undefined, empty or 0), which keeps the regular click on the element.
 // Numeric strings coming from the nodal editor are accepted.
@@ -4649,7 +4812,7 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   const { textMatch, textFilter, textCaseSensitive } = __selectorTextOptions(options);
   const isDeepSelector = typeof selectorOrHandle === 'string'
     && (selectorOrHandle.includes('>>>') || selectorOrHandle.includes('>>iframe>>'));
-  const { visibleOnly = false, index = 0, all = false, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null } = options;
+  const { visibleOnly = false, index = 0, all = false, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null, scope = null } = options;
   const many = all === true;
 
   const __filterCandidates = async function(candidates) {
@@ -4702,12 +4865,14 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   };
 
   if (Array.isArray(selectorOrHandle)) {
+    if (scope) throw new TypeError('scope cannot be used when selectorOrHandle is an array of ElementHandle.');
     __assertElementHandles(selectorOrHandle);
     const candidates = await __filterCandidates(selectorOrHandle.slice());
     return __pickFromCandidates(candidates, '(handle array)');
   }
 
   if (typeof selectorOrHandle === 'object' && selectorOrHandle !== null) {
+    if (scope) throw new TypeError('scope cannot be used when selectorOrHandle is already an ElementHandle.');
     if (!__isElementHandle(selectorOrHandle)) {
       throw new TypeError('selectorOrHandle must be a CSS selector, an ElementHandle, or an array of ElementHandle.');
     }
@@ -4720,10 +4885,35 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
   }
 
   const selector = selectorOrHandle;
+  let scopeHandle = null;
+  const ownsScopeHandle = typeof scope === 'string' && scope.trim() !== '';
+  if (typeof scope === 'string' && scope.trim() !== '') {
+    const scopeSelection = await __internalSelect(scope, {
+      timeout,
+      continueOnError: true,
+      all: false,
+    });
+    scopeHandle = scopeSelection ? scopeSelection.handle : null;
+    if (!scopeHandle) {
+      if (many) return [];
+      if (continueOnError) return null;
+      throw new StopRun('No scope element {' + scope + '} found');
+    }
+  } else if (scope !== null && scope !== undefined && scope !== '') {
+    if (!__isElementHandle(scope)) {
+      throw new TypeError('scope must be a CSS selector or an ElementHandle.');
+    }
+    scopeHandle = scope;
+  }
+
   let rawCandidates = [];
   try {
-    if (isDeepSelector) {
-      rawCandidates = await __waitForPuppetflowLocator(selector, timeout);
+    if (isDeepSelector || scopeHandle) {
+      rawCandidates = await __waitForPuppetflowLocator(
+        selector,
+        timeout,
+        scopeHandle ? [scopeHandle] : [$page],
+      );
     } else {
       await __retryOnContextDestroyed(() => $page.waitForSelector(selector, { timeout }));
       const collectionHandle = await __retryOnContextDestroyed(() => $page.evaluateHandle((selectionOptions) => {
@@ -4774,6 +4964,10 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
     }
   } catch (_e) {
     __emitAction('timeout', timeoutLabel !== null ? timeoutLabel : selector);
+    await Promise.all(rawCandidates.map(candidate => candidate.dispose().catch(() => {})));
+    if (ownsScopeHandle && scopeHandle) {
+      await scopeHandle.dispose().catch(() => {});
+    }
     if (many) return [];
     if (continueOnError) {
       console.debug('Selector not found (continueOnError):', selector);
@@ -4782,20 +4976,54 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
     throw _e;
   }
 
-  const candidates = isDeepSelector
-    ? await __filterCandidates(rawCandidates)
-    : rawCandidates;
-  return __pickFromCandidates(candidates, '{' + selector + '}');
+  let candidates;
+  try {
+    candidates = (isDeepSelector || scopeHandle)
+      ? await __filterCandidates(rawCandidates)
+      : rawCandidates;
+  } catch (error) {
+    await Promise.all(rawCandidates.map(candidate => candidate.dispose().catch(() => {})));
+    if (ownsScopeHandle && scopeHandle) {
+      await scopeHandle.dispose().catch(() => {});
+    }
+    throw error;
+  }
+
+  if (many) {
+    await Promise.all(rawCandidates
+      .filter(candidate => !candidates.includes(candidate))
+      .map(candidate => candidate.dispose().catch(() => {})));
+    if (ownsScopeHandle && scopeHandle && !candidates.includes(scopeHandle)) {
+      await scopeHandle.dispose().catch(() => {});
+    }
+    return candidates;
+  }
+
+  let selection = null;
+  try {
+    selection = await __pickFromCandidates(candidates, '{' + selector + '}');
+    return selection;
+  } finally {
+    const selectedHandle = selection ? selection.handle : null;
+    await Promise.all(rawCandidates
+      .filter(candidate => candidate !== selectedHandle)
+      .map(candidate => candidate.dispose().catch(() => {})));
+    if (ownsScopeHandle && scopeHandle && scopeHandle !== selectedHandle) {
+      await scopeHandle.dispose().catch(() => {});
+    }
+  }
 };
 
 /* @help Selectors
- * @sig $selectOneElement(selectorOrHandle, options?)
+ * @sig $selectOneElement(selectorOrHandle, scope?, options?)
  * @aliases find element, query element, select nth element
  * @desc Get one ElementHandle matching a selector with optional text, visibility, and index filtering. Accepts a CSS selector string or an ElementHandle. Returns ElementHandle or null.
  * @nodal-desc Find one element on the page, with optional text, visibility, and position filters.
  * @nodal-output element
  * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0, timeout: 30000
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle to search from.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Selection options.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -4804,19 +5032,22 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.index [number]: Position to use when several elements match. Use 0 for the first match, -1 for the last, -2 for the previous one.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $selectOneElement = async function(selectorOrHandle, options = {}) {
-  const result = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, all: false });
+const $selectOneElement = async function(selectorOrHandle, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$selectOneElement');
+  const result = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, scope, all: false });
   return result ? result.handle : null;
 };
 
 /* @help Selectors
- * @sig $selectManyElements(cssSelector, options?)
+ * @sig $selectManyElements(cssSelector, scope?, options?)
  * @aliases find elements, query elements, select all elements
  * @desc Get all ElementHandles matching a selector with optional text and visibility filtering. Returns an array of ElementHandle (empty array if none found).
  * @nodal-desc Find all matching elements on the page, with optional text and visibility filters.
  * @nodal-output array<element>
  * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, timeout: 30000
  * @nodal-param cssSelector [string, selector]: CSS selector used to find elements on the page.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Selection options.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -4824,8 +5055,9 @@ const $selectOneElement = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $selectManyElements = async function(cssSelector, options = {}) {
-  return __internalSelect(cssSelector, { continueOnError: true, ...options, all: true });
+const $selectManyElements = async function(cssSelector, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$selectManyElements');
+  return __internalSelect(cssSelector, { continueOnError: true, ...options, scope, all: true });
 };
 
 const __validateElementGetters = function(getters) {
@@ -4893,7 +5125,7 @@ const __extractElementAttributes = async function(handle, getters) {
 };
 
 /* @help Selectors
- * @sig $attributesFromOne(selectorOrHandle, getters, options?)
+ * @sig $attributesFromOne(selectorOrHandle, getters, scope?, options?)
  * @aliases read attribute, get element value
  * @desc Extract named, JSON-compatible values from one matching element. Accepts a CSS selector string or an ElementHandle. Returns an object or null.
  * @nodal-desc Extract attributes and values from one matching element, with optional text, visibility, and position filters.
@@ -4901,6 +5133,8 @@ const __extractElementAttributes = async function(handle, getters) {
  * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0, timeout: 30000
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle to extract from.
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Selection options.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -4909,13 +5143,14 @@ const __extractElementAttributes = async function(handle, getters) {
  * @nodal-param options.index [number]: Position to use when several elements match. Use 0 for the first match, -1 for the last, -2 for the previous one.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $attributesFromOne = async function(selectorOrHandle, getters, options = {}) {
-  const selection = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, all: false });
+const $attributesFromOne = async function(selectorOrHandle, getters, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$attributesFromOne');
+  const selection = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, scope, all: false });
   return __extractElementAttributes(selection ? selection.handle : null, __validateElementGetters(getters));
 };
 
 /* @help Selectors
- * @sig $attributesFromMany(selectorOrHandle, getters, options?)
+ * @sig $attributesFromMany(selectorOrHandle, getters, scope?, options?)
  * @aliases scrape attributes, read element values
  * @desc Extract named, JSON-compatible values from all matching elements. Accepts a CSS selector string, an ElementHandle, or an array of ElementHandle.
  * @nodal-desc Extract attributes and values from all matching elements, with optional text and visibility filters.
@@ -4923,6 +5158,8 @@ const $attributesFromOne = async function(selectorOrHandle, getters, options = {
  * @opt textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, timeout: 30000
  * @nodal-param selectorOrHandle [string, selector]: CSS selector, ElementHandle, or ElementHandle array to extract from.
  * @nodal-param getters [getter-map, required]: Output keys mapped to element getters.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Selection options.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -4930,20 +5167,23 @@ const $attributesFromOne = async function(selectorOrHandle, getters, options = {
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
  */
-const $attributesFromMany = async function(selectorOrHandle, getters, options = {}) {
-  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, all: true });
+const $attributesFromMany = async function(selectorOrHandle, getters, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$attributesFromMany');
+  const handles = await __internalSelect(selectorOrHandle, { continueOnError: true, ...options, scope, all: true });
   const getterMap = __validateElementGetters(getters);
   return Promise.all(handles.map(handle => __extractElementAttributes(handle, getterMap)));
 };
 
 /* @help Interaction
- * @sig $clickElement(selectorOrHandle, options?)
+ * @sig $clickElement(selectorOrHandle, scope?, options?)
  * @aliases click button, press element
  * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. With offsetX or offsetY set, clicks at the element center shifted by that many pixels instead of on the element itself. Throws StopRun if not found.
  * @nodal-desc Find and click an element after an optional delay.
  * @nodal-output boolean
  * @opt delay: 1000, buttonType: left, offsetX: 0, offsetY: 0, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle for the element to click.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Click and selection options.
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
@@ -4956,7 +5196,8 @@ const $attributesFromMany = async function(selectorOrHandle, getters, options = 
  * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  */
-const $clickElement = async function(selectorOrHandle, options = {}) {
+const $clickElement = async function(selectorOrHandle, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$clickElement');
   const isHandle = typeof selectorOrHandle === 'object' && selectorOrHandle !== null;
   const textOptions = __selectorTextOptions(options);
   const buttonType = __selectorButtonType(options.buttonType);
@@ -4968,7 +5209,7 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
   console.debug('Click on element', isHandle ? '(handle)' : selectorOrHandle, textLabel, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'), offset ? 'at center offset ' + offset.x + ',' + offset.y : '');
   await __internalSleep(delay);
 
-  const result = await __internalSelect(selectorOrHandle, { ...textOptions, visibleOnly, index: 0, timeout, continueOnError, timeoutLabel: isHandle ? '(handle)' : selectorOrHandle });
+  const result = await __internalSelect(selectorOrHandle, { ...textOptions, visibleOnly, index: 0, timeout, continueOnError, scope, timeoutLabel: isHandle ? '(handle)' : selectorOrHandle });
   if (!result) return null;
 
   const { handle } = result;
@@ -4983,7 +5224,7 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
 };
 
 /* @help Interaction
- * @sig $clickElementAtIndex(elementsSelector, elementIndex, options?)
+ * @sig $clickElementAtIndex(elementsSelector, elementIndex, scope?, options?)
  * @aliases click nth element, click item by index
  * @desc Click an element at a specific index after an optional delay (ms). Negative indexes count from the end. Throws StopRun if not found or index out of bounds.
  * @nodal-desc Click one matching element by its position after an optional delay.
@@ -4991,6 +5232,8 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
  * @opt delay: 1000, buttonType: left, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param elementsSelector [string, selector]: CSS selector that matches the candidate elements.
  * @nodal-param elementIndex [integer]: Element position to click. Use -1 for the last match, -2 for the previous one.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: Click and selection options.
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
@@ -5001,7 +5244,8 @@ const $clickElement = async function(selectorOrHandle, options = {}) {
  * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  */
-const $clickElementAtIndex = async function(elementsSelector, elementIndex, options = {}) {
+const $clickElementAtIndex = async function(elementsSelector, elementIndex, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$clickElementAtIndex');
   const textOptions = __selectorTextOptions(options);
   const buttonType = __selectorButtonType(options.buttonType);
   const textLabel = textOptions.textMatch ? '[text:' + textOptions.textFilter + '="' + textOptions.textMatch + '"]' : '';
@@ -5010,7 +5254,7 @@ const $clickElementAtIndex = async function(elementsSelector, elementIndex, opti
   console.debug('Click on element', elementsSelector, textLabel, 'at index', elementIndex, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'));
   await __internalSleep(delay);
 
-  const result = await __internalSelect(elementsSelector, { ...textOptions, visibleOnly, index: elementIndex, timeout, continueOnError, timeoutLabel: elementsSelector + '[' + elementIndex + ']' });
+  const result = await __internalSelect(elementsSelector, { ...textOptions, visibleOnly, index: elementIndex, timeout, continueOnError, scope, timeoutLabel: elementsSelector + '[' + elementIndex + ']' });
   if (!result) return null;
 
   const { handle } = result;
@@ -5072,21 +5316,25 @@ const $scrollByPixels = async function(scrollPixels) {
 };
 
 /* @help Interaction
- * @sig $scrollToElement(selectorOrHandle)
+ * @sig $scrollToElement(selectorOrHandle, scope?)
  * @aliases bring element into view, scroll to item
  * @desc Scroll the page or nearest scrollable container until a CSS selector or ElementHandle is visible.
  * @nodal-desc Scroll until the selected element is visible.
  * @nodal-param selectorOrHandle [string, selector, required]: CSS selector or ElementHandle to bring into view.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  */
-const $scrollToElement = async function(selectorOrHandle) {
+const $scrollToElement = async function(selectorOrHandle, scope) {
+  const normalized = __normalizeSelectionScopeArguments(scope, undefined, '$scrollToElement');
   const isHandle = selectorOrHandle && typeof selectorOrHandle === 'object';
   const isSelector = selectorOrHandle && typeof selectorOrHandle === 'string';
   let element = null;
 
   if (isHandle) {
+    if (normalized.scope) throw new TypeError('$scrollToElement: scope cannot be used when selectorOrHandle is already an ElementHandle.');
     element = selectorOrHandle;
   } else if (isSelector) {
-    const selection = await __internalSelect(selectorOrHandle, { timeout: 30000 });
+    const selection = await __internalSelect(selectorOrHandle, { timeout: 30000, scope: normalized.scope });
     element = selection?.handle;
   }
   if (!element) {
@@ -5101,6 +5349,8 @@ const $scrollToElement = async function(selectorOrHandle) {
 // ================================
 // NOTIFICATION CHANNELS
 // ================================
+
+/* global __shadowSaveDefaultBrowserStorage */
 
 const $_watchers = JSON.parse(__watchersJson);
 
@@ -5319,6 +5569,7 @@ const $waitHumanValidation = async function(channelId, validationMessage, option
       consumed = true;
     }
 
+    await __shadowSaveDefaultBrowserStorage();
     console.log('[WAIT] Human validation received. Continuing run.');
   } finally {
     if (declared && !consumed) {

@@ -1,3 +1,5 @@
+/* global __normalizeSelectionScopeArguments */
+
 /* @help Files
  * @sig $writeFile(fileName, content, options?)
  * @aliases create file, write file, save file
@@ -399,20 +401,24 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
 };
 
 /* @help Interaction
- * @sig $upload(fileInputSelectorOrHandle, uploadFilename, options?)
+ * @sig $upload(fileInputSelectorOrHandle, uploadFilename, scope?, options?)
  * @aliases attach file, upload file, choose file
  * @desc Upload a file from the run downloads or an authorized 12-character Media Library ID (`media_...`) to a file input. Media files stay staged until the run ends so delayed form submissions can still read them. Accepts a CSS selector string or an ElementHandle.
  * @nodal-desc Upload a downloaded file or an authorized Media Library item into a file input on the page.
  * @opt timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param fileInputSelectorOrHandle [string, selector]: CSS selector or ElementHandle for the file input.
  * @nodal-param uploadFilename [media]: Media Library item, media ID, or a custom file name from the run downloads.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
  * @nodal-param options: File input selection options.
  * @nodal-param options.timeout [number]: Maximum time to wait for the file input, in milliseconds.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the file input cannot be found.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several file inputs match.
  */
-const $upload = async function(fileInputSelectorOrHandle, uploadFilename, options = {}) {
+const $upload = async function(fileInputSelectorOrHandle, uploadFilename, scopeOrOptions, maybeOptions) {
+  const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$upload');
+  const { scope, options } = normalized;
   if (!uploadFilename || typeof uploadFilename !== 'string') {
     throw new Error('$upload: filename is required (got ' + typeof uploadFilename + ')');
   }
@@ -442,6 +448,7 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, option
     continueOnError,
     visibleOnly,
     index,
+    scope,
   });
   const input = selection?.handle;
   if (!input) {

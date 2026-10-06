@@ -2,6 +2,8 @@
 // NOTIFICATION CHANNELS
 // ================================
 
+/* global __shadowSaveDefaultBrowserStorage */
+
 const $_watchers = JSON.parse(__watchersJson);
 
 const $_sendNotification = (() => {
@@ -219,6 +221,7 @@ const $waitHumanValidation = async function(channelId, validationMessage, option
       consumed = true;
     }
 
+    await __shadowSaveDefaultBrowserStorage();
     console.log('[WAIT] Human validation received. Continuing run.');
   } finally {
     if (declared && !consumed) {

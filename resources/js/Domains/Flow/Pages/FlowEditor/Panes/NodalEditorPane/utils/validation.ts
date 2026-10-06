@@ -83,6 +83,12 @@ export function getNodeParameterDisplayLabel(entry: HelpEntryDef, key: string): 
     ) {
         return 'Profile';
     }
+    if (
+        (entry.name === '$attributesFromOne' || entry.name === '$attributesFromMany')
+        && key === 'getters'
+    ) {
+        return 'Fields to extract';
+    }
     return meta.label ?? key;
 }
 
