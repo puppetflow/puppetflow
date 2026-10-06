@@ -156,7 +156,7 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return list<array<string, mixed>>
      */
     private function list(User $actor, string $workspaceId, array $payload): array
@@ -167,7 +167,12 @@ final class DataTableRuntimeService
             $this->authorizationContexts->for($actor, $workspaceId),
             scopeColumn: 'visibility',
         );
-        foreach (['visibility' => 'visibility', 'ownerId' => 'user_id', 'teamId' => 'team_id'] as $key => $column) {
+        foreach ([
+            'visibility' => 'visibility',
+            'ownerId' => 'user_id',
+            'teamId' => 'team_id',
+            'group' => 'group',
+        ] as $key => $column) {
             $value = $this->optionalString($payload, $key);
             if ($value !== null) {
                 $query->where($column, $value);
@@ -181,7 +186,7 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     private function create(User $actor, string $workspaceId, array $payload): array
@@ -207,6 +212,7 @@ final class DataTableRuntimeService
                 'team_id' => $teamId,
                 'name' => $this->requiredString($payload, 'name'),
                 'description' => $this->nullableString($payload, 'description'),
+                'group' => $this->group($payload),
                 'visibility' => $visibility,
             ]);
             foreach ($columns as $position => $definition) {
@@ -232,7 +238,7 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     private function update(User $actor, DataTable $table, array $payload): array
@@ -241,7 +247,7 @@ final class DataTableRuntimeService
         if (! is_array($changes) || ($changes !== [] && array_is_list($changes))) {
             throw ValidationException::withMessages(['changes' => 'Data Table changes must be an object.']);
         }
-        $allowed = ['name', 'description', 'visibility', 'ownerId', 'teamId'];
+        $allowed = ['name', 'description', 'group', 'visibility', 'ownerId', 'teamId'];
         if (array_diff(array_keys($changes), $allowed) !== []) {
             throw ValidationException::withMessages(['changes' => 'Data Table changes contain unsupported fields.']);
         }
@@ -279,12 +285,15 @@ final class DataTableRuntimeService
         if (array_key_exists('description', $changes)) {
             $attributes['description'] = $this->nullableString($changes, 'description');
         }
+        if (array_key_exists('group', $changes)) {
+            $attributes['group'] = $this->group($changes);
+        }
 
         return $this->serializeTable($this->schema->updateDataTable($table, $attributes)->load('columns'));
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return list<array{name: string, type: string}>
      */
     private function columns(array $payload): array
@@ -311,7 +320,7 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
     private function valuesByColumnId(DataTable $table, array $values): array
@@ -331,7 +340,7 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return list<array{keyName: string, condition: string, keyValue?: mixed}>
      */
     private function filters(array $payload): array
@@ -357,7 +366,7 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     private function values(array $payload): array
@@ -376,8 +385,8 @@ final class DataTableRuntimeService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param list<string> $allowed
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $allowed
      */
     private function operation(array $payload, array $allowed): string
     {
@@ -475,6 +484,22 @@ final class DataTableRuntimeService
         return trim($payload[$key]);
     }
 
+    /** @param array<string, mixed> $payload */
+    private function group(array $payload): ?string
+    {
+        $group = $this->nullableString($payload, 'group');
+        if ($group === null || $group === '') {
+            return null;
+        }
+        if (mb_strlen($group) > 100) {
+            throw ValidationException::withMessages([
+                'group' => 'The Data Table group must not exceed 100 characters.',
+            ]);
+        }
+
+        return $group;
+    }
+
     /** @return array<string, mixed> */
     private function serializeTable(DataTable $table): array
     {
@@ -484,6 +509,7 @@ final class DataTableRuntimeService
             'id' => $table->id,
             'name' => $table->name,
             'description' => $table->description,
+            'group' => $table->group,
             'visibility' => $table->visibility,
             'ownerId' => $table->user_id,
             'teamId' => $table->team_id,

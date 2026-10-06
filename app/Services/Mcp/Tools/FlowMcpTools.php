@@ -82,7 +82,7 @@ final class FlowMcpTools implements McpToolHandler
                     'cursor' => ['type' => 'string', 'description' => 'Opaque next_cursor value from a previous response.'],
                 ],
             ]],
-            ['name' => 'list_flow_resources', 'description' => 'List workspace resources the connected user may reference while authoring a flow or snippet, including safe proxy metadata. Resource values, credentials, tokens, destinations, and snippet source are never returned. Provide flow_id to include flow-specific mailbox watchers.', 'inputSchema' => ['type' => 'object', 'properties' => [
+            ['name' => 'list_flow_resources', 'description' => 'List workspace resources the connected user may reference while authoring a flow or snippet, including organizational groups and safe proxy metadata. Resource values, credentials, tokens, destinations, and snippet source are never returned. Provide flow_id to include flow-specific mailbox watchers.', 'inputSchema' => ['type' => 'object', 'properties' => [
                 'flow_id' => ['type' => 'string', 'description' => 'Optional flow context. Required to list mailbox watchers.'],
                 'kinds' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => AuthoringResourceProjection::KINDS], 'uniqueItems' => true],
                 'query' => ['type' => 'string'],

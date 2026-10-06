@@ -21,6 +21,7 @@ final class DataTableSchemaService
      *     team_id: string|null,
      *     name: string,
      *     description: string|null,
+     *     group?: string|null,
      *     visibility: string
      * }  $attributes
      */

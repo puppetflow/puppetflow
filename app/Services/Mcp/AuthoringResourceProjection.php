@@ -115,6 +115,7 @@ final class AuthoringResourceProjection
             $query->where(fn (Builder $query) => $query
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('ai_model_id', 'like', "%{$search}%")
+                ->orWhere('group', 'like', "%{$search}%")
                 ->orWhere('id', 'like', "%{$search}%"));
         }
         if ($limit !== null) {
@@ -128,6 +129,7 @@ final class AuthoringResourceProjection
             'team_id',
             'scope',
             'name',
+            'group',
             'ai_model_id',
             'capabilities',
         ])
@@ -135,6 +137,7 @@ final class AuthoringResourceProjection
             ->map(fn (AiModel $model): array => [
                 'id' => $model->id,
                 'name' => $model->name,
+                'group' => $model->group,
                 'model' => $model->ai_model_id,
                 'capabilities' => collect($model->capabilities ?? [])
                     ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && is_bool($value))
@@ -176,6 +179,7 @@ final class AuthoringResourceProjection
             $query->where(fn (Builder $query) => $query
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('provider', 'like', "%{$search}%")
+                ->orWhere('group', 'like', "%{$search}%")
                 ->orWhere('id', 'like', "%{$search}%"));
         }
         if ($limit !== null) {
@@ -189,6 +193,7 @@ final class AuthoringResourceProjection
             'team_id',
             'scope',
             'name',
+            'group',
             'provider',
         ])
             ->filter(fn (NotificationChannel $channel): bool => Gate::forUser($actor)
@@ -196,6 +201,7 @@ final class AuthoringResourceProjection
             ->map(fn (NotificationChannel $channel): array => [
                 'id' => $channel->id,
                 'name' => $channel->name,
+                'group' => $channel->group,
                 'provider' => $channel->provider,
             ])
             ->values()
@@ -224,6 +230,7 @@ final class AuthoringResourceProjection
                 'mailbox_watchers.user_id',
                 'mailbox_watchers.mailbox_id',
                 'mailbox_watchers.name',
+                'mailbox_watchers.group',
                 'mailbox_watchers.is_active',
                 'mailbox_watchers.stale',
                 'mailbox_watchers.scope',
@@ -253,6 +260,7 @@ final class AuthoringResourceProjection
         if ($search !== null && $search !== '') {
             $query->where(fn (Builder $query) => $query
                 ->where('mailbox_watchers.name', 'like', "%{$search}%")
+                ->orWhere('mailbox_watchers.group', 'like', "%{$search}%")
                 ->orWhere('mailbox_watchers.id', 'like', "%{$search}%"));
         }
         if ($limit !== null) {
@@ -266,6 +274,7 @@ final class AuthoringResourceProjection
             ->map(fn (MailboxWatcher $watcher): array => [
                 'id' => $watcher->id,
                 'name' => $watcher->name,
+                'group' => $watcher->group,
             ])
             ->values()
             ->all());
@@ -290,6 +299,7 @@ final class AuthoringResourceProjection
             $query->where(fn (Builder $query) => $query
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('description', 'like', "%{$search}%")
+                ->orWhere('group', 'like', "%{$search}%")
                 ->orWhere('id', 'like', "%{$search}%"));
         }
         if ($limit !== null) {
@@ -305,6 +315,7 @@ final class AuthoringResourceProjection
                     'id' => $table->id,
                     'name' => $table->name,
                     'description' => $table->description,
+                    'group' => $table->group,
                     'schema' => $table->columns->map(fn (DataTableColumn $column): array => [
                         'id' => $column->id,
                         'name' => $column->name,
@@ -383,6 +394,7 @@ final class AuthoringResourceProjection
         if ($search !== null && $search !== '') {
             $query->where(fn (Builder $query) => $query
                 ->where('key', 'like', "%{$search}%")
+                ->orWhere('group', 'like', "%{$search}%")
                 ->orWhere('id', 'like', "%{$search}%"));
         }
         if ($limit !== null) {
@@ -396,6 +408,7 @@ final class AuthoringResourceProjection
             'team_id',
             'scope',
             'key',
+            'group',
             'type',
             'vault_field_type',
         ])
@@ -404,6 +417,7 @@ final class AuthoringResourceProjection
             ->map(fn (UserVariable $variable): array => [
                 'id' => $variable->id,
                 'key' => $variable->key,
+                'group' => $variable->group,
                 'type' => $variable->type,
                 'is_totp' => $variable->isTotp(),
             ])
@@ -438,6 +452,7 @@ final class AuthoringResourceProjection
             $query->where(fn (Builder $query) => $query
                 ->where('label', 'like', "%{$search}%")
                 ->orWhere('description', 'like', "%{$search}%")
+                ->orWhere('group', 'like', "%{$search}%")
                 ->orWhere('id', 'like', "%{$search}%"));
         }
         if ($limit !== null) {
@@ -452,6 +467,7 @@ final class AuthoringResourceProjection
             'scope',
             'label',
             'description',
+            'group',
             'is_active',
             'stale',
             'published_version_id',
@@ -467,6 +483,7 @@ final class AuthoringResourceProjection
                     'id' => $snippet->id,
                     'label' => $snippet->label,
                     'description' => $snippet->description,
+                    'group' => $snippet->group,
                     'args' => $version->args ?? '',
                     'type' => $version->snippet_type,
                     'version' => $version->version,

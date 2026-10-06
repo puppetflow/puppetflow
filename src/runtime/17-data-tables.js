@@ -211,6 +211,7 @@ const $dataTableDeleteRows = async function(tableId, filters, options = {}) {
  * @nodal-param columns [data-table-columns]: Custom string, number, boolean, or datetime columns.
  * @nodal-param options [object]: Data Table metadata.
  * @nodal-param options.description [string]: Description of the Data Table.
+ * @nodal-param options.group [string]: Organizational group, including slash-separated nested groups.
  * @nodal-param options.visibility [string]: Visibility scope: owner, workspace, or team.
  * @nodal-param options.ownerId [string]: User who owns the Data Table.
  * @nodal-param options.teamId [string]: Team that can access a team-visible Data Table.
@@ -222,6 +223,7 @@ const $dataTableCreate = async function(name, columns = [], options = {}) {
     name,
     columns,
     description: opts.description,
+    group: opts.group,
     visibility: opts.visibility,
     ownerId: opts.ownerId,
     teamId: opts.teamId,
@@ -255,6 +257,7 @@ const $dataTableDelete = async function(tableId) {
  * @nodal-output array<object>
  * @availability both
  * @nodal-param options [object]: Optional list filters.
+ * @nodal-param options.group [string]: Filter by exact organizational group.
  * @nodal-param options.visibility [string]: Filter by visibility.
  * @nodal-param options.ownerId [string]: Filter by owner.
  * @nodal-param options.teamId [string]: Filter by team.
@@ -263,6 +266,7 @@ const $dataTableList = async function(options = {}) {
   const opts = __dataTableOptions(options);
   return await __dataTableCall('dataTableRead', {
     operation: 'list',
+    group: opts.group,
     visibility: opts.visibility,
     ownerId: opts.ownerId,
     teamId: opts.teamId,
@@ -280,6 +284,7 @@ const $dataTableList = async function(options = {}) {
  * @nodal-param changes [object, required]: Data Table metadata changes.
  * @nodal-param changes.name [string]: New unique Data Table name.
  * @nodal-param changes.description [string]: New Data Table description.
+ * @nodal-param changes.group [string]: New organizational group, or null to remove it.
  * @nodal-param changes.visibility [string]: New visibility scope: owner, workspace, or team.
  * @nodal-param changes.ownerId [string]: New owner user ID.
  * @nodal-param changes.teamId [string]: New team ID, or null to remove the team.
