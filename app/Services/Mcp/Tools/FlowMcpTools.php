@@ -9,6 +9,7 @@ use App\Models\Flow;
 use App\Models\Folder;
 use App\Rules\ValidNodalGraph;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Flow\FlowSettingsUpdateService;
 use App\Services\Flow\FlowWriteService;
 use App\Services\Flow\NodalCatalogService;
 use App\Services\Mcp\AuthoringResourceProjection;
@@ -33,6 +34,7 @@ final class FlowMcpTools implements McpToolHandler
         'get_flow_creation_options',
         'get_nodal_catalog',
         'list_flow_resources',
+        'update_flow_settings',
         'write_code_flow',
         'write_nodal_flow',
         'publish_flow',
@@ -43,6 +45,7 @@ final class FlowMcpTools implements McpToolHandler
         private readonly FlowVisibility $flowVisibility,
         private readonly FolderVisibility $folderVisibility,
         private readonly McpResourceResolver $resources,
+        private readonly FlowSettingsUpdateService $settings,
         private readonly FlowWriteService $writer,
         private readonly NodalCatalogService $nodalCatalog,
         private readonly AuthoringResourceProjection $authoringResources,
@@ -79,12 +82,34 @@ final class FlowMcpTools implements McpToolHandler
                     'cursor' => ['type' => 'string', 'description' => 'Opaque next_cursor value from a previous response.'],
                 ],
             ]],
-            ['name' => 'list_flow_resources', 'description' => 'List workspace resources the connected user may reference while authoring a flow or snippet. Resource values, credentials, tokens, destinations, and snippet source are never returned. Provide flow_id to include flow-specific mailbox watchers.', 'inputSchema' => ['type' => 'object', 'properties' => [
+            ['name' => 'list_flow_resources', 'description' => 'List workspace resources the connected user may reference while authoring a flow or snippet, including safe proxy metadata. Resource values, credentials, tokens, destinations, and snippet source are never returned. Provide flow_id to include flow-specific mailbox watchers.', 'inputSchema' => ['type' => 'object', 'properties' => [
                 'flow_id' => ['type' => 'string', 'description' => 'Optional flow context. Required to list mailbox watchers.'],
                 'kinds' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => AuthoringResourceProjection::KINDS], 'uniqueItems' => true],
                 'query' => ['type' => 'string'],
                 'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 100],
             ]]],
+            [
+                'name' => 'update_flow_settings',
+                'description' => 'Update runtime settings without replacing flow code or its visual graph. Enable finally_enabled when adding cleanup, notification, or teardown steps to the TERMINATE branch. Use list_flow_resources with kind workspace_proxies before selecting a specific proxy.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['flow_id'],
+                    'anyOf' => [
+                        ['required' => ['finally_enabled']],
+                        ['required' => ['queue_index']],
+                        ['required' => ['proxy_mode']],
+                        ['required' => ['workspace_proxy_id']],
+                    ],
+                    'properties' => [
+                        'flow_id' => $identifier,
+                        'finally_enabled' => ['type' => 'boolean', 'description' => 'Run the TERMINATE/FINALLY branch after every run, including failures.'],
+                        'queue_index' => ['type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => config()->integer('puppetflow.queues_counter', 1)],
+                        'proxy_mode' => ['type' => 'string', 'enum' => ['none', 'auto', 'specific']],
+                        'workspace_proxy_id' => ['type' => ['integer', 'null'], 'description' => 'Required when proxy_mode is specific. Use an id returned by list_flow_resources.'],
+                    ],
+                ],
+            ],
             $this->codeWriterDefinition(),
             $this->nodalWriterDefinition(),
             [
@@ -131,6 +156,7 @@ final class FlowMcpTools implements McpToolHandler
             'get_flow_creation_options' => $this->creationOptions($context),
             'get_nodal_catalog' => $this->catalog($arguments),
             'list_flow_resources' => $this->flowResources($arguments, $context),
+            'update_flow_settings' => $this->updateSettings($arguments, $context),
             'write_code_flow' => $this->write($arguments, $context, 'code'),
             'write_nodal_flow' => $this->write($arguments, $context, 'nodal'),
             'publish_flow' => $this->setPublication($arguments, $context, true),
@@ -210,6 +236,8 @@ final class FlowMcpTools implements McpToolHandler
             'owner_id' => $flow->owner?->id,
             'settings' => [
                 'queue_index' => $flow->queue_index,
+                'proxy_mode' => $flow->proxy_mode,
+                'workspace_proxy_id' => $flow->workspace_proxy_id,
                 'timeout_seconds' => $flow->timeout_seconds, 'operator_seconds' => $flow->operator_seconds,
                 'max_retries' => $flow->max_retries, 'include_raw_output' => (bool) $flow->include_raw_output,
                 'include_input_in_output' => (bool) $flow->include_input_in_output,
@@ -361,6 +389,31 @@ final class FlowMcpTools implements McpToolHandler
         );
 
         return ['resources' => $resources];
+    }
+
+    /**
+     * @param  Arguments  $arguments
+     * @return array<string, mixed>
+     */
+    private function updateSettings(array $arguments, McpToolContext $context): array
+    {
+        $flow = $this->resources->flow(
+            trim(McpToolArguments::string($arguments, 'flow_id')),
+            $context,
+        );
+        unset($arguments['flow_id']);
+        $flow = $this->settings->update($flow, $context->user, $arguments);
+
+        return ['flow' => [
+            'id' => $flow->id,
+            'name' => $flow->name,
+            'settings' => [
+                'queue_index' => $flow->queue_index,
+                'proxy_mode' => $flow->proxy_mode,
+                'workspace_proxy_id' => $flow->workspace_proxy_id,
+                'finally_enabled' => (bool) $flow->finally_enabled,
+            ],
+        ]];
     }
 
     /** @param Arguments $arguments
@@ -542,7 +595,7 @@ TEXT,
             'description' => <<<'TEXT'
 Create or update a Puppetflow visual flow from a nodal JSON graph. This is the default and preferred tool whenever the user asks to create a flow. Use write_code_flow only when the user explicitly requests code, JavaScript, or code mode. Omit flow_id to create and provide name. To update, first call get_flow_source, then provide flow_id and its exact content_updated_at. Puppetflow validates the graph and compiles the JavaScript server-side; do not provide generated code.
 
-Query get_nodal_catalog with mode "nodal" for each needed capability before constructing the graph; browse its paginated compact index only when discovery is needed. Flow Inputs are stored as default_inputs: a shared JSON object merged into every run, with current-run values overriding defaults that use the same top-level key. In nodal values, reference configurable inputs with expressions such as `{{ $run.$input.url }}` instead of hardcoding values callers may need to change. Each node produces cumulative state: object results are merged into `$run`, while scalar and array results are available as `$run.$result`. Use `$nodes.last` for the latest state and `$('Node label')` for a specific node's state. When updating a flow, call get_flow_details to inspect its existing default_inputs. Use exact catalog node names, required parameter keys, value types, defaults, options, and output port IDs. Call list_flow_resources when the graph needs workspace resources such as variables, AI models, channels, Data Tables, mailbox watchers, or snippets, and use only returned IDs. Every flow has canonical RUN and TERMINATE system nodes. Connect the main sequence from RUN; connect independent cleanup steps from TERMINATE (they only run when the flow setting finally_enabled is on, which is off by default). Ordinary edges default to sourcePort "output" and targetPort "input". If / Else branches use "true" and "false". Loop uses "loop" and "done". Callback ports use the exact `flow-*` ID from the catalog. Keep branches structured and converge them through Merge where needed. Node and edge IDs must be unique, edges cannot cross private-function scopes, and coordinates must be numeric.
+Query get_nodal_catalog with mode "nodal" for each needed capability before constructing the graph; browse its paginated compact index only when discovery is needed. Flow Inputs are stored as default_inputs: a shared JSON object merged into every run, with current-run values overriding defaults that use the same top-level key. In nodal values, reference configurable inputs with expressions such as `{{ $run.$input.url }}` instead of hardcoding values callers may need to change. Each node produces cumulative state: object results are merged into `$run`, while scalar and array results are available as `$run.$result`. Use `$nodes.last` for the latest state and `$('Node label')` for a specific node's state. When updating a flow, call get_flow_details to inspect its existing default_inputs. Use exact catalog node names, required parameter keys, value types, defaults, options, and output port IDs. Call list_flow_resources when the graph needs workspace resources such as variables, AI models, channels, Data Tables, mailbox watchers, proxies, or snippets, and use only returned IDs. Every flow has canonical RUN and TERMINATE system nodes. Connect the main sequence from RUN; connect independent cleanup steps from TERMINATE. When adding a TERMINATE branch, set finally_enabled to true in this call or use update_flow_settings, otherwise the branch remains disabled. Ordinary edges default to sourcePort "output" and targetPort "input". If / Else branches use "true" and "false". Loop uses "loop" and "done". Callback ports use the exact `flow-*` ID from the catalog. Keep branches structured and converge them through Merge where needed. Node and edge IDs must be unique, edges cannot cross private-function scopes, and coordinates must be numeric.
 
 Minimal graph:
 {"nodes":[{"id":"__system_run","name":"RUN","system":"run","x":0,"y":0,"values":{}},{"id":"step_1","name":"$gotoUrl","x":320,"y":0,"values":{"url":{"mode":"expression","value":"{{ $run.$input.url }}"}}},{"id":"__system_terminate","name":"TERMINATE","system":"terminate","x":0,"y":400,"values":{}}],"edges":[{"id":"run_to_step","sourceNodeId":"__system_run","targetNodeId":"step_1","sourcePort":"output","targetPort":"input"}]}

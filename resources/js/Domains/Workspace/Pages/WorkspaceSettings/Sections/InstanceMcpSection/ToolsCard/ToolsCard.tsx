@@ -27,12 +27,21 @@ interface Props {
 export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }: Props) {
     const { confirm, ConfirmModal } = useConfirm();
     const [activeCategory, setActiveCategory] = useState<McpToolCategory>('flows');
+    const [query, setQuery] = useState('');
     const isToolEnabled = (name: string) => (
         ALWAYS_AVAILABLE_MCP_TOOLS.has(name) || settings.enabled_tools.includes(name)
     );
-    const visibleTools = activeCategory === 'all'
+    const categoryTools = activeCategory === 'all'
         ? tools
         : tools.filter(tool => toolCategory(tool.name) === activeCategory);
+    const normalizedQuery = query.trim().toLowerCase();
+    const visibleTools = normalizedQuery
+        ? tools.filter(tool => (
+            tool.name.toLowerCase().includes(normalizedQuery)
+            || toolLabel(tool.name).toLowerCase().includes(normalizedQuery)
+            || tool.description.toLowerCase().includes(normalizedQuery)
+        ))
+        : categoryTools;
     const visibleEnabledCount = visibleTools.filter(tool => isToolEnabled(tool.name)).length;
 
     const updateTool = async (toolName: string, value: boolean) => {
@@ -85,8 +94,30 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                     />
                 </SharedS.CardTitle>
                 <S.SectionHint>
-                    Choose which workspace tools are exposed to connected MCP clients. Framework reference tools are always available.
+                    Choose which workspace tools connected MCP clients are allowed to run. Tool discovery stays stable, and permissions are checked on every call.
                 </S.SectionHint>
+                <S.SearchWrap>
+                    <Icon icon="lucide:search" width={14} height={14} />
+                    <S.SearchInput
+                        type="search"
+                        value={query}
+                        onChange={event => setQuery(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'Escape') setQuery('');
+                        }}
+                        placeholder="Search tools by name or description..."
+                        aria-label="Search MCP tools"
+                    />
+                    {query && (
+                        <S.ClearSearch
+                            type="button"
+                            onClick={() => setQuery('')}
+                            aria-label="Clear MCP tool search"
+                        >
+                            <Icon icon="lucide:x" width={13} height={13} />
+                        </S.ClearSearch>
+                    )}
+                </S.SearchWrap>
                 <S.TabsWrap>
                     <TabsS.SettingsTabsScroller>
                         <TabsS.SettingsTabs role="tablist" aria-label="MCP tool categories">
@@ -114,7 +145,11 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                     </TabsS.SettingsTabsScroller>
                 </S.TabsWrap>
                 <S.Header>
-                    <S.SettingsInlineHint>{visibleEnabledCount} of {visibleTools.length} tools enabled in this view</S.SettingsInlineHint>
+                    <S.SettingsInlineHint>
+                        {normalizedQuery
+                            ? `${visibleTools.length} matching tools, ${visibleEnabledCount} enabled`
+                            : `${visibleEnabledCount} of ${visibleTools.length} tools enabled in this view`}
+                    </S.SettingsInlineHint>
                     {!readOnly && (
                         <S.FormActions>
                             <Button type="button" variant="secondary" size="sm" disabled={busy || visibleTools.length === 0} onClick={() => void updateVisibleTools(true)}>
@@ -155,6 +190,12 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                         );
                     })}
                 </S.Grid>
+                {visibleTools.length === 0 && (
+                    <S.EmptyState>
+                        <Icon icon="lucide:search-x" width={18} height={18} />
+                        No tools match “{query.trim()}”.
+                    </S.EmptyState>
+                )}
             </SharedS.Card>
             <ConfirmModal />
         </>

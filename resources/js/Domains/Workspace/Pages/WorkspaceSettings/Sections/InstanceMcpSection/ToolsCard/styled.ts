@@ -7,6 +7,65 @@ export const SectionHint = styled.div`
     line-height: 1.45;
 `;
 
+export const SearchWrap = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: min(100%, 460px);
+    min-height: 38px;
+    margin-top: 18px;
+    padding: 0 11px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    background: ${({ theme }) => theme.colors.bg.primary};
+    border: 1px solid ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+
+    &:focus-within {
+        color: ${({ theme }) => theme.colors.text.secondary};
+        border-color: ${({ theme }) => theme.colors.accent.primary};
+        box-shadow: 0 0 0 3px ${({ theme }) => `${theme.colors.accent.primary}14`};
+    }
+`;
+
+export const SearchInput = styled.input`
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    color: ${({ theme }) => theme.colors.text.primary};
+    background: transparent;
+    border: 0;
+    outline: 0;
+    font: inherit;
+    font-size: 12px;
+
+    &::placeholder {
+        color: ${({ theme }) => theme.colors.text.tertiary};
+    }
+
+    &::-webkit-search-cancel-button {
+        display: none;
+    }
+`;
+
+export const ClearSearch = styled.button`
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    padding: 0;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+    border: 0;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    cursor: pointer;
+
+    &:hover {
+        color: ${({ theme }) => theme.colors.text.primary};
+    }
+`;
+
 export const TabsWrap = styled.div`
     margin-top: 18px;
 
@@ -105,4 +164,16 @@ export const Description = styled.div`
     color: ${({ theme }) => theme.colors.text.tertiary};
     font-size: 12px;
     line-height: 1.4;
+`;
+
+export const EmptyState = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 88px;
+    color: ${({ theme }) => theme.colors.text.tertiary};
+    border: 1px dashed ${({ theme }) => theme.colors.border.default};
+    border-radius: ${({ theme }) => theme.radius.md};
+    font-size: 12px;
 `;

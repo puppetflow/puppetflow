@@ -31,6 +31,7 @@ final class McpToolService
         'get_flow_creation_options' => ['title' => 'Get Flow Creation Options', 'readOnly' => true],
         'get_nodal_catalog' => ['title' => 'Get Nodal Catalog', 'readOnly' => true],
         'list_flow_resources' => ['title' => 'List Flow Resources', 'readOnly' => true],
+        'update_flow_settings' => ['title' => 'Update Flow Settings', 'readOnly' => false],
         'write_code_flow' => ['title' => 'Write Code Flow', 'readOnly' => false],
         'write_nodal_flow' => ['title' => 'Write Nodal Flow', 'readOnly' => false],
         'publish_flow' => ['title' => 'Publish Flow', 'readOnly' => false],
@@ -107,6 +108,7 @@ final class McpToolService
         'get_flow_creation_options' => ['visibility_scopes' => 'array', 'teams' => 'array', 'folders' => 'array', 'defaults' => 'object'],
         'get_nodal_catalog' => ['mode' => 'string', 'nodes' => 'array', 'total' => 'integer', 'next_cursor' => 'nullable-string'],
         'list_flow_resources' => ['resources' => 'object'],
+        'update_flow_settings' => ['flow' => 'object'],
         'write_code_flow' => ['flow' => 'object'],
         'write_nodal_flow' => ['flow' => 'object'],
         'publish_flow' => ['flow' => 'object'],
@@ -158,6 +160,7 @@ final class McpToolService
         'run_flow' => 'Run a flow exposed to MCP, optionally overriding its Flow Inputs.',
         'get_nodal_catalog' => 'Browse the nodes and capabilities available when building visual flows.',
         'list_flow_resources' => 'List the workspace resources that can be referenced by a flow or snippet.',
+        'update_flow_settings' => 'Update FINALLY, queue, and proxy settings without replacing flow content.',
         'write_code_flow' => 'Create or update a flow written in JavaScript.',
         'write_nodal_flow' => 'Create or update a visual flow built from connected nodes.',
         'publish_flow' => 'Publish the current flow draft as a new version.',
@@ -203,13 +206,9 @@ final class McpToolService
     /** @return list<McpToolDefinition> */
     public function listTools(?WorkspaceMcpSetting $setting = null): array
     {
-        $tools = $this->allTools();
-        if (! $setting) {
-            return $tools;
-        }
-        $enabled = $this->enabledToolNames($setting);
-
-        return array_values(array_filter($tools, fn (array $tool) => in_array($tool['name'], $enabled, true)));
+        // Keep discovery stable for connected clients that cache tools/list.
+        // Workspace settings are still enforced for every tools/call request.
+        return $this->allTools();
     }
 
     /** @return list<McpToolDefinition> */
@@ -414,8 +413,8 @@ final class McpToolService
     {
         $effective = $this->configuredToolNames($setting);
 
-        if (array_intersect($effective, ['write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow']) !== []) {
-            $effective = [...$effective, 'search_flows', 'get_flow_source', 'get_flow_creation_options', 'list_flow_resources'];
+        if (array_intersect($effective, ['update_flow_settings', 'write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow']) !== []) {
+            $effective = [...$effective, 'search_flows', 'get_flow_details', 'get_flow_source', 'get_flow_creation_options', 'list_flow_resources'];
         }
         if (array_intersect($effective, ['write_code_snippet', 'write_nodal_snippet', 'publish_snippet', 'unpublish_snippet']) !== []) {
             $effective = [...$effective, 'search_snippets', 'get_snippet_source', 'get_snippet_creation_options', 'list_flow_resources'];

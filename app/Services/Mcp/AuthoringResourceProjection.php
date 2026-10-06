@@ -20,6 +20,7 @@ use App\Models\SnippetVersion;
 use App\Models\User;
 use App\Models\UserVariable;
 use App\Models\Workspace;
+use App\Models\WorkspaceProxy;
 use App\Services\FeatureFlags\FeatureFlagService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
@@ -34,6 +35,7 @@ final class AuthoringResourceProjection
         'media_assets',
         'variables',
         'snippets',
+        'workspace_proxies',
     ];
 
     public function __construct(
@@ -74,6 +76,7 @@ final class AuthoringResourceProjection
                 'media_assets' => $this->mediaAssets($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
                 'variables' => $this->variables($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
                 'snippets' => $this->snippets($context, $actor, $search, $limit, $idsByKind[$kind] ?? []),
+                'workspace_proxies' => $this->workspaceProxies($context, $search, $limit, $idsByKind[$kind] ?? []),
             };
         }
 
@@ -472,5 +475,52 @@ final class AuthoringResourceProjection
             ->filter()
             ->values()
             ->all());
+    }
+
+    /** @param list<string> $ids
+     * @return list<array<string, mixed>>
+     */
+    private function workspaceProxies(
+        AuthorizationContext $context,
+        ?string $search,
+        ?int $limit,
+        array $ids,
+    ): array {
+        $query = WorkspaceProxy::query();
+        if ($ids !== []) {
+            $query->whereIn('id', $ids);
+        }
+        $this->visibility->applyUse(
+            $query,
+            $context,
+            scopeColumn: 'visibility',
+            alwaysVisibleColumn: 'managed_by_env',
+        );
+        if ($search !== null && $search !== '') {
+            $query->where(fn (Builder $query) => $query
+                ->where('label', 'like', "%{$search}%")
+                ->orWhere('group', 'like', "%{$search}%")
+                ->orWhere('country_code', 'like', "%{$search}%")
+                ->orWhere('id', 'like', "%{$search}%"));
+        }
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        return array_values($query->orderBy('label')->get([
+            'id',
+            'label',
+            'visibility',
+            'group',
+            'managed_by_env',
+            'country_code',
+        ])->map(fn (WorkspaceProxy $proxy): array => [
+            'id' => $proxy->id,
+            'label' => $proxy->label,
+            'group' => $proxy->group,
+            'country_code' => $proxy->country_code,
+            'visibility' => $proxy->visibility,
+            'managed_by_env' => (bool) $proxy->managed_by_env,
+        ])->values()->all());
     }
 }
