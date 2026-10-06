@@ -153,42 +153,6 @@ final class McpToolService
         'get_nodal_catalog',
     ];
 
-    private const DEFAULT_TOOLS = [
-        'search_flows',
-        'write_code_flow',
-        'write_code_snippet',
-        'write_nodal_flow',
-        'write_nodal_snippet',
-        'publish_flow',
-        'unpublish_flow',
-        'list_flow_triggers',
-        'create_flow_trigger',
-        'update_flow_trigger',
-        'delete_flow_trigger',
-        'list_flow_actions',
-        'create_flow_action',
-        'update_flow_action',
-        'delete_flow_action',
-        'publish_snippet',
-        'unpublish_snippet',
-        'search_snippets',
-        'get_snippet_source',
-        'list_folders',
-        'get_flow_source',
-        'list_flow_runs',
-        'get_recording_lastshot',
-        'list_flow_resources',
-        'search_runs',
-        'get_flow_details',
-        'run_flow',
-        'get_run',
-        'get_run_result',
-        'list_artifacts',
-        'get_latest_screenshot',
-        'download_artifact',
-        'continue_human_validation',
-    ];
-
     private const HUMAN_DESCRIPTIONS = [
         'get_flow_details' => 'Read the details and Flow Inputs of a flow exposed to MCP.',
         'run_flow' => 'Run a flow exposed to MCP, optionally overriding its Flow Inputs.',
@@ -399,10 +363,7 @@ final class McpToolService
     /** @return list<string> */
     public function defaultToolNames(): array
     {
-        return array_values(array_intersect(
-            [...self::DEFAULT_TOOLS, ...self::ALWAYS_AVAILABLE_TOOLS],
-            $this->allToolNames(),
-        ));
+        return $this->allToolNames();
     }
 
     /** @return list<string> */
