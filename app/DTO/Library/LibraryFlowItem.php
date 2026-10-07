@@ -10,6 +10,7 @@ final readonly class LibraryFlowItem extends LibraryChildItem
      * @param  array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>}|null  $nodalGraph
      * @param  array<string, mixed>  $defaultInputs
      * @param  list<array{name: string, type: string, default: mixed}>  $inputDefinitions
+     * @param  list<array{source_id: string, name: string, description: string|null, group: string|null, columns: list<array{name: string, type: string}>}>  $dataTables
      */
     public function __construct(
         string $key,
@@ -29,6 +30,7 @@ final readonly class LibraryFlowItem extends LibraryChildItem
         public ?array $nodalGraph,
         public array $defaultInputs = [],
         public array $inputDefinitions = [],
+        public array $dataTables = [],
     ) {
         parent::__construct(
             $key,
@@ -70,6 +72,7 @@ final readonly class LibraryFlowItem extends LibraryChildItem
             nodalGraph: $nodalGraph,
             defaultInputs: is_array($values['default_inputs'] ?? null) ? $values['default_inputs'] : [],
             inputDefinitions: self::inputDefinitions($values['input_definitions'] ?? null),
+            dataTables: self::normalizeDataTables($values['data_tables'] ?? null),
         );
     }
 
@@ -82,12 +85,14 @@ final readonly class LibraryFlowItem extends LibraryChildItem
      * @param  array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>}|null  $nodalGraph
      * @param  array<string, mixed>|null  $defaultInputs
      * @param  list<array{name: string, type: string, default: mixed}>|null  $inputDefinitions
+     * @param  list<array{source_id: string, name: string, description: string|null, group: string|null, columns: list<array{name: string, type: string}>}>|null  $dataTables
      */
     public function withCode(
         string $code,
         ?array $nodalGraph = null,
         ?array $defaultInputs = null,
         ?array $inputDefinitions = null,
+        ?array $dataTables = null,
     ): self {
         return new self(
             $this->key,
@@ -107,6 +112,7 @@ final readonly class LibraryFlowItem extends LibraryChildItem
             $nodalGraph,
             $defaultInputs ?? $this->defaultInputs,
             $inputDefinitions ?? $this->inputDefinitions,
+            $dataTables ?? $this->dataTables,
         );
     }
 
@@ -119,6 +125,7 @@ final readonly class LibraryFlowItem extends LibraryChildItem
             'nodal_graph' => $this->nodalGraph,
             'default_inputs' => $this->defaultInputs,
             'input_definitions' => $this->inputDefinitions,
+            'data_tables' => $this->dataTables,
         ];
     }
 
@@ -164,5 +171,53 @@ final readonly class LibraryFlowItem extends LibraryChildItem
         }
 
         return $definitions;
+    }
+
+    /** @return list<array{source_id: string, name: string, description: string|null, group: string|null, columns: list<array{name: string, type: string}>}> */
+    public static function normalizeDataTables(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $dataTables = [];
+        foreach ($value as $dataTable) {
+            if (
+                ! is_array($dataTable)
+                || ! is_string($dataTable['source_id'] ?? null)
+                || trim($dataTable['source_id']) === ''
+                || ! is_string($dataTable['name'] ?? null)
+                || trim($dataTable['name']) === ''
+                || ! is_array($dataTable['columns'] ?? null)
+            ) {
+                continue;
+            }
+
+            $columns = [];
+            foreach ($dataTable['columns'] as $column) {
+                if (
+                    ! is_array($column)
+                    || ! is_string($column['name'] ?? null)
+                    || ! is_string($column['type'] ?? null)
+                    || ! in_array($column['type'], ['string', 'number', 'boolean', 'datetime'], true)
+                ) {
+                    continue 2;
+                }
+                $columns[] = [
+                    'name' => $column['name'],
+                    'type' => $column['type'],
+                ];
+            }
+
+            $dataTables[] = [
+                'source_id' => $dataTable['source_id'],
+                'name' => $dataTable['name'],
+                'description' => is_string($dataTable['description'] ?? null) ? $dataTable['description'] : null,
+                'group' => is_string($dataTable['group'] ?? null) ? $dataTable['group'] : null,
+                'columns' => $columns,
+            ];
+        }
+
+        return $dataTables;
     }
 }

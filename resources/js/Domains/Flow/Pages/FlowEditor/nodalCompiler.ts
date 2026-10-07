@@ -27,6 +27,7 @@ import { getFunctionArgumentNames } from './Panes/NodalEditorPane/utils/function
 import { getNodeFlowPortDefinitions, isCallbackFlowPort } from './Panes/NodalEditorPane/utils/flowParameters';
 import {
     analyzeStructuredGraph,
+    getLoopAncestorNodeIds,
     structuredBranchKey,
 } from './Panes/NodalEditorPane/utils/edges';
 import { getCodeSyntaxIssue, type CodeSyntaxIssue } from './Panes/NodalEditorPane/utils/codeSyntax';
@@ -1013,6 +1014,19 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
     if (!structuredGraph.valid) {
         throw new Error('The visual flow contains an invalid or unstructured connection.');
     }
+    const loopLabelByNodeId = new Map<string, string>(
+        normalized.nodes
+            .filter(node => node.name === LOOP_NODE_NAME)
+            .map((node, index) => [node.id, `__pfLoop${index + 1}`] as const),
+    );
+    const loopAncestorsByNodeId = new Map<string, string[]>(
+        normalized.nodes
+            .filter(node => node.name === BREAK_LOOP_NODE_NAME)
+            .map(node => [
+                node.id,
+                getLoopAncestorNodeIds(normalized.nodes, normalized.edges, node.id),
+            ] as const),
+    );
 
     const collectExecutableNodeIds = (startId: string, excludedNodeIds = new Set<string>()) => {
         const executableNodeIds = new Set<string>();
@@ -1339,13 +1353,25 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
         }
 
         if (node.name === BREAK_LOOP_NODE_NAME) {
-            if (loopDepth === 0) {
+            const loopAncestors = loopAncestorsByNodeId.get(node.id) ?? [];
+            if (loopDepth === 0 || loopAncestors.length === 0) {
                 throw new Error('Break Loop must be placed inside a Loop branch.');
             }
+            const breakDepth = Number(rawValue(node.values, 'depth', '1'));
+            if (!Number.isInteger(breakDepth) || breakDepth < 1) {
+                throw new Error(`Break Loop "${nodeResultLabel(node)}" depth must be a positive integer.`);
+            }
+            const targetLoopId = loopAncestors[breakDepth - 1];
+            if (!targetLoopId) {
+                throw new Error(
+                    `Break Loop "${nodeResultLabel(node)}" depth ${breakDepth} exceeds the active loop nesting level (${loopAncestors.length}).`,
+                );
+            }
+            const targetLabel = breakDepth > 1 ? loopLabelByNodeId.get(targetLoopId) : null;
             return [
                 ...markNodeStart(indent, safeNodeId),
                 ...markNodeEnd(indent, safeNodeId),
-                `${indent}break;`,
+                `${indent}break${targetLabel ? ` ${targetLabel}` : ''};`,
             ];
         }
 
@@ -1427,6 +1453,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
             const loopTimeoutValueName = `loopTimeoutValue${loopIndex}`;
             const loopTimeoutName = `loopTimeout${loopIndex}`;
             const loopStartedAtName = `loopStartedAt${loopIndex}`;
+            const loopLabel = loopLabelByNodeId.get(node.id) ?? `__pfLoop${loopIndex}`;
             const resultName = nextResultName();
             const loopIndent = `${indent}    `;
             const iterationIndent = `${indent}        `;
@@ -1453,7 +1480,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 loopLines.push(
                     `${indent}const ${previousLoopName} = $runRoot.$loop;`,
                     `${indent}try {`,
-                    `${loopIndent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${numericExpression(node.values, 'iterations', '1')}) || 0; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
+                    `${loopIndent}${loopLabel}: for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${numericExpression(node.values, 'iterations', '1')}) || 0; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
                     timeoutCheck,
                     `${iterationIndent}const $item = loopIndex${loopIndex};`,
                     `${iterationIndent}const $index = loopIndex${loopIndex};`,
@@ -1469,7 +1496,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                 loopLines.push(
                     `${indent}const ${previousLoopName} = $runRoot.$loop;`,
                     `${indent}try {`,
-                    `${loopIndent}for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${maxIterations}) || 100; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
+                    `${loopIndent}${loopLabel}: for (let loopIndex${loopIndex} = 0, maxLoop${loopIndex} = Number(${maxIterations}) || 100; loopIndex${loopIndex} < maxLoop${loopIndex}; loopIndex${loopIndex} += 1) {`,
                     timeoutCheck,
                     `${iterationIndent}const $item = loopIndex${loopIndex};`,
                     `${iterationIndent}const $index = loopIndex${loopIndex};`,
@@ -1492,7 +1519,7 @@ export const compileNodalGraphToCode = (graph: NodalGraph, options: CompileNodal
                     `${indent}if (${loopLimitValueName} != null && !(typeof ${loopLimitValueName} === 'string' && ${loopLimitValueName}.trim() === '') && ((typeof ${loopLimitValueName} !== 'number' && typeof ${loopLimitValueName} !== 'string') || !Number.isFinite(${loopLimitName}) || ${loopLimitName} < 0)) throw new Error('Loop limits must be a finite number greater than or equal to 0.');`,
                     `${indent}const ${previousLoopName} = $runRoot.$loop;`,
                     `${indent}try {`,
-                    `${loopIndent}for (const [$index, $item] of (Array.isArray(loopItems${loopIndex}) ? loopItems${loopIndex} : []).entries()) {`,
+                    `${loopIndent}${loopLabel}: for (const [$index, $item] of (Array.isArray(loopItems${loopIndex}) ? loopItems${loopIndex} : []).entries()) {`,
                     timeoutCheck,
                     `${iterationIndent}if (Number.isFinite(${loopLimitName}) && ${loopLimitName} >= 0 && $index >= Math.floor(${loopLimitName})) break;`,
                     `${iterationIndent}$runRoot.$loop = { index: $index, item: $item };`,

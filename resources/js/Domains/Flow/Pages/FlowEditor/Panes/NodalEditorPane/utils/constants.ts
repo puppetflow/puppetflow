@@ -217,11 +217,22 @@ export const CONTROL_NODE_ENTRIES: HelpEntryDef[] = [
     },
     {
         name: BREAK_LOOP_NODE_NAME,
-        signature: `${BREAK_LOOP_NODE_NAME}()`,
-        desc: 'Stop the nearest active loop and continue through its Done path.',
+        signature: `${BREAK_LOOP_NODE_NAME}(depth?)`,
+        desc: 'Stop an active loop by nesting depth and continue through its Done path.',
         aliases: ['break loop', 'exit loop', 'stop loop'],
         category: 'Control',
         availability: 'nodal',
+        nodalParams: {
+            depth: {
+                label: 'Depth',
+                description: '1 stops the nearest loop, 2 stops its parent loop, and so on.',
+                input: 'number',
+                defaultValue: '1',
+                placeholder: '1',
+                valueType: 'number',
+                required: false,
+            },
+        },
     },
     {
         name: MERGE_NODE_NAME,

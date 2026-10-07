@@ -15,11 +15,13 @@ use App\DTO\Library\LibraryImportOverrides;
 use App\DTO\Library\LibrarySnippetItem;
 use App\Enums\Authorization\Ability;
 use App\Http\Controllers\Controller;
+use App\Models\DataTable;
 use App\Models\Flow;
 use App\Models\Snippet;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\FeatureFlags\FeatureFlagService;
+use App\Services\Flow\FlowDataTableImportService;
 use App\Services\Flow\FlowInputResourceImportService;
 use App\Services\Library\BlueprintAppearanceService;
 use App\Services\Library\LibraryCatalogService;
@@ -44,6 +46,7 @@ class LibraryController extends Controller
         private readonly LibrarySnippetReferenceRewriter $snippetReferences,
         private readonly IdentityRows $identityRows,
         private readonly SnippetVersionService $snippetVersions,
+        private readonly FlowDataTableImportService $dataTableImports,
         private readonly FlowInputResourceImportService $inputResourceImports,
     ) {}
 
@@ -95,7 +98,8 @@ class LibraryController extends Controller
          *     }|null,
          *     scope?: string|null,
          *     team_id?: string|null,
-         *     include_snippets?: bool|null
+         *     include_snippets?: bool|null,
+         *     create_data_tables?: bool|null
          * } $validated */
         $validated = $request->validate([
             'flows' => ['array'],
@@ -103,6 +107,7 @@ class LibraryController extends Controller
             'snippets' => ['array'],
             'snippets.*' => ['string'],
             'include_snippets' => ['nullable', 'boolean'],
+            'create_data_tables' => ['nullable', 'boolean'],
             'overrides' => ['nullable', 'array'],
             'overrides.name' => ['nullable', 'string', 'max:128'],
             'overrides.label' => ['nullable', 'string', 'max:255'],
@@ -164,6 +169,8 @@ class LibraryController extends Controller
         $selectedSnippets = collect($blueprint->snippets)
             ->filter(fn (LibrarySnippetItem $item): bool => in_array($item->reference, $requestedSnippets, true))
             ->values();
+        $createDataTables = ($validated['create_data_tables'] ?? true)
+            && $selectedFlows->contains(fn (LibraryFlowItem $item): bool => $item->dataTables !== []);
 
         abort_if($selectedFlows->isEmpty() && $selectedSnippets->isEmpty(), 422, 'Select at least one flow or snippet.');
 
@@ -195,6 +202,9 @@ class LibraryController extends Controller
 
         if ($selectedFlows->isNotEmpty()) {
             Gate::authorize(Ability::CREATE->value, Flow::class);
+            if ($createDataTables) {
+                Gate::authorize(Ability::CREATE->value, DataTable::class);
+            }
             $this->assignments->validate(
                 $workspaceId,
                 $ownerId,
@@ -244,6 +254,7 @@ class LibraryController extends Controller
             $ownerId,
             $snippetScope,
             $snippetTeamId,
+            $createDataTables,
         ): array {
             $this->identityRows->users([$user->id, $ownerId]);
             $this->identityRows->workspaces([$workspaceId]);
@@ -321,7 +332,16 @@ class LibraryController extends Controller
                 $this->snippetVersions->publish($snippet, $user->id);
             });
             $flows = $selectedFlows
-                ->map(fn (LibraryFlowItem $item): Flow => $this->importFlow($item, $blueprint, $workspaceId, $user, $externalId, $overrides, $snippetRewrites))
+                ->map(fn (LibraryFlowItem $item): Flow => $this->importFlow(
+                    $item,
+                    $blueprint,
+                    $workspaceId,
+                    $user,
+                    $externalId,
+                    $overrides,
+                    $snippetRewrites,
+                    $createDataTables,
+                ))
                 ->values();
 
             return [$snippets, $flows];
@@ -390,8 +410,16 @@ class LibraryController extends Controller
     }
 
     /** @param array<string, string> $snippetRewrites */
-    private function importFlow(LibraryFlowItem $item, LibraryBlueprint $blueprint, string $workspaceId, User $user, ?int $externalId, LibraryImportOverrides $overrides, array $snippetRewrites = []): Flow
-    {
+    private function importFlow(
+        LibraryFlowItem $item,
+        LibraryBlueprint $blueprint,
+        string $workspaceId,
+        User $user,
+        ?int $externalId,
+        LibraryImportOverrides $overrides,
+        array $snippetRewrites = [],
+        bool $createDataTables = false,
+    ): Flow {
         $userId = $user->id;
         $visibility = $overrides->flowVisibility();
 
@@ -403,6 +431,17 @@ class LibraryController extends Controller
         $nodalGraph = $item->flowType === 'nodal'
             ? $this->snippetReferences->graph($item->nodalGraph, $snippetRewrites)
             : null;
+        $defaultInputs = $item->defaultInputs ?: null;
+        if ($createDataTables && $item->dataTables !== []) {
+            $defaultInputs = $this->dataTableImports->import(
+                $item->dataTables,
+                $defaultInputs,
+                $workspaceId,
+                $overrides->ownerId($userId),
+                $visibility,
+                $overrides->flowTeamId(),
+            );
+        }
 
         $flow = Flow::create([
             'name' => $overrides->name ?? $label,
@@ -411,7 +450,7 @@ class LibraryController extends Controller
             'source_type' => 'library',
             'flow_type' => $item->flowType,
             'nodal_graph' => $nodalGraph,
-            'default_inputs' => $item->defaultInputs ?: null,
+            'default_inputs' => $defaultInputs,
             'blueprint_input_definitions' => $item->inputDefinitions,
             'workspace_id' => $workspaceId,
             'owner_id' => $overrides->ownerId($userId),

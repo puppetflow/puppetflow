@@ -65,6 +65,7 @@ export default function LibraryUseItemModal({
         folder_id: null,
         workspace_folder_id: null,
         include_snippets: true,
+        create_data_tables: true,
     }), [blueprint.category, blueprint.description, child.description, child.label]);
 
     const [form, setForm] = useState<LibraryUseFormData>(initial);
@@ -91,6 +92,7 @@ export default function LibraryUseItemModal({
         ))
     ), [blueprint.snippets, child.snippet_dependencies]);
     const newDependencies = dependencies.filter(dependency => !dependency.is_installed);
+    const dataTables = isFlow ? (child.data_tables ?? []) : [];
 
     const update = <K extends keyof LibraryUseFormData>(key: K, value: LibraryUseFormData[K]) => {
         setForm(current => ({ ...current, [key]: value }));
@@ -127,6 +129,44 @@ export default function LibraryUseItemModal({
                 <S.Layout>
                     <S.FormPanel>
                         <S.FormScroller>
+                            {dataTables.length > 0 && (
+                                <>
+                                    <ImportS.ResourceImportCard>
+                                        <ImportS.ResourceImportHeader htmlFor="library-create-data-tables">
+                                            <Switch
+                                                id="library-create-data-tables"
+                                                checked={form.create_data_tables}
+                                                onChange={value => update('create_data_tables', value)}
+                                                ariaLabel="Create referenced Data Tables"
+                                            />
+                                            <ImportS.ResourceImportText>
+                                                <ImportS.ResourceImportTitle>Create referenced Data Tables</ImportS.ResourceImportTitle>
+                                                <ImportS.ResourceImportDescription>
+                                                    Create {dataTables.length} Data Table
+                                                    {dataTables.length === 1 ? '' : 's'} with the imported flow.
+                                                </ImportS.ResourceImportDescription>
+                                            </ImportS.ResourceImportText>
+                                        </ImportS.ResourceImportHeader>
+                                        {form.create_data_tables && (
+                                            <ImportS.ResourceImportDetails>
+                                                {dataTables.map(dataTable => (
+                                                    <ImportS.DataTableImportItem key={dataTable.source_id}>
+                                                        <ImportS.DataTableImportName>{dataTable.name}</ImportS.DataTableImportName>
+                                                        <ImportS.DataTableImportMeta>
+                                                            <ImportS.DataTableImportColumns>
+                                                                {dataTable.columns.length} column
+                                                                {dataTable.columns.length === 1 ? '' : 's'}
+                                                            </ImportS.DataTableImportColumns>
+                                                        </ImportS.DataTableImportMeta>
+                                                    </ImportS.DataTableImportItem>
+                                                ))}
+                                            </ImportS.ResourceImportDetails>
+                                        )}
+                                    </ImportS.ResourceImportCard>
+                                    <ImportS.ImportSectionDivider role="separator" />
+                                </>
+                            )}
+
                             {dependencies.length > 0 && (
                                 <>
                                     <ImportS.ResourceImportCard>

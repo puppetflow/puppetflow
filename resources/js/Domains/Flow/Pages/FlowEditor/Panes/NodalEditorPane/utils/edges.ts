@@ -1,4 +1,10 @@
-import type { CanvasEdge, CanvasNode, Point } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type {
+    CanvasEdge,
+    CanvasNode,
+    PendingConnectionTarget,
+    PendingEdgeInsertion,
+    Point,
+} from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import {
     AI_TOOL_PORT,
     BREAK_LOOP_NODE_NAME,
@@ -156,6 +162,25 @@ export const getLoopOwnerNodeIds = (nodes: TopologyNode[], edges: CanvasEdge[]):
     return ownerByNodeId;
 };
 
+export const getLoopAncestorNodeIds = (
+    nodes: TopologyNode[],
+    edges: CanvasEdge[],
+    nodeId: string,
+): string[] => {
+    const ownerByNodeId = getLoopOwnerNodeIds(nodes, edges);
+    const ancestors: string[] = [];
+    const seen = new Set<string>();
+    let ownerId = ownerByNodeId.get(nodeId);
+
+    while (ownerId && !seen.has(ownerId)) {
+        ancestors.push(ownerId);
+        seen.add(ownerId);
+        ownerId = ownerByNodeId.get(ownerId);
+    }
+
+    return ancestors;
+};
+
 export const isLoopBodyEdge = (
     nodes: TopologyNode[],
     edges: CanvasEdge[],
@@ -166,6 +191,23 @@ export const isLoopBodyEdge = (
     const source = nodes.find(node => node.id === edge.sourceNodeId);
     return (source && nodeName(source) === LOOP_NODE_NAME && sourcePort === 'loop')
         || getLoopBodyNodeIds(nodes, edges).has(edge.sourceNodeId);
+};
+
+export const canPlaceBreakLoopNode = (
+    nodes: TopologyNode[],
+    edges: CanvasEdge[],
+    pendingConnectionTarget: PendingConnectionTarget | null,
+    pendingEdgeInsertion: PendingEdgeInsertion | null,
+): boolean => {
+    if (pendingEdgeInsertion) return isLoopBodyEdge(nodes, edges, pendingEdgeInsertion);
+    if (!pendingConnectionTarget) return true;
+
+    return pendingConnectionTarget.fromSide === 'output'
+        && pendingConnectionTarget.connectionType === 'flow'
+        && isLoopBodyEdge(nodes, edges, {
+            sourceNodeId: pendingConnectionTarget.fromNodeId,
+            sourcePort: pendingConnectionTarget.fromPort,
+        });
 };
 
 const firstCommonJoin = (topology: Topology, left: string | null, right: string | null): string | null => {

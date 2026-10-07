@@ -19,7 +19,7 @@ import {
 import { getHelpEntryActionsWidth, getHelpEntryDocumentationPath } from '@/Domains/Flow/Pages/FlowEditor/utils/helpDocumentation';
 import type { CanvasEdge, CanvasNode, PendingConnectionTarget, PendingEdgeInsertion } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
 import { isEdgeInsertableEntry } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/node';
-import { isLoopBodyEdge } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
+import { canPlaceBreakLoopNode } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/edges';
 import * as S from './styled';
 
 interface NodePickerProps {
@@ -52,9 +52,13 @@ export default function NodePicker({
     const hasSearch = Boolean(search.trim());
     const toolConnection = pendingConnectionTarget?.connectionType === 'ai_tool';
     const breakLoopAllowed = useMemo(() => {
-        if (!pendingEdgeInsertion) return false;
-        return isLoopBodyEdge(nodes, edges, pendingEdgeInsertion);
-    }, [edges, nodes, pendingEdgeInsertion]);
+        return canPlaceBreakLoopNode(
+            nodes,
+            edges,
+            pendingConnectionTarget,
+            pendingEdgeInsertion,
+        );
+    }, [edges, nodes, pendingConnectionTarget, pendingEdgeInsertion]);
     const compatibleEntries = useMemo(() => {
         const contextEntries = visibleEntries.filter(entry => (
             entry.name !== BREAK_LOOP_NODE_NAME || breakLoopAllowed

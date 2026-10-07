@@ -1,4 +1,5 @@
 import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import type { ExportedDataTableSchema } from '@/Domains/Flow/Utils/flowInputsMetadata';
 
 export type LibraryType = 'flow' | 'snippet';
 export type SortKey = 'popular' | 'downloaded' | 'liked' | 'newest' | 'used';
@@ -23,6 +24,8 @@ export interface LibraryUseFormData {
     workspace_folder_id: Id | null;
     /** Whether blueprint snippets referenced by the item are imported with it. */
     include_snippets: boolean;
+    /** Whether Data Tables referenced by the flow are created with it. */
+    create_data_tables: boolean;
 }
 
 export interface LibraryStats {
@@ -54,6 +57,7 @@ export interface LibraryStoreChild {
     private_library_id?: number | null;
     /** References of the blueprint snippets this item calls, directly or transitively. */
     snippet_dependencies?: string[];
+    data_tables?: ExportedDataTableSchema[];
 }
 
 export interface LibraryStoreItem {

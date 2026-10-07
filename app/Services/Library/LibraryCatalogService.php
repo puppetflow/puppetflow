@@ -38,7 +38,7 @@ class LibraryCatalogService
 
     private const CACHE_TTL = 3600;
 
-    private const CACHE_VERSION = 10;
+    private const CACHE_VERSION = 11;
 
     public function __construct(
         private readonly LibraryExternalClient $externalClient,
@@ -384,6 +384,7 @@ class LibraryCatalogService
                     nodalGraph: null,
                     defaultInputs: $codeMetadata['default_inputs'] ?? [],
                     inputDefinitions: $codeMetadata['input_definitions'] ?? [],
+                    dataTables: LibraryFlowItem::normalizeDataTables($codeMetadata['data_tables'] ?? null),
                 );
             } else {
                 $snippets[] = new LibrarySnippetItem(
@@ -638,7 +639,7 @@ class LibraryCatalogService
         return $catalogKey;
     }
 
-    /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>} */
+    /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>, data_tables?: list<array<string, mixed>>} */
     private function metadataFromSource(string $source, string $extension): array
     {
         if ($extension === 'json') {
@@ -648,7 +649,7 @@ class LibraryCatalogService
         return $this->metadataFromCode($source);
     }
 
-    /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>} */
+    /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>, data_tables?: list<array<string, mixed>>} */
     private function metadataFromJson(mixed $decoded): array
     {
         if (! is_array($decoded)) {
@@ -671,6 +672,13 @@ class LibraryCatalogService
         if ($inputDefinitions !== []) {
             $result['input_definitions'] = $inputDefinitions;
             $result['default_inputs'] = $this->inputDefaultsFromDefinitions($inputDefinitions);
+        }
+        $resources = $decoded['resources'] ?? null;
+        $dataTables = is_array($resources) ? ($resources['data_tables'] ?? null) : null;
+        if (is_array($dataTables)) {
+            /** @var list<array<string, mixed>> $validDataTables */
+            $validDataTables = array_values(array_filter($dataTables, 'is_array'));
+            $result['data_tables'] = $validDataTables;
         }
 
         return $result;
@@ -749,10 +757,10 @@ class LibraryCatalogService
         ];
     }
 
-    /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>} */
+    /** @return array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>, data_tables?: list<array<string, mixed>>} */
     private function metadataFromCode(string $code): array
     {
-        /** @var array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>} $metadata */
+        /** @var array{title?: string, description?: string, args?: string, default_inputs?: array<string, mixed>, input_definitions?: list<array{name: string, type: string, default: mixed}>, data_tables?: list<array<string, mixed>>} $metadata */
         $metadata = [];
         /** @var list<string> $params */
         $params = [];
@@ -779,6 +787,14 @@ class LibraryCatalogService
                 $param = $this->paramNameFromDocTag($matches[1]);
                 if ($param !== null && ! in_array($param, $params, true)) {
                     $params[] = $param;
+                }
+
+                continue;
+            }
+            if (preg_match('/^\/\/\s*@resource\s+data-table\s+(.+)$/i', $line, $matches)) {
+                $dataTable = json_decode($matches[1], true);
+                if (is_array($dataTable)) {
+                    $metadata['data_tables'][] = $dataTable;
                 }
             }
         }

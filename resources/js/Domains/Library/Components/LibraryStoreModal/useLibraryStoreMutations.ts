@@ -106,6 +106,7 @@ export function useLibraryStoreMutations({
                     body: JSON.stringify({
                         ...selection,
                         include_snippets: data.include_snippets,
+                        create_data_tables: data.create_data_tables,
                         overrides: collection === 'flows'
                             ? {
                                 name: data.name,

@@ -11,6 +11,7 @@ import {
     isObjectLikeParam,
 } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/catalog';
 import {
+    BREAK_LOOP_NODE_NAME,
     IF_ELSE_NODE_NAME,
     LOOP_NODE_NAME,
     MERGE_NODE_NAME,
@@ -340,6 +341,26 @@ export default function NodeParameterField({
                     disabled={readOnly}
                     options={LOOP_MODE_OPTIONS}
                     onChange={value => onUpdateValue(node.id, cleanArg, { mode: 'fixed', value })}
+                />
+            </S.SelectField>
+        );
+    }
+
+    if (entry.name === BREAK_LOOP_NODE_NAME && cleanArg === 'depth') {
+        return (
+            <S.SelectField>
+                <label>{fieldLabel}</label>
+                {hint && <S.FieldHelp>{hint}</S.FieldHelp>}
+                <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={scalarValue.value || '1'}
+                    disabled={readOnly}
+                    onChange={event => onUpdateValue(node.id, cleanArg, {
+                        mode: 'fixed',
+                        value: event.target.value,
+                    })}
                 />
             </S.SelectField>
         );
