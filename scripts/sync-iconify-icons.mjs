@@ -67,18 +67,33 @@ function svgToSymbol(icon, svg) {
 
 async function downloadIcon(icon) {
     const [prefix, name] = icon.split(':');
-    const response = await globalThis.fetch(
+    const iconDirectory = path.join(outputDirectory, prefix);
+    const iconPath = path.join(iconDirectory, `${name}.svg`);
+    try {
+        const cachedSvg = (await readFile(iconPath, 'utf8')).trim();
+        return svgToSymbol(icon, cachedSvg);
+    } catch (error) {
+        if (!error || typeof error !== 'object' || error.code !== 'ENOENT') throw error;
+    }
+
+    let response = await globalThis.fetch(
         `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`,
     );
+    if (!response.ok && prefix === 'lucide') {
+        response = await globalThis.fetch(
+            `https://unpkg.com/lucide-static@latest/icons/${encodeURIComponent(name)}.svg`,
+        );
+    }
 
     if (!response.ok) {
         throw new Error(`Unable to download ${icon}: HTTP ${response.status}`);
     }
 
-    const svg = await response.text();
-    const iconDirectory = path.join(outputDirectory, prefix);
+    const svg = (await response.text())
+        .replace(/^\s*<!--[\s\S]*?-->\s*/, '')
+        .trim();
     await mkdir(iconDirectory, { recursive: true });
-    await writeFile(path.join(iconDirectory, `${name}.svg`), `${svg}\n`);
+    await writeFile(iconPath, `${svg}\n`);
 
     return svgToSymbol(icon, svg);
 }
