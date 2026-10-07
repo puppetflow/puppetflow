@@ -97,7 +97,11 @@ final class FlowRunProjection
 
         $latestRun = $visibleRuns()->select(self::RUN_COLUMNS)
             ->with(['triggeredBy:id,name', 'trigger:id,type,label'])->latest()->first();
-        $flow->setRelation('latestRun', $latestRun?->redactSecretsForClient());
+        $flow->setRelation(
+            'latestRun',
+            $latestRun?->redactSecretsForClient()
+                ->makeVisible(['console_logs', 'action_logs', 'code_snapshot']),
+        );
         $flow->setAttribute('latest_nodal_run', $this->latestNodalRunSummary($flow, $user));
     }
 
