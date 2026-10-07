@@ -23,6 +23,7 @@ interface FlowEditorSidePanelProps {
     isNodalFlow: boolean;
     flow: FlowEditorProps['flow'];
     runs: FlowEditorProps['runs'];
+    runsLoading: boolean;
     running: boolean;
     clearing: boolean;
     myTriggers: FlowEditorProps['myTriggers'];
@@ -59,6 +60,7 @@ export default function FlowEditorSidePanel({
     isNodalFlow,
     flow,
     runs,
+    runsLoading,
     running,
     clearing,
     myTriggers,
@@ -168,6 +170,7 @@ export default function FlowEditorSidePanel({
                 <RunsPane
                     flow={flow}
                     runs={runs}
+                    loading={runsLoading}
                     running={running}
                     onRunNow={onRunNow}
                     onViewRunDetails={onViewRunDetails}

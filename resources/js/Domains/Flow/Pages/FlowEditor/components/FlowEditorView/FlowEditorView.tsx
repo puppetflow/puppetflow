@@ -16,10 +16,12 @@ import * as S from './styled';
 
 interface FlowEditorViewProps extends FlowEditorProps {
     controller: FlowEditorController;
+    runsLoading: boolean;
 }
 
 export default function FlowEditorView({
     controller: c,
+    runsLoading,
     flow,
     stats,
     breadcrumbs,
@@ -159,6 +161,7 @@ export default function FlowEditorView({
                     isNodalFlow={c.isNodalFlow}
                     flow={flow}
                     runs={c.runs}
+                    runsLoading={runsLoading}
                     running={c.running}
                     clearing={c.clearing}
                     myTriggers={myTriggers}

@@ -89,8 +89,7 @@ final class FlowRunProjection
         'updated_at',
     ];
 
-    /** @return array{runs: mixed, stats: mixed} */
-    public function get(Request $request, Flow $flow, User $user, bool $canViewRuns): array
+    public function hydrateLatestRuns(Flow $flow, User $user, bool $canViewRuns): void
     {
         $visibleRuns = fn () => $canViewRuns
             ? $flow->runs()
@@ -100,6 +99,14 @@ final class FlowRunProjection
             ->with(['triggeredBy:id,name', 'trigger:id,type,label'])->latest()->first();
         $flow->setRelation('latestRun', $latestRun?->redactSecretsForClient());
         $flow->setAttribute('latest_nodal_run', $this->latestNodalRunSummary($flow, $user));
+    }
+
+    /** @return array{runs: mixed, stats: mixed} */
+    public function getHistory(Request $request, Flow $flow, User $user, bool $canViewRuns): array
+    {
+        $visibleRuns = fn () => $canViewRuns
+            ? $flow->runs()
+            : $flow->runs()->where('triggered_by', $user->id);
 
         $query = $visibleRuns()->getQuery()
             ->select(self::RUN_COLUMNS)

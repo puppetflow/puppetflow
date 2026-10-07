@@ -106,8 +106,9 @@ export const RunList = styled.div<{ $dimmed?: boolean }>`
     transition: opacity 150ms ease;
 `;
 
-export const RunListLoadingWrap = styled.div`
+export const RunListLoadingWrap = styled.div<{ $loading?: boolean }>`
     position: relative;
+    min-height: ${({ $loading }) => ($loading ? '160px' : '0')};
 `;
 
 export const RunListLoading = styled.div`

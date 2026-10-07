@@ -119,6 +119,11 @@ export interface FlowEditorProps {
     teamTrees?: TeamTree[];
 }
 
+export type FlowEditorPageProps = Omit<FlowEditorProps, 'runs' | 'stats'> & {
+    runs?: FlowEditorProps['runs'];
+    stats?: FlowEditorProps['stats'];
+};
+
 export const DEFAULT_CODE = `// Puppeteer flow code
 // Available helpers: $gotoUrl, $gotoTab, $fillInput, $screenshot, $clickElement, etc.
 

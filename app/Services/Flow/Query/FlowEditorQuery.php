@@ -66,7 +66,11 @@ final class FlowEditorQuery
         $flow->publishedVersion?->makeHidden(['flow_type', 'code', 'nodal_graph']);
         $flow->owner_workspace_role = $this->roles->one($flow->owner_id, $flow->workspace_id);
         $this->libraryState($flow);
-        $runData = $this->runs->get($request, $flow, $user, $canViewRuns);
+        $this->runs->hydrateLatestRuns($flow, $user, $canViewRuns);
+        $runData = null;
+        $loadRunData = function () use (&$runData, $request, $flow, $user, $canViewRuns): array {
+            return $runData ??= $this->runs->getHistory($request, $flow, $user, $canViewRuns);
+        };
 
         $siblings = Flow::query();
         $this->visibility->apply($siblings, $context);
@@ -93,8 +97,8 @@ final class FlowEditorQuery
 
         return Inertia::render('Flow/FlowEditor/FlowEditor', [
             'flow' => $flow,
-            'stats' => $runData['stats'],
-            'runs' => $runData['runs'],
+            'stats' => Inertia::defer(fn () => $loadRunData()['stats'], 'flow-runs'),
+            'runs' => Inertia::defer(fn () => $loadRunData()['runs'], 'flow-runs'),
             'breadcrumbs' => $this->breadcrumbs->flow($flow),
             'siblingFlows' => $siblings->get([
                 'id', 'name', 'icon_type', 'icon_value',

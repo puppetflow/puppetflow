@@ -183,7 +183,7 @@ export default function ToolsCard({ settings, tools, busy, readOnly, onUpdate }:
                                     id={`mcp_tool_${tool.name}`}
                                     checked={enabled}
                                     onChange={value => void updateTool(tool.name, value)}
-                                    label={alwaysAvailable ? 'Always available' : (enabled ? 'Enabled' : 'Disabled')}
+                                    label={alwaysAvailable ? 'Always' : (enabled ? 'Enabled' : 'Disabled')}
                                     disabled={readOnly || busy || alwaysAvailable}
                                 />
                             </S.Item>

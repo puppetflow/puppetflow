@@ -30,6 +30,7 @@ function getStoredPerPage(): number {
 interface RunsPaneProps {
     flow: Flow;
     runs: PaginatedData<FlowRun>;
+    loading?: boolean;
     running: boolean;
     onRunNow: () => void;
     onViewRunDetails: (run: FlowRun) => void;
@@ -43,6 +44,7 @@ interface RunsPaneProps {
 export default function RunsPane({
     flow,
     runs,
+    loading = false,
     running,
     onRunNow,
     onViewRunDetails,
@@ -109,6 +111,7 @@ export default function RunsPane({
     const popoverRun = metaPopoverRunId
         ? runs.data.find(run => run.id === metaPopoverRunId) ?? null
         : null;
+    const listLoading = loading || filtersLoading;
 
     return (
         <>
@@ -168,24 +171,26 @@ export default function RunsPane({
                         perPage={perPage}
                         onLoadingChange={setFiltersLoading}
                     />
-                    <RunsPanePagination
-                        runs={runs}
-                        position="top"
-                        perPage={perPage}
-                        onPerPageChange={value => {
-                            changePerPage(value);
-                            filtersRef.current?.changePerPage(value);
-                        }}
-                    />
+                    {!loading && (
+                        <RunsPanePagination
+                            runs={runs}
+                            position="top"
+                            perPage={perPage}
+                            onPerPageChange={value => {
+                                changePerPage(value);
+                                filtersRef.current?.changePerPage(value);
+                            }}
+                        />
+                    )}
 
-                    <S.RunListLoadingWrap>
-                        {filtersLoading && (
-                            <S.RunListLoading>
-                                <Icon icon="lucide:loader" width={18} height={18} />
+                    <S.RunListLoadingWrap $loading={loading}>
+                        {listLoading && (
+                            <S.RunListLoading aria-label="Loading run history" role="status">
+                                <Icon icon="lucide:loader-2" width={18} height={18} />
                             </S.RunListLoading>
                         )}
                         {runs.data.length > 0 ? (
-                            <S.RunList $dimmed={filtersLoading}>
+                            <S.RunList $dimmed={listLoading}>
                                 {runs.data.map(run => (
                                     <RunHistoryItem
                                         key={run.id}
@@ -200,22 +205,24 @@ export default function RunsPane({
                                     />
                                 ))}
                             </S.RunList>
-                        ) : (
+                        ) : !loading ? (
                             <Layout.RunListEmpty>
                                 <Layout.EmptyText>No runs yet</Layout.EmptyText>
                             </Layout.RunListEmpty>
-                        )}
+                        ) : null}
                     </S.RunListLoadingWrap>
 
-                    <RunsPanePagination
-                        runs={runs}
-                        position="bottom"
-                        perPage={perPage}
-                        onPerPageChange={value => {
-                            changePerPage(value);
-                            filtersRef.current?.changePerPage(value);
-                        }}
-                    />
+                    {!loading && (
+                        <RunsPanePagination
+                            runs={runs}
+                            position="bottom"
+                            perPage={perPage}
+                            onPerPageChange={value => {
+                                changePerPage(value);
+                                filtersRef.current?.changePerPage(value);
+                            }}
+                        />
+                    )}
                 </Layout.SidePanelSectionInner>
             </Layout.SidePanelSection>
             <RunMetadataPopover
