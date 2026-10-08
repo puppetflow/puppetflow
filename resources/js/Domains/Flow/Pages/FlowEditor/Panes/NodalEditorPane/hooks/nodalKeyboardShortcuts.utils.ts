@@ -2,11 +2,18 @@ export function hasOpenModal(): boolean {
     return document.querySelector('[data-modal-overlay]') !== null;
 }
 
-// Modals stacked above the pane block its shortcuts. A modal hosting the pane itself (run
-// detail snapshot) does not: its read-only canvas must keep selection and copy shortcuts.
+// The topmost modal blocks shortcuts unless it hosts the pane itself. Background modal
+// portals are siblings in the DOM and must not block a canvas rendered in a nested modal.
 export function hasBlockingModal(canvas: Element | null): boolean {
-    return Array.from(document.querySelectorAll('[data-modal-overlay]'))
-        .some(overlay => !canvas || !overlay.contains(canvas));
+    const overlays = document.querySelectorAll('[data-modal-overlay]');
+    const topOverlay = overlays[overlays.length - 1];
+
+    return Boolean(topOverlay && (!canvas || !topOverlay.contains(canvas)));
+}
+
+export function hasTextSelection(): boolean {
+    const selection = window.getSelection();
+    return Boolean(selection && selection.rangeCount > 0 && !selection.isCollapsed);
 }
 
 const EDITABLE_TARGET_SELECTOR = [

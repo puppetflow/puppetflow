@@ -1,5 +1,10 @@
 import type { NodalKeyboardShortcutsOptions } from './useNodalEditorEffects.types';
-import { hasBlockingModal, hasOpenModal, isEditableShortcutTarget } from './nodalKeyboardShortcuts.utils';
+import {
+    hasBlockingModal,
+    hasOpenModal,
+    hasTextSelection,
+    isEditableShortcutTarget,
+} from './nodalKeyboardShortcuts.utils';
 import { canDeactivateNode } from '../utils/node';
 
 export function createNodalKeyDownHandler(options: NodalKeyboardShortcutsOptions) {
@@ -48,6 +53,8 @@ export function createNodalKeyDownHandler(options: NodalKeyboardShortcutsOptions
 
         if (isEditableShortcutTarget(event)) return;
         if (editingNodeCurrent || hasBlockingModal(canvasRef.current)) return;
+
+        if (isCopyShortcut && hasTextSelection()) return;
 
         if (isCopyShortcut && isActivePane() && selectedNodeIds.size > 0) {
             event.preventDefault();
