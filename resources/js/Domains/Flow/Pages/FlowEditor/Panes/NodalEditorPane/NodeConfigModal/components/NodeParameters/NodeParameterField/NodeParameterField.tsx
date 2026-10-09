@@ -386,7 +386,7 @@ export default function NodeParameterField({
         || meta.input === 'ai-vision-model'
     ) {
         const value = normalizeScalarParameterValue(node.values[cleanArg]);
-        const createCapability = entry.name === '$aiControl'
+        const createCapability = entry.name === '$aiControl' || entry.name === '$aiChallenge'
             ? 'vision'
             : entry.name === '$aiMessage'
                 ? 'text'

@@ -66,7 +66,7 @@ const DOCUMENTATION_PAGE_GROUPS = [
             '$dataTableInsertRow', '$dataTableUpdateRows', '$dataTableUpsertRows',
             '$dataTableRowExists', '$dataTableRowDoesNotExist', '$dataTableGetRows',
             '$dataTableDeleteRows', '$dataTableCreate', '$dataTableDelete',
-            '$dataTableList', '$dataTableUpdate', '$aiMessage', '$aiControl',
+            '$dataTableList', '$dataTableUpdate', '$aiMessage', '$aiControl', '$aiChallenge',
         ]),
     },
 ];

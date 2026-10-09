@@ -53,7 +53,7 @@ export default function NodeParameters({
     );
     const requirementBanner = (() => {
         if (
-            (entry.name === '$aiControl' || entry.name === '$aiMessage')
+            (entry.name === '$aiControl' || entry.name === '$aiMessage' || entry.name === '$aiChallenge')
             && validationResources.aiSetup?.status === 'loaded'
         ) {
             if (!validationResources.aiSetup.hasAiIntegration) {
@@ -220,7 +220,7 @@ export default function NodeParameters({
                             && validationResources.mailboxSetup?.status === 'loaded'
                             && !validationResources.mailboxSetup.hasMailbox
                         ) || (
-                            (entry.name === '$aiControl' || entry.name === '$aiMessage')
+                            (entry.name === '$aiControl' || entry.name === '$aiMessage' || entry.name === '$aiChallenge')
                             && cleanArg === 'aiModelId'
                             && validationResources.aiSetup?.status === 'loaded'
                             && !validationResources.aiSetup.hasAiIntegration

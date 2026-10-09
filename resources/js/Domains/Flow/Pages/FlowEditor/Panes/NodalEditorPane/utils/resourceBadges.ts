@@ -19,7 +19,11 @@ export function getNodeResourceDisplays(
         const channelId = staticValue(node.values.channelId);
         if (channelId) referenceKeys.push(`channels.${channelId}`);
     }
-    if (node.entry.name === '$aiMessage' || node.entry.name === '$aiControl') {
+    if (
+        node.entry.name === '$aiMessage'
+        || node.entry.name === '$aiControl'
+        || node.entry.name === '$aiChallenge'
+    ) {
         const aiModelId = staticValue(node.values.aiModelId);
         if (aiModelId) referenceKeys.push(`aiModels.${aiModelId}`);
     }

@@ -329,6 +329,7 @@ const getSelectorGizmos = (code: string): CodeGizmo[] => {
 const RESOURCE_NAMESPACE_BY_HELPER: Record<string, 'channels' | 'aiModels'> = {
     $notify: 'channels',
     $waitHumanValidation: 'channels',
+    $aiChallenge: 'aiModels',
     $aiMessage: 'aiModels',
     $aiControl: 'aiModels',
 };

@@ -8,6 +8,7 @@ export const HELPER_ICON_BY_NAME: Record<string, string> = {
     $stopSniffing: 'lucide:circle-off',
     $screenshot: 'lucide:camera',
     $scanQrcode: 'lucide:qr-code',
+    $aiChallenge: 'lucide:shield-check',
     $aiMessage: 'lucide:message-square-text',
     $aiControl: 'lucide:brain-circuit',
     $mcpClientTool: 'lucide:plug-zap',

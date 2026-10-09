@@ -54,6 +54,7 @@ export const getNodeCategoryColor = (entry: HelpEntryDef) => {
 };
 
 const ACTION_NODE_ENTRY_BY_ACTION: Record<string, string> = {
+    aiChallenge: '$aiChallenge',
     aiControl: '$aiControl',
     aiMessage: '$aiMessage',
     httpRequest: '$httpRequest',
@@ -290,6 +291,7 @@ function normalizeOptionDefaultValue(value: string): string | undefined {
 const NODE_LABEL_BY_NAME: Record<string, string> = {
     Set: 'Set variable',
     $setOutput: 'Set Output',
+    $aiChallenge: 'AI Challenge',
     $aiMessage: 'AI Message',
     $aiControl: 'AI Control',
     $mcpClientTool: 'MCP Client Tool',

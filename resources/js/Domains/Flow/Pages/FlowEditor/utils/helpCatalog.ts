@@ -175,6 +175,9 @@ const PARAM_SELECT_CHOICES: Record<string, NodalSelectOption[]> = {
         { value: 'json', label: 'JSON' },
         { value: 'schema', label: 'JSON schema' },
     ],
+    challengeType: [
+        { value: 'cloudflare-checkbox', label: 'Cloudflare Checkbox' },
+    ],
     include: [
         { value: 'all', label: 'All tools' },
         { value: 'selected', label: 'Selected tools' },

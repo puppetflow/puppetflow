@@ -59,7 +59,7 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Ask language models and automate browser decisions with vision.',
         icon: 'lucide:sparkles',
         color: '#8b5cf6',
-        priority: ['$aiMessage', '$aiControl', '$mcpClientTool'],
+        priority: ['$aiMessage', '$aiControl', '$aiChallenge', '$mcpClientTool'],
         match: entry => entry.category === 'AI',
     },
     {

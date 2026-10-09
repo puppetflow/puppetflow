@@ -1,4 +1,4 @@
-/* global $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectOneElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue, __humanJitterMs */
+/* global $clickAtCoordinates, $clickElement, $clickElementAtIndex, $writeFile, $scrollByPixels, $scrollToElement, $selectOneElement, $selectShadow, $shadowInputFill, __actionLogSuppressionDepth:writable, __formatActionValue, __humanJitterMs */
 
 const __aiMaxImageBytes = 5 * 1024 * 1024;
 
@@ -224,15 +224,16 @@ const __aiRequestWithMcp = async function(aiModelId, capability, messages, optio
 /* @help AI
  * @sig $aiMessage(aiModelId, message, options?)
  * @aliases ask ai, generate text, chat with ai
- * @desc Send text messages through a configured AI model.
- * @nodal-desc Ask an AI model a text-only question.
+ * @desc Send messages through a configured AI model, optionally with a screenshot of the current page.
+ * @nodal-desc Ask an AI model a question and optionally share the current page screenshot.
  * @nodal-output object
- * @opt outputMode: text, temperature: 0.7, top_p: 1, max_tokens: 1024, timeout: 120000
+ * @opt outputMode: text, shareScreenshot: false, temperature: 0.7, top_p: 1, max_tokens: 1024, timeout: 120000
  * @nodal-param aiModelId [ai-model, required]: Configured text-capable AI model used for this request.
  * @nodal-param message [string, required]: Message sent to the model.
- * @nodal-param options [object]: Configure instructions, history, sampling, token limits, timeout and output format.
+ * @nodal-param options [object]: Configure instructions, history, screenshot sharing, sampling, token limits, timeout and output format.
  * @nodal-param options.system [string]: System instructions applied to the request.
  * @nodal-param options.messages [array]: Previous messages as objects containing role and content.
+ * @nodal-param options.shareScreenshot [boolean]: Share a screenshot of the current browser viewport with the model. Requires a vision-capable model.
  * @nodal-param options.temperature [number]: Sampling temperature supported by the selected provider.
  * @nodal-param options.top_p [number]: Nucleus sampling probability supported by the selected provider.
  * @nodal-param options.max_tokens [number]: Maximum number of output tokens.
@@ -243,16 +244,31 @@ const __aiRequestWithMcp = async function(aiModelId, capability, messages, optio
  */
 const $aiMessage = async function(aiModelId, message, options = {}) {
   __emitAction('aiMessage', aiModelId);
+  const shareScreenshot = options.shareScreenshot === true;
   const history = Array.isArray(options.messages) ? options.messages : [];
   const messages = history.map(message => ({
     role: ['user', 'assistant', 'system'].includes(message && message.role) ? message.role : 'user',
     content: __aiTextContent(message && message.content),
   }));
-  messages.push({ role: 'user', content: __aiTextContent(message) });
+  const userContent = __aiTextContent(message);
+  if (shareScreenshot) {
+    const image = await __retryOnContextDestroyed(() => $page.screenshot({
+      encoding: 'base64',
+      type: 'jpeg',
+      quality: 65,
+      fullPage: false,
+    }));
+    if (Buffer.byteLength(image, 'base64') > __aiMaxImageBytes) {
+      throw new Error('AI Message screenshot exceeds the payload limit.');
+    }
+    userContent.push({ type: 'image', data: image, mime_type: 'image/jpeg' });
+  }
+  messages.push({ role: 'user', content: userContent });
   const requestOptions = { ...options };
   delete requestOptions.messages;
   delete requestOptions.outputMode;
   delete requestOptions.schema;
+  delete requestOptions.shareScreenshot;
   const hasSchema = Boolean(options.schema)
     && typeof options.schema === 'object'
     && !Array.isArray(options.schema)
@@ -276,7 +292,7 @@ const $aiMessage = async function(aiModelId, message, options = {}) {
   }
   console.debug('AI Message request model:', String(aiModelId), 'prompt:', String(message));
   console.debug('AI Message waiting for model response...');
-  const response = await __aiRequestWithMcp(aiModelId, 'text', messages, requestOptions);
+  const response = await __aiRequestWithMcp(aiModelId, shareScreenshot ? 'vision' : 'text', messages, requestOptions);
   console.debug(
     'AI Message response provider:',
     response.provider || 'unknown',
@@ -312,6 +328,91 @@ const __aiParseJsonText = function(text) {
       return null;
     }
   }
+};
+
+const __aiChallengeResponseSchema = {
+  type: 'object',
+  properties: {
+    coordinates: {
+      type: 'array',
+      description: 'Coordinates of the points',
+      items: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 100000,
+      },
+      minItems: 2,
+      maxItems: 2,
+      uniqueItems: false,
+    },
+  },
+  required: ['coordinates'],
+  additionalProperties: false,
+};
+
+/* @help AI
+ * @sig $aiChallenge(aiModelId, challengeType, options?)
+ * @aliases ai captcha, cloudflare checkbox, challenge solver
+ * @desc Analyze a supported browser challenge with a screenshot and perform the required interaction.
+ * @nodal-desc Detect and click a supported browser challenge using a vision model.
+ * @nodal-output object
+ * @opt delay: 0
+ * @nodal-param aiModelId [ai-vision-model, required]: Configured vision-capable AI model used to locate the challenge.
+ * @nodal-param challengeType [string, required]: Challenge type to detect and handle.
+ * @nodal-param options [object]: Configure challenge execution.
+ * @nodal-param options.delay [number]: Time to wait before taking the screenshot and starting AI analysis, in milliseconds.
+ */
+const $aiChallenge = async function(aiModelId, challengeType, options = {}) {
+  __emitAction('aiChallenge', challengeType);
+  const normalizedChallengeType = String(challengeType || '').trim();
+  if (normalizedChallengeType !== 'cloudflare-checkbox') {
+    throw new Error('AI Challenge only supports Cloudflare Checkbox.');
+  }
+  if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+    throw new TypeError('AI Challenge options must be an object.');
+  }
+  const delay = options.delay == null ? 0 : Number(options.delay);
+  if (!Number.isFinite(delay) || delay < 0 || delay > 900000) {
+    throw new TypeError('AI Challenge delay must be between 0 and 900000 milliseconds.');
+  }
+  if (delay > 0) await $sleep(delay);
+
+  const response = await $aiMessage(
+    aiModelId,
+    'If you see a screen with a checkbox, I need its X,Y coordinates relative to the screenshot (not exactly in the center).',
+    {
+      shareScreenshot: true,
+      outputMode: 'schema',
+      schema: __aiChallengeResponseSchema,
+      temperature: 0.1,
+      max_tokens: 256,
+    },
+  );
+  const coordinates = response && response.json ? response.json.coordinates : null;
+  if (
+    !Array.isArray(coordinates)
+    || coordinates.length !== 2
+    || coordinates.some(value => !Number.isInteger(value) || value < 0 || value > 100000)
+  ) {
+    throw new Error('AI Challenge returned invalid checkbox coordinates.');
+  }
+
+  const viewport = await __retryOnContextDestroyed(() => $page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  })));
+  if (coordinates[0] >= viewport.width || coordinates[1] >= viewport.height) {
+    throw new Error('AI Challenge returned coordinates outside the current viewport.');
+  }
+
+  await $clickAtCoordinates(coordinates[0], coordinates[1], { delay: 0 });
+  return {
+    challengeType: normalizedChallengeType,
+    coordinates,
+    clicked: true,
+    model: response.model || aiModelId,
+    usage: response.usage || {},
+  };
 };
 
 const __aiExtractJson = function(text) {

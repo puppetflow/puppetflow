@@ -21,6 +21,7 @@ trait FindsAiModelUsages
     private function aiModelVisualParameterMatches(string $id): array
     {
         return [
+            ['node' => '$aiChallenge', 'parameter' => 'aiModelId', 'value' => $id],
             ['node' => '$aiMessage', 'parameter' => 'aiModelId', 'value' => $id],
             ['node' => '$aiControl', 'parameter' => 'aiModelId', 'value' => $id],
         ];
@@ -115,7 +116,7 @@ trait FindsAiModelUsages
     /** @param list<string> $inputKeys */
     private function containsAiModelInputUsage(string $value, array $inputKeys): bool
     {
-        foreach (['aiMessage', 'aiControl'] as $helper) {
+        foreach (['aiChallenge', 'aiMessage', 'aiControl'] as $helper) {
             foreach ($inputKeys as $inputKey) {
                 $pattern = '~'.preg_quote('$'.$helper, '~')
                     .'\s*\(\s*'.$this->inputAccessPattern($inputKey).'(?=\s*,)~';
@@ -209,7 +210,7 @@ trait FindsAiModelUsages
     private function aiModelLiteralPatterns(string $id): array
     {
         $patterns = [];
-        foreach (['aiMessage', 'aiControl'] as $helper) {
+        foreach (['aiChallenge', 'aiMessage', 'aiControl'] as $helper) {
             $patterns[] = '~'.preg_quote('$'.$helper, '~').'\s*\(\s*(["\'])'.preg_quote($id, '~').'\1~';
         }
         $patterns[] = '~'.preg_quote('${aiModels.'.$id.'}', '~').'~';

@@ -81,7 +81,10 @@ export function getNodeParameterDisplayLabel(entry: HelpEntryDef, key: string): 
     if (entry.name === '$waitForEmail' && key === 'mailboxWatcherId') {
         return 'Mailbox Watcher';
     }
-    if ((entry.name === '$aiControl' || entry.name === '$aiMessage') && key === 'aiModelId') {
+    if (
+        (entry.name === '$aiControl' || entry.name === '$aiMessage' || entry.name === '$aiChallenge')
+        && key === 'aiModelId'
+    ) {
         return 'AI Model';
     }
     if (

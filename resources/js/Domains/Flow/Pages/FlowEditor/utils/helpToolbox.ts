@@ -92,6 +92,7 @@ const HELPER_ICON_BY_CATEGORY: Record<string, string> = {
 
 export const formatHelpLabel = (name: string) => {
     if (name === '$setOutput') return 'Set Output';
+    if (name === '$aiChallenge') return 'AI Challenge';
     if (name === '$aiMessage') return 'AI Message';
     if (name === '$aiControl') return 'AI Control';
     if (name === '$mcpClientTool') return 'MCP Client Tool';
