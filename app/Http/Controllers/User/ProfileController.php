@@ -8,11 +8,19 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Authorization\AuthorizationContextFactory;
+use App\Authorization\Visibility\SharedResourceVisibility;
+use App\Enums\Authorization\Ability;
 use App\Http\Controllers\Controller;
+use App\Models\FlowTrigger;
 use App\Models\User;
+use App\Models\Workspace;
+use App\Models\WorkspaceProxy;
+use App\Models\WorkspaceTeam;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Sso\SsoProviderService;
 use App\Services\Storage\UploadStorage;
+use App\Services\Workspace\ManagedWorkspaceProxyService;
 use App\Services\Workspace\UserIdentityManager;
 use App\Support\IdentityEmail;
 use Illuminate\Http\RedirectResponse;
@@ -54,6 +62,9 @@ class ProfileController extends Controller
         private readonly UploadStorage $uploads,
         private readonly FeatureFlagService $features,
         private readonly SsoProviderService $ssoProviders,
+        private readonly AuthorizationContextFactory $contexts,
+        private readonly SharedResourceVisibility $sharedResources,
+        private readonly ManagedWorkspaceProxyService $managedProxies,
     ) {}
 
     public function show(Request $request): Response
@@ -61,12 +72,38 @@ class ProfileController extends Controller
         /** @var User $user */
         $user = $request->user();
         $ssoEnabled = $this->features->enabled('sso_enabled');
+        $workspaceId = $this->workspaceIdFromSession();
+        $workspace = Workspace::query()->findOrFail($workspaceId);
+        $this->managedProxies->syncForWorkspace($workspace);
+        $context = $this->contexts->for($user, $workspaceId);
+        $workspaceProxies = WorkspaceProxy::query()->orderBy('label');
+        $this->sharedResources->applyUse(
+            $workspaceProxies,
+            $context,
+            scopeColumn: 'visibility',
+            alwaysVisibleColumn: 'managed_by_env',
+        );
+        $triggers = FlowTrigger::query()
+            ->where('user_id', $user->id)
+            ->whereHas('flow', fn ($query) => $query->where('workspace_id', $workspaceId))
+            ->with('flow:id,name,proxy_mode,workspace_proxy_id')
+            ->orderByDesc('updated_at')
+            ->get();
+        $triggers->each(fn (FlowTrigger $trigger) => $trigger->makeVisible(['config', 'endpoint_url']));
 
         return Inertia::render('Profile/Profile', [
             'apiKeys' => $user->apiKeys()
                 ->orderByDesc('created_at')
                 ->get(['id', 'name', 'key_preview', 'last_used_at', 'created_at']),
             'newApiKey' => session('new_api_key'),
+            'triggers' => $triggers,
+            'teams' => $this->features->teamsEnabled()
+                ? WorkspaceTeam::where('workspace_id', $workspaceId)->orderBy('name')->get(['id', 'name'])
+                : collect(),
+            'canManageWorkspaceProxies' => $user->can(Ability::UPDATE->value, $workspace),
+            'workspaceProxies' => $workspaceProxies
+                ->get(['id', 'label', 'country_code', 'group'])
+                ->values(),
             'twoFactorEnabled' => $user->hasTwoFactorEnabled(),
             'sso' => [
                 'enabled' => $ssoEnabled,

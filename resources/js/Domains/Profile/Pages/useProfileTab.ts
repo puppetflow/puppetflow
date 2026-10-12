@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
-export type ProfileTab = 'general' | 'security' | 'api';
+export type ProfileTab = 'general' | 'security' | 'api' | 'triggers';
 
 function getInitialTab(): ProfileTab {
     if (typeof window === 'undefined') return 'general';
 
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab === 'security' || tab === 'api' ? tab : 'general';
+    return tab === 'security' || tab === 'api' || tab === 'triggers' ? tab : 'general';
 }
 
 // Keeps the active profile section synchronized with the tab query parameter.
