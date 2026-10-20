@@ -89,6 +89,13 @@ export const NodeFieldError = styled.p`
     color: #ef4444;
 `;
 
+export const NodeFieldSupportingContent = styled.div`
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    margin-top: 2px;
+`;
+
 export const ExpressionField = styled(NodeField)<{ $inlineLabel?: boolean }>`
     position: relative;
     display: ${({ $inlineLabel }) => ($inlineLabel ? 'grid' : 'flex')};
@@ -115,7 +122,8 @@ export const ExpressionField = styled(NodeField)<{ $inlineLabel?: boolean }>`
     }
 
     ${NodeFieldHelp},
-    ${NodeFieldError} {
+    ${NodeFieldError},
+    ${NodeFieldSupportingContent} {
         grid-column: ${({ $inlineLabel }) => ($inlineLabel ? '2' : undefined)};
     }
 
@@ -132,6 +140,7 @@ export const ExpressionField = styled(NodeField)<{ $inlineLabel?: boolean }>`
 
         ${NodeFieldHelp},
         ${NodeFieldError},
+        ${NodeFieldSupportingContent},
         ${NodeFieldHeader} + * {
             grid-column: auto;
         }

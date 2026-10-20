@@ -59,6 +59,19 @@ export const PickerLabel = styled.div`
     gap: 10px;
 `;
 
+export const PickerLabelText = styled.div`
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 3px;
+
+    > a {
+        width: 20px;
+        height: 20px;
+        flex-basis: 20px;
+    }
+`;
+
 export const PickerButton = styled.button<{ $active?: boolean }>`
     display: inline-flex;
     align-items: center;

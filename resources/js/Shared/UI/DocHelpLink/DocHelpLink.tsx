@@ -6,12 +6,14 @@ import * as S from './styled';
 interface Props extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'children'> {
     path?: string;
     label?: string;
+    text?: string;
 }
 
 export function DocHelpLink({
     path = '',
     label = 'Open documentation',
     title = label,
+    text,
     ...props
 }: Props) {
     const { settings } = usePageProps();
@@ -21,6 +23,7 @@ export function DocHelpLink({
     return (
         <S.Link
             {...props}
+            $withText={Boolean(text)}
             href={`${baseUrl}${normalizedPath}`}
             target="_blank"
             rel="noopener noreferrer"
@@ -28,6 +31,7 @@ export function DocHelpLink({
             aria-label={label}
         >
             <Icon icon="lucide:circle-help" width={15} height={15} />
+            {text && <span>{text}</span>}
         </S.Link>
     );
 }

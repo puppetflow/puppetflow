@@ -42,6 +42,7 @@ interface ExpressionInputProps {
     invalid?: boolean;
     errorMessage?: string;
     fixedInput?: ReactNode;
+    supportingContent?: ReactNode;
     onRemove?: () => void;
     onChange: (value: ScalarNodeParameterValue) => void;
 }
@@ -67,6 +68,7 @@ export default function ExpressionInput({
     invalid,
     errorMessage,
     fixedInput,
+    supportingContent,
     onRemove,
     onChange,
 }: ExpressionInputProps) {
@@ -318,6 +320,11 @@ export default function ExpressionInput({
                     onVariableSelect={insertVariable}
                     onRefreshSuggestions={refreshSuggestions}
                 />
+            )}
+            {supportingContent && (
+                <S.NodeFieldSupportingContent>
+                    {supportingContent}
+                </S.NodeFieldSupportingContent>
             )}
             {expanded && (
                 <FullscreenEditor

@@ -20,7 +20,7 @@ interface Props {
     perPage: number;
     onPerPageChange: (value: number) => void;
     onOpen: (run: FlowRun) => void;
-    onToggleSelect: (run: FlowRun) => void;
+    onToggleSelect: (run: FlowRun, selectRange?: boolean) => void;
     onToggleVisible: (runs: FlowRun[]) => void;
     onClearSelection: (runs: FlowRun[]) => void;
     onDeleteSelected: (runs: FlowRun[]) => void;

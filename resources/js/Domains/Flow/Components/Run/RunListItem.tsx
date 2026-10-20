@@ -25,7 +25,7 @@ interface RunListItemProps {
     showGoToFlow?: boolean;
     showStop?: boolean;
     onOpen: (run: FlowRun) => void;
-    onToggleSelect?: (run: FlowRun) => void;
+    onToggleSelect?: (run: FlowRun, selectRange?: boolean) => void;
     onKill?: (run: FlowRun) => void;
 }
 
@@ -57,9 +57,10 @@ export default function RunListItem({
         eventCapture: false,
     });
 
-    const handleItemClick = () => {
-        if (selectionActive && selectable && onToggleSelect) {
-            onToggleSelect(run);
+    const handleItemClick = (event: React.MouseEvent) => {
+        if (selectable && onToggleSelect && (selectionActive || event.shiftKey)) {
+            if (event.shiftKey) event.preventDefault();
+            onToggleSelect(run, event.shiftKey);
             return;
         }
 
@@ -97,7 +98,7 @@ export default function RunListItem({
                             onClick={event => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                onToggleSelect?.(run);
+                                onToggleSelect?.(run, event.shiftKey);
                             }}
                         >
                             {selected && <Icon icon="lucide:check" width={13} height={13} />}

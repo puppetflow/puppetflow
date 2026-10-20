@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { useGrabber } from '@/Domains/Flow/Pages/FlowEditor/Grabber/GrabberContext';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
@@ -96,7 +97,13 @@ export default function NestedValueEditor({
 
     const pickerLabelSlot = meta?.picker === 'selector' ? (
         <Shared.PickerLabel>
-            <label>{grabLabel}</label>
+            <Shared.PickerLabelText>
+                <label>{grabLabel}</label>
+                <DocHelpLink
+                    path="/reference/flow-api/interaction#writing-a-selector"
+                    label="Open selector documentation"
+                />
+            </Shared.PickerLabelText>
             <Shared.PickerButton
                 type="button"
                 disabled={readOnly || grabbing}
@@ -162,6 +169,13 @@ export default function NestedValueEditor({
                     readOnly={readOnly}
                     invalid={invalid}
                     errorMessage={errorMessage}
+                    supportingContent={meta?.picker === 'selector' ? (
+                        <DocHelpLink
+                            path="/reference/flow-api/interaction#writing-a-selector"
+                            label="Open selector documentation"
+                            text="How to write a selector"
+                        />
+                    ) : undefined}
                     onRemove={onRemove}
                     onChange={onChange}
                 />

@@ -33,7 +33,15 @@ export default function RunHistoryItem({
 }: Props) {
     return (
         <S.RunItem>
-            <S.RunItemHeader onClick={() => onOpen(run)}>
+            <S.RunItemHeader
+                onClick={event => {
+                    if (selectable && event.shiftKey) {
+                        onToggleSelection(run.id, event);
+                        return;
+                    }
+                    onOpen(run);
+                }}
+            >
                 {selectable ? (
                     <S.StatusCheckboxWrapper
                         $checked={selected}

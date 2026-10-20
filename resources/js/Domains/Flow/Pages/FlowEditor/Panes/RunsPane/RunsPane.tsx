@@ -5,6 +5,7 @@ import { useWaitingHumanSet } from '@/Domains/Flow/Hooks/useWaitingHuman';
 import * as Layout from '@/Domains/Flow/Pages/FlowEditor/shared/paneLayout.styled';
 import { RUN_PER_PAGE_OPTIONS } from '@/Domains/Flow/Pages/runHistory';
 import type { Flow, FlowRun } from '@/Domains/Flow/types';
+import { updateRunSelection } from '@/Domains/Flow/Utils/runSelection';
 import type { PaginatedData } from '@/Shared/Types/pagination';
 import RunHistoryItem from './components/RunHistoryItem';
 import RunMetadataPopover from './components/RunMetadataPopover';
@@ -60,6 +61,7 @@ export default function RunsPane({
     const [metaPopoverRunId, setMetaPopoverRunId] = useState<number | null>(null);
     const [metaTriggerRect, setMetaTriggerRect] = useState<DOMRect | null>(null);
     const filtersRef = useRef<RunsPaneFiltersHandle>(null);
+    const selectionAnchorRef = useRef<number | null>(null);
     const waitingHumanIds = useWaitingHumanSet(
         runs.data
             .filter(run => run.status === 'running')
@@ -69,19 +71,39 @@ export default function RunsPane({
     useEffect(() => {
         setSelectedIds(previous => {
             const currentIds = new Set(runs.data.map(run => run.id));
+            if (
+                selectionAnchorRef.current !== null
+                && !currentIds.has(selectionAnchorRef.current)
+            ) {
+                selectionAnchorRef.current = null;
+            }
             const filtered = new Set([...previous].filter(id => currentIds.has(id)));
             return filtered.size === previous.size ? previous : filtered;
         });
     }, [runs.data]);
 
     const toggleSelection = (runId: number, event: MouseEvent) => {
+        const orderedRunIds = runs.data.map(run => run.id);
+        const anchorRunId = selectionAnchorRef.current;
+        const canSelectRange = event.shiftKey
+            && selectedIds.size > 0
+            && anchorRunId !== null
+            && orderedRunIds.includes(anchorRunId);
+        if (event.shiftKey) event.preventDefault();
         event.stopPropagation();
-        setSelectedIds(previous => {
-            const next = new Set(previous);
-            if (next.has(runId)) next.delete(runId);
-            else next.add(runId);
-            return next;
-        });
+        setSelectedIds(previous => updateRunSelection(
+            previous,
+            orderedRunIds,
+            runId,
+            anchorRunId,
+            canSelectRange,
+        ));
+        if (!canSelectRange) selectionAnchorRef.current = runId;
+    };
+
+    const clearSelection = () => {
+        selectionAnchorRef.current = null;
+        setSelectedIds(new Set());
     };
 
     const changePerPage = (value: number) => {
@@ -132,7 +154,7 @@ export default function RunsPane({
                                 <S.DeleteSelectedButton
                                     onClick={() => {
                                         onDeleteSelected([...selectedIds]);
-                                        setSelectedIds(new Set());
+                                        clearSelection();
                                     }}
                                     disabled={clearing}
                                 >
@@ -145,7 +167,7 @@ export default function RunsPane({
                                     Delete {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''}
                                 </S.DeleteSelectedButton>
                                 {!clearing && (
-                                    <S.ClearSelectedButton onClick={() => setSelectedIds(new Set())}>
+                                    <S.ClearSelectedButton onClick={clearSelection}>
                                         <Icon icon="lucide:x" width={13} height={13} />
                                     </S.ClearSelectedButton>
                                 )}

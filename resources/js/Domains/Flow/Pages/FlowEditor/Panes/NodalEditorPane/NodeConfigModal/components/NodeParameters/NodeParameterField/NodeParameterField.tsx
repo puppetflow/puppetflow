@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { parseResourceReference } from '@/Domains/Flow/Utils/flowInputsMetadata';
 import { useGrabber } from '@/Domains/Flow/Pages/FlowEditor/Grabber/GrabberContext';
@@ -568,7 +569,13 @@ export default function NodeParameterField({
             label={fieldLabel}
             labelSlot={meta.picker === 'selector' ? (
                 <S.PickerLabel>
-                    <label>{fieldLabel}</label>
+                    <S.PickerLabelText>
+                        <label>{fieldLabel}</label>
+                        <DocHelpLink
+                            path="/reference/flow-api/interaction#writing-a-selector"
+                            label="Open selector documentation"
+                        />
+                    </S.PickerLabelText>
                     <S.PickerButton
                         type="button"
                         disabled={readOnly || grabbing}
@@ -633,6 +640,13 @@ export default function NodeParameterField({
             readOnly={readOnly}
             invalid={invalid}
             errorMessage={errorMessage}
+            supportingContent={meta.picker === 'selector' ? (
+                <DocHelpLink
+                    path="/reference/flow-api/interaction#writing-a-selector"
+                    label="Open selector documentation"
+                    text="How to write a selector"
+                />
+            ) : undefined}
             onChange={value => onUpdateValue(node.id, cleanArg, value)}
         />
     );

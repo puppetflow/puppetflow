@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
+import { DocHelpLink } from '@/Shared/UI/DocHelpLink/DocHelpLink';
 import type { NodalParamDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import { useGrabber } from '@/Domains/Flow/Pages/FlowEditor/Grabber/GrabberContext';
 import type { NodalAutocompleteContext } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/utils/staticAnalysis';
@@ -184,7 +185,13 @@ export default function LoggedMarkerConditionInput({
 
     const selectorOrHandleLabel = (
         <Shared.PickerLabel>
-            <label>Selector or handle</label>
+            <Shared.PickerLabelText>
+                <label>Selector or handle</label>
+                <DocHelpLink
+                    path="/reference/flow-api/interaction#writing-a-selector"
+                    label="Open selector documentation"
+                />
+            </Shared.PickerLabelText>
             <Shared.PickerButton
                 type="button"
                 disabled={readOnly || grabbing}
@@ -241,6 +248,13 @@ export default function LoggedMarkerConditionInput({
                 autocompleteContext={autocompleteContext}
                 flowId={flowId}
                 readOnly={readOnly}
+                supportingContent={(
+                    <DocHelpLink
+                        path="/reference/flow-api/interaction#writing-a-selector"
+                        label="Open selector documentation"
+                        text="How to write a selector"
+                    />
+                )}
                 onChange={nextValue => updateField('selectorOrHandle', nextValue)}
             />
             <S.ConditionBlock>
