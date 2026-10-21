@@ -2,7 +2,7 @@
 # BASE: PHP 8.4 FPM + Node 20 + system deps (shared by dev & prod)
 # ============================================================
 
-FROM php:8.4-fpm AS base
+FROM php:8.4.27-fpm AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
