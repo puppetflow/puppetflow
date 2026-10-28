@@ -74,9 +74,7 @@ export const useCodeGizmos = ({
                     glyphMarginClassName: `nop-code-gizmo ${gizmo.kind === 'selector' ? 'nop-code-gizmo-selector' : ''} ${gizmoScopeClass}-${index} ${gizmoScopeClass}-click-${index}`,
                     glyphMarginHoverMessage: { value: gizmo.description },
                     glyphMargin: {
-                        position: gizmo.kind === 'selector'
-                            ? monacoInstance.editor.GlyphMarginLane.Right
-                            : monacoInstance.editor.GlyphMarginLane.Left,
+                        position: monacoInstance.editor.GlyphMarginLane.Left,
                     },
                 },
             }];
@@ -88,7 +86,7 @@ export const useCodeGizmos = ({
                         glyphMarginClassName: `nop-code-gizmo-favicon ${gizmoScopeClass}-favicon-${index} ${gizmoScopeClass}-click-${index}`,
                         glyphMarginHoverMessage: { value: gizmo.siteHostname ?? gizmo.name },
                         glyphMargin: {
-                            position: monacoInstance.editor.GlyphMarginLane.Right,
+                            position: monacoInstance.editor.GlyphMarginLane.Center,
                         },
                     },
                 });
@@ -103,7 +101,7 @@ export const useCodeGizmos = ({
                             value: gizmo.resources?.map(item => `Edit ${item.label}`).join('\n\n') ?? resource.label,
                         },
                         glyphMargin: {
-                            position: monacoInstance.editor.GlyphMarginLane.Right,
+                            position: monacoInstance.editor.GlyphMarginLane.Center,
                         },
                     },
                 });
