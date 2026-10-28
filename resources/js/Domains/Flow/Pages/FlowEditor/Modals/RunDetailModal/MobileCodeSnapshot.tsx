@@ -78,6 +78,7 @@ export default function MobileCodeSnapshot({
             ) : run.code_snapshot ? (
                 <CodeSnapshotEditor
                     runId={run.id}
+                    flowId={run.flow_id}
                     code={run.code_snapshot}
                     resolvedTheme={resolvedTheme}
                     activeLine={preview.activeLine}

@@ -27,11 +27,7 @@ export const Field = styled.label`
 `;
 
 export const SearchField = styled(Field)`
-    grid-column: span 2;
-
-    @media (max-width: 640px) {
-        grid-column: span 1;
-    }
+    min-width: 180px;
 `;
 
 export const FilterBlock = styled.div`

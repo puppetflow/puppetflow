@@ -74,6 +74,7 @@ export default function CodePane({ run, flow, visualGraph, resolvedTheme, consol
             ) : run.code_snapshot ? (
                 <CodeSnapshotEditor
                     runId={run.id}
+                    flowId={run.flow_id}
                     code={run.code_snapshot}
                     resolvedTheme={resolvedTheme}
                     activeLine={activeLine}

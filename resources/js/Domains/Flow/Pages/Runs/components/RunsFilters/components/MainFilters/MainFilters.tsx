@@ -7,6 +7,7 @@ import * as S from './styled';
 
 interface Props {
     flowSearch: string;
+    legendSearch: string;
     dateFrom: string;
     dateTo: string;
     durationMin: string;
@@ -16,6 +17,7 @@ interface Props {
     statusFilters: Set<string>;
     resetVersion: number;
     onFlowSearchChange: (value: string) => void;
+    onLegendSearchChange: (value: string) => void;
     onDateFromChange: (value: string) => void;
     onDateToChange: (value: string) => void;
     onDurationMinChange: (value: string) => void;
@@ -26,6 +28,7 @@ interface Props {
 
 const MainFilters = ({
     flowSearch,
+    legendSearch,
     dateFrom,
     dateTo,
     durationMin,
@@ -35,6 +38,7 @@ const MainFilters = ({
     statusFilters,
     resetVersion,
     onFlowSearchChange,
+    onLegendSearchChange,
     onDateFromChange,
     onDateToChange,
     onDurationMinChange,
@@ -48,6 +52,10 @@ const MainFilters = ({
                 <S.FieldLabel>Search</S.FieldLabel>
                 <S.Input value={flowSearch} onChange={event => onFlowSearchChange(event.target.value)} placeholder="Flow name or ID" />
             </S.SearchField>
+            <S.Field>
+                <S.FieldLabel>Legend</S.FieldLabel>
+                <S.Input value={legendSearch} onChange={event => onLegendSearchChange(event.target.value)} placeholder="Run legend" />
+            </S.Field>
             <S.Field>
                 <S.FieldLabel>Date from</S.FieldLabel>
                 <S.Input type="datetime-local" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} />

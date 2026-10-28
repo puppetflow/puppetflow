@@ -295,6 +295,7 @@ export default function VersionTimelineModal({
                                 </NodalSnapshotFrame>
                             ) : (
                                 <CodeSnapshotEditor
+                                    flowId={flow.id}
                                     code={detail.code ?? ''}
                                     resolvedTheme={resolved}
                                     activeLine={null}

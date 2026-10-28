@@ -1,5 +1,6 @@
 export interface CodeSnapshotEditorProps {
     runId?: number;
+    flowId?: Id;
     code: string;
     resolvedTheme: string;
     activeLine: number | null;

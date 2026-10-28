@@ -33,6 +33,7 @@ const RunsFilters = forwardRef<RunsFiltersHandle, Props>(function RunsFilters(
     const [loading, setLoading] = useState(false);
     const [resetVersion, setResetVersion] = useState(0);
     const [flowSearch, setFlowSearch] = useState(filters.flow_search ?? '');
+    const [legendSearch, setLegendSearch] = useState(filters.legend ?? '');
     const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
     const [dateTo, setDateTo] = useState(filters.date_to ?? '');
     const [durationMin, setDurationMin] = useState(msToSecondsInput(filters.duration_min_ms));
@@ -59,6 +60,7 @@ const RunsFilters = forwardRef<RunsFiltersHandle, Props>(function RunsFilters(
             : metaFilters.filter(filter => filter.key.trim() !== '');
         return {
             flow_search: flowSearch.trim() || undefined,
+            legend: legendSearch.trim() || undefined,
             date_from: dateFrom || undefined,
             date_to: dateTo || undefined,
             duration_min_ms: secondsToMs(durationMin),
@@ -91,6 +93,7 @@ const RunsFilters = forwardRef<RunsFiltersHandle, Props>(function RunsFilters(
 
     const clearFilters = () => {
         setFlowSearch('');
+        setLegendSearch('');
         setDateFrom('');
         setDateTo('');
         setDurationMin('');
@@ -125,6 +128,7 @@ const RunsFilters = forwardRef<RunsFiltersHandle, Props>(function RunsFilters(
     ));
     const activeFilterCount = statusFilters.size
         + (flowSearch.trim() ? 1 : 0)
+        + (legendSearch.trim() ? 1 : 0)
         + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)
         + (durationMin ? 1 : 0) + (durationMax ? 1 : 0)
         + (selectedRunUserId ? 1 : 0) + (metadataFilteringEnabled && metaPresence ? 1 : 0)
@@ -142,6 +146,7 @@ const RunsFilters = forwardRef<RunsFiltersHandle, Props>(function RunsFilters(
                 <S.FilterBarBody>
                     <MainFilters
                         flowSearch={flowSearch}
+                        legendSearch={legendSearch}
                         dateFrom={dateFrom}
                         dateTo={dateTo}
                         durationMin={durationMin}
@@ -151,6 +156,7 @@ const RunsFilters = forwardRef<RunsFiltersHandle, Props>(function RunsFilters(
                         statusFilters={statusFilters}
                         resetVersion={resetVersion}
                         onFlowSearchChange={setFlowSearch}
+                        onLegendSearchChange={setLegendSearch}
                         onDateFromChange={setDateFrom}
                         onDateToChange={setDateTo}
                         onDurationMinChange={setDurationMin}

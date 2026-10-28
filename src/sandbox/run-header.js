@@ -4190,11 +4190,31 @@ const $unzipFile = async function(zipFilename, extractDirectory, options) {
   console.debug('Unzipping:', zipPathFile, 'to', extractPathFile);
 
   await new Promise((resolve, reject) => {
-    const proc = spawn('unzip', ['-o', zipPathFile, '-d', extractPathFile]);
+    let stderr = '';
+    const proc = spawn(
+      'unzip',
+      ['-o', zipPathFile, '-d', extractPathFile],
+      {
+        // `unzip` writes one line to stdout for every extracted file. If stdout
+        // is piped but never consumed, large archives eventually fill the pipe
+        // buffer and block the child process indefinitely.
+        stdio: ['ignore', 'ignore', 'pipe'],
+      },
+    );
+
+    proc.stderr.setEncoding('utf8');
+    proc.stderr.on('data', chunk => {
+      stderr = (stderr + chunk).slice(-8192);
+    });
     proc.on('error', (err) => reject(err));
     proc.on('close', (code) => {
-      if (code !== 0) reject(new Error('unzip exited with code ' + code));
-      else resolve();
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      const details = stderr.trim();
+      reject(new Error('unzip exited with code ' + code + (details ? ': ' + details : '')));
     });
   });
 

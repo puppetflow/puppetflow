@@ -19,7 +19,6 @@ export const SectionStack = styled.div`
     flex-direction: column;
     gap: 12px;
     width: 100%;
-    max-width: 1080px;
     min-width: 0;
     padding-bottom: 60px;
 `;

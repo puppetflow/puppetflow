@@ -3,6 +3,7 @@ import type { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useMonacoDecorations } from '@/Shared/CodeEditor/hooks/useMonacoDecorations';
 import { getDisplayCodeSnapshotWithLineMap } from '@/Domains/Flow/Pages/FlowEditor/Modals/RunDetailModal/runProgress';
+import { registerReferenceLabelDecorations } from '@/Domains/Flow/Pages/FlowEditor/utils/referenceLabelDecorations';
 import type { CodeSnapshotEditorProps } from './types';
 import { getExpandedStatementLines } from './utils';
 
@@ -26,13 +27,14 @@ const toDecorations = (
 // Configures the run snapshot editor and decorates active, passed, and failed lines.
 export function useCodeSnapshotEditor({
     runId,
+    flowId,
     code,
     activeLine,
     passedLines,
     errorLine = null,
 }: Pick<
     CodeSnapshotEditorProps,
-    'runId' | 'code' | 'activeLine' | 'passedLines' | 'errorLine'
+    'runId' | 'flowId' | 'code' | 'activeLine' | 'passedLines' | 'errorLine'
 >) {
     const [editorInstance, setEditorInstance] =
         useState<editor.IStandaloneCodeEditor | null>(null);
@@ -75,9 +77,10 @@ export function useCodeSnapshotEditor({
         ],
     );
     const handleMount: OnMount = useCallback((mountedEditor, monaco) => {
+        registerReferenceLabelDecorations(mountedEditor, monaco, { flowId });
         setEditorInstance(mountedEditor);
         setMonacoInstance(monaco);
-    }, []);
+    }, [flowId]);
 
     const decorations = useMemo(() => {
         if (!monacoInstance) return [];
