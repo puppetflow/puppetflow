@@ -46,14 +46,10 @@ export default function TimezoneSelect({ value, error, onChange }: TimezoneSelec
         setSearch('');
     };
 
-    const handleToggle = () => {
-        setIsOpen(open => !open);
-    };
-
     return (
         <S.Field ref={fieldRef}>
             <S.Label>Timezone</S.Label>
-            <S.Trigger type="button" onClick={handleToggle}>
+            <S.Trigger type="button" onClick={() => setIsOpen(open => !open)}>
                 {currentLabel}
                 <S.Chevron $open={isOpen}>&#9662;</S.Chevron>
             </S.Trigger>

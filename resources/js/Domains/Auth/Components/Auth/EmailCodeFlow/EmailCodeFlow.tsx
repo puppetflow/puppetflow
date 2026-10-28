@@ -1,4 +1,5 @@
 import Input from '@/Shared/UI/Input/Input';
+import TimezoneSelect from '@/Shared/UI/TimezoneSelect/TimezoneSelect';
 import OtpInput from '@/Domains/Auth/Components/Auth/OtpInput/OtpInput';
 import * as Auth from '@/Domains/Auth/Components/Auth/shared.styled';
 import { useEmailCodeChallenge } from './useEmailCodeChallenge';
@@ -11,6 +12,7 @@ interface EmailCodeFlowProps {
     initialEmail?: string;
     invitationToken?: string;
     requireName?: boolean;
+    initialTimezone?: string;
     remember?: boolean;
     submitLabel?: string;
 }
@@ -20,6 +22,7 @@ export default function EmailCodeFlow({
     initialEmail = '',
     invitationToken,
     requireName = false,
+    initialTimezone,
     remember = false,
     submitLabel = 'Continue with email',
 }: EmailCodeFlowProps) {
@@ -28,6 +31,7 @@ export default function EmailCodeFlow({
         initialEmail,
         invitationToken,
         requireName,
+        initialTimezone,
         remember,
     });
 
@@ -92,6 +96,13 @@ export default function EmailCodeFlow({
                 autoFocus={!requireName}
                 disabled={Boolean(invitationToken)}
             />
+            {initialTimezone && (
+                <TimezoneSelect
+                    value={challenge.timezone}
+                    error={challenge.errors.timezone}
+                    onChange={challenge.setTimezone}
+                />
+            )}
             <Auth.PrimaryButton
                 type="submit"
                 fullWidth

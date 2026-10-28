@@ -2,6 +2,7 @@ export interface StoredChallenge {
     id: string;
     email: string;
     name: string;
+    timezone?: string;
     expiresAt: string;
     resendAvailableAt: number;
 }

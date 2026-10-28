@@ -43,6 +43,7 @@ class EmailAuthController extends Controller
             'email' => ['required', 'email', 'max:255'],
             'intent' => ['required', Rule::in(['login', 'register'])],
             'name' => ['nullable', 'string', 'max:255', Rule::requiredIf($request->input('intent') === 'register')],
+            'timezone' => ['nullable', 'string', 'timezone:all'],
             'invitation_token' => ['nullable', 'string', 'max:255'],
             'remember' => ['sometimes', 'boolean'],
         ]);
@@ -74,6 +75,7 @@ class EmailAuthController extends Controller
             intent: $validated['intent'],
             context: array_filter([
                 'name' => isset($validated['name']) ? trim($validated['name']) : null,
+                'timezone' => $validated['timezone'] ?? null,
                 'invitation_token' => $invitation?->token,
                 'redirect_path' => $intended,
                 'remember' => $validated['intent'] === 'login'
@@ -245,6 +247,9 @@ class EmailAuthController extends Controller
             'email' => $challenge->email,
             'password' => Str::random(64),
             'role' => $this->identityBootstrapper->roleForSelfRegistration(),
+            'timezone' => isset($context['timezone']) && is_string($context['timezone'])
+                ? $context['timezone']
+                : null,
         ]);
 
         $user->forceFill(['email_verified_at' => now()])->save();

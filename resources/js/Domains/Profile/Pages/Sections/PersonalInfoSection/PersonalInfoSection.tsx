@@ -3,8 +3,8 @@ import { useForm, router } from '@inertiajs/react';
 import Button from '@/Shared/UI/Button/Button';
 import Input from '@/Shared/UI/Input/Input';
 import IconPicker from '@/Shared/UI/IconPicker/IconPicker';
+import TimezoneSelect from '@/Shared/UI/TimezoneSelect/TimezoneSelect';
 import type { User } from '@/App/types';
-import TimezoneSelect from './components/TimezoneSelect/TimezoneSelect';
 import * as S from './styled';
 
 interface PersonalInfoSectionProps {

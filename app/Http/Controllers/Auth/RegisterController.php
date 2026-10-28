@@ -59,6 +59,7 @@ class RegisterController extends Controller
 
         return Inertia::render('Auth/Register/Register', [
             'firstUserSetup' => ! $invitation && User::query()->doesntExist(),
+            'defaultTimezone' => (string) config('app.default_timezone', 'UTC'),
             'registrationSubmitted' => $request->boolean('submitted'),
             'invitation' => $invitation ? [
                 'token' => $invitation->token,
@@ -96,6 +97,7 @@ class RegisterController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Password::defaults()],
+            'timezone' => ['nullable', 'string', 'timezone:all'],
         ]);
 
         if ($invitation
@@ -153,6 +155,7 @@ class RegisterController extends Controller
                     'email' => $validated['email'],
                     'password' => Hash::make($validated['password']),
                     'role' => $role,
+                    'timezone' => $validated['timezone'] ?? null,
                 ]);
 
                 $workspace = $this->workspaceProvisioner->ensureOwned(

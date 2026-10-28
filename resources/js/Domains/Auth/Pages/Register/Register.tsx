@@ -3,6 +3,7 @@ import { Link, useForm, usePage } from '@inertiajs/react';
 import AuthLayout from '@/App/Layout/AuthLayout/AuthLayout';
 import EmailCodeFlow from '@/Domains/Auth/Components/Auth/EmailCodeFlow/EmailCodeFlow';
 import Input from '@/Shared/UI/Input/Input';
+import TimezoneSelect from '@/Shared/UI/TimezoneSelect/TimezoneSelect';
 import type { PageProps } from '@/App/types';
 import {
     Form as AuthForm,
@@ -12,6 +13,7 @@ import * as S from './styled';
 
 interface Props {
     firstUserSetup: boolean;
+    defaultTimezone: string;
     registrationSubmitted: boolean;
     invitation?: {
         token: string;
@@ -21,7 +23,7 @@ interface Props {
     } | null;
 }
 
-export default function Register({ firstUserSetup, registrationSubmitted, invitation }: Props) {
+export default function Register({ firstUserSetup, defaultTimezone, registrationSubmitted, invitation }: Props) {
     const { settings, branding } = usePage<{ props: PageProps }>().props as unknown as PageProps;
     const form = useForm({
         name: '',
@@ -29,6 +31,7 @@ export default function Register({ firstUserSetup, registrationSubmitted, invita
         password: '',
         password_confirmation: '',
         invitation_token: invitation?.token ?? '',
+        timezone: firstUserSetup ? defaultTimezone : '',
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -85,6 +88,7 @@ export default function Register({ firstUserSetup, registrationSubmitted, invita
                     initialEmail={invitation?.email}
                     invitationToken={invitation?.token}
                     requireName
+                    initialTimezone={firstUserSetup ? defaultTimezone : undefined}
                     submitLabel={
                         invitation
                             ? 'Verify email and join'
@@ -112,6 +116,13 @@ export default function Register({ firstUserSetup, registrationSubmitted, invita
                         placeholder="you@example.com"
                         disabled={!!invitation}
                     />
+                    {firstUserSetup && (
+                        <TimezoneSelect
+                            value={form.data.timezone}
+                            error={form.errors.timezone}
+                            onChange={timezone => form.setData('timezone', timezone)}
+                        />
+                    )}
                     <Input
                         label="Password"
                         type="password"

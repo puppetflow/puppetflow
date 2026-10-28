@@ -18,6 +18,7 @@ interface Options {
     initialEmail: string;
     invitationToken?: string;
     requireName: boolean;
+    initialTimezone?: string;
     remember: boolean;
 }
 
@@ -27,6 +28,7 @@ export function useEmailCodeChallenge({
     initialEmail,
     invitationToken,
     requireName,
+    initialTimezone,
     remember,
 }: Options) {
     const storageKey = `puppetflow.email-auth.${intent}.${invitationToken ?? 'default'}`;
@@ -34,6 +36,7 @@ export function useEmailCodeChallenge({
     const pageErrors = usePage<{ errors?: EmailCodeErrors }>().props.errors ?? {};
     const [name, setName] = useState(restoredChallenge?.name ?? '');
     const [email, setEmail] = useState(restoredChallenge?.email ?? initialEmail);
+    const [timezone, setTimezone] = useState(restoredChallenge?.timezone ?? initialTimezone ?? '');
     const [challengeId, setChallengeId] = useState<string | null>(restoredChallenge?.id ?? null);
     const [errors, setErrors] = useState<EmailCodeErrors>(pageErrors);
     const [processing, setProcessing] = useState(false);
@@ -41,7 +44,11 @@ export function useEmailCodeChallenge({
         ? Math.max(0, Math.ceil((restoredChallenge.resendAvailableAt - Date.now()) / 1000))
         : 0);
     const otp = useOtpInput({ deleteBehavior: 'clear-tail' });
-    const canRequest = Boolean(email.trim() && (!requireName || name.trim()));
+    const canRequest = Boolean(
+        email.trim()
+        && (!requireName || name.trim())
+        && (!initialTimezone || timezone)
+    );
 
     const requestCode = async (event?: FormEvent) => {
         event?.preventDefault();
@@ -60,6 +67,7 @@ export function useEmailCodeChallenge({
                 email,
                 intent,
                 name: name.trim() || undefined,
+                timezone: timezone || undefined,
                 invitation_token: invitationToken,
                 remember,
             }),
@@ -83,6 +91,7 @@ export function useEmailCodeChallenge({
             id: payload.challenge_id,
             email: payload.email,
             name: name.trim(),
+            timezone: timezone || undefined,
             expiresAt: payload.expires_at,
             resendAvailableAt: Date.now() + (payload.resend_after_seconds * 1000),
         };
@@ -142,6 +151,8 @@ export function useEmailCodeChallenge({
         requestCode,
         setEmail,
         setName,
+        setTimezone,
+        timezone,
         useAnotherEmail,
         verifyCode,
     };
