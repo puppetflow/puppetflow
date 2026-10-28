@@ -21,6 +21,19 @@ export const CodePane = styled.div<{ $readOnly?: boolean }>`
         clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
     }
 
+    .nop-missing-await-line {
+        background-color: ${({ theme }) => theme.colors.accent.warning}14;
+    }
+
+    .nop-missing-await-glyph {
+        width: 9px !important;
+        height: 14px !important;
+        margin: 3px auto 0;
+        transform: translateX(8px);
+        background: ${({ theme }) => theme.colors.accent.warning};
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+    }
+
     ${({ $readOnly, theme }) => $readOnly && `
         .monaco-editor,
         .monaco-editor .margin,

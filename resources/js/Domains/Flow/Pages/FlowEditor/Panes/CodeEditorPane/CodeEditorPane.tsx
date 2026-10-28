@@ -105,6 +105,7 @@ function CodeEditorPane({
                     code={code}
                     defaultInputs={flow.default_inputs}
                     flowId={flow.id}
+                    missingAwaitCalls={missingAwaitCalls}
                     readOnly={readOnly}
                     onCodeChange={onCodeChange}
                     onGizmoClick={help.focusEntry}

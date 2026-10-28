@@ -1,12 +1,14 @@
 import {
     forwardRef,
     useCallback,
+    useEffect,
     useImperativeHandle,
     useMemo,
     useRef,
 } from 'react';
 import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { OnMount } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 import { CodeEditor } from '@/Shared/CodeEditor/components/CodeEditor';
 import { useSyncMonacoValue } from '@/Shared/CodeEditor/hooks/useSyncMonacoValue';
 import { FloatingHelpButton } from '@/Shared/CodeEditor/shared/editor-layout.styled';
@@ -15,7 +17,10 @@ import { useToast } from '@/App/Hooks/useToast';
 import { useGrabber } from '@/Domains/Flow/Pages/FlowEditor/Grabber/GrabberContext';
 import type { HelpEntryDef } from '@/Domains/Flow/Pages/FlowEditor/types';
 import type { CodeGizmo } from '@/Domains/Flow/Pages/FlowEditor/utils/codeGizmos';
-import { getMissingAwaitCalls } from '@/Domains/Flow/Pages/FlowEditor/utils/missingAwaits';
+import {
+    getMissingAwaitCalls,
+    type MissingAwaitCall,
+} from '@/Domains/Flow/Pages/FlowEditor/utils/missingAwaits';
 import { useHelpEntryInsertion } from '@/Domains/Flow/Pages/FlowEditor/hooks/useHelpEntryInsertion';
 import { useMonacoCompletions } from '@/Domains/Flow/Pages/FlowEditor/Panes/CodeEditorPane/hooks/useMonacoCompletions';
 import { useUndefinedSymbolDiagnostics } from '@/Domains/Flow/Pages/FlowEditor/Panes/CodeEditorPane/hooks/useUndefinedSymbolDiagnostics';
@@ -25,6 +30,7 @@ interface MonacoWorkspaceProps {
     code: string;
     defaultInputs: Record<string, unknown> | null;
     flowId: Id;
+    missingAwaitCalls: MissingAwaitCall[];
     readOnly: boolean;
     onCodeChange: (value: string | undefined) => void;
     onGizmoClick: (name: string) => void;
@@ -42,6 +48,7 @@ export const MonacoWorkspace = forwardRef<MonacoWorkspaceHandle, MonacoWorkspace
         code,
         defaultInputs,
         flowId,
+        missingAwaitCalls,
         readOnly,
         onCodeChange,
         onGizmoClick,
@@ -62,14 +69,47 @@ export const MonacoWorkspace = forwardRef<MonacoWorkspaceHandle, MonacoWorkspace
             onRun,
         });
         const handleDiagnosticsMount = useUndefinedSymbolDiagnostics();
+        const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
+        const missingAwaitDecorationsRef = useRef<editor.IEditorDecorationsCollection | null>(null);
+        const updateMissingAwaitDecorations = useCallback(() => {
+            const monaco = monacoRef.current;
+            const decorations = missingAwaitDecorationsRef.current;
+            if (!monaco || !decorations) return;
+
+            const lineNumbers = [...new Set(missingAwaitCalls.map(call => call.lineNumber))];
+            decorations.set(lineNumbers.map(lineNumber => ({
+                range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+                options: {
+                    isWholeLine: true,
+                    className: 'nop-missing-await-line',
+                    glyphMarginClassName: 'nop-missing-await-glyph',
+                    glyphMarginHoverMessage: [{
+                        value: 'This async helper call may need `await`.',
+                    }],
+                    glyphMargin: {
+                        position: monaco.editor.GlyphMarginLane.Right,
+                    },
+                },
+            })));
+        }, [missingAwaitCalls]);
         const handleEditorMount = useCallback<OnMount>(
             (editor, monaco) => {
+                missingAwaitDecorationsRef.current?.clear();
+                monacoRef.current = monaco;
+                missingAwaitDecorationsRef.current = editor.createDecorationsCollection();
+                updateMissingAwaitDecorations();
                 handleCompletionsMount(editor, monaco);
                 handleDiagnosticsMount(editor, monaco);
             },
-            [handleCompletionsMount, handleDiagnosticsMount],
+            [handleCompletionsMount, handleDiagnosticsMount, updateMissingAwaitDecorations],
         );
         useSyncMonacoValue(editorRef, code, { isInternalChange });
+        useEffect(updateMissingAwaitDecorations, [updateMissingAwaitDecorations]);
+        useEffect(() => () => {
+            missingAwaitDecorationsRef.current?.clear();
+            missingAwaitDecorationsRef.current = null;
+            monacoRef.current = null;
+        }, []);
 
         const editorOptions = useMemo(() => ({
             minimap: { enabled: false },

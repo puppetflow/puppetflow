@@ -9,8 +9,8 @@ interface MissingAwaitBannerProps {
 
 export function MissingAwaitBanner({ calls, onFixAll }: MissingAwaitBannerProps) {
     const label = calls.length === 1
-        ? '1 async helper call is missing await.'
-        : `${calls.length} async helper calls are missing await.`;
+        ? '1 async helper call may need await.'
+        : `${calls.length} async helper calls may need await.`;
 
     return (
         <S.Banner role="status">
