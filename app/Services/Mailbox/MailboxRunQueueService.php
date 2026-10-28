@@ -74,6 +74,7 @@ class MailboxRunQueueService
             $emailId = $email->getKey();
             $watcherId = $watcher->getKey();
             $emailMailboxId = $email->getAttribute('mailbox_id');
+            $emailReceivedAt = $email->getAttribute('received_at');
             $watcherMailboxId = $watcher->getAttribute('mailbox_id');
             $watcherFlowId = $watcher->getAttribute('flow_id');
             $runFlowId = $run->getAttribute('flow_id');
@@ -81,6 +82,7 @@ class MailboxRunQueueService
                 ! is_numeric($emailId)
                 || ! is_string($watcherId)
                 || ! is_string($emailMailboxId)
+                || ! $emailReceivedAt instanceof \DateTimeInterface
                 || ! is_string($watcherMailboxId)
                 || ! is_string($watcherFlowId)
                 || ! is_string($runFlowId)
@@ -99,6 +101,7 @@ class MailboxRunQueueService
                 ->where('mailbox_watcher_id', $watcherId)
                 ->where('mailbox_id', $emailMailboxId)
                 ->where('watcher_name', $watcherName)
+                ->where('authorized_at', '<=', $emailReceivedAt)
                 ->exists()
             ) {
                 return false;
