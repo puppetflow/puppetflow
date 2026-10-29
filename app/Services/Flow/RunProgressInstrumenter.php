@@ -4,7 +4,8 @@ namespace App\Services\Flow;
 
 /**
  * Inserts `__nopRunLine(N);` markers before executable statements inside the
- * body of `run()` so the runtime can report line-by-line progress.
+ * bodies of `run()` and `terminate()` so the runtime can report line-by-line
+ * progress for the complete flow lifecycle.
  *
  * A character-level scanner tracks strings, template literals (including
  * nested `${}`), and comments so that brace/paren counting is accurate and
@@ -24,7 +25,8 @@ class RunProgressInstrumenter
             return $code;
         }
 
-        if (str_contains($code, '__nopRunLine(')) {
+        // Visual flow snapshots are already instrumented by the nodal compiler.
+        if (str_contains($code, '// Nodal graph snapshot:') && str_contains($code, '__nopRunLine(')) {
             return $code;
         }
 
@@ -37,13 +39,14 @@ class RunProgressInstrumenter
         $this->templateStack = [];
 
         $output = [];
-        $inRun = false;
+        $inFlowFunction = false;
         $braceDepth = 0;
         $exprDepth = 0;
         $nestedFunctionDepth = null;
         $pendingControlHeader = false;
         $openExprIsControlHeader = false;
         $prevEndsWithOperator = false;
+        $pendingExistingMarker = false;
 
         foreach ($lines as $index => $line) {
             $startedInsideNonCode = $this->isInsideNonCode();
@@ -55,17 +58,23 @@ class RunProgressInstrumenter
                 + substr_count($stripped, '[') - substr_count($stripped, ']');
             $exprDepthAfter = max(0, $exprDepth + $parenDelta);
 
-            $startsRun = ! $inRun && preg_match('/\b(?:async\s+)?function\s+run\s*\(/', $stripped) === 1;
-            $startsNestedFunction = ! $startsRun && $this->startsNestedFunctionBlock($stripped, $inRun, $braceDepth);
+            $startsFlowFunction = ! $inFlowFunction
+                && preg_match('/\b(?:async\s+)?function\s+(?:run|terminate)\s*\(/', $stripped) === 1;
+            $startsNestedFunction = ! $startsFlowFunction
+                && $this->startsNestedFunctionBlock($stripped, $inFlowFunction, $braceDepth);
             $insideNestedFunction = $nestedFunctionDepth !== null && $braceDepth >= $nestedFunctionDepth;
+            $isExistingMarker = $inFlowFunction
+                && preg_match('/^\s*__nopRunLine\(\d+\);\s*$/', $stripped) === 1;
 
-            $markLine = $inRun
+            $markLine = $inFlowFunction
                 && $braceDepth > 0
                 && $exprDepth === 0
                 && ! $startedInsideNonCode
                 && ! $insideNestedFunction
                 && ! $pendingControlHeader
                 && ! $prevEndsWithOperator
+                && ! $isExistingMarker
+                && ! $pendingExistingMarker
                 && ! $this->isContinuationLine($stripped)
                 && $this->shouldMarkCodeLine($stripped);
 
@@ -75,17 +84,23 @@ class RunProgressInstrumenter
 
             $output[] = $line;
 
-            if ($startsRun) {
-                $inRun = true;
+            if ($startsFlowFunction) {
+                $inFlowFunction = true;
             }
 
-            if ($inRun && trim($stripped) !== '') {
+            if ($isExistingMarker) {
+                $pendingExistingMarker = true;
+            } elseif ($pendingExistingMarker && trim($stripped) !== '') {
+                $pendingExistingMarker = false;
+            }
+
+            if ($inFlowFunction && trim($stripped) !== '') {
                 $prevEndsWithOperator = $this->endsWithOperator($stripped);
             }
 
-            if ($inRun && ! $startedInsideNonCode && trim($stripped) !== '') {
+            if ($inFlowFunction && ! $startedInsideNonCode && trim($stripped) !== '') {
                 if ($exprDepth === 0 && $exprDepthAfter > 0) {
-                    $openExprIsControlHeader = ! $startsRun
+                    $openExprIsControlHeader = ! $startsFlowFunction
                         && preg_match('/\b(?:if|for|while)\s*\(/', $stripped) === 1;
                 } elseif ($exprDepth > 0 && $exprDepthAfter === 0) {
                     // A multi-line expression just closed; if it was a control
@@ -105,7 +120,7 @@ class RunProgressInstrumenter
                 }
             }
 
-            if ($inRun) {
+            if ($inFlowFunction) {
                 $exprDepth = $exprDepthAfter;
                 $braceDepth += $opens - $closes;
 
@@ -114,17 +129,18 @@ class RunProgressInstrumenter
                 }
 
                 if ($braceDepth <= 0) {
-                    if ($startsRun && $opens === 0) {
-                        // `function run(` header whose `{` is on a later line.
+                    if ($startsFlowFunction && $opens === 0) {
+                        // Function header whose `{` is on a later line.
                         $braceDepth = 0;
                     } else {
-                        $inRun = false;
+                        $inFlowFunction = false;
                         $braceDepth = 0;
                         $exprDepth = 0;
                         $nestedFunctionDepth = null;
                         $pendingControlHeader = false;
                         $openExprIsControlHeader = false;
                         $prevEndsWithOperator = false;
+                        $pendingExistingMarker = false;
                     }
                 }
             }
@@ -324,9 +340,9 @@ class RunProgressInstrumenter
             || preg_match('/^(?:await\s+)?[\w$.[\]]+\s*\(/', $trimmed) === 1;
     }
 
-    private function startsNestedFunctionBlock(string $stripped, bool $inRun, int $braceDepth): bool
+    private function startsNestedFunctionBlock(string $stripped, bool $inFlowFunction, int $braceDepth): bool
     {
-        if (! $inRun || $braceDepth <= 0 || ! str_contains($stripped, '{')) {
+        if (! $inFlowFunction || $braceDepth <= 0 || ! str_contains($stripped, '{')) {
             return false;
         }
         if (preg_match('/\b(?:async\s+)?function\b/', $stripped) === 1) {

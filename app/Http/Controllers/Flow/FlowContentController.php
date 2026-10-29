@@ -161,6 +161,7 @@ final class FlowContentController extends Controller
             return response()->json([
                 'content_updated_at' => $flow->content_updated_at?->toJSON(),
                 'updated_at' => $flow->updated_at?->toJSON(),
+                'has_unpublished_changes' => $flow->hasUnpublishedChanges(),
             ]);
         }
 

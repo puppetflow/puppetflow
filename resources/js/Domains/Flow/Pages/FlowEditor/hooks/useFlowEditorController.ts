@@ -88,10 +88,11 @@ export function useFlowEditorController({
     });
     const conflictReadOnly = Boolean(conflictVersion);
     const codeReadOnly = baseCodeReadOnly || conflictReadOnly;
-    const handleSavedVersionUpdate = useCallback((savedAt?: string | null) => {
-        // A saved draft on a published flow is out of sync until the next publication. The
-        // server prop corrects the rare case where the draft was reverted to the published content.
-        if (isPublished) setHasUnpublishedChanges(true);
+    const handleSavedVersionUpdate = useCallback((
+        savedAt?: string | null,
+        savedHasUnpublishedChanges?: boolean,
+    ) => {
+        if (isPublished) setHasUnpublishedChanges(savedHasUnpublishedChanges ?? true);
         if (savedAt) {
             setContentUpdatedAt(savedAt);
             clearConflict();

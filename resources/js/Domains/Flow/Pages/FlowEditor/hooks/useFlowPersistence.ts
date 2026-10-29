@@ -32,7 +32,7 @@ interface UseFlowPersistenceOptions {
     setCode: (code: string) => void;
     setSavedCode: (code: string) => void;
     setSavedNodalGraph: (graph: NodalGraph) => void;
-    onSaved?: (contentUpdatedAt?: string | null) => void;
+    onSaved?: (contentUpdatedAt?: string | null, hasUnpublishedChanges?: boolean) => void;
     onVersionConflict?: () => void;
 }
 
@@ -147,6 +147,7 @@ export function useFlowPersistence({
                 const result = await response.json() as {
                     content_updated_at?: string | null;
                     updated_at?: string | null;
+                    has_unpublished_changes?: boolean;
                 };
                 if (isNodalFlow) {
                     setCode(currentCode);
@@ -158,7 +159,7 @@ export function useFlowPersistence({
                 savedContentKeyRef.current = capturedKey;
                 const nextTimestamp = result.content_updated_at ?? result.updated_at ?? null;
                 contentUpdatedAtRef.current = nextTimestamp;
-                onSaved?.(nextTimestamp);
+                onSaved?.(nextTimestamp, result.has_unpublished_changes);
                 setSaveStatus(contentKey() === capturedKey ? 'saved' : 'unsaved');
 
                 return true;

@@ -4,24 +4,38 @@ export const Wrapper = styled.div`
     position: relative;
 `;
 
-export const Trigger = styled.button<{ $error: boolean }>`
+export const Trigger = styled.button<{ $error: boolean; $outOfSync: boolean }>`
     position: relative;
     display: inline-flex;
     align-items: center;
     gap: 6px;
     min-height: 30px;
     padding: 0 10px;
-    border: 1px solid ${({ theme, $error }) => (
+    border: 1px solid ${({ theme, $error, $outOfSync }) => (
         $error
             ? theme.colors.accent.error
+            : $outOfSync
+                ? theme.colors.accent.warning
             : theme.colors.border.default
     )};
     border-radius: ${({ theme }) => theme.radius.md};
     background: ${({ theme }) => theme.colors.bg.primary};
-    color: ${({ theme }) => theme.colors.text.primary};
+    color: ${({ theme, $error, $outOfSync }) => (
+        $error
+            ? theme.colors.accent.error
+            : $outOfSync
+                ? theme.colors.accent.warning
+                : theme.colors.text.primary
+    )};
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+
+    &:hover:not(:disabled) {
+        background: ${({ theme, $outOfSync }) => (
+            $outOfSync ? `${theme.colors.accent.warning}0d` : theme.colors.bg.primary
+        )};
+    }
 
     &:disabled {
         cursor: default;

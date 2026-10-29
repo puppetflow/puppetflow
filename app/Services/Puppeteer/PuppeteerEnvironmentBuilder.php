@@ -56,6 +56,8 @@ final class PuppeteerEnvironmentBuilder
             'RUN_SNIPPETS_PATH' => $files['snippets'],
             'RUN_SECRETS_PATH' => $files['runtime_secrets'] ?? '',
             'RUN_MAILBOX_CLAIMS_PATH' => $files['mailbox_claims'] ?? '',
+            // Code flows always execute terminate() when it exists. This setting only controls nodal FINALLY.
+            'FLOW_FINALLY_ENABLED' => $flow->flow_type === 'nodal' && ! $flow->finally_enabled ? 'false' : 'true',
             'INCLUDE_INPUT_IN_OUTPUT' => ($flow->include_input_in_output ?? false) ? 'true' : 'false',
             'INCLUDE_CONTEXT_IN_OUTPUT' => ($flow->include_context_in_output ?? true) ? 'true' : 'false',
             'EXPORT_ARTIFACTS_DOWNLOADS' => ($flow->export_artifacts_downloads ?? true) ? 'true' : 'false',
@@ -149,11 +151,6 @@ final class PuppeteerEnvironmentBuilder
         if ($flow->disable_web_security !== null) {
             $env['BROWSER_DISABLE_WEB_SECURITY'] = $flow->disable_web_security ? 'true' : 'false';
         }
-        if ($flow->flow_type === 'nodal' && ! $flow->finally_enabled) {
-            // The FINALLY branch is kept in the graph but must not run while the setting is off.
-            $env['FLOW_FINALLY_ENABLED'] = 'false';
-        }
-
         if ($run && $this->features->enabled('live_view_enabled')) {
             $token = $this->streamTokens->issue(
                 $run,

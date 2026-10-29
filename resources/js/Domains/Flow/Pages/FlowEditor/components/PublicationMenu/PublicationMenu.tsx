@@ -94,13 +94,14 @@ export default function PublicationMenu({
             <S.Trigger
                 type="button"
                 $error={error}
+                $outOfSync={outOfSync}
                 disabled={disabled}
                 aria-busy={savingPublication}
                 title={outOfSync ? 'The saved draft differs from the published version' : undefined}
                 onClick={() => setOpen(value => !value)}
             >
                 <S.TriggerContent $hidden={savingPublication}>
-                    <Icon icon={error ? 'lucide:triangle-alert' : isPublished ? 'lucide:badge-check' : 'lucide:file-pen'} />
+                    <Icon icon={error ? 'lucide:triangle-alert' : outOfSync ? 'lucide:pencil' : isPublished ? 'lucide:badge-check' : 'lucide:file-pen'} />
                     {label}
                     {outOfSync && <S.OutOfSyncDot aria-label="Unpublished changes" />}
                     {!disabled && <Icon icon="lucide:chevron-down" />}

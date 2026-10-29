@@ -1300,6 +1300,18 @@ module.exports = async function(appDir, flowId, quiet) {
       }
       return _clean;
     };
+    const _syncRuntimeContext = (target, includeWhenMetadataExists = false) => {
+      if (!target || typeof target !== 'object') return target;
+      const _meta = __runContext && typeof __runContext === 'object' ? __runContext.meta : null;
+      const _hasMetadata = (_meta && typeof _meta === 'object' && Reflect.ownKeys(_meta).length > 0)
+        || (__runContext && typeof __runContext === 'object'
+          && Object.prototype.hasOwnProperty.call(__runContext, 'legend'));
+      if (Object.prototype.hasOwnProperty.call(target, '$context')
+        || (includeWhenMetadataExists && _hasMetadata)) {
+        target.$context = __runContext;
+      }
+      return target;
+    };
 
     process.on('unhandledRejection', (_reason) => {
       if (_reason && _reason.name === 'StopRun') {
@@ -1392,7 +1404,8 @@ module.exports = async function(appDir, flowId, quiet) {
 
         ${userCodeSyntaxError ? `_runError = new SyntaxError(${JSON.stringify(userCodeSyntaxError.message)});` : ''}
 
-        // Visual flows keep their FINALLY branch compiled but skip it while the flow setting is off.
+        // The environment builder always enables code-flow terminate functions. Only a disabled
+        // nodal FINALLY branch reaches the runtime with FLOW_FINALLY_ENABLED=false.
         if (typeof terminate === 'function' && process.env.FLOW_FINALLY_ENABLED !== 'false') _terminate = terminate;
         if (!_runError && typeof run === 'function') {
           console.debug('========================================');
@@ -1424,6 +1437,7 @@ module.exports = async function(appDir, flowId, quiet) {
           _copyOutputFields(_result, _outputData);
           if (typeof _result.status === 'undefined') _result.status = _terminateStatus;
           _result = _stripInternalOutputFields(_result);
+          _syncRuntimeContext(_result);
           await _terminate($page, __runInput, _result, __runContext, $client);
           _result = _stripInternalOutputFields(_result);
         } catch (_tErr) {
@@ -1575,6 +1589,7 @@ module.exports = async function(appDir, flowId, quiet) {
       if (!_runError && _result !== undefined) {
         if (typeof _result === 'object' && _result !== null) {
           _copyOutputFields(_result, _outputData);
+          _syncRuntimeContext(_result, true);
           _result = _stripInternalOutputFields(_result);
           if (_builtArtifacts) _result.$artifacts = _builtArtifacts;
         }
