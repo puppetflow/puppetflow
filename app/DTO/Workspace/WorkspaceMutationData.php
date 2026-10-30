@@ -103,6 +103,7 @@ final readonly class WorkspaceMutationData
      *   debug_log_object_depth?: int|null,
      *   debug_log_array_limit?: int|null,
      *   allow_trigger_advertising?: bool|null,
+     *   flow_run_access_follows_visibility?: bool|null,
      *   require_two_factor?: bool|null,
      *   default_flow_type?: string|null,
      *   default_flow_code?: string|null,

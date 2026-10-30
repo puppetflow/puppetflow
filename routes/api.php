@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\DataTableColumnApiController;
 use App\Http\Controllers\Api\DataTableRowApiController;
 use App\Http\Controllers\Api\FlowApiController;
 use App\Http\Controllers\Api\FlowSearchApiController;
+use App\Http\Controllers\Api\FlowVersionApiController;
 use App\Http\Controllers\Api\MediaAssetApiController;
 use App\Http\Controllers\Api\MediaFolderApiController;
 use App\Http\Controllers\Api\RunApiController;
@@ -208,6 +209,9 @@ Route::middleware(\App\Http\Middleware\AuthenticateApiKey::class)
         Route::prefix('flows/{id}')->name('flows.')->group(function () {
             Route::get('/', [FlowSearchApiController::class, 'show'])->name('show');
             Route::post('trigger', [FlowApiController::class, 'trigger'])->name('trigger');
+            Route::get('versions', [FlowVersionApiController::class, 'index'])->name('versions.index');
+            Route::get('versions/{version}', [FlowVersionApiController::class, 'show'])->whereNumber('version')->name('versions.show');
+            Route::post('versions/{version}/restore', [FlowVersionApiController::class, 'restore'])->whereNumber('version')->name('versions.restore');
 
             Route::get('runs', [RunApiController::class, 'index'])->name('runs.index');
             Route::get('runs/search', [FlowSearchApiController::class, 'runs'])->name('runs.search');

@@ -32,6 +32,13 @@ final class FlowRunVisibility
             return $query;
         }
 
+        $flowRunAccessFollowsVisibility = (bool) DB::table('workspaces')
+            ->where('workspaces.id', $context->workspaceId)
+            ->value('flow_run_access_follows_visibility');
+        if ($flowRunAccessFollowsVisibility) {
+            return $query;
+        }
+
         $query->where(function (Builder $runs) use ($context) {
             $runs->where('flow_runs.triggered_by', $context->user->id)
                 ->orWhereHas('flow', fn (Builder $flow) => $flow
@@ -57,7 +64,11 @@ final class FlowRunVisibility
         }
 
         $query->where(function (Builder $runs) use ($user) {
-            $runs->where('flow_runs.triggered_by', $user->id)
+            $runs->whereHas('flow', fn (Builder $flow) => $flow
+                ->whereIn('flows.workspace_id', DB::table('workspaces')
+                    ->select('workspaces.id')
+                    ->where('workspaces.flow_run_access_follows_visibility', true)))
+                ->orWhere('flow_runs.triggered_by', $user->id)
                 ->orWhereHas('flow', function (Builder $flow) use ($user) {
                     $flow->where('flows.owner_id', $user->id);
 

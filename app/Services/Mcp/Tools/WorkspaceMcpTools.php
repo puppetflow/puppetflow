@@ -39,6 +39,10 @@ final class WorkspaceMcpTools implements McpToolHandler
             'icon_value' => ['type' => ['string', 'null']],
             'icon_color' => ['type' => ['string', 'null']],
             'allow_trigger_advertising' => ['type' => 'boolean'],
+            'flow_run_access_follows_visibility' => [
+                'type' => 'boolean',
+                'description' => 'Allow anyone who can view a flow to view all of its runs.',
+            ],
             'require_two_factor' => [
                 'type' => 'boolean',
                 'description' => 'Require 2FA for all workspace members. Requires the two-factor enforcement entitlement.',
@@ -90,6 +94,7 @@ final class WorkspaceMcpTools implements McpToolHandler
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
             'allow_trigger_advertising' => ['sometimes', 'boolean'],
+            'flow_run_access_follows_visibility' => ['sometimes', 'boolean'],
             'require_two_factor' => ['sometimes', 'boolean'],
             'default_flow_code' => ['sometimes', 'nullable', 'string', 'max:65000'],
         ])->validate();
@@ -123,6 +128,7 @@ final class WorkspaceMcpTools implements McpToolHandler
                 'default_user_agent' => $workspace->default_user_agent,
                 'default_language' => $workspace->default_language,
                 'allow_trigger_advertising' => (bool) $workspace->allow_trigger_advertising,
+                'flow_run_access_follows_visibility' => (bool) $workspace->flow_run_access_follows_visibility,
                 'require_two_factor' => $this->features->enabled('two_factor_enforcement_enabled')
                     && (bool) $workspace->require_two_factor,
                 'default_flow_code' => $workspace->default_flow_code,

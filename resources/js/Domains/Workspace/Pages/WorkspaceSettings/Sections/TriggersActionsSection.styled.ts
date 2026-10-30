@@ -3,6 +3,13 @@ import styled from 'styled-components';
 export const Column = styled.div`
     display: flex;
     flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+`;
+
+export const Setting = styled.div`
+    display: flex;
+    flex-direction: column;
     gap: 12px;
     min-width: 0;
 `;

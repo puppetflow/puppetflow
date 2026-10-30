@@ -6,7 +6,9 @@ use App\Authorization\Visibility\FlowVisibility;
 use App\Authorization\Visibility\FolderVisibility;
 use App\Enums\Authorization\Ability;
 use App\Models\Flow;
+use App\Models\FlowVersion;
 use App\Models\Folder;
+use App\Models\User;
 use App\Rules\ValidNodalGraph;
 use App\Services\FeatureFlags\FeatureFlagService;
 use App\Services\Flow\FlowSettingsUpdateService;
@@ -30,6 +32,9 @@ final class FlowMcpTools implements McpToolHandler
         'search_flows',
         'get_flow_details',
         'get_flow_source',
+        'list_flow_versions',
+        'get_flow_version',
+        'restore_flow_version',
         'list_folders',
         'get_flow_creation_options',
         'get_nodal_catalog',
@@ -70,6 +75,43 @@ final class FlowMcpTools implements McpToolHandler
                 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => ['flow_id' => $identifier]],
             ],
             ['name' => 'get_flow_source', 'description' => 'Get the source code and complete nodal graph for an MCP-enabled flow.', 'inputSchema' => ['type' => 'object', 'required' => ['flow_id'], 'properties' => ['flow_id' => $identifier]]],
+            [
+                'name' => 'list_flow_versions',
+                'description' => 'List the published version snapshots of a flow, newest first. The editable draft is returned by get_flow_source and is not itself a version.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['flow_id'],
+                    'properties' => ['flow_id' => $identifier],
+                ],
+            ],
+            [
+                'name' => 'get_flow_version',
+                'description' => 'Get the exact code or nodal graph stored in one published flow version. Use list_flow_versions to find version numbers.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['flow_id', 'version'],
+                    'properties' => [
+                        'flow_id' => $identifier,
+                        'version' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'restore_flow_version',
+                'description' => 'Replace the editable flow draft with an exact historical version. This does not publish or unpublish the flow. Call get_flow_source first and provide its exact content_updated_at value.',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => ['flow_id', 'version', 'content_updated_at'],
+                    'properties' => [
+                        'flow_id' => $identifier,
+                        'version' => ['type' => 'integer', 'minimum' => 1],
+                        'content_updated_at' => ['type' => 'string', 'description' => 'Exact timestamp returned by get_flow_source.'],
+                    ],
+                ],
+            ],
             ['name' => 'list_folders', 'description' => 'List folders visible to the connected user in this workspace.', 'inputSchema' => ['type' => 'object', 'properties' => ['search' => ['type' => 'string']]]],
             ['name' => 'get_flow_creation_options', 'description' => 'List allowed visibility scopes, teams, and folders for creating a flow.', 'inputSchema' => ['type' => 'object', 'properties' => new \stdClass]],
             ['name' => 'get_nodal_catalog', 'description' => 'Always-available Puppetflow framework reference. Returns a compact, paginated node list by default. Provide query to retrieve complete matching definitions before authoring a flow. Use mode code for JavaScript helpers or mode nodal for visual nodes.', 'inputSchema' => [
@@ -152,6 +194,9 @@ final class FlowMcpTools implements McpToolHandler
             'search_flows' => $this->search($arguments, $context),
             'get_flow_details' => $this->details($arguments, $context),
             'get_flow_source' => $this->source($arguments, $context),
+            'list_flow_versions' => $this->versions($arguments, $context),
+            'get_flow_version' => $this->version($arguments, $context),
+            'restore_flow_version' => $this->restoreVersion($arguments, $context),
             'list_folders' => $this->folders($arguments, $context),
             'get_flow_creation_options' => $this->creationOptions($context),
             'get_nodal_catalog' => $this->catalog($arguments),
@@ -257,22 +302,109 @@ final class FlowMcpTools implements McpToolHandler
      */
     private function source(array $arguments, McpToolContext $context): array
     {
-        $flow = $this->resources->flow(
-            trim(McpToolArguments::string($arguments, 'flow_id')),
-            $context,
-            requireExposed: false,
-        );
-        if (
-            ! $flow->available_in_mcp
-            && Gate::forUser($context->user)->denies(Ability::UPDATE->value, $flow)
-        ) {
-            throw ValidationException::withMessages(['flow_id' => 'Flow is not available in MCP.']);
-        }
+        $flow = $this->flowForSourceAccess($arguments, $context);
 
         return ['flow' => [
             'id' => $flow->id, 'flow_type' => $flow->flow_type,
             'code' => $flow->code, 'nodal_graph' => $flow->nodal_graph,
-            'content_updated_at' => $flow->content_updated_at?->toJSON(),
+            'content_updated_at' => ($flow->content_updated_at ?? $flow->updated_at)?->toJSON(),
+        ]];
+    }
+
+    /** @param Arguments $arguments
+     * @return array<string, mixed>
+     */
+    private function versions(array $arguments, McpToolContext $context): array
+    {
+        $flow = $this->flowForSourceAccess($arguments, $context);
+        $flow->load('publishedVersion:id,version');
+
+        $versions = $flow->versions()
+            ->with('publisher:id,name')
+            ->latest('version')
+            ->get()
+            ->map(fn (FlowVersion $version): array => $this->versionMetadata($version))
+            ->values();
+
+        return [
+            'flow_id' => $flow->id,
+            'published_version' => $flow->publishedVersion?->version,
+            'versions' => $versions,
+        ];
+    }
+
+    /** @param Arguments $arguments
+     * @return array<string, mixed>
+     */
+    private function version(array $arguments, McpToolContext $context): array
+    {
+        $flow = $this->flowForSourceAccess($arguments, $context);
+        $version = $this->resolveVersion($flow, $arguments);
+        $version->load('publisher:id,name');
+
+        return ['version' => [
+            ...$this->versionMetadata($version),
+            'code' => $version->code,
+            'nodal_graph' => $version->nodal_graph,
+        ]];
+    }
+
+    /** @param Arguments $arguments
+     * @return array<string, mixed>
+     */
+    private function restoreVersion(array $arguments, McpToolContext $context): array
+    {
+        $flowId = trim(McpToolArguments::string($arguments, 'flow_id'));
+        $versionNumber = $this->versionNumber($arguments);
+        $clientTimestamp = trim(McpToolArguments::string($arguments, 'content_updated_at'));
+        if ($flowId === '' || $clientTimestamp === '') {
+            throw ValidationException::withMessages([
+                $flowId === '' ? 'flow_id' : 'content_updated_at' => $flowId === ''
+                    ? 'Flow ID is required.'
+                    : 'The content timestamp is required.',
+            ]);
+        }
+
+        /** @var array{flow: Flow, version: FlowVersion} $result */
+        $result = DB::transaction(function () use ($clientTimestamp, $context, $flowId, $versionNumber): array {
+            $flow = Flow::query()
+                ->where('workspace_id', $context->workspace->id)
+                ->whereKey($flowId)
+                ->lockForUpdate()
+                ->first();
+            if (! $flow || Gate::forUser($context->user)->denies(Ability::UPDATE->value, $flow)) {
+                throw ValidationException::withMessages(['flow_id' => 'Flow not found or not editable.']);
+            }
+            if ($flow->source_type !== 'code') {
+                throw ValidationException::withMessages([
+                    'flow_id' => 'Library and repository flows cannot be restored. Duplicate the flow first.',
+                ]);
+            }
+
+            $version = $flow->versions()->where('version', $versionNumber)->first();
+            if (! $version instanceof FlowVersion) {
+                throw ValidationException::withMessages(['version' => 'Flow version not found.']);
+            }
+
+            $this->ensureCurrent($clientTimestamp, $flow->content_updated_at ?? $flow->updated_at);
+            $flow->update([
+                'code' => $version->code,
+                'nodal_graph' => $version->flow_type === 'nodal' ? $version->nodal_graph : null,
+                'flow_type' => $version->flow_type,
+            ]);
+
+            return ['flow' => $flow, 'version' => $version];
+        }, 3);
+
+        $flow = $result['flow']->fresh(['publishedVersion']) ?? $result['flow'];
+
+        return ['flow' => [
+            'id' => $flow->id,
+            'restored_version' => $result['version']->version,
+            'flow_type' => $flow->flow_type,
+            'is_published' => (bool) $flow->is_published,
+            'published_version' => $flow->published_version_number,
+            'content_updated_at' => ($flow->content_updated_at ?? $flow->updated_at)?->toJSON(),
         ]];
     }
 
@@ -637,6 +769,64 @@ TEXT,
             'is_published' => ['type' => 'boolean', 'description' => 'Creation default: false. On update, omit to preserve, true to publish this content, or false to unpublish. Publishing and unpublishing require their corresponding MCP tools to be enabled.'],
             'available_in_mcp' => ['type' => 'boolean', 'description' => 'New flows are always created with this enabled. During update, omit it to preserve the current value.'],
             'queue_index' => ['type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => config()->integer('puppetflow.queues_counter', 1)],
+        ];
+    }
+
+    /** @param Arguments $arguments */
+    private function flowForSourceAccess(array $arguments, McpToolContext $context): Flow
+    {
+        $flow = $this->resources->flow(
+            trim(McpToolArguments::string($arguments, 'flow_id')),
+            $context,
+            requireExposed: false,
+        );
+        if (
+            ! $flow->available_in_mcp
+            && Gate::forUser($context->user)->denies(Ability::UPDATE->value, $flow)
+        ) {
+            throw ValidationException::withMessages(['flow_id' => 'Flow is not available in MCP.']);
+        }
+
+        return $flow;
+    }
+
+    /** @param Arguments $arguments */
+    private function resolveVersion(Flow $flow, array $arguments): FlowVersion
+    {
+        $version = $flow->versions()
+            ->where('version', $this->versionNumber($arguments))
+            ->first();
+        if (! $version instanceof FlowVersion) {
+            throw ValidationException::withMessages(['version' => 'Flow version not found.']);
+        }
+
+        return $version;
+    }
+
+    /** @param Arguments $arguments */
+    private function versionNumber(array $arguments): int
+    {
+        $version = McpToolArguments::integer($arguments, 'version');
+        if ($version < 1) {
+            throw ValidationException::withMessages(['version' => 'A positive flow version is required.']);
+        }
+
+        return $version;
+    }
+
+    /** @return array<string, mixed> */
+    private function versionMetadata(FlowVersion $version): array
+    {
+        $publisher = $version->publisher;
+
+        return [
+            'id' => $version->id,
+            'version' => $version->version,
+            'flow_type' => $version->flow_type,
+            'published_at' => $version->published_at->toJSON(),
+            'publisher' => $publisher instanceof User
+                ? ['id' => $publisher->id, 'name' => $publisher->name]
+                : null,
         ];
     }
 

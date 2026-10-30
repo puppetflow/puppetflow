@@ -30,6 +30,7 @@ use Illuminate\Support\Str;
  * @property int $runs_retention_max
  * @property int $debug_log_object_depth
  * @property int $debug_log_array_limit
+ * @property bool $flow_run_access_follows_visibility
  * @property bool $require_two_factor
  * @property string|null $default_user_agent
  * @property string|null $default_language
@@ -49,6 +50,7 @@ class Workspace extends Model
         'viewport_width', 'viewport_height', 'keyboard_speed', 'default_user_agent', 'default_language',
         'debug_log_object_depth', 'debug_log_array_limit',
         'allow_trigger_advertising',
+        'flow_run_access_follows_visibility',
         'require_two_factor',
         'default_flow_code', 'default_flow_type', 'default_flow_nodal_graph',
         'icon_type', 'icon_value', 'icon_color', 'icon_upload_path',
@@ -69,6 +71,7 @@ class Workspace extends Model
             'debug_log_object_depth' => 'integer',
             'debug_log_array_limit' => 'integer',
             'allow_trigger_advertising' => 'boolean',
+            'flow_run_access_follows_visibility' => 'boolean',
             'require_two_factor' => 'boolean',
             'default_flow_nodal_graph' => 'array',
             'expires_at' => 'datetime',

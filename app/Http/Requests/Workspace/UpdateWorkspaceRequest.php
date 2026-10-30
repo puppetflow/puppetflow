@@ -50,6 +50,7 @@ class UpdateWorkspaceRequest extends FormRequest
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
             'allow_trigger_advertising' => ['sometimes', 'boolean'],
+            'flow_run_access_follows_visibility' => ['sometimes', 'boolean'],
             'require_two_factor' => ['sometimes', 'boolean'],
             'default_flow_type' => ['sometimes', 'in:code,nodal'],
             'default_flow_code' => ['sometimes', 'nullable', 'string', 'max:65000'],

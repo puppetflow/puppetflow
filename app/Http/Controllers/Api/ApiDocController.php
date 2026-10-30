@@ -31,7 +31,7 @@ class ApiDocController extends Controller
             'openapi' => '3.0.3',
             'info' => [
                 'title' => app(BrandingProvider::class)->current()['name'].' API',
-                'description' => 'Manage Data Tables, the Media Library and users, trigger flows, list runs, fetch results, and download artifacts. Authenticate with a Bearer API key generated from your profile.',
+                'description' => 'Manage Data Tables, the Media Library and users, inspect and restore flow versions, trigger flows, list runs, fetch results, and download artifacts. Authenticate with a Bearer API key generated from your profile.',
                 'version' => '1.0.0',
             ],
             'servers' => [
@@ -223,6 +223,74 @@ class ApiDocController extends Controller
                             'updated_at' => ['type' => 'string', 'format' => 'date-time'],
                         ],
                     ],
+                    'FlowVersionSummary' => [
+                        'type' => 'object',
+                        'required' => ['id', 'version', 'flow_type', 'published_at', 'publisher'],
+                        'properties' => [
+                            'id' => ['type' => 'integer'],
+                            'version' => ['type' => 'integer'],
+                            'flow_type' => ['type' => 'string', 'enum' => ['code', 'nodal']],
+                            'published_at' => ['type' => 'string', 'format' => 'date-time'],
+                            'publisher' => [
+                                'type' => 'object',
+                                'nullable' => true,
+                                'properties' => [
+                                    'id' => ['type' => 'string'],
+                                    'name' => ['type' => 'string'],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'FlowVersionDetail' => [
+                        'allOf' => [
+                            ['$ref' => '#/components/schemas/FlowVersionSummary'],
+                            [
+                                'type' => 'object',
+                                'required' => ['code', 'nodal_graph'],
+                                'properties' => [
+                                    'code' => ['type' => 'string', 'nullable' => true],
+                                    'nodal_graph' => ['type' => 'object', 'nullable' => true, 'additionalProperties' => true],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'FlowVersionList' => [
+                        'type' => 'object',
+                        'required' => ['flow_id', 'published_version', 'content_updated_at', 'versions'],
+                        'properties' => [
+                            'flow_id' => ['type' => 'string'],
+                            'published_version' => ['type' => 'integer', 'nullable' => true],
+                            'content_updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'versions' => [
+                                'type' => 'array',
+                                'items' => ['$ref' => '#/components/schemas/FlowVersionSummary'],
+                            ],
+                        ],
+                    ],
+                    'FlowVersionRestoreRequest' => [
+                        'type' => 'object',
+                        'required' => ['content_updated_at'],
+                        'additionalProperties' => false,
+                        'properties' => [
+                            'content_updated_at' => [
+                                'type' => 'string',
+                                'format' => 'date-time',
+                                'description' => 'Exact content_updated_at value returned by GET /flows/{id}/versions.',
+                            ],
+                        ],
+                    ],
+                    'FlowVersionRestoreResponse' => [
+                        'type' => 'object',
+                        'required' => ['flow_id', 'restored_version', 'flow_type', 'is_published', 'published_version', 'content_updated_at'],
+                        'properties' => [
+                            'flow_id' => ['type' => 'string'],
+                            'restored_version' => ['type' => 'integer'],
+                            'flow_type' => ['type' => 'string', 'enum' => ['code', 'nodal']],
+                            'is_published' => ['type' => 'boolean'],
+                            'published_version' => ['type' => 'integer', 'nullable' => true],
+                            'content_updated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                        ],
+                    ],
                     'FolderSummary' => [
                         'type' => 'object',
                         'properties' => [
@@ -256,6 +324,7 @@ class ApiDocController extends Controller
                                     'default_user_agent' => ['type' => 'string', 'nullable' => true],
                                     'default_language' => ['type' => 'string', 'nullable' => true],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
+                                    'flow_run_access_follows_visibility' => ['type' => 'boolean'],
                                     'require_two_factor' => [
                                         'type' => 'boolean',
                                         'description' => 'Effective workspace-wide 2FA requirement. Requires the two-factor enforcement entitlement.',
@@ -310,6 +379,7 @@ class ApiDocController extends Controller
                             'icon_value' => ['type' => 'string', 'nullable' => true, 'maxLength' => 100],
                             'icon_color' => ['type' => 'string', 'nullable' => true, 'maxLength' => 7],
                             'allow_trigger_advertising' => ['type' => 'boolean'],
+                            'flow_run_access_follows_visibility' => ['type' => 'boolean'],
                             'require_two_factor' => [
                                 'type' => 'boolean',
                                 'description' => 'Require 2FA for all workspace members. Requires the two-factor enforcement entitlement.',
@@ -331,6 +401,7 @@ class ApiDocController extends Controller
                                     'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
                                     'default_language' => ['type' => 'string', 'nullable' => true, 'maxLength' => 64],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
+                                    'flow_run_access_follows_visibility' => ['type' => 'boolean'],
                                     'require_two_factor' => [
                                         'type' => 'boolean',
                                         'description' => 'Require 2FA for all workspace members. Requires the two-factor enforcement entitlement.',
@@ -1084,6 +1155,102 @@ class ApiDocController extends Controller
                             '401' => ['description' => 'Unauthorized.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                             '403' => ['description' => 'Forbidden.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                             '404' => ['description' => 'Flow not found.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                        ],
+                    ],
+                ],
+                '/flows/{id}/versions' => [
+                    'get' => [
+                        'tags' => ['Flows'],
+                        'summary' => 'List flow versions',
+                        'description' => 'Returns published flow snapshots from newest to oldest. The editable draft is not itself a version.',
+                        'operationId' => 'listFlowVersions',
+                        'parameters' => [
+                            ['$ref' => '#/components/parameters/id'],
+                        ],
+                        'responses' => [
+                            '200' => [
+                                'description' => 'Flow version history.',
+                                'content' => [
+                                    'application/json' => [
+                                        'schema' => ['$ref' => '#/components/schemas/FlowVersionList'],
+                                    ],
+                                ],
+                            ],
+                            '401' => ['description' => 'Unauthorized.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '403' => ['description' => 'Forbidden.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '404' => ['description' => 'Flow not found.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                        ],
+                    ],
+                ],
+                '/flows/{id}/versions/{version}' => [
+                    'get' => [
+                        'tags' => ['Flows'],
+                        'summary' => 'Get a flow version',
+                        'description' => 'Returns the exact code or nodal graph stored in one published flow version.',
+                        'operationId' => 'getFlowVersion',
+                        'parameters' => [
+                            ['$ref' => '#/components/parameters/id'],
+                            [
+                                'name' => 'version',
+                                'in' => 'path',
+                                'required' => true,
+                                'description' => 'Published version number.',
+                                'schema' => ['type' => 'integer', 'minimum' => 1],
+                            ],
+                        ],
+                        'responses' => [
+                            '200' => [
+                                'description' => 'Historical flow version.',
+                                'content' => [
+                                    'application/json' => [
+                                        'schema' => ['$ref' => '#/components/schemas/FlowVersionDetail'],
+                                    ],
+                                ],
+                            ],
+                            '401' => ['description' => 'Unauthorized.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '403' => ['description' => 'Forbidden.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '404' => ['description' => 'Flow or version not found.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                        ],
+                    ],
+                ],
+                '/flows/{id}/versions/{version}/restore' => [
+                    'post' => [
+                        'tags' => ['Flows'],
+                        'summary' => 'Restore a flow version',
+                        'description' => 'Replaces the editable draft with an exact historical version. This does not publish or unpublish the flow.',
+                        'operationId' => 'restoreFlowVersion',
+                        'parameters' => [
+                            ['$ref' => '#/components/parameters/id'],
+                            [
+                                'name' => 'version',
+                                'in' => 'path',
+                                'required' => true,
+                                'description' => 'Published version number to restore.',
+                                'schema' => ['type' => 'integer', 'minimum' => 1],
+                            ],
+                        ],
+                        'requestBody' => [
+                            'required' => true,
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/FlowVersionRestoreRequest'],
+                                ],
+                            ],
+                        ],
+                        'responses' => [
+                            '200' => [
+                                'description' => 'Version restored into the editable draft.',
+                                'content' => [
+                                    'application/json' => [
+                                        'schema' => ['$ref' => '#/components/schemas/FlowVersionRestoreResponse'],
+                                    ],
+                                ],
+                            ],
+                            '401' => ['description' => 'Unauthorized.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '403' => ['description' => 'Flow is not editable by the authenticated user.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '404' => ['description' => 'Flow or version not found.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '422' => ['description' => 'The draft changed or the content timestamp is invalid.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
+                            '423' => ['description' => 'Externally managed flows must be duplicated before restoration.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]],
                         ],
                     ],
                 ],

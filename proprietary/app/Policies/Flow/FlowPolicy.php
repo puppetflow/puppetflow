@@ -108,6 +108,10 @@ class FlowPolicy
 
     public function viewRuns(User $user, Flow $flow): bool
     {
+        if ((bool) $flow->workspace?->flow_run_access_follows_visibility) {
+            return $this->view($user, $flow);
+        }
+
         return $this->update($user, $flow);
     }
 

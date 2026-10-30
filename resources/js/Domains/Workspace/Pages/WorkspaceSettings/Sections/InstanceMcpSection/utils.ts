@@ -26,6 +26,7 @@ const TOOL_CATEGORIES: Record<Exclude<McpToolCategory, 'all'>, string[]> = {
     flows: [
         'search_flows', 'get_flow_details', 'get_flow_source', 'list_folders',
         'get_flow_creation_options', 'get_nodal_catalog', 'list_flow_resources',
+        'list_flow_versions', 'get_flow_version', 'restore_flow_version',
         'update_flow_settings', 'write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow',
     ],
     data_tables: ['search_data_tables', 'get_data_table', 'get_data_table_rows', 'update_data_table'],

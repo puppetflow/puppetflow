@@ -73,11 +73,11 @@ export default function FlowsSettingsTab({ workspace, readOnly }: Props) {
             </CollapsibleSection>
 
             <CollapsibleSection
-                icon="lucide:zap"
-                title="Triggers & actions"
-                description="Let members advertise their triggers and actions to the workspace"
+                icon="lucide:shield-check"
+                title="Visibility & Access"
+                description="Control flow discoverability and access to run details"
                 docPath="/guide/workspaces#triggers-actions"
-                docLabel="Open triggers and actions settings documentation"
+                docLabel="Open visibility and access settings documentation"
                 {...groupProps('triggers')}
             >
                 <TriggersActionsSection workspace={workspace} readOnly={readOnly} />

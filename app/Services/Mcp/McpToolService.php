@@ -32,6 +32,9 @@ final class McpToolService
         'search_flows' => ['title' => 'Search Flows', 'readOnly' => true],
         'get_flow_details' => ['title' => 'Get Flow Details', 'readOnly' => true],
         'get_flow_source' => ['title' => 'Get Flow Source', 'readOnly' => true],
+        'list_flow_versions' => ['title' => 'List Flow Versions', 'readOnly' => true],
+        'get_flow_version' => ['title' => 'Get Flow Version', 'readOnly' => true],
+        'restore_flow_version' => ['title' => 'Restore Flow Version', 'readOnly' => false],
         'list_folders' => ['title' => 'List Folders', 'readOnly' => true],
         'get_flow_creation_options' => ['title' => 'Get Flow Creation Options', 'readOnly' => true],
         'get_nodal_catalog' => ['title' => 'Get Nodal Catalog', 'readOnly' => true],
@@ -102,6 +105,7 @@ final class McpToolService
     private const DESTRUCTIVE_TOOLS = [
         'write_code_flow',
         'write_nodal_flow',
+        'restore_flow_version',
         'create_flow_trigger',
         'update_flow_trigger',
         'delete_flow_trigger',
@@ -129,6 +133,9 @@ final class McpToolService
         'search_flows' => ['flows' => 'array'],
         'get_flow_details' => ['flow' => 'object'],
         'get_flow_source' => ['flow' => 'object'],
+        'list_flow_versions' => ['flow_id' => 'string', 'published_version' => 'nullable-integer', 'versions' => 'array'],
+        'get_flow_version' => ['version' => 'object'],
+        'restore_flow_version' => ['flow' => 'object'],
         'list_folders' => ['folders' => 'array'],
         'get_flow_creation_options' => ['visibility_scopes' => 'array', 'teams' => 'array', 'folders' => 'array', 'defaults' => 'object'],
         'get_nodal_catalog' => ['mode' => 'string', 'nodes' => 'array', 'total' => 'integer', 'next_cursor' => 'nullable-string'],
@@ -213,6 +220,9 @@ final class McpToolService
 
     private const HUMAN_DESCRIPTIONS = [
         'get_flow_details' => 'Read the details and Flow Inputs of a flow exposed to MCP.',
+        'list_flow_versions' => 'List the published snapshots available for a flow.',
+        'get_flow_version' => 'Read the exact source stored in a published flow version.',
+        'restore_flow_version' => 'Restore a published version into the editable flow draft.',
         'run_flow' => 'Run a flow exposed to MCP, optionally overriding its Flow Inputs.',
         'get_nodal_catalog' => 'Browse the nodes and capabilities available when building visual flows.',
         'list_flow_resources' => 'List the workspace resources that can be referenced by a flow or snippet.',
@@ -509,6 +519,9 @@ final class McpToolService
 
         if (array_intersect($effective, ['update_flow_settings', 'write_code_flow', 'write_nodal_flow', 'publish_flow', 'unpublish_flow']) !== []) {
             $effective = [...$effective, 'search_flows', 'get_flow_details', 'get_flow_source', 'get_flow_creation_options', 'list_flow_resources'];
+        }
+        if (in_array('restore_flow_version', $effective, true)) {
+            $effective = [...$effective, 'search_flows', 'get_flow_details', 'get_flow_source', 'list_flow_versions', 'get_flow_version'];
         }
         if (array_intersect($effective, ['write_code_snippet', 'write_nodal_snippet', 'publish_snippet', 'unpublish_snippet']) !== []) {
             $effective = [...$effective, 'search_snippets', 'get_snippet_source', 'get_snippet_creation_options', 'list_flow_resources'];

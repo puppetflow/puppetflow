@@ -24,6 +24,7 @@ export interface Workspace {
     debug_log_object_depth: number;
     debug_log_array_limit: number;
     allow_trigger_advertising: boolean;
+    flow_run_access_follows_visibility: boolean;
     require_two_factor: boolean;
     default_flow_type: 'code' | 'nodal';
     default_flow_code: string | null;

@@ -183,6 +183,7 @@ class WorkspaceApiController extends Controller
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
             'allow_trigger_advertising' => ['sometimes', 'boolean'],
+            'flow_run_access_follows_visibility' => ['sometimes', 'boolean'],
             'require_two_factor' => ['sometimes', 'boolean'],
             'default_flow_code' => ['sometimes', 'nullable', 'string', 'max:65000'],
         ];
@@ -262,6 +263,7 @@ class WorkspaceApiController extends Controller
                 'default_user_agent' => $workspace->default_user_agent,
                 'default_language' => $workspace->default_language,
                 'allow_trigger_advertising' => (bool) $workspace->allow_trigger_advertising,
+                'flow_run_access_follows_visibility' => (bool) $workspace->flow_run_access_follows_visibility,
                 'require_two_factor' => $this->features->enabled('two_factor_enforcement_enabled')
                     && (bool) $workspace->require_two_factor,
                 'default_flow_code' => $workspace->default_flow_code,
