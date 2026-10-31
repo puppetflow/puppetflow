@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react';
+import { useCallback, type MutableRefObject } from 'react';
 import { useInertiaPolling } from '@/Shared/Hooks/useInertiaPolling';
 import type { useToast } from '@/App/Hooks/useToast';
 import type { FlowEditorProps } from '@/Domains/Flow/Pages/FlowEditor/types';
@@ -48,18 +48,30 @@ export function useFlowRunsController({
         ...runs,
         data: displayedRunData,
     };
+    const handleRunDetailLoadError = useCallback(
+        () => toast('Unable to load run details'),
+        [toast],
+    );
 
     const {
         detailRun,
         handleViewRunDetails,
         handleCloseRunDetail,
-    } = useRunDetailUrlState(displayedRuns.data, pendingRunOpenRef);
+    } = useRunDetailUrlState(
+        flowId,
+        displayedRuns.data,
+        pendingRunOpenRef,
+        handleRunDetailLoadError,
+    );
+    const hasActiveRuns = runs.data.some(
+        run => run.status === 'pending' || run.status === 'running',
+    );
     useInertiaPolling({
-        only: ['runs', 'flow'],
-        active: runs.data.some(run => run.status === 'pending' || run.status === 'running'),
+        only: hasActiveRuns ? ['runs', 'flow'] : ['runs'],
+        active: hasActiveRuns,
         activeDelay: 3000,
-        idleDelay: 5000,
-        pauseWhenHidden: false,
+        idleDelay: 10000,
+        pauseWhenHidden: true,
     });
     const actions = useFlowRunActions({
         flowId,

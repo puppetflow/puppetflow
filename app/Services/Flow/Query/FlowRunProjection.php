@@ -113,7 +113,7 @@ final class FlowRunProjection
             : $flow->runs()->where('triggered_by', $user->id);
 
         $query = $visibleRuns()->getQuery()
-            ->select(self::RUN_COLUMNS)
+            ->select(self::LIST_COLUMNS)
             ->with(['triggeredBy:id,name', 'trigger:id,type,label'])->latest();
         $from = $request->input('date_from');
         $to = $request->input('date_to');
@@ -138,8 +138,7 @@ final class FlowRunProjection
             $this->metadataFilter->applyFilters($query, $filters, $request->input('meta_predicate', 'and'));
         }
         $runs = $query->paginate(perPage: max(min($request->integer('per_page', 20), 100), 1));
-        $runs->getCollection()->each(fn (FlowRun $run) => $run->redactSecretsForClient()
-            ->makeVisible(['console_logs', 'action_logs', 'code_snapshot']));
+        $runs->getCollection()->each(fn (FlowRun $run) => $run->redactSecretsForClient());
 
         $stats = $visibleRuns()->selectRaw('count(*) as total')
             ->selectRaw("coalesce(sum(case when status = 'success' then 1 else 0 end), 0) as success")
