@@ -27,10 +27,16 @@ export function useCodePanePreview(
     const isActiveRun = run.status === 'pending' || run.status === 'running';
     const isErrorRun = run.status === 'error';
     const activeLine = isActiveRun ? runProgress.activeLine : null;
-    const errorLine = isErrorRun ? runProgress.activeLine : null;
+    const errorLine = isErrorRun
+        ? runProgress.errorLine ?? runProgress.activeLine
+        : null;
     const passedLines = useMemo(() => {
         const lines = new Set(runProgress.passedLines);
-        if (!isActiveRun && !isErrorRun && runProgress.activeLine != null) {
+        if (
+            !isActiveRun
+            && runProgress.activeLine != null
+            && (!isErrorRun || runProgress.activeLine !== errorLine)
+        ) {
             lines.add(runProgress.activeLine);
         }
 

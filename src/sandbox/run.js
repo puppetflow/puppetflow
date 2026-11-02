@@ -1232,6 +1232,7 @@ module.exports = async function(appDir, flowId, quiet) {
 
     let _result = {};
     let _runError = null;
+    let _runErrorLine = null;
     let _stopReceived = false;
     let _internalOutput = null;
     // The flow code is evaluated inside the closure below; terminate() is captured there
@@ -1424,6 +1425,7 @@ module.exports = async function(appDir, flowId, quiet) {
         // run() threw because browser was closed by $stopFail/$stopSuccess in a detached promise
       } else {
         _runError = _e;
+        _runErrorLine = __nopCurrentLine;
       }
     } finally {
       try {
@@ -1445,7 +1447,10 @@ module.exports = async function(appDir, flowId, quiet) {
           await _terminate($page, __runInput, _result, __runContext, $client);
           _result = _stripInternalOutputFields(_result);
         } catch (_tErr) {
-          if (!_runError && (!_tErr || _tErr.name !== 'StopRun')) _runError = _tErr;
+          if (!_runError && (!_tErr || _tErr.name !== 'StopRun')) {
+            _runError = _tErr;
+            _runErrorLine = __nopCurrentLine;
+          }
         }
       }
 
@@ -1626,7 +1631,12 @@ module.exports = async function(appDir, flowId, quiet) {
       } catch (_) {}
     }
 
-    if (_runError) throw _runError;
+    if (_runError) {
+      if (_runErrorLine != null) {
+        __emitRunProgress({ kind: 'error', line: _runErrorLine });
+      }
+      throw _runError;
+    }
 })();
   `;
   const bodyIndex = wrappedCode.indexOf(nodeBody);

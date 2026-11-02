@@ -11,11 +11,13 @@ const getLineMarkerValue = (line: string): number | null => {
 
 type RunProgressEvent =
     | { kind: 'line'; line: number; phase: 'start' | 'end'; offset_ms?: number }
+    | { kind: 'error'; line: number; offset_ms?: number }
     | { kind: 'node'; nodeId: string; phase: 'start' | 'end'; offset_ms?: number }
     | { kind: 'edge'; edgeId: string; offset_ms?: number };
 
 export interface RunProgressState {
     activeLine: number | null;
+    errorLine: number | null;
     passedLines: Set<number>;
     linePassCounts: Map<number, number>;
     activeNodeId: string | null;
@@ -40,6 +42,13 @@ const parseRunProgressEvent = (message: string): RunProgressEvent | null => {
                 kind: 'line',
                 line: parsed.line,
                 phase: parsed.phase === 'end' ? 'end' : 'start',
+                offset_ms: parsed.offset_ms,
+            };
+        }
+        if (parsed.kind === 'error' && typeof parsed.line === 'number') {
+            return {
+                kind: 'error',
+                line: parsed.line,
                 offset_ms: parsed.offset_ms,
             };
         }
@@ -96,6 +105,7 @@ export const getRunProgressState = (logs: ConsoleLogEntry[] | null | undefined):
     const passedEdgeIds = new Set<string>();
     const edgePassCounts = new Map<string, number>();
     let activeLine: number | null = null;
+    let errorLine: number | null = null;
     let activeNodeId: string | null = null;
 
     for (const rawLog of logs ?? []) {
@@ -104,7 +114,9 @@ export const getRunProgressState = (logs: ConsoleLogEntry[] | null | undefined):
         const event = parseRunProgressEvent(log.message);
         if (!event) continue;
 
-        if (event.kind === 'line') {
+        if (event.kind === 'error') {
+            errorLine = event.line;
+        } else if (event.kind === 'line') {
             linePassCounts.set(event.line, (linePassCounts.get(event.line) ?? 0) + 1);
             if (activeLine != null && activeLine !== event.line) {
                 passedLines.add(activeLine);
@@ -132,6 +144,7 @@ export const getRunProgressState = (logs: ConsoleLogEntry[] | null | undefined):
 
     return {
         activeLine,
+        errorLine,
         passedLines,
         linePassCounts,
         activeNodeId,
