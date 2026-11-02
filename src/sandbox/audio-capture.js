@@ -15,6 +15,8 @@
  * media is captured as silence.
  */
 
+/* global window, document, btoa */
+
 const crypto = require('crypto');
 
 const DEFAULT_SAMPLE_RATE = 24000;
@@ -41,6 +43,7 @@ function pageAudioTap(config) {
   // The sentinel name is randomised per run (config.sentinel) so it carries no
   // stable, product-identifying marker a page could look up by name.
   const sentinel = config.sentinel;
+  const diagnosticsEnabled = config.diagnostics === true;
   if (window[sentinel]) return;
   try {
     Object.defineProperty(window, sentinel, { value: true, configurable: false, enumerable: false, writable: false });
@@ -110,12 +113,34 @@ function pageAudioTap(config) {
   let processor = null;
   let silentChunks = 0;
   let sequence = 0;
+  let mediaPlaySequence = 0;
+  let silentPlaySequence = 0;
+  let audiblePlaySequence = 0;
 
   // Outgoing queue drained by the runner's long-poll. Bounded so a stalled
   // runner never makes the page grow without limit.
   const queue = [];
   const maxQueued = 48;
+  const diagnostics = [];
+  const maxDiagnostics = 32;
   let waiter = null;
+
+  function diagnose(event, detail) {
+    if (!diagnosticsEnabled) return;
+    diagnostics.push({ event, ...(detail || {}) });
+    if (diagnostics.length > maxDiagnostics) {
+      diagnostics.splice(0, diagnostics.length - maxDiagnostics);
+    }
+  }
+
+  function mediaOrigin(element) {
+    try {
+      const source = element.currentSrc || element.src || '';
+      return source ? new URL(source, window.location.href).origin : '';
+    } catch (_) {
+      return '';
+    }
+  }
 
   function deliver(payload) {
     queue.push(payload);
@@ -136,7 +161,12 @@ function pageAudioTap(config) {
   }
 
   function pullResult(chunks) {
-    return { c: chunks, k: workingRate, m: evaluations > 0 };
+    return {
+      c: chunks,
+      k: workingRate,
+      m: evaluations > 0,
+      ...(diagnostics.length > 0 ? { g: diagnostics.splice(0) } : {}),
+    };
   }
 
   function pull(waitMs, rateHint) {
@@ -253,11 +283,24 @@ function pageAudioTap(config) {
     }
     if (peak < 0.0005) {
       silentChunks += 1;
+      if (
+        diagnosticsEnabled
+        && mediaPlaySequence > silentPlaySequence
+        && mediaPlaySequence > audiblePlaySequence
+        && silentChunks === 8
+      ) {
+        silentPlaySequence = mediaPlaySequence;
+        diagnose('media-silent', { chunks: silentChunks });
+      }
       // Let a couple of silent chunks through so the tail of a sound is not
       // clipped, then stop sending until something audible comes back.
       if (silentChunks > 2) return;
     } else {
       silentChunks = 0;
+      if (diagnosticsEnabled && mediaPlaySequence > audiblePlaySequence) {
+        audiblePlaySequence = mediaPlaySequence;
+        diagnose('media-audible', { peak: Math.round(peak * 10000) / 10000 });
+      }
     }
 
     // Decimate when the real rate is a whole multiple of the target so the
@@ -301,7 +344,14 @@ function pageAudioTap(config) {
     processor.onaudioprocess = handleAudioProcess;
     nativeConnect.call(mixer, processor);
     nativeConnect.call(processor, context.destination);
-    context.addEventListener('statechange', resumeCapture);
+    diagnose('capture-context-created', {
+      state: context.state,
+      sampleRate: context.sampleRate,
+    });
+    context.addEventListener('statechange', function () {
+      diagnose('capture-context-state', { state: context.state });
+      resumeCapture();
+    });
     resumeCapture();
     return context;
   }
@@ -319,7 +369,11 @@ function pageAudioTap(config) {
       // Runs in the same task as the page's own audio start, so it carries
       // the same user activation when autoplay policy is enforced.
       resumeCapture();
-    } catch (_) {
+      diagnose('audio-graph-tapped');
+    } catch (error) {
+      diagnose('audio-graph-tap-failed', {
+        error: error && error.name ? String(error.name) : 'unknown',
+      });
       tap = null;
     }
     contextTaps.set(context, tap);
@@ -341,7 +395,17 @@ function pageAudioTap(config) {
         : capture.createMediaElementSource(element);
       nativeConnect.call(source, mixer);
       resumeCapture();
-    } catch (_) {}
+      diagnose('media-tapped', {
+        origin: mediaOrigin(element),
+        crossOrigin: element.crossOrigin || '',
+        contextState: capture.state,
+      });
+    } catch (error) {
+      diagnose('media-tap-failed', {
+        origin: mediaOrigin(element),
+        error: error && error.name ? String(error.name) : 'unknown',
+      });
+    }
   }
 
   NativeAudioNode.prototype.connect = function connect(destination) {
@@ -377,7 +441,18 @@ function pageAudioTap(config) {
   }
 
   NativeMediaElement.prototype.play = function play() {
-    try { tapMediaElement(this); } catch (_) {}
+    try {
+      mediaPlaySequence += 1;
+      silentChunks = 0;
+      diagnose('media-play', {
+        origin: mediaOrigin(this),
+        crossOrigin: this.crossOrigin || '',
+        readyState: this.readyState,
+        muted: this.muted,
+        volume: this.volume,
+      });
+      tapMediaElement(this);
+    } catch (_) {}
     return nativePlay.apply(this, arguments);
   };
 
@@ -413,7 +488,7 @@ function pageAudioTap(config) {
  * Creates the runner-side capture. install(page) wires the page tap; every
  * decoded chunk is handed to onChunk({ pcm, sampleRate, ts, sourceId, page }).
  */
-function createAudioCapture({ sampleRate, onChunk }) {
+function createAudioCapture({ sampleRate, onChunk, diagnostics = false, onDiagnostic }) {
   const effectiveSampleRate = normalizeSampleRate(sampleRate);
   // Random, product-neutral identifiers: the page-side sink and its
   // installation sentinel change every run and carry no recognisable marker.
@@ -422,12 +497,31 @@ function createAudioCapture({ sampleRate, onChunk }) {
   const sentinel = randomIdentifier();
   const installed = new WeakSet();
   const polledFrames = new WeakSet();
+  const diagnosedSources = new Set();
   let stopped = false;
   // Real context rate measured by any document so far; the browser build
   // determines it, so it carries over to new documents as a hint.
   let measuredContextRate = 0;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const frameOrigin = (frame) => {
+    try {
+      const url = frame.url();
+      return url ? new URL(url).origin : '';
+    } catch (_) {
+      return '';
+    }
+  };
+  const diagnose = (event, frame, detail = {}) => {
+    if (!diagnostics || typeof onDiagnostic !== 'function') return;
+    try {
+      onDiagnostic({
+        event,
+        frameOrigin: frame ? frameOrigin(frame) : '',
+        ...detail,
+      });
+    } catch (_) {}
+  };
 
   const handlePayload = (page) => (payload) => {
     if (stopped || !payload || typeof payload !== 'object') return;
@@ -442,6 +536,14 @@ function createAudioCapture({ sampleRate, onChunk }) {
       return;
     }
     if (pcm.length < 2 || pcm.length % 2 !== 0) return;
+    if (!diagnosedSources.has(s)) {
+      diagnosedSources.add(s);
+      diagnose('pcm-received', null, {
+        sourceId: s,
+        bytes: pcm.length,
+        sampleRate: Math.round(r),
+      });
+    }
     try {
       onChunk({ pcm, sampleRate: Math.round(r), ts: t, sourceId: s, page });
     } catch (_) {}
@@ -458,10 +560,20 @@ function createAudioCapture({ sampleRate, onChunk }) {
       if (polledFrames.has(candidate)) active += 1;
     }
     if (active > MAX_POLLED_FRAMES_PER_PAGE) {
+      diagnose('frame-skipped', frame, {
+        active,
+        total: page.frames().length,
+        limit: MAX_POLLED_FRAMES_PER_PAGE,
+      });
       polledFrames.delete(frame);
       return;
     }
+    diagnose('frame-poll-started', frame, {
+      active,
+      total: page.frames().length,
+    });
 
+    let missingTapChecks = 0;
     while (!stopped && !frame.detached && !page.isClosed()) {
       let result;
       try {
@@ -481,12 +593,28 @@ function createAudioCapture({ sampleRate, onChunk }) {
         continue;
       }
       if (result === null) {
+        missingTapChecks += 1;
+        if (missingTapChecks === 5) {
+          diagnose('frame-tap-missing', frame);
+        }
         await sleep(PULL_RETRY_MS);
         continue;
       }
       if (!result || typeof result !== 'object') continue;
+      missingTapChecks = 0;
       if (result.m === true && Number.isFinite(result.k) && result.k >= 8000 && result.k <= 96000) {
         measuredContextRate = result.k;
+      }
+      if (Array.isArray(result.g)) {
+        for (const pageDiagnostic of result.g.slice(0, 32)) {
+          if (!pageDiagnostic || typeof pageDiagnostic !== 'object') continue;
+          const event = typeof pageDiagnostic.event === 'string'
+            ? pageDiagnostic.event.slice(0, 64)
+            : 'page-diagnostic';
+          const detail = { ...pageDiagnostic };
+          delete detail.event;
+          diagnose(event, frame, detail);
+        }
       }
       if (Array.isArray(result.c)) {
         for (const payload of result.c) deliver(payload);
@@ -508,7 +636,9 @@ function createAudioCapture({ sampleRate, onChunk }) {
           sampleRate: effectiveSampleRate,
           chunkSize: CHUNK_SIZE,
           sourceId: crypto.randomBytes(4).toString('hex'),
+          diagnostics,
         });
+        diagnose('page-installed', null, { frames: page.frames().length });
         const deliver = handlePayload(page);
         page.on('frameattached', (frame) => {
           pollFrame(page, frame, deliver).catch(() => {});

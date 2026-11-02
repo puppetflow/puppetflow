@@ -23,6 +23,8 @@ return [
 
     'audio_sample_rate' => (int) env('FLOW_RUN_AUDIO_SAMPLE_RATE', 24000),
 
+    'audio_debug' => filter_var(env('FLOW_RUN_AUDIO_DEBUG', false), FILTER_VALIDATE_BOOL),
+
     'max_flow_timeout_seconds' => max(0, (int) env('FLOW_MAX_TIMEOUT_SECONDS', 0)),
 
     'queues_counter' => max(1, (int) env('APP_QUEUES_COUNTER', 1)),

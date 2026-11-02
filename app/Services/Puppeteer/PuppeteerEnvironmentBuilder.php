@@ -70,6 +70,9 @@ final class PuppeteerEnvironmentBuilder
                 ? 'true'
                 : 'false',
             'FLOW_RUN_AUDIO_SAMPLE_RATE' => $this->scalarConfig('puppetflow.audio_sample_rate', '24000'),
+            'FLOW_RUN_AUDIO_DEBUG' => filter_var(config('puppetflow.audio_debug', false), FILTER_VALIDATE_BOOL)
+                ? 'true'
+                : 'false',
             'ARTIFACTS_LIST' => implode(',', FlowRunArtifactTypeEnum::getStringList()),
             'ARTIFACTS_EXPORTABLE_LIST' => implode(',', array_map(
                 static fn (FlowRunArtifactTypeEnum|string $type): string => $type instanceof FlowRunArtifactTypeEnum

@@ -1170,6 +1170,10 @@ module.exports = async function(appDir, flowId, quiet) {
             if (_audioStreaming || _audioRecording) {
               _audioCapture = _audioCaptureModule.createAudioCapture({
                 sampleRate: _audioSampleRate,
+                diagnostics: process.env.FLOW_RUN_AUDIO_DEBUG === 'true',
+                onDiagnostic: diagnostic => {
+                  console.debug('Audio capture diagnostic: ' + JSON.stringify(diagnostic));
+                },
                 onChunk: ({ pcm, sampleRate, ts, sourceId, page }) => {
                   if (_streamRunEnded) return;
                   if (_audioRecording && _recorder && _recorder.active()) {
