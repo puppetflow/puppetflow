@@ -158,6 +158,8 @@ services:
       TOKEN: "${PINOKIO_TOKEN:-}"
       BROWSER_ARCHIVE_URL: "${PINOKIO_BROWSER_ARCHIVE_URL:-}"
       CHROME_EXTRA_ARGS: "${PINOKIO_CHROME_EXTRA_ARGS:-}"
+      LANG: "${LANG:-C.UTF-8}"
+      LANGUAGE: "${LANGUAGE:-en-US}"
 
   # PostgreSQL
   postgres:
