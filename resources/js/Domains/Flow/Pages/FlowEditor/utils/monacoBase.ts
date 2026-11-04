@@ -260,11 +260,14 @@ function getHelperObjectCompletionContext(model: CompletionModel, position: Comp
     const argName = argNames[call.argIndex];
     if (!argName) return null;
 
-    const fields = entry.nodalParams?.[argName]?.objectFields;
-    if (!fields || Object.keys(fields).length === 0) return null;
-
     const typed = getCurrentObjectKeyPrefix(call.currentArg);
     if (typed === null) return null;
+
+    const objectArgName = argName === 'scope' && argNames[call.argIndex + 1] === 'options'
+        ? 'options'
+        : argName;
+    const fields = entry.nodalParams?.[objectArgName]?.objectFields;
+    if (!fields || Object.keys(fields).length === 0) return null;
 
     return { entry, fields, typed };
 }

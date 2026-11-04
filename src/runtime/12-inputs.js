@@ -1,4 +1,4 @@
-/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectOneElement, __humanPageOf, __humanJitterMs, __normalizeSelectionScopeArguments, __isElementHandle */
+/* global __queryPuppetflowLocator, __keyboardSpeedValue:writable, $selectOneElement, __humanPageOf, __humanJitterMs, __normalizeSelectionScopeArguments, __isElementHandle, __selectorGracefulTimeoutMessage, __withGracefulTimeoutMessage */
 
 /* @help Interaction
  * @sig $keyboardSpeed(keyboardSpeedValue)
@@ -39,7 +39,7 @@ const $keyboardSpeed = function(keyboardSpeedValue) {
  * @aliases form, field, type, enter text, fill field
  * @desc Replace, append, or prepend text in an input. Handles detached nodes. Selector can be a CSS string or an ElementHandle.
  * @nodal-desc Find an input on the page, then replace, append, or prepend its value.
- * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
+ * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 30000, gracefulTimeoutMessage: null, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param inputSelectorOrHandle [string, selector]: CSS selector or ElementHandle for the input to fill.
  * @nodal-param inputValue: Text value to type into the input.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
@@ -50,6 +50,7 @@ const $keyboardSpeed = function(keyboardSpeedValue) {
  * @nodal-param options.sleep [number]: Pause duration between low-level browser actions, in milliseconds.
  * @nodal-param options.speed [number]: Typing speed, in milliseconds between keystrokes.
  * @nodal-param options.timeout [number]: Maximum time to wait for the input, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the input times out.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the input cannot be found.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several inputs match.
@@ -70,6 +71,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, scopeOrOpti
     sleep,
     speed,
     timeout = 30000,
+    gracefulTimeoutMessage = null,
     continueOnError = false,
     visibleOnly = false,
     index = 0,
@@ -77,7 +79,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, scopeOrOpti
   if (!['replace', 'append', 'prepend'].includes(mode)) {
     throw new Error('Input mode must be replace, append, or prepend.');
   }
-  const selectOptions = { timeout, continueOnError, visibleOnly, index, scope };
+  const selectOptions = { timeout, gracefulTimeoutMessage, continueOnError, visibleOnly, index, scope };
   console.debug('Filling input:', inputSelectorOrHandle);
 
   const result = await __internalSelect(inputSelectorOrHandle, selectOptions);
@@ -179,7 +181,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, scopeOrOpti
  * @aliases type text, keystrokes, type characters, keyboard type, press keys
  * @desc Type text one keystroke at a time into the focused element, or into an element focused first through options.selector. Newlines press Enter. Uses the flow keyboard speed unless options.speed is set.
  * @nodal-desc Type text key by key into the focused element, or into an input selected first.
- * @opt selector: null, speed: 100, timeout: 30000, continueOnError: false, visibleOnly: false, index: 0
+ * @opt selector: null, speed: 100, timeout: 30000, gracefulTimeoutMessage: null, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param text [string, required]: Text to type, one keystroke per character. A newline presses Enter.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root when options.selector is set. Leave empty to search the entire page.
  * @nodal-placeholder scope: Entire page
@@ -187,6 +189,7 @@ const $fillInput = async function(inputSelectorOrHandle, inputValue, scopeOrOpti
  * @nodal-param options.selector [string, selector]: Optional CSS selector to focus before typing. Leave empty to type into whatever currently has focus.
  * @nodal-param options.speed [number]: Typing speed, in milliseconds between keystrokes. 0 types instantly.
  * @nodal-param options.timeout [number]: Maximum time to wait for the selector, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the selector times out.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the selector cannot be found.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several elements match the selector.
@@ -198,6 +201,7 @@ const $keyboardPress = async function(text, scopeOrOptions, maybeOptions) {
     selector = null,
     speed = __keyboardSpeedValue,
     timeout = 30000,
+    gracefulTimeoutMessage = null,
     continueOnError = false,
     visibleOnly = false,
     index = 0,
@@ -207,7 +211,7 @@ const $keyboardPress = async function(text, scopeOrOptions, maybeOptions) {
   console.debug('Typing keys:', value, selector ? 'into ' + selector : 'into the focused element');
 
   if (typeof selector === 'string' && selector.trim() !== '') {
-    const result = await __internalSelect(selector, { timeout, continueOnError, visibleOnly, index, scope });
+    const result = await __internalSelect(selector, { timeout, gracefulTimeoutMessage, continueOnError, visibleOnly, index, scope });
     if (!result) return;
     await __retryOnContextDestroyed(() => __humanHoverElement(result.handle)).catch(() => {});
     await __humanType(result.handle, value, speed);
@@ -286,13 +290,14 @@ const $keyboardShortcut = async function(key, options) {
  * @sig $waitForSelectorCondition(cssSelector, readinessCondition, scope?, options?)
  * @aliases wait for element state, wait for element
  * @desc Wait for a selector to match a condition.
- * @opt timeout: 10000
+ * @opt timeout: 10000, gracefulTimeoutMessage: null
  * @nodal-param cssSelector [string, selector]: CSS selector to watch on the page.
  * @nodal-param readinessCondition [function]: JavaScript function or expression that receives each matched element and returns true when ready.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
  * @nodal-placeholder scope: Entire page
  * @nodal-param options: Wait options.
  * @nodal-param options.timeout [number]: Maximum time to wait before failing, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the selector condition times out.
  */
 const $waitForSelectorCondition = async function(cssSelector, readinessCondition, scopeOrOptions, maybeOptions) {
   const normalized = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$waitForSelectorCondition');
@@ -303,7 +308,8 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
     timeout: isDeepSelector ? 5000 : 10000,
   };
   const opts = { ...defaultOptions, ...(options || {}) };
-  const { timeout } = opts;
+  const { timeout, gracefulTimeoutMessage = null } = opts;
+  const normalizedGracefulTimeoutMessage = __selectorGracefulTimeoutMessage(gracefulTimeoutMessage);
   const conditionSource = readinessCondition.toString();
   console.debug('Waiting for selector:', cssSelector, 'with condition:', readinessCondition);
   try {
@@ -353,7 +359,7 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
   } catch (error) {
     __emitAction('timeout', cssSelector);
     console.error('Error waiting for selector:', cssSelector, 'with condition:', readinessCondition);
-    throw error;
+    throw __withGracefulTimeoutMessage(error, normalizedGracefulTimeoutMessage);
   }
 };
 
@@ -363,12 +369,13 @@ const $waitForSelectorCondition = async function(cssSelector, readinessCondition
  * @desc Traverse open shadow DOM roots to find an element matching selector. Returns ElementHandle or null.
  * @nodal-desc Find an element inside open shadow DOM areas.
  * @nodal-output element
- * @opt timeout: 5000, continueOnError: true, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0
+ * @opt timeout: 5000, gracefulTimeoutMessage: null, continueOnError: true, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0
  * @nodal-param cssSelector [string, selector]: CSS selector to find inside open shadow DOM roots.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle that limits the shadow search. Leave empty to search the entire page.
  * @nodal-placeholder scope: Entire page
  * @nodal-param options: Element selection options.
  * @nodal-param options.timeout [number]: Maximum time to wait for the element, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the element times out.
  * @nodal-param options.continueOnError [boolean]: Return null instead of stopping the flow when no element matches.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -384,14 +391,20 @@ const $selectShadow = async function(cssSelector, scopeOrOptions, maybeOptions) 
     return $selectOneElement(cssSelector, scope, options);
   }
 
-  const { timeout = 5000, continueOnError = true, ...selectionOptions } = options || {};
+  const {
+    timeout = 5000,
+    gracefulTimeoutMessage = null,
+    continueOnError = true,
+    ...selectionOptions
+  } = options || {};
+  const normalizedGracefulTimeoutMessage = __selectorGracefulTimeoutMessage(gracefulTimeoutMessage);
   let scopeHandle = __isElementHandle(scope) ? scope : null;
   const ownsScopeHandle = typeof scope === 'string';
   if (ownsScopeHandle) {
-    scopeHandle = await $selectOneElement(scope, { timeout });
+    scopeHandle = await $selectOneElement(scope, { timeout, gracefulTimeoutMessage });
     if (!scopeHandle) {
       if (continueOnError) return null;
-      throw new StopRun('No scope element {' + scope + '} found');
+      throw new StopRun(normalizedGracefulTimeoutMessage || 'No scope element {' + scope + '} found');
     }
   }
 
@@ -470,6 +483,9 @@ const $selectShadow = async function(cssSelector, scopeOrOptions, maybeOptions) 
     }
 
     if (!continueOnError) {
+      if (normalizedGracefulTimeoutMessage) {
+        throw new StopRun(normalizedGracefulTimeoutMessage);
+      }
       await __internalSelect([], {
         ...selectionOptions,
         continueOnError: false,
@@ -488,7 +504,7 @@ const $selectShadow = async function(cssSelector, scopeOrOptions, maybeOptions) 
  * @aliases form, field, type, fill shadow input, enter shadow text
  * @desc Fill an input located inside shadow DOM. Options extend $fillInput options.
  * @nodal-desc Fill an input located inside a shadow DOM area.
- * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 5000, continueOnError: false, visibleOnly: false, index: 0
+ * @opt mode: replace, tabCount: 1, sleep: 500, speed: 100, timeout: 5000, gracefulTimeoutMessage: null, continueOnError: false, visibleOnly: false, index: 0
  * @nodal-param inputSelector [string, selector]: CSS selector for the input inside a shadow DOM.
  * @nodal-param inputValue: Text value to type into the input.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle that limits the shadow search. Leave empty to search the entire page.
@@ -499,6 +515,7 @@ const $selectShadow = async function(cssSelector, scopeOrOptions, maybeOptions) 
  * @nodal-param options.sleep [number]: Pause duration between low-level browser actions, in milliseconds.
  * @nodal-param options.speed [number]: Typing speed, in milliseconds between keystrokes.
  * @nodal-param options.timeout [number]: Maximum time to wait for the input, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the input times out.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the input cannot be found.
  * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
  * @nodal-param options.index [number]: Zero-based position to use when several inputs match.
@@ -515,12 +532,14 @@ const $shadowInputFill = async function(inputSelector, inputValue, scopeOrOption
     sleep = 500,
     speed = __keyboardSpeedValue,
     timeout = 5000,
+    gracefulTimeoutMessage = null,
     continueOnError = false,
     visibleOnly = false,
     index = 0,
   } = options || {};
   const input = await $selectShadow(inputSelector, scope || rootSelector || null, {
     timeout,
+    gracefulTimeoutMessage,
     continueOnError,
     visibleOnly,
     index,

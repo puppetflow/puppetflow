@@ -105,6 +105,44 @@ const __selectorButtonType = function(value) {
   return buttonType;
 };
 
+const __selectorGracefulTimeoutMessage = function(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string') {
+    throw new TypeError('gracefulTimeoutMessage must be a string.');
+  }
+  return value.trim() || null;
+};
+
+const __isSelectorTimeoutError = function(error) {
+  const seen = new Set();
+  for (let current = error; current && !seen.has(current); current = current.cause) {
+    seen.add(current);
+    const message = current.message || String(current);
+    if (current.name === 'TimeoutError' || /(?:timed?\s*out|timeout|\d+\s*ms exceeded)/i.test(message)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const __withGracefulTimeoutMessage = function(error, message) {
+  if (!message || !__isSelectorTimeoutError(error)) return error;
+  if (!(error instanceof Error)) return new Error(message);
+
+  const originalStack = error.stack;
+  error.message = message;
+  Object.defineProperty(error, '__puppetflowGracefulMessage', {
+    value: true,
+    configurable: true,
+  });
+  if (typeof originalStack === 'string') {
+    const firstLineEnd = originalStack.indexOf('\n');
+    const stackFrames = firstLineEnd >= 0 ? originalStack.slice(firstLineEnd) : '';
+    error.stack = (error.name || 'Error') + ': ' + message + stackFrames;
+  }
+  return error;
+};
+
 const __isElementHandle = function(value) {
   return !!value
     && typeof value === 'object'
@@ -168,6 +206,7 @@ const __clickOffset = function(options, helperName) {
 
 const __internalSelect = async function(selectorOrHandle, options = {}) {
   const { textMatch, textFilter, textCaseSensitive } = __selectorTextOptions(options);
+  const gracefulTimeoutMessage = __selectorGracefulTimeoutMessage(options.gracefulTimeoutMessage);
   const isDeepSelector = typeof selectorOrHandle === 'string'
     && (selectorOrHandle.includes('>>>') || selectorOrHandle.includes('>>iframe>>'));
   const { visibleOnly = false, index = 0, all = false, timeout = isDeepSelector ? 5000 : 30000, continueOnError = false, timeoutLabel = null, scope = null } = options;
@@ -331,7 +370,7 @@ const __internalSelect = async function(selectorOrHandle, options = {}) {
       console.debug('Selector not found (continueOnError):', selector);
       return null;
     }
-    throw _e;
+    throw __withGracefulTimeoutMessage(_e, gracefulTimeoutMessage);
   }
 
   let candidates;
@@ -538,7 +577,7 @@ const $attributesFromMany = async function(selectorOrHandle, getters, scopeOrOpt
  * @desc Click an element after an optional delay (ms). Accepts a CSS selector string or an ElementHandle. With offsetX or offsetY set, clicks at the element center shifted by that many pixels instead of on the element itself. Throws StopRun if not found.
  * @nodal-desc Find and click an element after an optional delay.
  * @nodal-output boolean
- * @opt delay: 1000, buttonType: left, offsetX: 0, offsetY: 0, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
+ * @opt delay: 1000, buttonType: left, offsetX: 0, offsetY: 0, timeout: 30000, gracefulTimeoutMessage: null, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param selectorOrHandle [string, selector]: CSS selector or ElementHandle for the element to click.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
  * @nodal-placeholder scope: Entire page
@@ -548,6 +587,7 @@ const $attributesFromMany = async function(selectorOrHandle, getters, scopeOrOpt
  * @nodal-param options.offsetX [number]: Horizontal shift in pixels from the element center. When offsetX or offsetY is set, the click lands on that shifted point instead of the element.
  * @nodal-param options.offsetY [number]: Vertical shift in pixels from the element center. Positive moves down, negative moves up.
  * @nodal-param options.timeout [number]: Maximum time to wait for the element, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the element times out.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the element cannot be clicked.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -563,11 +603,11 @@ const $clickElement = async function(selectorOrHandle, scopeOrOptions, maybeOpti
   const textLabel = textOptions.textMatch ? '[text:' + textOptions.textFilter + '="' + textOptions.textMatch + '"]' : '';
   const offsetLabel = offset ? ' [offset ' + offset.x + ',' + offset.y + ']' : '';
   __emitAction('click', (isHandle ? '(handle)' : selectorOrHandle + textLabel) + ' [' + buttonType + ']' + offsetLabel);
-  const { delay = 1000, continueOnError = false, timeout = 30000, visibleOnly = false } = options;
+  const { delay = 1000, continueOnError = false, timeout = 30000, gracefulTimeoutMessage = null, visibleOnly = false } = options;
   console.debug('Click on element', isHandle ? '(handle)' : selectorOrHandle, textLabel, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'), offset ? 'at center offset ' + offset.x + ',' + offset.y : '');
   await __internalSleep(delay);
 
-  const result = await __internalSelect(selectorOrHandle, { ...textOptions, visibleOnly, index: 0, timeout, continueOnError, scope, timeoutLabel: isHandle ? '(handle)' : selectorOrHandle });
+  const result = await __internalSelect(selectorOrHandle, { ...textOptions, visibleOnly, index: 0, timeout, gracefulTimeoutMessage, continueOnError, scope, timeoutLabel: isHandle ? '(handle)' : selectorOrHandle });
   if (!result) return null;
 
   const { handle } = result;
@@ -587,7 +627,7 @@ const $clickElement = async function(selectorOrHandle, scopeOrOptions, maybeOpti
  * @desc Click an element at a specific index after an optional delay (ms). Negative indexes count from the end. Throws StopRun if not found or index out of bounds.
  * @nodal-desc Click one matching element by its position after an optional delay.
  * @nodal-output boolean
- * @opt delay: 1000, buttonType: left, timeout: 30000, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
+ * @opt delay: 1000, buttonType: left, timeout: 30000, gracefulTimeoutMessage: null, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false
  * @nodal-param elementsSelector [string, selector]: CSS selector that matches the candidate elements.
  * @nodal-param elementIndex [integer]: Element position to click. Use -1 for the last match, -2 for the previous one.
  * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root. Leave empty to search the entire page.
@@ -596,6 +636,7 @@ const $clickElement = async function(selectorOrHandle, scopeOrOptions, maybeOpti
  * @nodal-param options.delay [number]: Time to wait before and after clicking, in milliseconds.
  * @nodal-param options.buttonType [string]: Mouse button to use: left, middle, or right.
  * @nodal-param options.timeout [number]: Maximum time to wait for the element, in milliseconds.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the element times out.
  * @nodal-param options.continueOnError [boolean]: Continue the flow if the element cannot be clicked.
  * @nodal-param options.textMatch [string]: Text to match against the element's visible text.
  * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
@@ -608,11 +649,11 @@ const $clickElementAtIndex = async function(elementsSelector, elementIndex, scop
   const buttonType = __selectorButtonType(options.buttonType);
   const textLabel = textOptions.textMatch ? '[text:' + textOptions.textFilter + '="' + textOptions.textMatch + '"]' : '';
   __emitAction('click', elementsSelector + '[' + elementIndex + ']' + textLabel + ' [' + buttonType + ']');
-  const { delay = 1000, continueOnError = false, timeout = 30000, visibleOnly = false } = options;
+  const { delay = 1000, continueOnError = false, timeout = 30000, gracefulTimeoutMessage = null, visibleOnly = false } = options;
   console.debug('Click on element', elementsSelector, textLabel, 'at index', elementIndex, 'with', buttonType, 'button after', ((delay/1000).toFixed(2)+'s'));
   await __internalSleep(delay);
 
-  const result = await __internalSelect(elementsSelector, { ...textOptions, visibleOnly, index: elementIndex, timeout, continueOnError, scope, timeoutLabel: elementsSelector + '[' + elementIndex + ']' });
+  const result = await __internalSelect(elementsSelector, { ...textOptions, visibleOnly, index: elementIndex, timeout, gracefulTimeoutMessage, continueOnError, scope, timeoutLabel: elementsSelector + '[' + elementIndex + ']' });
   if (!result) return null;
 
   const { handle } = result;

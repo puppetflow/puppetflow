@@ -166,6 +166,7 @@ export const formatParameterLabel = (arg: string) => {
 
 const OPTION_DESCRIPTIONS: Record<string, string> = {
     timeout: 'Maximum time to wait before this step fails, in milliseconds.',
+    gracefulTimeoutMessage: 'Human-readable error message to show when this step times out.',
     delay: 'Time to wait before performing the action, in milliseconds.',
     sleep: 'Pause duration between low-level browser actions, in milliseconds.',
     speed: 'Typing speed for human-like input, in milliseconds between keystrokes.',

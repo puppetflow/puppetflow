@@ -1692,10 +1692,12 @@ function simplifyError(error, headerLineCount) {
   // error...) in error.cause; without it "Waiting for selector failed" says
   // nothing about why.
   const seen = new Set([error]);
-  for (let cause = error.cause; cause && !seen.has(cause); cause = cause.cause) {
-    seen.add(cause);
-    const causeMessage = cause.message || String(cause);
-    if (causeMessage && !message.includes(causeMessage)) message += ': ' + causeMessage;
+  if (!error.__puppetflowGracefulMessage) {
+    for (let cause = error.cause; cause && !seen.has(cause); cause = cause.cause) {
+      seen.add(cause);
+      const causeMessage = cause.message || String(cause);
+      if (causeMessage && !message.includes(causeMessage)) message += ': ' + causeMessage;
+    }
   }
   const stack = error.stack || '';
 
