@@ -22,7 +22,7 @@ trait FindsChannelUsages
     {
         return [
             '~'.preg_quote('$notify', '~').'\s*\(\s*(["\'])'.preg_quote($id, '~').'\1~',
-            '~'.preg_quote('$waitHumanValidation', '~').'\s*\(\s*(["\'])'.preg_quote($id, '~').'\1~',
+            '~'.preg_quote('$waitHumanValidation', '~').'\s*\([^\n]*?,\s*(["\'])'.preg_quote($id, '~').'\1~',
             '~'.preg_quote('${channels.'.$id, '~').'(?=[}.])~',
         ];
     }

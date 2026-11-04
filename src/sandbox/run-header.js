@@ -5549,19 +5549,19 @@ const $notify = async function(channelId, notificationMessage, options = {}) {
 };
 
 /* @help Notification
- * @sig $waitHumanValidation(channelId?, validationMessage?, options?)
+ * @sig $waitHumanValidation(waitingMessage?, channelId?, options?)
  * @aliases request approval, wait for approval, human review
- * @desc Pause the run until a human clicks "Continue run". Optionally sends a notification if channelId and validationMessage are provided.
+ * @desc Pause the run until a human clicks "Continue run". Optionally sends the message through a notification channel when channelId is provided.
  * @nodal-desc Pause the run until someone approves it in Puppetflow.
+ * @nodal-param waitingMessage: Message shown while the run waits for human validation.
  * @nodal-param channelId [channel]: Optional notification channel ID.
- * @nodal-param validationMessage: Message sent with the human validation request.
  * @nodal-param options: Notification display options.
  * @nodal-param options.showFlowId [boolean]: Show the current flow ID in the notification.
  * @nodal-param options.showRunId [boolean]: Show the current run identifier in the notification.
  * @nodal-param options.link [custom-object]: Link displayed in the notification, such as url and label.
  */
-const $waitHumanValidation = async function(channelId, validationMessage, options = {}) {
-  __emitAction('waitHuman', validationMessage ? String(validationMessage).slice(0, 60) : (channelId || ''));
+const $waitHumanValidation = async function(waitingMessage, channelId, options = {}) {
+  __emitAction('waitHuman', waitingMessage ? String(waitingMessage).slice(0, 60) : (channelId || ''));
   const runUrl = $_appUrl + '/flows/' + ($json.$context.flow_id || '') + '?run=' + ($json.$context.run_id || '') + '#runs';
   const waitId = crypto.randomUUID();
   let declared = false;
@@ -5599,7 +5599,7 @@ const $waitHumanValidation = async function(channelId, validationMessage, option
       try {
         response = await __runnerOperations.waitingDeclare({
           wait_id: waitId,
-          validation_message: validationMessage == null ? null : String(validationMessage).slice(0, 10000),
+          validation_message: waitingMessage == null ? null : String(waitingMessage).slice(0, 10000),
         });
       } catch (error) {
         logConnectionError('declaration', error);
@@ -5625,7 +5625,7 @@ const $waitHumanValidation = async function(channelId, validationMessage, option
       };
 
       console.debug('Sending human validation request to ' + channelId);
-      await $_sendNotification(channelId, validationMessage || 'Human validation required', mergedOptions);
+      await $_sendNotification(channelId, waitingMessage || 'Human validation required', mergedOptions);
     }
 
     console.debug('Waiting for human validation... (Continue from the Puppetflow UI)');

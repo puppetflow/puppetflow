@@ -326,12 +326,15 @@ const getSelectorGizmos = (code: string): CodeGizmo[] => {
     }
 };
 
-const RESOURCE_NAMESPACE_BY_HELPER: Record<string, 'channels' | 'aiModels'> = {
-    $notify: 'channels',
-    $waitHumanValidation: 'channels',
-    $aiChallenge: 'aiModels',
-    $aiMessage: 'aiModels',
-    $aiControl: 'aiModels',
+const RESOURCE_REFERENCE_BY_HELPER: Record<string, {
+    namespace: 'channels' | 'aiModels';
+    argumentIndex: number;
+}> = {
+    $notify: { namespace: 'channels', argumentIndex: 0 },
+    $waitHumanValidation: { namespace: 'channels', argumentIndex: 1 },
+    $aiChallenge: { namespace: 'aiModels', argumentIndex: 0 },
+    $aiMessage: { namespace: 'aiModels', argumentIndex: 0 },
+    $aiControl: { namespace: 'aiModels', argumentIndex: 0 },
 };
 
 const getResourceDisplaysByLine = (
@@ -352,12 +355,14 @@ const getResourceDisplaysByLine = (
             const args = node.arguments as SyntaxNode[] | undefined;
             const name = callee?.type === 'Identifier' ? callee.name : null;
             if (typeof name !== 'string' || !args?.[0]) return;
-            const namespace = RESOURCE_NAMESPACE_BY_HELPER[name];
-            const resourceId = namespace ? getStaticString(args[0]) : null;
+            const reference = RESOURCE_REFERENCE_BY_HELPER[name];
+            const resourceId = reference
+                ? getStaticString(args[reference.argumentIndex])
+                : null;
             const lineNumber = node.loc?.start.line;
-            if (!namespace || !resourceId || !lineNumber) return;
+            if (!reference || !resourceId || !lineNumber) return;
 
-            const display = references.get(`${namespace}.${resourceId}`);
+            const display = references.get(`${reference.namespace}.${resourceId}`);
             if (!display?.resourceKind || display.resourceId == null) return;
             const current = resourcesByLine.get(lineNumber) ?? [];
             const identity = `${display.resourceKind}:${display.resourceId}`;

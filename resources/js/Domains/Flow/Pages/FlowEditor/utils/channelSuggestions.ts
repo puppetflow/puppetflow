@@ -38,7 +38,8 @@ export function invalidateChannelCache() {
     cachedChannelSuggestions = null;
 }
 
-const CHANNEL_FN_PATTERN = /\$(?:notify|waitHumanValidation)\(\s*(["'])([A-Za-z0-9_-]*)$/;
+const NOTIFY_CHANNEL_PATTERN = /\$notify\(\s*(["'])([A-Za-z0-9_-]*)$/;
+const WAIT_VALIDATION_CHANNEL_PATTERN = /\$waitHumanValidation\(\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[^,'"`]+)*,\s*(["'])([A-Za-z0-9_-]*)$/;
 
 export function registerChannelCompletions(monaco: Parameters<OnMount>[1], modelUri?: string | null) {
     if (!monaco) return { dispose: () => {} };
@@ -50,7 +51,8 @@ export function registerChannelCompletions(monaco: Parameters<OnMount>[1], model
             const lineContent = model.getLineContent(position.lineNumber);
             const textBefore = lineContent.substring(0, position.column - 1);
 
-            const match = textBefore.match(CHANNEL_FN_PATTERN);
+            const match = textBefore.match(NOTIFY_CHANNEL_PATTERN)
+                ?? textBefore.match(WAIT_VALIDATION_CHANNEL_PATTERN);
             if (!match) return { suggestions: [] };
 
             const typed = match[2];
