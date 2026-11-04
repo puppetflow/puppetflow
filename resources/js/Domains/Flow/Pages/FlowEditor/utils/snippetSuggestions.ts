@@ -5,6 +5,7 @@ export type SnippetEntry = { id: Id; label: string; args: string; description: s
 let cachedSnippetSuggestions: SnippetEntry[] | null = null;
 let snippetSuggestionsRequest: Promise<SnippetEntry[]> | null = null;
 let snippetExtraLibHandle: { dispose: () => void } | null = null;
+const snippetExtraLibListeners = new Set<() => void>();
 
 export function fetchSnippetSuggestions(monaco?: Parameters<OnMount>[1]): Promise<SnippetEntry[]> {
     const suggestions = cachedSnippetSuggestions
@@ -49,6 +50,12 @@ function registerSnippetExtraLib(monaco: NonNullable<Parameters<OnMount>[1]>, sn
         lines.join('\n'),
         'puppetflow-snippets.d.ts',
     );
+    snippetExtraLibListeners.forEach(listener => listener());
+}
+
+export function onSnippetExtraLibRegistered(listener: () => void): () => void {
+    snippetExtraLibListeners.add(listener);
+    return () => snippetExtraLibListeners.delete(listener);
 }
 
 export function invalidateSnippetCache() {

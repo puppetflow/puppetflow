@@ -36,9 +36,11 @@ interface Props {
     updatingLibrarySource?: boolean;
     checkingLibraryUpdate?: boolean;
     publishedVersion?: number | null;
+    hasUnpublishedChanges?: boolean;
     savingPublication?: boolean;
     onSave: () => void;
     onPublish?: () => void;
+    onUnpublish?: () => void;
     onViewTimeline?: () => void;
     onOpenLibraryStore?: () => void;
     onDownloadSnippet?: () => void;
@@ -68,9 +70,11 @@ export default function SnippetEditor({
     updatingLibrarySource = false,
     checkingLibraryUpdate = false,
     publishedVersion = null,
+    hasUnpublishedChanges = false,
     savingPublication = false,
     onSave,
     onPublish,
+    onUnpublish,
     onViewTimeline,
     onOpenLibraryStore,
     onDownloadSnippet,
@@ -179,12 +183,14 @@ export default function SnippetEditor({
                                 <PublicationMenu
                                     isPublished={publishedVersion !== null}
                                     publishedVersion={publishedVersion}
+                                    hasUnpublishedChanges={hasUnpublishedChanges}
                                     saveStatus={saveStatus}
                                     draftEditable={canSave}
                                     publicationEditable={canSave && !libraryLocked}
                                     savingPublication={savingPublication}
                                     onSaveDraft={onSave}
                                     onPublish={onPublish}
+                                    onUnpublish={onUnpublish}
                                     onViewTimeline={onViewTimeline}
                                 />
                             ) : (

@@ -88,10 +88,13 @@ final class SnippetVersionController extends Controller
             $lockedSnippet = Snippet::query()->whereKey($snippet->id)->lockForUpdate()->firstOrFail();
             $lockedSnippet->forceFill(['published_version_id' => $snippetVersion->id])->saveQuietly();
         }, 3);
+        $snippet->forceFill(['published_version_id' => $snippetVersion->id]);
+        $snippet->setRelation('publishedVersion', $snippetVersion);
 
         return response()->json([
             'published_version_id' => $snippetVersion->id,
             'published_version' => $snippetVersion->version,
+            'has_unpublished_changes' => $snippet->hasUnpublishedChanges(),
         ]);
     }
 

@@ -86,17 +86,24 @@ export function useSnippetsController({
     });
     dirtyProtection.saveRef.current = crud.handleSave;
 
-    const updatePublishedVersion = useCallback((snippetId: Id, versionId: number, version: number) => {
+    const updatePublishedVersion = useCallback((
+        snippetId: Id,
+        versionId: number | null,
+        version: number | null,
+        hasUnpublishedChanges = false,
+    ) => {
         setSnippets(previous => previous.map(snippet => snippet.id === snippetId ? {
             ...snippet,
             published_version_id: versionId,
             published_version_number: version,
+            has_unpublished_changes: hasUnpublishedChanges,
         } : snippet));
         if (form.active?.id === snippetId) {
             form.setActive({
                 ...form.active,
                 published_version_id: versionId,
                 published_version_number: version,
+                has_unpublished_changes: hasUnpublishedChanges,
             });
         }
     }, [form]);
@@ -127,8 +134,14 @@ export function useSnippetsController({
             const result = await response.json() as {
                 published_version_id: number;
                 published_version: number;
+                has_unpublished_changes: boolean;
             };
-            updatePublishedVersion(snippet.id, result.published_version_id, result.published_version);
+            updatePublishedVersion(
+                snippet.id,
+                result.published_version_id,
+                result.published_version,
+                result.has_unpublished_changes,
+            );
             toast(`Snippet published as version ${result.published_version}.`);
         } catch {
             toast('Unable to publish this snippet. Check your connection and try again.', 'error');
@@ -136,6 +149,34 @@ export function useSnippetsController({
             setSavingPublication(false);
         }
     }, [dirtyProtection, form, toast, updatePublishedVersion]);
+
+    const unpublishCurrentSnippet = useCallback(async () => {
+        const snippet = form.getCurrentDraft().active;
+        if (!snippet || snippet.library_locked || snippet.published_version_id === null) return;
+
+        setSavingPublication(true);
+        try {
+            const response = await fetch(`/snippets/${snippet.id}/unpublish`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...csrfHeaders(),
+                },
+                body: JSON.stringify({ client_updated_at: form.getDraftUpdatedAt() }),
+            });
+            if (!response.ok) {
+                const result = await response.json().catch(() => ({}));
+                toast(result.message || 'Unable to unpublish this snippet.', 'error');
+                return;
+            }
+            updatePublishedVersion(snippet.id, null, null);
+            toast('Snippet unpublished.');
+        } catch {
+            toast('Unable to unpublish this snippet. Check your connection and try again.', 'error');
+        } finally {
+            setSavingPublication(false);
+        }
+    }, [form, toast, updatePublishedVersion]);
 
     const libraryUpdate = useSnippetLibraryUpdate({ form, setSnippets, confirm, toast });
     const importGroups = useMemo(() => {
@@ -191,6 +232,7 @@ export function useSnippetsController({
             savingPublication,
             initialVersionId: Number(new URLSearchParams(window.location.search).get('version')) || null,
             publishCurrentSnippet,
+            unpublishCurrentSnippet,
             updatePublishedVersion,
             handleRestored: () => window.location.reload(),
         },

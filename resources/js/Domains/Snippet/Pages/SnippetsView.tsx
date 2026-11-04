@@ -155,12 +155,14 @@ export default function SnippetsView({ controller }: Props) {
                                 dirty={form.dirty}
                                 saveStatus={saveStatus}
                                 publishedVersion={form.active.published_version_number}
+                                hasUnpublishedChanges={form.active.has_unpublished_changes}
                                 savingPublication={versioning.savingPublication}
                                 mobileView={navigation.mobileView}
                                 readOnly={codeReadOnly}
                                 onGraphChange={form.handleNodalGraphChange}
                                 onSave={crud.handleSave}
                                 onPublish={versioning.publishCurrentSnippet}
+                                onUnpublish={versioning.unpublishCurrentSnippet}
                                 onViewTimeline={() => versioning.setShowVersionTimeline(true)}
                                 onOpenLibraryStore={openLibraryStore}
                                 onDownloadSnippet={downloadSnippet}
@@ -191,11 +193,13 @@ export default function SnippetsView({ controller }: Props) {
                                 updatingLibrarySource={libraryUpdate.updatingLibrarySource}
                                 checkingLibraryUpdate={libraryUpdate.checkingLibraryUpdate}
                                 publishedVersion={form.active.published_version_number}
+                                hasUnpublishedChanges={form.active.has_unpublished_changes}
                                 savingPublication={versioning.savingPublication}
                                 onUpdateLibrarySource={form.active.library_update_available ? libraryUpdate.handleUpdateLibrarySource : undefined}
                                 onCheckLibraryUpdate={form.active.library_locked ? libraryUpdate.handleCheckLibraryUpdate : undefined}
                                 onSave={crud.handleSave}
                                 onPublish={versioning.publishCurrentSnippet}
+                                onUnpublish={versioning.unpublishCurrentSnippet}
                                 onViewTimeline={() => versioning.setShowVersionTimeline(true)}
                                 onOpenLibraryStore={openLibraryStore}
                                 onDownloadSnippet={downloadSnippet}

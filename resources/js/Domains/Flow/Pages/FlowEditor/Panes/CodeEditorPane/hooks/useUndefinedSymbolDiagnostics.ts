@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import type { languages } from 'monaco-editor';
+import { onSnippetExtraLibRegistered } from '@/Domains/Flow/Pages/FlowEditor/utils/snippetSuggestions';
 
 const MARKER_OWNER = 'puppetflow-undefined-symbols';
 const UNDEFINED_SYMBOL_CODES = new Set([2304, 2552]);
@@ -105,13 +106,13 @@ export function useUndefinedSymbolDiagnostics() {
 
         scheduleValidation();
         const contentDisposable = model.onDidChangeContent(scheduleValidation);
-        const extraLibRefreshTimer = setTimeout(scheduleValidation, 1500);
+        const unsubscribeSnippetExtraLib = onSnippetExtraLibRegistered(scheduleValidation);
 
         cleanupRef.current = () => {
             disposed = true;
             validationRequest += 1;
             if (validationTimer) clearTimeout(validationTimer);
-            clearTimeout(extraLibRefreshTimer);
+            unsubscribeSnippetExtraLib();
             contentDisposable.dispose();
             monaco.editor.setModelMarkers(model, MARKER_OWNER, []);
             decorations.clear();

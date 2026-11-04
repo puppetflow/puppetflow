@@ -39,7 +39,12 @@ interface Props {
     getDraftUpdatedAt: () => string | null;
     onClose: () => void;
     onRestored: () => void;
-    onVersionPublished: (snippetId: Id, versionId: number, version: number) => void;
+    onVersionPublished: (
+        snippetId: Id,
+        versionId: number,
+        version: number,
+        hasUnpublishedChanges: boolean,
+    ) => void;
 }
 
 const ignoreGraphChange = () => {};
@@ -232,8 +237,14 @@ export default function SnippetVersionTimelineModal({
                 headers: csrfHeaders(),
             });
             if (!response.ok) throw new Error('Unable to publish this version.');
+            const result = await response.json() as { has_unpublished_changes: boolean };
             setCurrentVersionId(version.id);
-            onVersionPublished(snippet.id, version.id, version.version);
+            onVersionPublished(
+                snippet.id,
+                version.id,
+                version.version,
+                result.has_unpublished_changes,
+            );
         } catch (actionError) {
             setError(actionError instanceof Error ? actionError.message : 'Unable to publish this version.');
         } finally {

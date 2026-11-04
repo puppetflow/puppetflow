@@ -87,6 +87,7 @@ class SnippetController extends Controller
             return array_merge($s->toArray(), [
                 'owner_workspace_role' => $ownerRoles[$s->user_id] ?? 'member',
                 'user_id' => $s->user?->id,
+                'has_unpublished_changes' => $s->hasUnpublishedChanges(),
                 'library_latest_source_sha' => null,
                 'library_update_available' => false,
             ]);
@@ -184,6 +185,7 @@ class SnippetController extends Controller
         }, 3);
 
         $snippet->load('user:id,name', 'team:id,name', 'publishedVersion');
+        $snippet->setAttribute('has_unpublished_changes', false);
         $this->injectOwnerWorkspaceRoles([$snippet], $workspaceId);
 
         return response()->json($snippet, 201);
@@ -294,6 +296,7 @@ class SnippetController extends Controller
             return $lockedSnippet;
         }, 3);
         $snippet->load('user:id,name', 'team:id,name', 'publishedVersion');
+        $snippet->setAttribute('has_unpublished_changes', $snippet->hasUnpublishedChanges());
         $this->injectOwnerWorkspaceRoles([$snippet], $snippet->workspace_id);
 
         return response()->json($snippet);
@@ -319,6 +322,29 @@ class SnippetController extends Controller
             'published_version_id' => $version->id,
             'published_version' => $version->version,
             'published_at' => $version->published_at->toJSON(),
+            'has_unpublished_changes' => false,
+        ]);
+    }
+
+    public function unpublish(Request $request, Snippet $snippet): JsonResponse
+    {
+        $this->features()->abortIfDisabled('snippets_enabled');
+        $this->features()->abortIfStale($snippet);
+        abort_unless($snippet->workspace_id === $this->currentWorkspaceId(), 404);
+        Gate::authorize(Ability::UPDATE->value, $snippet);
+        abort_if($snippet->library_locked, 423, 'Duplicate this library snippet before unpublishing it.');
+        $request->validate(['client_updated_at' => 'sometimes|nullable|string']);
+
+        DB::transaction(function () use ($request, $snippet): void {
+            $current = Snippet::query()->whereKey($snippet->id)->lockForUpdate()->firstOrFail();
+            $this->ensureCurrent($request, $current);
+            $current->forceFill(['published_version_id' => null])->saveQuietly();
+        }, 3);
+
+        return response()->json([
+            'published_version_id' => null,
+            'published_version' => null,
+            'has_unpublished_changes' => false,
         ]);
     }
 
@@ -437,6 +463,7 @@ class SnippetController extends Controller
         }, 3);
 
         $snippet->load('user:id,name', 'team:id,name', 'publishedVersion');
+        $snippet->setAttribute('has_unpublished_changes', false);
         $this->injectOwnerWorkspaceRoles(collect([$snippet]), $snippet->workspace_id);
         $this->withLibraryUpdateState($snippet, $catalog);
 

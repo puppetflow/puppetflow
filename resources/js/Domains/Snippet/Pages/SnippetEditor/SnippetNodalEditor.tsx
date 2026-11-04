@@ -13,12 +13,14 @@ interface Props {
     dirty: boolean;
     saveStatus: DraftSaveStatus;
     publishedVersion?: number | null;
+    hasUnpublishedChanges?: boolean;
     savingPublication?: boolean;
     mobileView: string;
     readOnly: boolean;
     onGraphChange: (graph: NodalGraph) => void;
     onSave: () => void;
     onPublish?: () => void;
+    onUnpublish?: () => void;
     onViewTimeline?: () => void;
     onOpenLibraryStore?: () => void;
     onDownloadSnippet?: () => void;
@@ -38,12 +40,14 @@ export default function SnippetNodalEditor({
     dirty,
     saveStatus,
     publishedVersion = null,
+    hasUnpublishedChanges = false,
     savingPublication = false,
     mobileView,
     readOnly,
     onGraphChange,
     onSave,
     onPublish,
+    onUnpublish,
     onViewTimeline,
     onOpenLibraryStore,
     onDownloadSnippet,
@@ -94,7 +98,9 @@ export default function SnippetNodalEditor({
                 onSave={onSave}
                 saveStatus={saveStatus}
                 publishedVersion={publishedVersion}
+                hasUnpublishedChanges={hasUnpublishedChanges}
                 onPublish={onPublish}
+                onUnpublish={onUnpublish}
                 onViewTimeline={onViewTimeline}
                 savingPublication={savingPublication}
                 publicationEditable={!readOnly && !libraryLocked}

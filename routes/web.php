@@ -382,6 +382,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     Route::delete('snippets/bulk-delete', [SnippetController::class, 'destroyBatch'])->name('snippets.bulk-delete');
     Route::put('snippets/{snippet}', [SnippetController::class, 'update'])->name('snippets.update');
     Route::post('snippets/{snippet}/publish', [SnippetController::class, 'publish'])->name('snippets.publish');
+    Route::post('snippets/{snippet}/unpublish', [SnippetController::class, 'unpublish'])->name('snippets.unpublish');
     Route::get('snippets/{snippet}/versions', [SnippetVersionController::class, 'index'])->name('snippets.versions.index');
     Route::get('snippets/{snippet}/versions/{snippetVersion}', [SnippetVersionController::class, 'show'])->name('snippets.versions.show');
     Route::post('snippets/{snippet}/versions/{snippetVersion}/restore', [SnippetVersionController::class, 'restore'])->name('snippets.versions.restore');
