@@ -74,7 +74,9 @@ export const useCodeGizmos = ({
                     glyphMarginClassName: `nop-code-gizmo ${gizmo.kind === 'selector' ? 'nop-code-gizmo-selector' : ''} ${gizmoScopeClass}-${index} ${gizmoScopeClass}-click-${index}`,
                     glyphMarginHoverMessage: { value: gizmo.description },
                     glyphMargin: {
-                        position: monacoInstance.editor.GlyphMarginLane.Left,
+                        position: gizmo.kind === 'selector'
+                            ? monacoInstance.editor.GlyphMarginLane.Center
+                            : monacoInstance.editor.GlyphMarginLane.Left,
                     },
                 },
             }];
