@@ -289,7 +289,8 @@ export function useFlowEditorController({
     const runningRuns = runController.runs.data
         .filter(run => run.status === 'running')
         .map(run => ({ id: run.id, flowId: flow.id }));
-    const waitingHumanIds = useWaitingHumanSet(runningRuns);
+    // Feeds the tab title, which must keep following the run from another tab.
+    const waitingHumanIds = useWaitingHumanSet(runningRuns, undefined, true);
     useDocumentTitle(flow.name, runController.runs.data, waitingHumanIds);
 
     return {

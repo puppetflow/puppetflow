@@ -31,6 +31,7 @@ interface UseWaitStatusPollingOptions<T> {
     interval: number;
     transform: (results: WaitStatusPollResult[]) => T;
     onData: (data: T) => void;
+    keepPollingWhenHidden?: boolean;
 }
 
 interface SharedWaitStatusRequest {
@@ -88,6 +89,7 @@ export function useWaitStatusPolling<T>({
     interval,
     transform,
     onData,
+    keepPollingWhenHidden = false,
 }: UseWaitStatusPollingOptions<T>): void {
     const normalizedRuns = useMemo(() => {
         const uniqueRuns = Array.from(new Map(
@@ -114,9 +116,10 @@ export function useWaitStatusPolling<T>({
         let cancelled = false;
         let polling = false;
         let intervalId: ReturnType<typeof setInterval> | null = null;
+        const isPaused = () => document.hidden && !keepPollingWhenHidden;
 
         const poll = async () => {
-            if (polling || document.hidden) return;
+            if (polling || isPaused()) return;
             polling = true;
 
             try {
@@ -144,12 +147,12 @@ export function useWaitStatusPolling<T>({
             intervalId = null;
         };
         const start = () => {
-            if (intervalId !== null || document.hidden) return;
+            if (intervalId !== null || isPaused()) return;
             void poll();
             intervalId = setInterval(poll, interval);
         };
         const onVisibilityChange = () => {
-            if (document.hidden) stop();
+            if (isPaused()) stop();
             else start();
         };
 
@@ -161,5 +164,5 @@ export function useWaitStatusPolling<T>({
             stop();
             document.removeEventListener('visibilitychange', onVisibilityChange);
         };
-    }, [active, interval, runsKey]);
+    }, [active, interval, keepPollingWhenHidden, runsKey]);
 }

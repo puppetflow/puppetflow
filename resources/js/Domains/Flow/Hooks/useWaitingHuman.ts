@@ -29,6 +29,7 @@ function toWaitingState(results: WaitStatusPollResult[]): WaitingPollState {
 export function useWaitingHumanSet(
     runningRuns: WaitStatusRunRef[],
     pollInterval = 4000,
+    keepPollingWhenHidden = false,
 ): Set<number> {
     const [waitingIds, setWaitingIds] = useState<Set<number>>(new Set());
 
@@ -43,6 +44,7 @@ export function useWaitingHumanSet(
         active: runningRuns.length > 0,
         interval: pollInterval,
         transform: toWaitingState,
+        keepPollingWhenHidden,
         onData: next => {
             setWaitingIds(prev => {
                 const merged = new Set(next.waitingIds);

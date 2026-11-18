@@ -72,6 +72,8 @@ export function useFlowRunsController({
         activeDelay: 3000,
         idleDelay: 10000,
         pauseWhenHidden: true,
+        // The tab title follows the active run status from another tab.
+        hiddenOnly: hasActiveRuns ? ['runs'] : null,
     });
     const actions = useFlowRunActions({
         flowId,

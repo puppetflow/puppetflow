@@ -7,6 +7,21 @@ interface UseInertiaPollingOptions {
     activeDelay: number;
     idleDelay: number;
     pauseWhenHidden: boolean;
+    /** Props kept polling while the tab is hidden instead of pausing (needs `pauseWhenHidden`). */
+    hiddenOnly?: string[] | null;
+}
+
+function useStableList(list: string[] | null): string[] | null {
+    const ref = useRef(list);
+
+    if (
+        ref.current?.length !== list?.length
+        || (ref.current && list && ref.current.some((value, index) => value !== list[index]))
+    ) {
+        ref.current = list;
+    }
+
+    return ref.current;
 }
 
 // Reloads selected Inertia props at activity-aware intervals, with optional visibility pausing.
@@ -16,15 +31,15 @@ export function useInertiaPolling({
     activeDelay,
     idleDelay,
     pauseWhenHidden,
+    hiddenOnly = null,
 }: UseInertiaPollingOptions): void {
-    const onlyRef = useRef(only);
-
-    if (
-        onlyRef.current.length !== only.length
-        || onlyRef.current.some((value, index) => value !== only[index])
-    ) {
-        onlyRef.current = only;
-    }
+    const stableOnly = useStableList(only);
+    const stableHiddenOnly = useStableList(hiddenOnly);
+    const onlyRef = useRef(stableOnly);
+    const hiddenOnlyRef = useRef(stableHiddenOnly);
+    onlyRef.current = stableOnly;
+    hiddenOnlyRef.current = stableHiddenOnly;
+    const pollsWhenHidden = stableHiddenOnly !== null && stableHiddenOnly.length > 0;
 
     useEffect(() => {
         const delay = active ? activeDelay : idleDelay;
@@ -38,7 +53,10 @@ export function useInertiaPolling({
         };
         // Inertia rewrites the URL with the one captured when the request started. A background
         // poll must not undo query params written meanwhile (URL-synced modals, run detail).
-        const poll = () => router.reload({ only: onlyRef.current, preserveUrl: true });
+        const poll = () => router.reload({
+            only: (pauseWhenHidden && document.hidden ? hiddenOnlyRef.current : null) ?? onlyRef.current ?? [],
+            preserveUrl: true,
+        });
         const start = () => {
             stop();
             interval = setInterval(poll, delay);
@@ -49,7 +67,7 @@ export function useInertiaPolling({
             wasHidden = isHidden;
 
             if (isHidden) {
-                stop();
+                if (!pollsWhenHidden) stop();
                 return;
             }
 
@@ -57,12 +75,12 @@ export function useInertiaPolling({
             start();
         };
 
-        if (!wasHidden) start();
+        if (!wasHidden || pollsWhenHidden) start();
         if (pauseWhenHidden) document.addEventListener('visibilitychange', onVisibilityChange);
 
         return () => {
             stop();
             if (pauseWhenHidden) document.removeEventListener('visibilitychange', onVisibilityChange);
         };
-    }, [active, activeDelay, idleDelay, pauseWhenHidden]);
+    }, [active, activeDelay, idleDelay, pauseWhenHidden, pollsWhenHidden]);
 }
