@@ -143,6 +143,9 @@ class FlowRunController extends Controller
     public function show(Request $request, Flow $flow, string $run): JsonResponse
     {
         $this->authorizeFlowAccess($flow, Ability::VIEW);
+        if ($request->has('console_logs_after')) {
+            return $this->showLiveProgress($flow, $run, max($request->integer('console_logs_after'), 0));
+        }
         $includeNodalPreview = $request->boolean('include_nodal_preview');
         $columns = $includeNodalPreview
             ? [...FlowRunProjection::RUN_COLUMNS, 'internal_meta']
@@ -164,6 +167,32 @@ class FlowRunController extends Controller
             ]);
 
         return response()->json($run);
+    }
+
+    /**
+     * Polled while a run is active. Console logs only grow until the run ends, so the client
+     * sends how many lines it already has and receives the new ones, sliced in SQL so
+     * heavy logs are never loaded nor sent again.
+     */
+    private function showLiveProgress(Flow $flow, string $runId, int $after): JsonResponse
+    {
+        $run = FlowRun::query()
+            ->select(['id', 'flow_id', 'triggered_by', 'status', 'running_at', 'resolved_secrets'])
+            ->selectRaw("case when json_typeof(console_logs) = 'array' then json_array_length(console_logs) else 0 end as console_logs_count")
+            ->selectRaw(
+                "case when json_typeof(console_logs) = 'array' then (select json_agg(entry order by position) from json_array_elements(console_logs) with ordinality as logs(entry, position) where position > ?) end as console_logs",
+                [$after],
+            )
+            ->findOrFail($runId);
+        $this->authorizeRunAccess($flow, $run);
+
+        $run->redactSecretsForClient()->makeVisible(['console_logs'])->setAppends([])->setRelations([]);
+
+        return response()->json([
+            ...$run->toArray(),
+            'console_logs' => $run->console_logs ?? [],
+            'console_logs_offset' => $after,
+        ]);
     }
 
     public function artifacts(Flow $flow, FlowRun $run, string $type): JsonResponse

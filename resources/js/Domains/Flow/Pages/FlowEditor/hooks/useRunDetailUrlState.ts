@@ -5,6 +5,7 @@ import {
     useState,
     type MutableRefObject,
 } from 'react';
+import { useActiveRunDetailPolling } from '@/Domains/Flow/Hooks/Run/useActiveRunDetailPolling';
 import type { FlowRun } from '@/Domains/Flow/types';
 
 function buildUrlWithRun(runId: number | null): string {
@@ -108,6 +109,8 @@ export function useRunDetailUrlState(
             cancelled = true;
         };
     }, [fetchRunDetail, runs]);
+
+    useActiveRunDetailPolling(detailRun, flowId, fetchRunDetail, setDetailRun);
 
     useEffect(() => {
         if (!pendingRunOpenRef.current) return;

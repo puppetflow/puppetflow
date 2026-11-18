@@ -37,6 +37,7 @@ final class PuppeteerProcessRunner
     ): ProcessResult {
         $timeout = $flow->getEffectiveTimeoutSeconds();
         $lastFlush = microtime(true);
+        $lastFlushedCount = count($consoleLogs);
         $deadline = microtime(true) + $timeout;
         $carry = ['out' => '', 'stderr' => ''];
         $invoked = Process::timeout($timeout + 30)
@@ -48,9 +49,10 @@ final class PuppeteerProcessRunner
             while ($invoked->running()) {
                 $this->consumeLatest($invoked, $carry, $tag, $consoleLogs, $run, $runtimeSecretsPath);
                 $now = microtime(true);
-                if ($now - $lastFlush >= 2.0) {
+                if ($now - $lastFlush >= 1.0 && count($consoleLogs) !== $lastFlushedCount) {
                     $run->update(['console_logs' => $consoleLogs]);
                     $lastFlush = $now;
+                    $lastFlushedCount = count($consoleLogs);
                 }
                 if ($now >= $deadline) {
                     $this->terminate($invoked, $tag, "Timeout reached ({$timeout}s)", 'Timeout grace period expired');

@@ -95,13 +95,11 @@ final class FlowRunProjection
             ? $flow->runs()
             : $flow->runs()->where('triggered_by', $user->id);
 
-        $latestRun = $visibleRuns()->select(self::RUN_COLUMNS)
+        // Polled every few seconds while a run is active: logs and code snapshot stay out,
+        // the run detail endpoint serves them.
+        $latestRun = $visibleRuns()->select([...self::LIST_COLUMNS, 'input', 'output'])
             ->with(['triggeredBy:id,name', 'trigger:id,type,label'])->latest()->first();
-        $flow->setRelation(
-            'latestRun',
-            $latestRun?->redactSecretsForClient()
-                ->makeVisible(['console_logs', 'action_logs', 'code_snapshot']),
-        );
+        $flow->setRelation('latestRun', $latestRun?->redactSecretsForClient());
         $flow->setAttribute('latest_nodal_run', $this->latestNodalRunSummary($flow, $user));
     }
 

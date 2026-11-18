@@ -4,6 +4,7 @@ import { router } from '@inertiajs/react';
 import AppLayout from '@/App/Layout/AppLayout/AppLayout';
 import StatsGrid, { type StatItem } from '@/Shared/UI/StatsGrid/StatsGrid';
 import RunDetailModal from '@/Domains/Flow/Pages/FlowEditor/Modals/RunDetailModal/RunDetailModal';
+import { useActiveRunDetailPolling } from '@/Domains/Flow/Hooks/Run/useActiveRunDetailPolling';
 import { useOptimisticRunCancellation } from '@/Domains/Flow/Hooks/Run/useOptimisticRunCancellation';
 import { useToast } from '@/App/Hooks/useToast';
 import { useRunAgainModal } from '@/Domains/Flow/Hooks/useRunAgainModal';
@@ -102,6 +103,8 @@ export default function Runs({ runningRuns, terminatedRuns, runUsers, stats, con
             cancelled = true;
         };
     }, [displayedAllRuns, fetchRunDetail]);
+
+    useActiveRunDetailPolling(detailRun, detailRun?.flow?.id, fetchRunDetail, setDetailRun);
 
     const openRunDetail = useCallback(async (run: FlowRun) => {
         try {
