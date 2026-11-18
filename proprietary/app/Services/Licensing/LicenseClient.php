@@ -59,9 +59,11 @@ class LicenseClient
 
         if (! $response->successful()) {
             $message = $response->json('message');
+            $errorCode = $response->json('code');
             throw new LicenseServerException(
                 is_string($message) && $message !== '' ? $message : 'The Community license request failed.',
                 $response->status(),
+                is_string($errorCode) ? $errorCode : null,
             );
         }
     }
@@ -115,9 +117,11 @@ class LicenseClient
 
         if (! $response->successful()) {
             $message = $response->json('message');
+            $errorCode = $response->json('code');
             throw new LicenseServerException(
                 is_string($message) && $message !== '' ? $message : "License {$endpoint} failed.",
                 $response->status(),
+                is_string($errorCode) ? $errorCode : null,
             );
         }
 

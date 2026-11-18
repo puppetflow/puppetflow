@@ -52,7 +52,7 @@ class LicenseManager
             // released, license suspended...): drop the local token so the
             // platform locks and the captive /license page takes over,
             // whichever caller carried the ping.
-            if ($e->isRejection()) {
+            if ($e->isDefinitiveRejection()) {
                 Setting::set(self::TOKEN_SETTING, '');
                 $this->rememberPayload(null);
             }
@@ -169,7 +169,7 @@ class LicenseManager
             $payload = $this->ping();
         } catch (LicenseServerException $e) {
             // ping() already dropped the token on a definitive rejection.
-            if ($e->isRejection()) {
+            if ($e->isDefinitiveRejection()) {
                 return false;
             }
 

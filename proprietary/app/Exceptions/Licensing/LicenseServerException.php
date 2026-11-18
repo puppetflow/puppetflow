@@ -6,8 +6,16 @@ use RuntimeException;
 
 class LicenseServerException extends RuntimeException
 {
-    public function __construct(string $message, private readonly ?int $statusCode = null)
-    {
+    private const DEFINITIVE_REJECTION_CODES = [
+        'license_inactive',
+        'license_instance_inactive',
+    ];
+
+    public function __construct(
+        string $message,
+        private readonly ?int $statusCode = null,
+        private readonly ?string $errorCode = null,
+    ) {
         parent::__construct($message);
     }
 
@@ -16,8 +24,9 @@ class LicenseServerException extends RuntimeException
         return $this->statusCode;
     }
 
-    public function isRejection(): bool
+    public function isDefinitiveRejection(): bool
     {
-        return $this->statusCode !== null && $this->statusCode >= 400 && $this->statusCode < 500;
+        return $this->statusCode === 403
+            && in_array($this->errorCode, self::DEFINITIVE_REJECTION_CODES, true);
     }
 }

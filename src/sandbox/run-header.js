@@ -48,9 +48,11 @@ if (typeof __actionLogsFlushTimer.unref === 'function') __actionLogsFlushTimer.u
 let __nopCurrentLine = null;
 const __nopCurrentNodeStack = [];
 let __actionLogSuppressionDepth = 0;
+// Same stream as console output: stdout is a non-blocking pipe, so fs.writeSync(1) fails
+// with EAGAIN whenever the worker lags behind, and could also split a queued console line.
 const __emitRunProgress = (event) => {
   try {
-    fs.writeSync(1, '__NOP_RUN_EVENT__' + JSON.stringify({
+    process.stdout.write('__NOP_RUN_EVENT__' + JSON.stringify({
       ...event,
       offset_ms: Date.now() - (typeof _recordingStartTs !== 'undefined' ? _recordingStartTs : __nodeStartTs),
     }) + '\n');

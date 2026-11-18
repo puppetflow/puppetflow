@@ -1370,26 +1370,33 @@ module.exports = async function(appDir, flowId, quiet) {
       }
     }
     let _terminationSignalHandled = false;
+    // Closing the browser makes run() throw so the finally block can still run terminate(),
+    // finalize the recording and write the output. The worker sends SIGKILL 20s after SIGTERM:
+    // a run stuck outside the browser (human validation wait...) is force-exited before that,
+    // keeping its $context (meta, legend) in the output.
     const _handleTerminationSignal = () => {
       if (_terminationSignalHandled) return;
       _terminationSignalHandled = true;
       try { __flushActionLogs(true); } catch (_) {}
       const _forceExitTimer = setTimeout(() => {
         try {
+          if (__runOutputPath && (!fs.existsSync(__runOutputPath) || fs.statSync(__runOutputPath).size === 0)) {
+            fs.writeFileSync(__runOutputPath, JSON.stringify(_stripInternalOutputFields({
+              status: 'error',
+              message: 'Run terminated before completion.',
+              $context: $json.$context,
+              ..._outputData,
+            }), null, 2));
+          }
+        } catch (_) {}
+        try { __flushActionLogs(true); } catch (_) {}
+        try {
           if (_chromeUserDataDir) fs.rmSync(_chromeUserDataDir, { recursive: true, force: true });
         } catch (_) {}
         process.exit(143);
-      }, 5000);
+      }, 15000);
       if (typeof _forceExitTimer.unref === 'function') _forceExitTimer.unref();
-      Promise.resolve($browser.close())
-        .catch(() => {})
-        .finally(() => {
-          clearTimeout(_forceExitTimer);
-          try {
-            if (_chromeUserDataDir) fs.rmSync(_chromeUserDataDir, { recursive: true, force: true });
-          } catch (_) {}
-          process.exit(143);
-        });
+      Promise.resolve($browser.close()).catch(() => {});
     };
     process.once('SIGTERM', _handleTerminationSignal);
     try {
@@ -1662,6 +1669,7 @@ module.exports = async function(appDir, flowId, quiet) {
     }
     cleanupChromeUserDataDir();
     await closeRunnerProxy();
+    await flushStdout();
     process.exit(0);
   } catch (error) {
     if (runErrorPath) {
@@ -1674,6 +1682,7 @@ module.exports = async function(appDir, flowId, quiet) {
 
     cleanupChromeUserDataDir();
     await closeRunnerProxy();
+    await flushStdout();
     process.exit(1);
   } finally {
     for (const [name, previous] of Object.entries(previousGlobals)) {
@@ -1685,6 +1694,22 @@ module.exports = async function(appDir, flowId, quiet) {
     }
   }
 };
+
+// process.exit() drops writes still queued on the stdout pipe (run events, console lines).
+function flushStdout(timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    try {
+      process.stdout.write('', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    } catch (_) {
+      clearTimeout(timer);
+      resolve();
+    }
+  });
+}
 
 function simplifyError(error, headerLineCount) {
   let message = error.message || String(error);
