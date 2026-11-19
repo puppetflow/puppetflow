@@ -141,6 +141,8 @@ export default tseslint.config(
                 $setOutput: 'readonly',
                 $sleep: 'readonly',
                 $unzipFile: 'readonly',
+                $upload: 'readonly',
+                $clickUpload: 'readonly',
                 $vars: 'readonly',
                 $totp: 'readonly',
                 $waitForFile: 'readonly',

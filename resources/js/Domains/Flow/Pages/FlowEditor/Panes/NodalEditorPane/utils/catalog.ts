@@ -85,6 +85,7 @@ const ACTION_NODE_ENTRY_BY_ACTION: Record<string, string> = {
     sleep: '$sleep',
     timeout: '$generateResponseError',
     upload: '$upload',
+    clickUpload: '$clickUpload',
     waitEmail: '$waitForEmail',
     waitFile: '$waitForFile',
     waitHuman: '$waitHumanValidation',

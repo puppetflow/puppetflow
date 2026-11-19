@@ -129,8 +129,40 @@ const $notify = async function(channelId, notificationMessage, options = {}) {
  * @nodal-param options.showRunId [boolean]: Show the current run identifier in the notification.
  * @nodal-param options.link [custom-object]: Link displayed in the notification, such as url and label.
  */
+// CLI runs have no FlowRun, hence no runtime API to declare the wait nor a UI to continue it:
+// the terminal stands in for the "Continue run" button.
+const __waitHumanValidationInTerminal = async function(waitingMessage, channelId, options) {
+  if (!process.stdin.isTTY) {
+    throw new Error('$waitHumanValidation needs the Puppetflow runtime API or an interactive terminal, neither is available for this run.');
+  }
+  if (channelId) {
+    console.debug('Sending human validation request to ' + channelId);
+    await $_sendNotification(channelId, waitingMessage || 'Human validation required', {
+      showFlowId: true,
+      showRunId: false,
+      ...options,
+    });
+  }
+
+  const readline = require('readline');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    await new Promise((resolve) => {
+      rl.question('\n✋ ' + (waitingMessage ? String(waitingMessage) : 'Human validation required') + '\nPress Enter to continue the run... ', () => resolve());
+    });
+  } finally {
+    rl.close();
+  }
+  await __shadowSaveDefaultBrowserStorage();
+  console.log('[WAIT] Human validation received. Continuing run.');
+};
+
 const $waitHumanValidation = async function(waitingMessage, channelId, options = {}) {
   __emitAction('waitHuman', waitingMessage ? String(waitingMessage).slice(0, 60) : (channelId || ''));
+  if (!__runnerOperations.available) {
+    await __waitHumanValidationInTerminal(waitingMessage, channelId, options);
+    return;
+  }
   const runUrl = $_appUrl + '/flows/' + ($json.$context.flow_id || '') + '?run=' + ($json.$context.run_id || '') + '#runs';
   const waitId = crypto.randomUUID();
   let declared = false;

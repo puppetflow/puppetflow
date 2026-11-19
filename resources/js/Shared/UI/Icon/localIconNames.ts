@@ -122,6 +122,7 @@ export const localIconNames = new Set<string>([
     "lucide:folder-plus",
     "lucide:folder-search",
     "lucide:folder-tree",
+    "lucide:folder-up",
     "lucide:gauge",
     "lucide:git-branch",
     "lucide:git-compare-arrows",

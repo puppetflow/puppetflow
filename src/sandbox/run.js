@@ -1370,15 +1370,32 @@ module.exports = async function(appDir, flowId, quiet) {
       }
     }
     let _terminationSignalHandled = false;
-    // Closing the browser makes run() throw so the finally block can still run terminate(),
-    // finalize the recording and write the output. The worker sends SIGKILL 20s after SIGTERM:
-    // a run stuck outside the browser (human validation wait...) is force-exited before that,
-    // keeping its $context (meta, legend) in the output.
+    // Stopping twice would delete the finalized file, so the teardown and the forced exit share it.
+    let _recorderStopPromise = null;
+    const _stopRecorderOnce = () => {
+      if (!_recorder) return Promise.resolve(false);
+      if (!_recorderStopPromise) {
+        if (_recordingLastshotPath && _lastScreencastFrame) {
+          try { fs.writeFileSync(_recordingLastshotPath, _lastScreencastFrame); } catch (_) {}
+        }
+        _recorderStopPromise = _recorder.stop().catch(() => false);
+      }
+      return _recorderStopPromise;
+    };
+    // Closing the browser and aborting runtime waits make run() throw so the finally block can
+    // still run terminate(), finalize the recording and write the output. The worker sends
+    // SIGKILL 20s after SIGTERM: a run still stuck after 13s is force-exited before that, with
+    // its recording finalized and its $context (meta, legend) kept in the output.
     const _handleTerminationSignal = () => {
       if (_terminationSignalHandled) return;
       _terminationSignalHandled = true;
       try { __flushActionLogs(true); } catch (_) {}
-      const _forceExitTimer = setTimeout(() => {
+      try { __abortRuntimeWaits(new Error('Run terminated by the worker.')); } catch (_) {}
+      const _forceExitTimer = setTimeout(async () => {
+        await Promise.race([
+          _stopRecorderOnce(),
+          new Promise(resolve => setTimeout(resolve, 5000)),
+        ]);
         try {
           if (__runOutputPath && (!fs.existsSync(__runOutputPath) || fs.statSync(__runOutputPath).size === 0)) {
             fs.writeFileSync(__runOutputPath, JSON.stringify(_stripInternalOutputFields({
@@ -1393,8 +1410,14 @@ module.exports = async function(appDir, flowId, quiet) {
         try {
           if (_chromeUserDataDir) fs.rmSync(_chromeUserDataDir, { recursive: true, force: true });
         } catch (_) {}
+        await new Promise((resolve) => {
+          const _flushTimer = setTimeout(resolve, 500);
+          try {
+            process.stdout.write('', () => { clearTimeout(_flushTimer); resolve(); });
+          } catch (_) { resolve(); }
+        });
         process.exit(143);
-      }, 15000);
+      }, 13000);
       if (typeof _forceExitTimer.unref === 'function') _forceExitTimer.unref();
       Promise.resolve($browser.close()).catch(() => {});
     };
@@ -1435,6 +1458,7 @@ module.exports = async function(appDir, flowId, quiet) {
         _runErrorLine = __nopCurrentLine;
       }
     } finally {
+      __runFinalizing = true;
       try {
         await __stopAllNetworkSniffing('flow-ended');
       } catch (_sniffingError) {
@@ -1490,9 +1514,6 @@ module.exports = async function(appDir, flowId, quiet) {
         try { await _streamClient.send('Page.stopScreencast'); } catch(_e) {}
         try { await _streamClient.detach(); } catch(_e) {}
       }
-      if (_recordingLastshotPath && _lastScreencastFrame) {
-        try { fs.writeFileSync(_recordingLastshotPath, _lastScreencastFrame); } catch (_) {}
-      }
       if (_streamReconnectTimer) {
         clearTimeout(_streamReconnectTimer);
         _streamReconnectTimer = null;
@@ -1517,10 +1538,7 @@ module.exports = async function(appDir, flowId, quiet) {
           }
         } catch(_e) {}
       }
-      let _recordingFinalized = false;
-      if (_recorder) {
-        _recordingFinalized = await _recorder.stop();
-      }
+      const _recordingFinalized = await _stopRecorderOnce();
       if (!_recordingFinalized && _recordingLastshotPath) {
         try { fs.rmSync(_recordingLastshotPath, { force: true }); } catch (_) {}
       }

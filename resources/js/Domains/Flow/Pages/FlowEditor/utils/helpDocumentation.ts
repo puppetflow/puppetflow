@@ -27,7 +27,7 @@ const DOCUMENTATION_PAGE_GROUPS = [
     {
         path: '/reference/flow-api/files',
         names: new Set([
-            '$writeFile', '$download', '$downloadFromBrowser', '$waitForFile', '$upload',
+            '$writeFile', '$download', '$downloadFromBrowser', '$waitForFile', '$upload', '$clickUpload',
             '$unzipFile', '$scanDirectory', '$scanDownloadsDirectory', '$moveDownloadedFile',
             '$getDownloadsPathFile', '$pdfSearch', '$pdfGetText',
         ]),

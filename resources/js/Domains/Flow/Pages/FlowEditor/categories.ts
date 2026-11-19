@@ -68,8 +68,8 @@ export const HELP_CATEGORY_PAGES: HelpCategoryPage[] = [
         description: 'Fill forms, click buttons, scroll pages, and upload files.',
         icon: 'lucide:mouse-pointer-click',
         color: '#f97316',
-        priority: ['$fillInput', '$keyboardPress', '$keyboardShortcut', '$shadowInputFill', '$clickElement', '$clickElementAtIndex', '$clickAtCoordinates', '$scrollToElement', '$scrollByPixels', '$upload', '$keyboardSpeed'],
-        match: entry => (['Interaction', 'Selectors'].includes(entry.category) && !EXTRACT_DATA_HELPER_NAMES.includes(entry.name)) || entry.name === '$upload',
+        priority: ['$fillInput', '$keyboardPress', '$keyboardShortcut', '$shadowInputFill', '$clickElement', '$clickElementAtIndex', '$clickAtCoordinates', '$scrollToElement', '$scrollByPixels', '$upload', '$clickUpload', '$keyboardSpeed'],
+        match: entry => (['Interaction', 'Selectors'].includes(entry.category) && !EXTRACT_DATA_HELPER_NAMES.includes(entry.name)) || entry.name === '$upload' || entry.name === '$clickUpload',
     },
     {
         key: 'human',

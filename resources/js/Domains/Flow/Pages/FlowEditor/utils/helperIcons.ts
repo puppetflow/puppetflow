@@ -70,6 +70,7 @@ export const HELPER_ICON_BY_NAME: Record<string, string> = {
     $moveDownloadedFile: 'lucide:file-input',
     $getDownloadsPathFile: 'lucide:file-search',
     $upload: 'lucide:upload',
+    $clickUpload: 'lucide:folder-up',
     $unzipFile: 'lucide:archive',
     $pdfSearch: 'lucide:file-search',
     $pdfGetText: 'lucide:file-text',

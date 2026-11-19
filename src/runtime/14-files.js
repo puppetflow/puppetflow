@@ -1,4 +1,4 @@
-/* global __normalizeSelectionScopeArguments */
+/* global __normalizeSelectionScopeArguments, __selectorTextOptions, __humanPageOf */
 
 /* @help Files
  * @sig $writeFile(fileName, content, options?)
@@ -400,6 +400,29 @@ const $downloadFromBrowser = async function(fileUrl, destinationFilename, option
   return $getDownloadsPathFile(definitiveFilename);
 };
 
+const __resolveUploadFilePaths = async function(uploadFilenames, helperName) {
+  const filePaths = [];
+  for (const uploadFilename of uploadFilenames) {
+    if (!uploadFilename || typeof uploadFilename !== 'string') {
+      throw new Error(helperName + ': filename is required (got ' + typeof uploadFilename + ')');
+    }
+    // Media assets are staged in a private temporary directory for the duration of the upload.
+    const stagedMedia = /^media_[A-Za-z0-9]{12}$/.test(uploadFilename)
+      ? await __runnerOperations.mediaDownload({ media_id: uploadFilename })
+      : null;
+    if (stagedMedia) {
+      // Chromium may read the selected file only when the form is submitted.
+      _pendingCleanup.push(stagedMedia.directory);
+    }
+    const filePath = stagedMedia ? stagedMedia.path : $getDownloadsPathFile(uploadFilename);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(helperName + ': file not found: ' + filePath);
+    }
+    filePaths.push(filePath);
+  }
+  return filePaths;
+};
+
 /* @help Interaction
  * @sig $upload(fileInputSelectorOrHandle, uploadFilename, scope?, options?)
  * @aliases attach file, upload file, choose file
@@ -424,7 +447,6 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, scopeO
     throw new Error('$upload: filename is required (got ' + typeof uploadFilename + ')');
   }
   __emitAction('upload', uploadFilename);
-  const isMediaId = /^media_[A-Za-z0-9]{12}$/.test(uploadFilename);
   const isHandle = typeof fileInputSelectorOrHandle === 'object' && fileInputSelectorOrHandle !== null;
   const {
     timeout = 30000,
@@ -433,18 +455,7 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, scopeO
     visibleOnly = false,
     index = 0,
   } = options || {};
-  // Media assets are staged in a private temporary directory for the duration of the upload.
-  const stagedMedia = isMediaId
-    ? await __runnerOperations.mediaDownload({ media_id: uploadFilename })
-    : null;
-  if (stagedMedia) {
-    // Chromium may read the selected file only when the form is submitted.
-    _pendingCleanup.push(stagedMedia.directory);
-  }
-  const filePath = stagedMedia ? stagedMedia.path : $getDownloadsPathFile(uploadFilename);
-  if (!fs.existsSync(filePath)) {
-    throw new Error('$upload: file not found: ' + filePath);
-  }
+  const [filePath] = await __resolveUploadFilePaths([uploadFilename], '$upload');
   const selection = await __internalSelect(fileInputSelectorOrHandle, {
     timeout,
     gracefulTimeoutMessage,
@@ -459,6 +470,136 @@ const $upload = async function(fileInputSelectorOrHandle, uploadFilename, scopeO
   }
   await __retryOnContextDestroyed(() => input.uploadFile(filePath));
   console.debug('Uploaded', uploadFilename, 'to', isHandle ? '(handle)' : fileInputSelectorOrHandle);
+  return true;
+};
+
+// A hidden file input is opened by a visible control: its label, or the closest
+// clickable element around it, bounded by the scope so a neighbouring row's
+// button is never picked.
+const __uploadDialogTrigger = async function(handle, scopeHandle) {
+  const trigger = await handle.evaluateHandle((element, boundary) => {
+    if (element.tagName !== 'INPUT' || element.type !== 'file') return element;
+    const isVisible = node => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width >= 2 && rect.height >= 2
+        && style.visibility !== 'hidden'
+        && !/^rect\(0px,? 0px,? 0px,? 0px\)$/.test(style.clip);
+    };
+    if (isVisible(element)) return element;
+    const label = Array.from(element.labels || []).find(isVisible);
+    if (label) return label;
+    const clickable = 'button, [role="button"], label, a, [tabindex]:not([tabindex="-1"])';
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      const candidate = Array.from(node.querySelectorAll(clickable)).find(item => !item.disabled && isVisible(item));
+      if (candidate) return candidate;
+      if (node === boundary || node === document.body) break;
+    }
+    return element;
+  }, scopeHandle || null);
+  return trigger.asElement();
+};
+
+const __uploadDialogInput = async function(handle, scopeHandle) {
+  const input = await handle.evaluateHandle((element, boundary) => {
+    if (element.tagName === 'INPUT' && element.type === 'file') return element;
+    for (let node = element; node; node = node.parentElement) {
+      const fileInput = node.querySelector('input[type="file"]');
+      if (fileInput) return fileInput;
+      if (node === boundary || node === document.body) break;
+    }
+    return null;
+  }, scopeHandle || null);
+  return input.asElement();
+};
+
+/* @help Interaction
+ * @sig $clickUpload(triggerSelectorOrHandle, uploadFilename, scope?, options?)
+ * @aliases upload dialog, file chooser, browse file, pick file, click to upload
+ * @desc Click the element that opens the native file dialog, like a user, then pick a file from the run downloads or an authorized Media Library ID (`media_...`) in that dialog. Unlike $upload, which sets the file on the input silently, the page runs its own click and upload logic: use it when a site ignores files set by $upload. Target the button that opens the dialog, or the file input itself: a hidden input is opened through its label or the closest visible control, without relying on any text. Pass an array of filenames for multiple selection. Returns once the file is picked, before the page finishes uploading it.
+ * @nodal-desc Click the upload button like a user and pick a downloaded file or a Media Library item in the file dialog.
+ * @nodal-output boolean
+ * @opt timeout: 30000, dialogTimeout: 10000, fallbackToInput: false, gracefulTimeoutMessage: null, continueOnError: false, textMatch: null, textFilter: contains, textCaseSensitive: false, visibleOnly: false, index: 0
+ * @nodal-param triggerSelectorOrHandle [string, selector]: Element that opens the file dialog, or the file input itself.
+ * @nodal-param uploadFilename [media]: Media Library item, media ID, or a file name from the run downloads.
+ * @nodal-param scope [string, selector]: Optional CSS selector or ElementHandle used as the search root, such as the table row of the document. Leave empty to search the entire page.
+ * @nodal-placeholder scope: Entire page
+ * @nodal-param options: Dialog and selection options.
+ * @nodal-param options.timeout [number]: Maximum time to wait for the trigger element, in milliseconds.
+ * @nodal-param options.dialogTimeout [number]: Maximum time to wait for the file dialog after the click, in milliseconds.
+ * @nodal-param options.fallbackToInput [boolean]: Set the file on the nearest file input when no dialog opens.
+ * @nodal-param options.gracefulTimeoutMessage [string]: Human-readable error message to show when waiting for the trigger times out.
+ * @nodal-param options.continueOnError [boolean]: Continue the flow if the trigger is missing or no dialog opens.
+ * @nodal-param options.textMatch [string]: Text to match against the trigger's visible text.
+ * @nodal-param options.textFilter [string]: Text filter mode: contains, exact, startsWith, or endsWith.
+ * @nodal-param options.textCaseSensitive [boolean]: Preserve letter casing when matching text.
+ * @nodal-param options.visibleOnly [boolean]: Only use elements visible on the page.
+ * @nodal-param options.index [number]: Zero-based position to use when several triggers match.
+ */
+const $clickUpload = async function(triggerSelectorOrHandle, uploadFilename, scopeOrOptions, maybeOptions) {
+  const { scope, options } = __normalizeSelectionScopeArguments(scopeOrOptions, maybeOptions, '$clickUpload');
+  const uploadFilenames = Array.isArray(uploadFilename) ? uploadFilename : [uploadFilename];
+  if (uploadFilenames.length === 0) {
+    throw new Error('$clickUpload: at least one filename is required');
+  }
+  const isHandle = typeof triggerSelectorOrHandle === 'object' && triggerSelectorOrHandle !== null;
+  const triggerLabel = isHandle ? '(handle)' : triggerSelectorOrHandle;
+  __emitAction('clickUpload', uploadFilenames.join(', '));
+  const {
+    timeout = 30000,
+    dialogTimeout = 10000,
+    fallbackToInput = false,
+    gracefulTimeoutMessage = null,
+    continueOnError = false,
+    visibleOnly = false,
+    index = 0,
+  } = options;
+  const filePaths = await __resolveUploadFilePaths(uploadFilenames, '$clickUpload');
+
+  const selection = await __internalSelect(triggerSelectorOrHandle, {
+    ...__selectorTextOptions(options),
+    timeout,
+    gracefulTimeoutMessage,
+    continueOnError,
+    visibleOnly,
+    index,
+    scope,
+    timeoutLabel: triggerLabel,
+  });
+  if (!selection) return null;
+
+  const scopeHandle = typeof scope === 'string' ? await $page.$(scope) : scope;
+  const trigger = await __uploadDialogTrigger(selection.handle, scopeHandle);
+  const page = __humanPageOf(trigger);
+
+  let fileChooser = null;
+  try {
+    [fileChooser] = await Promise.all([
+      page.waitForFileChooser({ timeout: dialogTimeout }),
+      __retryOnContextDestroyed(() => __humanClickElement(trigger)),
+    ]);
+  } catch (error) {
+    if (!error || error.name !== 'TimeoutError') throw error;
+  }
+
+  if (fileChooser) {
+    if (filePaths.length > 1 && !fileChooser.isMultiple()) {
+      await fileChooser.cancel();
+      throw new Error('$clickUpload: the file dialog accepts a single file, got ' + filePaths.length);
+    }
+    await fileChooser.accept(filePaths);
+    console.debug('Picked', uploadFilenames.join(', '), 'in the file dialog opened by', triggerLabel);
+  } else if (fallbackToInput) {
+    const input = await __uploadDialogInput(selection.handle, scopeHandle);
+    if (!input) {
+      throw new Error('$clickUpload: no file dialog opened and no file input found near ' + triggerLabel);
+    }
+    await __retryOnContextDestroyed(() => input.uploadFile(...filePaths));
+    console.debug('No file dialog opened, set', uploadFilenames.join(', '), 'on the nearest file input');
+  } else {
+    if (continueOnError) return null;
+    throw new Error('$clickUpload: no file dialog opened within ' + dialogTimeout + 'ms after clicking ' + triggerLabel + '. Target the element that opens the dialog, or set fallbackToInput: true.');
+  }
   return true;
 };
 

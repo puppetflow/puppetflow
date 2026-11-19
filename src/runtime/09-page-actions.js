@@ -75,6 +75,18 @@ const $screenshot = async function(screenshotName, options = {}) {
   }
 };
 
+// Set when the worker terminates the run (timeout, cancellation): runtime waits that never touch
+// the browser (human validation, mailbox polling, $sleep) reject so run() unwinds to the
+// teardown (terminate(), recording finalization). Waits work again once the teardown started.
+let __runTerminationError = null;
+let __runFinalizing = false;
+const __pendingSleepAborts = new Set();
+const __abortRuntimeWaits = function(error) {
+  __runTerminationError = error;
+  for (const abort of __pendingSleepAborts) abort(error);
+  __pendingSleepAborts.clear();
+};
+
 /* @help Utility
  * @sig $sleep(milliseconds)
  * @aliases wait, pause flow, wait delay
@@ -83,7 +95,18 @@ const $screenshot = async function(screenshotName, options = {}) {
  * @nodal-param milliseconds [integer]: Time to wait before continuing, in milliseconds.
  */
 const __internalSleep = async function(ms) {
-  await new Promise(resolve => setTimeout(resolve, ms));
+  if (__runTerminationError && !__runFinalizing) throw __runTerminationError;
+  await new Promise((resolve, reject) => {
+    const abort = (error) => {
+      clearTimeout(timer);
+      reject(error);
+    };
+    const timer = setTimeout(() => {
+      __pendingSleepAborts.delete(abort);
+      resolve();
+    }, ms);
+    __pendingSleepAborts.add(abort);
+  });
 };
 const $sleep = async function(milliseconds) {
   __emitAction('sleep', ((milliseconds/1000).toFixed(1)+'s'));
