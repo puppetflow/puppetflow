@@ -38,7 +38,7 @@ final class PuppeteerEnvironmentBuilder
     ): array {
         $recordingEnabled = $this->features->enabled('recording_enabled');
         $workspace = $flow->workspace()->first([
-            'id', 'debug_log_object_depth', 'debug_log_array_limit',
+            'id', 'debug_log_object_depth', 'debug_log_array_limit', 'click_markers_enabled',
         ]);
         if ($workspace === null) {
             throw new \LogicException('Flow workspace could not be resolved.');
@@ -64,6 +64,8 @@ final class PuppeteerEnvironmentBuilder
             'EXPORT_ARTIFACTS_SCREENSHOTS' => ($flow->export_artifacts_screenshots ?? true) ? 'true' : 'false',
             'EXPORT_ARTIFACTS_RECORDING' => ($flow->export_artifacts_recording ?? true) ? 'true' : 'false',
             'RECORDING_ENABLED' => $recordingEnabled ? 'true' : 'false',
+            // Null on the flow inherits the workspace setting.
+            'FLOW_RUN_CLICK_MARKERS' => ($flow->click_markers_enabled ?? $workspace->click_markers_enabled ?? true) ? 'true' : 'false',
             'FLOW_RUN_SCREENCAST_QUALITY' => $this->scalarConfig('puppetflow.screencast_quality', '60'),
             'FLOW_RUN_SCREENCAST_NTH_FRAME' => $this->scalarConfig('puppetflow.screencast_nth_frame', '1'),
             'FLOW_RUN_AUDIO_CAPTURE' => filter_var(config('puppetflow.audio_capture_enabled', true), FILTER_VALIDATE_BOOL)

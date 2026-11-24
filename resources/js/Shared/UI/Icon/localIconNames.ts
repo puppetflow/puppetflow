@@ -195,6 +195,7 @@ export const localIconNames = new Set<string>([
     "lucide:more-vertical",
     "lucide:mouse",
     "lucide:mouse-pointer-2",
+    "lucide:mouse-pointer-ban",
     "lucide:mouse-pointer-click",
     "lucide:music",
     "lucide:network",

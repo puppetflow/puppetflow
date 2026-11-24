@@ -3,6 +3,7 @@ import { useForm, usePage } from '@inertiajs/react';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import Input from '@/Shared/UI/Input/Input';
 import Button from '@/Shared/UI/Button/Button';
+import Switch from '@/Shared/UI/Switch/Switch';
 import UserAgentInput from '@/Shared/UI/UserAgentInput/UserAgentInput';
 import LanguageSelect from '@/Shared/UI/LanguageSelect/LanguageSelect';
 import { formatBrowserLanguage } from '@/Shared/Utils/browserLanguages';
@@ -27,6 +28,7 @@ export default function BrowserSection({ workspace, readOnly, onDirtyChange }: P
         keyboard_speed: workspace.keyboard_speed ?? 100,
         default_user_agent: workspace.default_user_agent ?? '',
         default_language: workspace.default_language ?? '',
+        click_markers_enabled: workspace.click_markers_enabled ?? true,
     });
     useDirtyReport(form.isDirty, onDirtyChange);
 
@@ -93,6 +95,16 @@ export default function BrowserSection({ workspace, readOnly, onDirtyChange }: P
             />
             <S.FieldHint>
                 Language the browser asks websites for (Accept-Language and navigator.language) in all flows of this workspace. Can be overridden per flow. Some websites ignore it and pick a language from the IP address or the account instead; use a proxy in the target country for those.
+            </S.FieldHint>
+            <Switch
+                id="click_markers_enabled"
+                checked={form.data.click_markers_enabled}
+                onChange={value => form.setData('click_markers_enabled', value)}
+                label="Show click animations"
+                disabled={readOnly}
+            />
+            <S.FieldHint>
+                Draw a ripple where automated clicks land, in run replays and the live view. Can be overridden per flow.
             </S.FieldHint>
             {!readOnly && (
                 <S.FormActions>

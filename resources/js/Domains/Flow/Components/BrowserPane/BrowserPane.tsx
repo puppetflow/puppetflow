@@ -94,7 +94,9 @@ export default function BrowserPane({
                 workspaceTree={workspaceTree}
                 teamTrees={teamTrees}
                 canvasRef={stream.canvasRef}
+                clicks={stream.clicks}
                 connect={stream.connect}
+                dismissClick={stream.dismissClick}
                 error={stream.error}
                 isRunning={isRunning}
                 legend={legend}

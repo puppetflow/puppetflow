@@ -1145,6 +1145,14 @@ function isProducerMessage(message) {
                 ? message.activeTabName === null
                 : isTabName(message.activeTabName) && message.tabs.includes(message.activeTabName));
     }
+    if (message.type === 'click') {
+        return isCoordinate(message.x)
+            && isCoordinate(message.y)
+            && ['left', 'middle', 'right'].includes(message.button)
+            && Number.isFinite(message.viewportWidth) && message.viewportWidth > 0
+            && Number.isFinite(message.viewportHeight) && message.viewportHeight > 0
+            && isTabName(message.tabName);
+    }
     if (message.type === 'clipboard') {
         return typeof message.text === 'string'
             && Buffer.byteLength(message.text) <= CLIENT_MAX_PAYLOAD

@@ -3,7 +3,8 @@ import { Icon } from '@/Shared/UI/Icon/Icon';
 import type { ActionLogEntry } from '@/Domains/Flow/types';
 import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
 import RecordingPlayer from '@proprietary/Domains/Flow/Components/RecordingPlayer/RecordingPlayer.pp';
-import type { ConnectionStatus } from '@/Domains/Flow/Components/BrowserPane/hooks/useBrowserStream';
+import type { ConnectionStatus, StreamClick } from '@/Domains/Flow/Components/BrowserPane/hooks/useBrowserStream';
+import ClickRipples from '@/Domains/Flow/Components/BrowserPane/components/ClickRipples/ClickRipples';
 import * as S from './styled';
 
 const STATUS_ICON: Record<ConnectionStatus, string> = {
@@ -19,7 +20,9 @@ interface BrowserViewportStateProps {
     actionLogs?: ActionLogEntry[] | null;
     flowId: Id;
     canvasRef: RefObject<HTMLCanvasElement | null>;
+    clicks: StreamClick[];
     connect: () => void;
+    dismissClick: (id: number) => void;
     error: string | null;
     isRunning: boolean;
     legend?: string | null;
@@ -39,7 +42,9 @@ export default function BrowserViewportState({
     actionLogs,
     flowId,
     canvasRef,
+    clicks,
     connect,
+    dismissClick,
     error,
     isRunning,
     legend,
@@ -114,6 +119,13 @@ export default function BrowserViewportState({
                 tabIndex={0}
                 $visible={showCanvas}
             />
+            {showCanvas && (
+                <ClickRipples
+                    canvasRef={canvasRef}
+                    clicks={clicks}
+                    onDone={dismissClick}
+                />
+            )}
         </S.Viewport>
     );
 }

@@ -194,6 +194,7 @@ class FlowSearchApiController extends Controller
             'user_agent' => $flow->user_agent,
             'language' => $flow->language,
             'disable_web_security' => $flow->disable_web_security,
+            'click_markers_enabled' => $flow->click_markers_enabled,
             'finally_enabled' => $flow->finally_enabled,
             'library_locked' => $flow->library_locked,
             'library_namespace' => $flow->library_namespace,

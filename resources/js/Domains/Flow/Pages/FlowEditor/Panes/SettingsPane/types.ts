@@ -26,6 +26,7 @@ export interface SettingsFormData {
     user_agent: string;
     language: string;
     disable_web_security: boolean;
+    click_markers_enabled: boolean | null;
     finally_enabled: boolean;
 }
 

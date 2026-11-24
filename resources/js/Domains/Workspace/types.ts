@@ -21,6 +21,7 @@ export interface Workspace {
     keyboard_speed: number;
     default_user_agent: string | null;
     default_language: string | null;
+    click_markers_enabled: boolean;
     debug_log_object_depth: number;
     debug_log_array_limit: number;
     allow_trigger_advertising: boolean;

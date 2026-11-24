@@ -16,7 +16,7 @@ export const DEFAULT_OPEN_GROUPS: SettingsGroupId[] = ['general'];
 export const GROUP_FIELDS: Record<SettingsGroupId, (keyof SettingsFormData)[]> = {
     general: ['name', 'description'],
     execution: ['queue_index', 'timeout_seconds', 'operator_seconds', 'max_retries', 'runs_retention_limit', 'finally_enabled'],
-    browser: ['viewport_width', 'viewport_height', 'keyboard_speed', 'user_agent', 'language', 'disable_web_security'],
+    browser: ['viewport_width', 'viewport_height', 'keyboard_speed', 'user_agent', 'language', 'click_markers_enabled', 'disable_web_security'],
     proxy: ['proxy_mode', 'workspace_proxy_id', 'proxy_filter_rules'],
     output: [
         'include_raw_output',

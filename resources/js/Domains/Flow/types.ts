@@ -60,6 +60,7 @@ export interface Flow {
     user_agent: string | null;
     language: string | null;
     disable_web_security: boolean | null;
+    click_markers_enabled: boolean | null;
     finally_enabled: boolean;
     source_type: 'code' | 'repository' | 'library';
     flow_type: 'code' | 'nodal';

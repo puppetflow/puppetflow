@@ -12,6 +12,14 @@ interface UseBrowserStreamOptions {
     runId: number;
 }
 
+export interface StreamClick {
+    id: number;
+    x: number;
+    y: number;
+    viewportWidth: number;
+    viewportHeight: number;
+}
+
 type PendingBinary =
     | { kind: 'frame'; deviceWidth: number; deviceHeight: number; tabName?: string }
     | { kind: 'audio'; meta: AudioChunkMeta };
@@ -76,6 +84,7 @@ export function useBrowserStream({
     const canInteractRef = useRef(false);
     const activeTabNameRef = useRef<string | null>(null);
     const tabUrlsRef = useRef(new Map<string, string>());
+    const nextClickIdRef = useRef(0);
 
     const [status, setStatus] = useState<ConnectionStatus>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -84,6 +93,7 @@ export function useBrowserStream({
     const [tabs, setTabs] = useState<string[]>([]);
     const [activeTabName, setActiveTabName] = useState<string | null>(null);
     const [canControl, setCanControl] = useState(false);
+    const [clicks, setClicks] = useState<StreamClick[]>([]);
 
     activeRef.current = active;
     isRunningRef.current = isRunning;
@@ -261,6 +271,23 @@ export function useBrowserStream({
                                 setUrlInput(message.url);
                             }
                         }
+                    } else if (
+                        message.type === 'click'
+                        && message.tabName === activeTabNameRef.current
+                        && Number.isFinite(message.x)
+                        && Number.isFinite(message.y)
+                        && message.viewportWidth > 0
+                        && message.viewportHeight > 0
+                    ) {
+                        nextClickIdRef.current += 1;
+                        const click: StreamClick = {
+                            id: nextClickIdRef.current,
+                            x: message.x,
+                            y: message.y,
+                            viewportWidth: message.viewportWidth,
+                            viewportHeight: message.viewportHeight,
+                        };
+                        setClicks(current => [...current, click]);
                     } else if (message.type === 'clipboard' && typeof message.text === 'string') {
                         navigator.clipboard?.writeText(message.text).catch(() => {});
                     }
@@ -317,6 +344,7 @@ export function useBrowserStream({
         activeTabNameRef.current = null;
         canInteractRef.current = false;
         tabUrlsRef.current.clear();
+        setClicks([]);
         setTabs([]);
         setActiveTabName(null);
         setCurrentUrl('');
@@ -351,12 +379,18 @@ export function useBrowserStream({
         urlFocusedRef.current = focused;
     }, []);
 
+    const dismissClick = useCallback((id: number) => {
+        setClicks(current => current.filter(click => click.id !== id));
+    }, []);
+
     return {
         canvasRef,
         activeTabName,
         canControl,
         canInteractRef,
+        clicks,
         connect,
+        dismissClick,
         currentUrl,
         error,
         metaRef,

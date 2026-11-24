@@ -71,6 +71,7 @@ class UpdateFlowRequest extends FormRequest
             'user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
             'language' => BrowserLanguage::rules(),
             'disable_web_security' => ['sometimes', 'boolean'],
+            'click_markers_enabled' => ['sometimes', 'nullable', 'boolean'],
             'finally_enabled' => ['sometimes', 'boolean'],
             'default_inputs' => ['sometimes', 'nullable', 'array'],
             'icon_type' => ['sometimes', 'in:emoji,color,upload'],

@@ -66,6 +66,7 @@ export function useSettingsLimits(flow: Flow) {
             height: currentWorkspace?.viewport_height ?? 720,
         },
         wsKeyboardSpeed: currentWorkspace?.keyboard_speed ?? 100,
+        wsClickMarkersEnabled: currentWorkspace?.click_markers_enabled ?? true,
         // Inherited value shown as placeholder: workspace default, then instance default (BROWSER_USER_AGENT).
         wsUserAgent: currentWorkspace?.default_user_agent || settings.default_user_agent || '',
         // Inherited browser language: workspace default, then instance default (BROWSER_LANGUAGE).

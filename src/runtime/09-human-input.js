@@ -1,4 +1,4 @@
-/* global $viewportWidth, $viewportHeight */
+/* global $viewportWidth, $viewportHeight, __onHumanClick */
 
 // Human-like input. A person moves the pointer along a curve before clicking,
 // holds the button for a few tens of milliseconds, lands off-centre, types at
@@ -70,6 +70,7 @@ const __humanClickAt = async function(page, x, y, options = {}) {
   await __internalSleep(__humanJitterMs(70, 0.6));
   for (let count = 1; count <= clickCount; count++) {
     await page.mouse.down({ button, clickCount: count });
+    if (count === 1) __onHumanClick(page, x, y, button);
     await __internalSleep(__humanJitterMs(75, 0.5));
     await page.mouse.up({ button, clickCount: count });
     if (count < clickCount) await __internalSleep(__humanJitterMs(90, 0.4));

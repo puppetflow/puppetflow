@@ -179,6 +179,7 @@ class WorkspaceApiController extends Controller
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
             'default_language' => BrowserLanguage::rules(),
+            'click_markers_enabled' => ['sometimes', 'boolean'],
             'icon_type' => ['sometimes', Rule::in(['emoji', 'color'])],
             'icon_value' => ['nullable', 'string', 'max:100'],
             'icon_color' => ['nullable', 'string', 'max:7'],
@@ -262,6 +263,7 @@ class WorkspaceApiController extends Controller
                 'keyboard_speed' => $workspace->keyboard_speed,
                 'default_user_agent' => $workspace->default_user_agent,
                 'default_language' => $workspace->default_language,
+                'click_markers_enabled' => (bool) $workspace->click_markers_enabled,
                 'allow_trigger_advertising' => (bool) $workspace->allow_trigger_advertising,
                 'flow_run_access_follows_visibility' => (bool) $workspace->flow_run_access_follows_visibility,
                 'require_two_factor' => $this->features->enabled('two_factor_enforcement_enabled')

@@ -86,6 +86,7 @@ export default function SettingsPane({
         user_agent: flow.user_agent ?? '',
         language: flow.language ?? '',
         disable_web_security: flow.disable_web_security ?? false,
+        click_markers_enabled: flow.click_markers_enabled ?? null,
         finally_enabled: flow.finally_enabled ?? false,
     };
     const settingsForm = useForm<SettingsFormData>(initialData);
@@ -204,7 +205,7 @@ export default function SettingsPane({
                     <CollapsibleSection
                         icon="lucide:monitor"
                         title="Browser"
-                        description="Viewport, keyboard speed, user agent and language"
+                        description="Viewport, keyboard speed, user agent, language and click animations"
                         {...groupProps('browser')}
                     >
                         <BrowserSection
@@ -213,6 +214,7 @@ export default function SettingsPane({
                             keyboardSpeed={limits.wsKeyboardSpeed}
                             userAgent={limits.wsUserAgent}
                             language={limits.wsLanguage}
+                            clickMarkersEnabled={limits.wsClickMarkersEnabled}
                         />
                     </CollapsibleSection>
 

@@ -490,6 +490,7 @@ module.exports = async function(appDir, flowId, quiet) {
     let __activeTabName = 'Default';
     let __onActivePageChanged = async () => {};
     let __onNamedPagesChanged = async () => {};
+    let __onHumanClick = () => {};
     let __namedPageViewport = { width: _vpW, height: _vpH };
     let __streamOperationQueue = Promise.resolve();
     const __runStreamOperation = operation => {
@@ -717,6 +718,8 @@ module.exports = async function(appDir, flowId, quiet) {
     const _recordingLastshotPath = _recordingPath ? _recordingPath.replace(/[^/]+$/, 'lastshot.jpg') : null;
     // Page audio capture (live view sound + recording audio track)
     const _audioCaptureEnabled = process.env.FLOW_RUN_AUDIO_CAPTURE !== 'false';
+    // Click ripples in the recording and the live view
+    const _clickMarkersEnabled = process.env.FLOW_RUN_CLICK_MARKERS !== 'false';
     let _audioCaptureModule = null;
     if (_audioCaptureEnabled) {
       try {
@@ -1162,6 +1165,28 @@ module.exports = async function(appDir, flowId, quiet) {
             });
           return _streamRebindQueue;
         };
+        // Only the active tab is screencast, so clicks elsewhere are not drawn.
+        // $page is a proxy that always resolves to the active tab.
+        __onHumanClick = (page, x, y, button) => {
+          if (!_clickMarkersEnabled || _streamRunEnded || (page !== $page && page !== __activePage)) return;
+          try {
+            const viewport = page.viewport() || { width: _vpW, height: _vpH };
+            if (_recorder) {
+              _recorder.markClick({ x, y, viewportWidth: viewport.width, viewportHeight: viewport.height });
+            }
+            if (_streamWs && _streamWs.readyState === 1) {
+              _sendStream(JSON.stringify({
+                type: 'click',
+                x,
+                y,
+                button,
+                viewportWidth: viewport.width,
+                viewportHeight: viewport.height,
+                tabName: __activeTabName,
+              }));
+            }
+          } catch (_) {}
+        };
 
         if (_audioCaptureModule) {
           try {
@@ -1378,7 +1403,15 @@ module.exports = async function(appDir, flowId, quiet) {
         if (_recordingLastshotPath && _lastScreencastFrame) {
           try { fs.writeFileSync(_recordingLastshotPath, _lastScreencastFrame); } catch (_) {}
         }
-        _recorderStopPromise = _recorder.stop().catch(() => false);
+        // The click marker pass re-encodes the replay after the flow ended; it
+        // must finish before the worker's own timeout, and never during shutdown.
+        const _flowTimeoutMs = Number(process.env.FLOW_TIMEOUT_MS);
+        _recorderStopPromise = _recorder.stop({
+          skipClickOverlay: _terminationSignalHandled,
+          clickOverlayDeadline: _flowTimeoutMs > 0
+            ? Date.now() - process.uptime() * 1000 + _flowTimeoutMs - 15000
+            : null,
+        }).catch(() => false);
       }
       return _recorderStopPromise;
     };
@@ -1389,6 +1422,7 @@ module.exports = async function(appDir, flowId, quiet) {
     const _handleTerminationSignal = () => {
       if (_terminationSignalHandled) return;
       _terminationSignalHandled = true;
+      if (_recorder) _recorder.cancelClickOverlay();
       try { __flushActionLogs(true); } catch (_) {}
       try { __abortRuntimeWaits(new Error('Run terminated by the worker.')); } catch (_) {}
       const _forceExitTimer = setTimeout(async () => {

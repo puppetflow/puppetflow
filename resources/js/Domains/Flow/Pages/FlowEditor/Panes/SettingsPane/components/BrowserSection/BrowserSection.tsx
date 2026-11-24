@@ -1,5 +1,7 @@
 import Input from '@/Shared/UI/Input/Input';
+import * as Shared from '@/Shared/UI/Input/shared.styled';
 import Switch from '@/Shared/UI/Switch/Switch';
+import CustomSelect, { type CustomSelectOption } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodeConfigModal/components/CustomSelect/CustomSelect';
 import UserAgentInput from '@/Shared/UI/UserAgentInput/UserAgentInput';
 import LanguageSelect from '@/Shared/UI/LanguageSelect/LanguageSelect';
 import { formatBrowserLanguage } from '@/Shared/Utils/browserLanguages';
@@ -13,10 +15,37 @@ interface BrowserSectionProps {
     keyboardSpeed: SettingsLimits['wsKeyboardSpeed'];
     userAgent: SettingsLimits['wsUserAgent'];
     language: SettingsLimits['wsLanguage'];
+    clickMarkersEnabled: SettingsLimits['wsClickMarkersEnabled'];
 }
 
-export default function BrowserSection({ form, viewport, keyboardSpeed, userAgent, language }: BrowserSectionProps) {
+type ClickMarkersChoice = 'inherit' | 'on' | 'off';
+
+export default function BrowserSection({ form, viewport, keyboardSpeed, userAgent, language, clickMarkersEnabled }: BrowserSectionProps) {
     const inheritedLanguage = formatBrowserLanguage(language);
+    const clickMarkersValue: ClickMarkersChoice = form.data.click_markers_enabled === null
+        ? 'inherit'
+        : form.data.click_markers_enabled ? 'on' : 'off';
+    const clickMarkersOptions: CustomSelectOption<ClickMarkersChoice>[] = [
+        {
+            value: 'inherit',
+            label: `Workspace default (${clickMarkersEnabled ? 'shown' : 'hidden'})`,
+            detail: 'Follows the workspace browser settings',
+            icon: 'lucide:corner-left-up',
+        },
+        {
+            value: 'on',
+            label: 'Show click animations',
+            detail: 'Ripple drawn in the replay and the live view',
+            icon: 'lucide:mouse-pointer-click',
+            dividerBefore: true,
+        },
+        {
+            value: 'off',
+            label: 'Hide click animations',
+            detail: 'Raw recording, no overlay',
+            icon: 'lucide:mouse-pointer-ban',
+        },
+    ];
     return (
         <>
             <S.ViewportRow>
@@ -75,6 +104,23 @@ export default function BrowserSection({ form, viewport, keyboardSpeed, userAgen
             />
             <S.SettingsHint>
                 Language the browser asks websites for (Accept-Language and navigator.language). Inherits the workspace default, then the instance default. Some websites ignore it and pick a language from the IP address or the account instead; use a proxy in the target country for those.
+            </S.SettingsHint>
+
+            <Shared.Wrapper $fullWidth>
+                <Shared.Label as="span">Click animations</Shared.Label>
+                <CustomSelect<ClickMarkersChoice>
+                    value={clickMarkersValue}
+                    options={clickMarkersOptions}
+                    searchThreshold={8}
+                    showOptionValue={false}
+                    ariaLabel="Click animations"
+                    invalid={Boolean(form.errors.click_markers_enabled)}
+                    onChange={value => form.setData('click_markers_enabled', value === 'inherit' ? null : value === 'on')}
+                />
+                {form.errors.click_markers_enabled && <Shared.Error>{form.errors.click_markers_enabled}</Shared.Error>}
+            </Shared.Wrapper>
+            <S.SettingsHint>
+                Draw a ripple where automated clicks land, in the run replay and the live view.
             </S.SettingsHint>
 
             <Switch

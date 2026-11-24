@@ -47,6 +47,7 @@ use Illuminate\Validation\ValidationException;
  * @property array<array-key, mixed>|null $proxy_filter_rules
  * @property bool $export_artifacts_recording
  * @property bool $finally_enabled
+ * @property bool|null $click_markers_enabled
  * @property int $manual_run_score
  * @property bool $manual_run_production_mode
  * @property array<string, mixed>|null $manual_run_score_state
@@ -121,6 +122,7 @@ class Flow extends Model
         'user_agent',
         'language',
         'disable_web_security',
+        'click_markers_enabled',
         'finally_enabled',
         'last_run_result',
         'last_run_at',
@@ -186,6 +188,7 @@ class Flow extends Model
             'viewport_height' => 'integer',
             'keyboard_speed' => 'integer',
             'disable_web_security' => 'boolean',
+            'click_markers_enabled' => 'boolean',
             'finally_enabled' => 'boolean',
             'cookie_generation' => 'integer',
             'library_imported_at' => 'datetime',

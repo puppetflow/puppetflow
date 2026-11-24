@@ -42,7 +42,7 @@ export default function FlowsSettingsTab({ workspace, readOnly }: Props) {
             <CollapsibleSection
                 icon="lucide:monitor"
                 title="Browser"
-                description="Default viewport, keyboard speed, user agent and language inherited by every flow"
+                description="Default viewport, keyboard speed, user agent, language and click animations inherited by every flow"
                 docPath="/guide/workspaces#browser"
                 docLabel="Open browser settings documentation"
                 {...groupProps('browser')}

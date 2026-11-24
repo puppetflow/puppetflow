@@ -44,6 +44,7 @@ class UpdateWorkspaceRequest extends FormRequest
             'keyboard_speed' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'default_user_agent' => ['sometimes', 'nullable', 'string', 'max:512', 'regex:/^[\x20-\x7E]+$/'],
             'default_language' => BrowserLanguage::rules(),
+            'click_markers_enabled' => ['sometimes', 'boolean'],
             'debug_log_object_depth' => ['sometimes', 'integer', 'between:0,20'],
             'debug_log_array_limit' => ['sometimes', 'integer', 'between:1,1000'],
             'icon_type' => ['sometimes', 'in:emoji,color,upload'],

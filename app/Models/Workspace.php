@@ -34,6 +34,7 @@ use Illuminate\Support\Str;
  * @property bool $require_two_factor
  * @property string|null $default_user_agent
  * @property string|null $default_language
+ * @property bool $click_markers_enabled
  */
 class Workspace extends Model
 {
@@ -48,6 +49,7 @@ class Workspace extends Model
         'default_flow_timeout_seconds', 'max_flow_timeout_seconds',
         'max_retries_default', 'max_retries_max',
         'viewport_width', 'viewport_height', 'keyboard_speed', 'default_user_agent', 'default_language',
+        'click_markers_enabled',
         'debug_log_object_depth', 'debug_log_array_limit',
         'allow_trigger_advertising',
         'flow_run_access_follows_visibility',
@@ -68,6 +70,7 @@ class Workspace extends Model
             'viewport_width' => 'integer',
             'viewport_height' => 'integer',
             'keyboard_speed' => 'integer',
+            'click_markers_enabled' => 'boolean',
             'debug_log_object_depth' => 'integer',
             'debug_log_array_limit' => 'integer',
             'allow_trigger_advertising' => 'boolean',

@@ -205,6 +205,7 @@ class ApiDocController extends Controller
                             'user_agent' => ['type' => 'string', 'nullable' => true],
                             'language' => ['type' => 'string', 'nullable' => true, 'description' => 'Browser language as comma-separated BCP 47 tags. Null inherits the workspace default.'],
                             'disable_web_security' => ['type' => 'boolean'],
+                            'click_markers_enabled' => ['type' => 'boolean', 'nullable' => true, 'description' => 'Draw a ripple where automated clicks land, in the replay and the live view. Null inherits the workspace setting.'],
                             'finally_enabled' => ['type' => 'boolean'],
                             'library_locked' => ['type' => 'boolean'],
                             'library_namespace' => ['type' => 'string', 'nullable' => true],
@@ -323,6 +324,7 @@ class ApiDocController extends Controller
                                     'keyboard_speed' => ['type' => 'integer'],
                                     'default_user_agent' => ['type' => 'string', 'nullable' => true],
                                     'default_language' => ['type' => 'string', 'nullable' => true],
+                                    'click_markers_enabled' => ['type' => 'boolean'],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
                                     'flow_run_access_follows_visibility' => ['type' => 'boolean'],
                                     'require_two_factor' => [
@@ -375,6 +377,7 @@ class ApiDocController extends Controller
                             'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
                             'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
                             'default_language' => ['type' => 'string', 'nullable' => true, 'maxLength' => 64, 'description' => 'Default browser language as comma-separated BCP 47 tags, for example "fr-FR,fr". Sets Accept-Language and navigator.language; websites may still choose a language from the IP address.'],
+                            'click_markers_enabled' => ['type' => 'boolean', 'description' => 'Draw a ripple where automated clicks land, in run replays and the live view. Flows can override it.'],
                             'icon_type' => ['type' => 'string', 'enum' => ['emoji', 'color']],
                             'icon_value' => ['type' => 'string', 'nullable' => true, 'maxLength' => 100],
                             'icon_color' => ['type' => 'string', 'nullable' => true, 'maxLength' => 7],
@@ -400,6 +403,7 @@ class ApiDocController extends Controller
                                     'keyboard_speed' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000],
                                     'default_user_agent' => ['type' => 'string', 'nullable' => true, 'maxLength' => 512],
                                     'default_language' => ['type' => 'string', 'nullable' => true, 'maxLength' => 64],
+                                    'click_markers_enabled' => ['type' => 'boolean'],
                                     'allow_trigger_advertising' => ['type' => 'boolean'],
                                     'flow_run_access_follows_visibility' => ['type' => 'boolean'],
                                     'require_two_factor' => [
