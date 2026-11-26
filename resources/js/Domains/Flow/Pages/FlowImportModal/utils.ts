@@ -1,5 +1,11 @@
 import type { VisibilityPickerValue } from '@proprietary/Domains/Flow/Components/VisibilityPicker/VisibilityPicker.pp';
 import type { FormDataConvertible } from '@inertiajs/core';
+import type { NodalGraph } from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/types';
+import {
+    labelFromCode as labelFromSnippetCode,
+    parseSnippetSource,
+    titleFromBaseName as titleFromSnippetBaseName,
+} from '@/Domains/Snippet/Pages/SnippetImportModal/utils';
 import {
     inputDefinitionsToDefaults,
     parseCodeInputDefinitions,
@@ -8,13 +14,27 @@ import {
     type ExportedMailboxWatcherSchema,
 } from '@/Domains/Flow/Utils/flowInputsMetadata';
 
+export type ImportedSnippetSchema = {
+    source_id: string;
+    label: string;
+    description: string | null;
+    args: string;
+    code: string;
+    snippet_type: 'code' | 'nodal';
+    nodal_graph: NodalGraph | null;
+};
+
 export type ParsedFlowFile = {
     code: string;
     flowType: 'code' | 'nodal';
     nodalGraph: { nodes: FormDataConvertible[]; edges: FormDataConvertible[] } | null;
     dataTables: ExportedDataTableSchema[];
     mailboxWatchers: ExportedMailboxWatcherSchema[];
+    snippets: ImportedSnippetSchema[];
 };
+
+const FLOW_FILE_PATTERN = /\.(js|mjs|json|txt)$/i;
+const SNIPPET_FILE_PATTERN = /^snippets\/([^/]+)\.(js|mjs|json)$/i;
 
 const DATA_TABLE_COLUMN_TYPES = new Set(['string', 'number', 'boolean', 'datetime']);
 const WATCHER_RULE_FIELDS = new Set(['body', 'subject', 'to', 'from', 'has_attachments', 'size']);
@@ -303,6 +323,7 @@ export function parseFlowFile(content: string, fileName: string): ParsedFlowFile
                 nodalGraph,
                 dataTables: dataTablesFromJson(decoded),
                 mailboxWatchers: mailboxWatchersFromJson(decoded),
+                snippets: [],
             };
         }
 
@@ -315,6 +336,58 @@ export function parseFlowFile(content: string, fileName: string): ParsedFlowFile
         nodalGraph: null,
         dataTables: dataTablesFromCode(content),
         mailboxWatchers: mailboxWatchersFromCode(content),
+        snippets: [],
+    };
+}
+
+function parseArchiveSnippet(path: string, sourceId: string, content: string): ImportedSnippetSchema {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(sourceId)) {
+        throw new Error(`The snippet file "${path}" must be named after the snippet ID it replaces.`);
+    }
+
+    let parsed;
+    try {
+        parsed = parseSnippetSource(content, path);
+    } catch (error) {
+        throw new Error(`${path}: ${error instanceof Error ? error.message : 'unable to read this snippet.'}`);
+    }
+
+    return {
+        source_id: sourceId,
+        label: parsed.metadata.title || labelFromSnippetCode(content, titleFromSnippetBaseName(sourceId)),
+        description: parsed.metadata.description || null,
+        args: parsed.metadata.args || '',
+        code: parsed.code,
+        snippet_type: parsed.snippetType,
+        nodal_graph: parsed.nodalGraph,
+    };
+}
+
+// Reads a flow download archive: one flow file at its root and the snippets it calls under snippets/.
+export function parseFlowArchive(files: { path: string; content: string }[]) {
+    const entries = files.filter(file => (
+        !file.path.startsWith('__MACOSX/')
+        && !file.path.split('/').some(segment => segment.startsWith('.'))
+    ));
+    const roots = new Set(entries.map(file => file.path.split('/')[0]));
+    const wrapper = roots.size === 1 && entries.every(file => file.path.includes('/')) ? `${[...roots][0]}/` : '';
+    const relative = entries.map(file => ({ ...file, path: file.path.slice(wrapper.length) }));
+
+    const flowFiles = relative.filter(file => !file.path.includes('/') && FLOW_FILE_PATTERN.test(file.path));
+    if (flowFiles.length !== 1) {
+        throw new Error('The ZIP archive must contain exactly one flow file (.js or .json) at its root.');
+    }
+    const [flowFile] = flowFiles;
+
+    const snippets = relative.flatMap(file => {
+        const match = file.path.match(SNIPPET_FILE_PATTERN);
+        return match ? [parseArchiveSnippet(file.path, match[1], file.content)] : [];
+    });
+
+    return {
+        fileName: flowFile.path,
+        content: flowFile.content,
+        parsed: { ...parseFlowFile(flowFile.content, flowFile.path), snippets },
     };
 }
 

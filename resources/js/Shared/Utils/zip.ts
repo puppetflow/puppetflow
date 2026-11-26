@@ -108,3 +108,54 @@ export const createZipBlob = (files: ZipTextFile[]) => {
 
     return new Blob([new Uint8Array(output)], { type: 'application/zip' });
 };
+
+const decoder = new TextDecoder();
+
+const inflateRaw = async (bytes: Uint8Array<ArrayBuffer>) => {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+};
+
+// Reads the text files of a ZIP archive (stored or deflated entries; directories are skipped).
+export const readZipTextFiles = async (data: ArrayBuffer): Promise<ZipTextFile[]> => {
+    const bytes = new Uint8Array(data);
+    const view = new DataView(data);
+    let endOffset = -1;
+    for (let offset = bytes.length - 22; offset >= Math.max(0, bytes.length - 65557); offset -= 1) {
+        if (view.getUint32(offset, true) === 0x06054b50) {
+            endOffset = offset;
+            break;
+        }
+    }
+    if (endOffset < 0) throw new Error('This file is not a valid ZIP archive.');
+
+    const entryCount = view.getUint16(endOffset + 10, true);
+    let offset = view.getUint32(endOffset + 16, true);
+    const files: ZipTextFile[] = [];
+
+    for (let index = 0; index < entryCount; index += 1) {
+        if (view.getUint32(offset, true) !== 0x02014b50) throw new Error('This ZIP archive is corrupted.');
+        const method = view.getUint16(offset + 10, true);
+        const compressedSize = view.getUint32(offset + 20, true);
+        const nameLength = view.getUint16(offset + 28, true);
+        const extraLength = view.getUint16(offset + 30, true);
+        const commentLength = view.getUint16(offset + 32, true);
+        const localHeaderOffset = view.getUint32(offset + 42, true);
+        const path = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
+        offset += 46 + nameLength + extraLength + commentLength;
+
+        if (path.endsWith('/')) continue;
+        if (method !== 0 && method !== 8) throw new Error(`Unsupported compression for "${path}" in this ZIP archive.`);
+
+        const localNameLength = view.getUint16(localHeaderOffset + 26, true);
+        const localExtraLength = view.getUint16(localHeaderOffset + 28, true);
+        const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+        const content = bytes.subarray(dataStart, dataStart + compressedSize);
+        files.push({
+            path,
+            content: decoder.decode(method === 8 ? await inflateRaw(content) : content),
+        });
+    }
+
+    return files;
+};

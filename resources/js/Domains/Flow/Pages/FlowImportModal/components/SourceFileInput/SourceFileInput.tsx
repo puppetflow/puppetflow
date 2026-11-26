@@ -13,9 +13,9 @@ export default function SourceFileInput({
 }: Props) {
     return (
         <FileDropZone
-            title={fileName || 'Drop a JavaScript or JSON flow file here'}
-            hint="or click to choose a file. JavaScript imports as raw code, JSON imports as Visual Builder graph."
-            accept=".js,.mjs,.json,.txt,text/javascript,application/javascript,application/json,text/plain"
+            title={fileName || 'Drop a JavaScript, JSON or ZIP flow file here'}
+            hint="or click to choose a file. JavaScript imports as raw code, JSON imports as Visual Builder graph, ZIP imports a downloaded flow with its snippets."
+            accept=".js,.mjs,.json,.txt,.zip,text/javascript,application/javascript,application/json,text/plain,application/zip"
             hasError={hasError}
             onFiles={([file]) => void onFile(file)}
         />

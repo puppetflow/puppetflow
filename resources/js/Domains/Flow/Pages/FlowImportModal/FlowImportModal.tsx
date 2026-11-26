@@ -10,6 +10,8 @@ import CreateMailboxModal from '@/Domains/Mailbox/Pages/CreateMailboxModal/Creat
 import type { CreatedMailbox, MailboxDomain } from '@/Domains/Mailbox/types';
 import type { VisibilityPickerValue } from '@proprietary/Domains/Flow/Components/VisibilityPicker/VisibilityPicker.pp';
 import { useResetOnOpen } from '@/Shared/Hooks/useResetOnOpen';
+import { csrfHeaders } from '@/Shared/Utils/csrf';
+import { readZipTextFiles } from '@/Shared/Utils/zip';
 import type { FolderTree, TeamTree } from '@/Domains/Folder/types';
 import FlowPreview from './components/FlowPreview/FlowPreview';
 import ImportError from './components/ImportError/ImportError';
@@ -22,6 +24,7 @@ import {
     labelFromCode,
     metadataFromCode,
     metadataFromJson,
+    parseFlowArchive,
     parseFlowFile,
     titleFromBaseName,
     type ParsedFlowFile,
@@ -48,6 +51,18 @@ interface ImportMailboxResources {
     mailboxes: ImportMailboxOption[];
     domains: Pick<MailboxDomain, 'id' | 'name'>[];
 }
+
+const fetchReusableSnippetIds = async (snippetIds: string[]): Promise<Set<string>> => {
+    const response = await fetch('/snippets/export', {
+        method: 'POST',
+        headers: { ...csrfHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ references: snippetIds }),
+    });
+    if (!response.ok) throw new Error();
+    const snippets = await response.json() as { id: Id }[];
+
+    return new Set(snippets.map(snippet => String(snippet.id)));
+};
 
 const fetchImportMailboxResources = async (): Promise<ImportMailboxResources> => {
     const response = await fetch('/flows/import-mailboxes');
@@ -76,6 +91,8 @@ export default function FlowImportModal({
     const [parsedFile, setParsedFile] = useState<ParsedFlowFile | null>(null);
     const [createDataTables, setCreateDataTables] = useState(false);
     const [createMailboxWatchers, setCreateMailboxWatchers] = useState(false);
+    const [importSnippets, setImportSnippets] = useState(false);
+    const [reusableSnippetIds, setReusableSnippetIds] = useState<Set<string>>(() => new Set());
     const [mailboxOptions, setMailboxOptions] = useState<ImportMailboxOption[]>([]);
     const [mailboxDomains, setMailboxDomains] = useState<Pick<MailboxDomain, 'id' | 'name'>[]>([]);
     const [mailboxMappings, setMailboxMappings] = useState<Record<string, string>>({});
@@ -95,6 +112,8 @@ export default function FlowImportModal({
         setParsedFile(null);
         setCreateDataTables(false);
         setCreateMailboxWatchers(false);
+        setImportSnippets(false);
+        setReusableSnippetIds(new Set());
         setMailboxOptions([]);
         setMailboxDomains([]);
         setMailboxMappings({});
@@ -110,12 +129,26 @@ export default function FlowImportModal({
     const readFile = async (file: File) => {
         const requestId = ++fileReadId.current;
         try {
-            const content = await file.text();
+            const isArchive = file.name.toLowerCase().endsWith('.zip');
+            const archive = isArchive ? parseFlowArchive(await readZipTextFiles(await file.arrayBuffer())) : null;
+            const content = archive ? archive.content : await file.text();
             if (requestId !== fileReadId.current) return;
-            const parsed = parseFlowFile(content, file.name);
-            const baseName = baseNameFromFile(file.name);
+            const parsed = archive ? archive.parsed : parseFlowFile(content, file.name);
+            const baseName = baseNameFromFile(archive ? archive.fileName : file.name);
             const fallbackName = titleFromBaseName(baseName);
             const metadata = parsed.flowType === 'code' ? metadataFromCode(content) : metadataFromJson(content);
+
+            let reusableIds = new Set<string>();
+            if (parsed.snippets.length > 0) {
+                try {
+                    reusableIds = await fetchReusableSnippetIds(parsed.snippets.map(snippet => snippet.source_id));
+                } catch {
+                    reusableIds = new Set();
+                }
+                if (requestId !== fileReadId.current) return;
+            }
+            setReusableSnippetIds(reusableIds);
+            setImportSnippets(parsed.snippets.length > 0);
 
             let mailboxLoadError: string | null = null;
             if (parsed.mailboxWatchers.length > 0) {
@@ -195,7 +228,7 @@ export default function FlowImportModal({
         setSubmitError(null);
 
         if (!parsedFile) {
-            setSubmitError('Drop a JavaScript or JSON flow file before importing.');
+            setSubmitError('Drop a JavaScript, JSON or ZIP flow file before importing.');
             return;
         }
 
@@ -238,6 +271,10 @@ export default function FlowImportModal({
             payload.create_mailbox_watchers = true;
             payload.mailbox_watcher_schemas = parsedFile.mailboxWatchers as unknown as FormDataConvertible;
             payload.mailbox_mappings = mailboxMappings as FormDataConvertible;
+        }
+        if (importSnippets && parsedFile.snippets.length > 0) {
+            payload.import_snippets = true;
+            payload.snippet_schemas = parsedFile.snippets as unknown as FormDataConvertible;
         }
 
         if (visibility.visibility === 'owner') {
@@ -389,7 +426,46 @@ export default function FlowImportModal({
                                             )}
                                         </S.ResourceImportCard>
                                     )}
-                                    {(parsedFile.dataTables.length > 0 || parsedFile.mailboxWatchers.length > 0) && (
+                                    {parsedFile.snippets.length > 0 && (
+                                        <S.ResourceImportCard>
+                                            <S.ResourceImportHeader htmlFor="import-referenced-snippets">
+                                                <Switch
+                                                    id="import-referenced-snippets"
+                                                    checked={importSnippets}
+                                                    onChange={setImportSnippets}
+                                                    ariaLabel="Import referenced snippets"
+                                                />
+                                                <S.ResourceImportText>
+                                                    <S.ResourceImportTitle>Import referenced snippets</S.ResourceImportTitle>
+                                                    <S.ResourceImportDescription>
+                                                        Create the snippets this flow calls that are missing from this workspace.
+                                                        {' '}Snippets already in use are reused, not duplicated.
+                                                    </S.ResourceImportDescription>
+                                                </S.ResourceImportText>
+                                            </S.ResourceImportHeader>
+                                            {importSnippets && (
+                                                <S.ResourceImportDetails>
+                                                    {parsedFile.snippets.map(snippet => {
+                                                        const reused = reusableSnippetIds.has(snippet.source_id);
+                                                        return (
+                                                            <S.DataTableImportItem key={snippet.source_id}>
+                                                                <S.DataTableImportName>
+                                                                    <S.SnippetImportIcon>
+                                                                        <Icon icon="lucide:puzzle" width={12} />
+                                                                    </S.SnippetImportIcon>
+                                                                    {snippet.label}
+                                                                </S.DataTableImportName>
+                                                                <S.SnippetImportState $reused={reused}>
+                                                                    {reused ? 'In use, reused' : 'New'}
+                                                                </S.SnippetImportState>
+                                                            </S.DataTableImportItem>
+                                                        );
+                                                    })}
+                                                </S.ResourceImportDetails>
+                                            )}
+                                        </S.ResourceImportCard>
+                                    )}
+                                    {(parsedFile.dataTables.length > 0 || parsedFile.mailboxWatchers.length > 0 || parsedFile.snippets.length > 0) && (
                                         <S.ImportSectionDivider role="separator" />
                                     )}
                                     <ImportTargetFields
@@ -423,7 +499,7 @@ export default function FlowImportModal({
                             <S.PreviewPlaceholder>
                                 <S.PreviewPlaceholderTitle>Flow preview</S.PreviewPlaceholderTitle>
                                 <S.PreviewPlaceholderText>
-                                    Select a JavaScript or JSON flow to inspect it before import.
+                                    Select a JavaScript, JSON or ZIP flow to inspect it before import.
                                 </S.PreviewPlaceholderText>
                             </S.PreviewPlaceholder>
                         )}

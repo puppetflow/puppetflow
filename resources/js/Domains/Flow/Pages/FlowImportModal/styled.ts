@@ -70,6 +70,25 @@ export const DataTableImportName = styled.strong`
     white-space: nowrap;
 `;
 
+export const SnippetImportIcon = styled.span`
+    display: inline-flex;
+    margin-right: 6px;
+    color: ${({ theme }) => theme.colors.accent.primary};
+    vertical-align: -2px;
+`;
+
+export const SnippetImportState = styled.span<{ $reused: boolean }>`
+    flex-shrink: 0;
+    padding: 2px 7px;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme, $reused }) => ($reused ? theme.colors.accent.success : theme.colors.accent.info)}22;
+    color: ${({ theme, $reused }) => ($reused ? theme.colors.accent.success : theme.colors.accent.info)};
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+`;
+
 export const DataTableImportColumns = styled.span`
     flex-shrink: 0;
     color: ${({ theme }) => theme.colors.text.tertiary};

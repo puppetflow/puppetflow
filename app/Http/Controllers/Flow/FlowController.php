@@ -35,10 +35,12 @@ use App\Services\Flow\FlowMailboxWatcherImportService;
 use App\Services\Flow\FlowPlacementService;
 use App\Services\Flow\FlowProxyFilterRuleService;
 use App\Services\Flow\FlowRepositoryLinkService;
+use App\Services\Flow\FlowSnippetImportService;
 use App\Services\Flow\Query\FlowEditorQuery;
 use App\Services\Flow\Query\FlowExplorerQuery;
 use App\Services\Flow\Query\FlowTreeBuilder;
 use App\Services\Library\BlueprintInputSchemaService;
+use App\Services\Library\LibrarySnippetReferenceRewriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -62,6 +64,8 @@ final class FlowController extends Controller
         private readonly FlowDataTableImportService $dataTableImports,
         private readonly FlowInputResourceImportService $inputResourceImports,
         private readonly FlowMailboxWatcherImportService $mailboxWatcherImports,
+        private readonly FlowSnippetImportService $snippetImports,
+        private readonly LibrarySnippetReferenceRewriter $snippetReferences,
         private readonly FlowRepositoryLinkService $repositoryLinks,
         private readonly FlowPlacementService $placement,
         private readonly FlowProxyFilterRuleService $proxyFilters,
@@ -180,12 +184,17 @@ final class FlowController extends Controller
         $mailboxMappings = is_array($validated['mailbox_mappings'] ?? null)
             ? $validated['mailbox_mappings']
             : [];
+        $snippetSchemas = (bool) ($validated['import_snippets'] ?? false) && is_array($validated['snippet_schemas'] ?? null)
+            ? $validated['snippet_schemas']
+            : [];
         unset(
             $validated['create_data_tables'],
             $validated['data_table_schemas'],
             $validated['create_mailbox_watchers'],
             $validated['mailbox_watcher_schemas'],
             $validated['mailbox_mappings'],
+            $validated['import_snippets'],
+            $validated['snippet_schemas'],
         );
         $validated['proxy_mode'] ??= 'none';
         if (($validated['source_type'] ?? 'code') === 'repository') {
@@ -243,6 +252,9 @@ final class FlowController extends Controller
             $this->features->abortIfDisabled('mailbox_enabled');
             Gate::forUser($user)->authorize(Ability::CREATE->value, MailboxWatcher::class);
         }
+        if ($snippetSchemas !== []) {
+            $this->features->abortIfDisabled('snippets_enabled');
+        }
         $repoLink = $validated['repo_link'] ?? null;
         $repositoryIntegration = null;
         if (($validated['source_type'] ?? null) === 'repository') {
@@ -263,6 +275,7 @@ final class FlowController extends Controller
             $mailboxWatcherSchemas,
             $repoLink,
             $repositoryIntegration,
+            $snippetSchemas,
             $user,
             $validated,
             $workspace,
@@ -273,6 +286,25 @@ final class FlowController extends Controller
                 && $validated['proxy_mode'] === 'specific'
             ) {
                 $this->ensureProxyAccessible($validated['workspace_proxy_id'] ?? null, $workspaceId, $user);
+            }
+            if ($snippetSchemas !== []) {
+                $snippetRewrites = $this->snippetImports->import(
+                    $snippetSchemas,
+                    $workspaceId,
+                    $user,
+                    $data['owner_id'],
+                    $data['visibility'],
+                    is_string($data['team_id'] ?? null) ? $data['team_id'] : null,
+                );
+                $data['code'] = $this->snippetReferences->code(
+                    is_string($data['code'] ?? null) ? $data['code'] : '',
+                    $snippetRewrites,
+                );
+                if (is_array($data['nodal_graph'] ?? null)) {
+                    /** @var array<string, mixed> $nodalGraph */
+                    $nodalGraph = $data['nodal_graph'];
+                    $data['nodal_graph'] = $this->snippetReferences->graph($nodalGraph, $snippetRewrites);
+                }
             }
             if ($createDataTables) {
                 $data['default_inputs'] = $this->dataTableImports->import(
