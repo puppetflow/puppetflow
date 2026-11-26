@@ -154,6 +154,7 @@ export function useFlowEditorController({
     });
     const runController = useFlowRunsController({
         flowId: flow.id,
+        latestRun: flow.latest_run ?? null,
         runs,
         myManualInput,
         saved,
