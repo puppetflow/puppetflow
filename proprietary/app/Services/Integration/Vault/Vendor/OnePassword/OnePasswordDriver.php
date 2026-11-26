@@ -160,14 +160,19 @@ class OnePasswordDriver implements VaultDriverInterface
         return null;
     }
 
-    private function computeTotp(string $otpauthUri): ?string
+    private function computeTotp(string $seed): ?string
     {
-        $query = parse_url($otpauthUri, PHP_URL_QUERY);
-        if (! $query) {
-            return null;
+        // OTP fields hold either an otpauth URI or the bare base32 secret, depending on how it was entered.
+        if (str_starts_with($seed, 'otpauth://')) {
+            $query = parse_url($seed, PHP_URL_QUERY);
+            if (! $query) {
+                return null;
+            }
+            parse_str($query, $params);
+        } else {
+            $params = ['secret' => preg_replace('/\s+/u', '', $seed)];
         }
 
-        parse_str($query, $params);
         $secret = $params['secret'] ?? null;
         if (! is_string($secret) || $secret === '') {
             return null;

@@ -43,8 +43,17 @@ const $vars = (() => {
     return Buffer.from(output);
   }
 
-  function computeTotp(otpauthUri) {
-    const url = new URL(otpauthUri);
+  function computeTotp(seed) {
+    // Vaults such as 1Password may store the bare base32 secret instead of an otpauth URI.
+    const otpauthUri = seed.startsWith('otpauth://')
+      ? seed
+      : 'otpauth://totp/variable?secret=' + encodeURIComponent(seed.replace(/\s+/g, ''));
+    let url;
+    try {
+      url = new URL(otpauthUri);
+    } catch (_) {
+      return null;
+    }
     const secrets = url.searchParams.getAll('secret');
     const periods = url.searchParams.getAll('period');
     const digitCounts = url.searchParams.getAll('digits');
@@ -86,6 +95,21 @@ const $vars = (() => {
     return String(code).padStart(digits, '0');
   }
 
+  const describe = function(id, entry) {
+    return entry.label ? entry.label + ' (' + id + ')' : id;
+  };
+
+  const totpCode = function(id, entry) {
+    if (!entry.value) {
+      throw new Error('TOTP variable "' + describe(id, entry) + '" has no value. If it comes from a vault, check that the integration is active and that the item and field still exist.');
+    }
+    const value = computeTotp(entry.value);
+    if (!value) {
+      throw new Error('TOTP variable "' + describe(id, entry) + '" does not hold a valid TOTP secret (expected an otpauth:// URI or a base32 secret).');
+    }
+    return value;
+  };
+
   const resolveVariable = function(variableId) {
     const parts = String(variableId).split('.');
     const baseId = parts.shift();
@@ -97,9 +121,8 @@ const $vars = (() => {
       throw new Error('Variable "' + variableId + '" not found. Available: ' + available);
     }
     let value;
-    if (entry.vault_field_type === 'OTP' && entry.value && entry.value.startsWith('otpauth://')) {
-      value = computeTotp(entry.value);
-      if (!value) throw new Error('Failed to compute TOTP for variable "' + variableId + '"');
+    if (entry.vault_field_type === 'OTP') {
+      value = totpCode(baseId, entry);
     } else {
       value = entry.value;
     }
@@ -135,11 +158,10 @@ const $vars = (() => {
       }
       throw new Error('TOTP variable "' + id + '" not found');
     }
-    if (entry.vault_field_type !== 'OTP' || !entry.value || !entry.value.startsWith('otpauth://')) {
-      throw new Error('Variable "' + id + '" is not a TOTP variable');
+    if (entry.vault_field_type !== 'OTP') {
+      throw new Error('Variable "' + describe(id, entry) + '" is not a TOTP variable. Pick a TOTP variable, or a vault variable pointing to a one-time password field.');
     }
-    const value = computeTotp(entry.value);
-    if (!value) throw new Error('Failed to compute TOTP for variable "' + id + '"');
+    const value = totpCode(id, entry);
     if (entry.is_secret === true) {
       __recordRuntimeSecret(value);
     }
