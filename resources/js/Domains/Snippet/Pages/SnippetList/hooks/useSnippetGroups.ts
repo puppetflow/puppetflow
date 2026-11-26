@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useCollapsedGroups } from '@/Shared/UI/TableFilters/useCollapsedGroups';
+import { compareGroupPaths, resolveGroupPath } from '@/Shared/Utils/groupHierarchicalItems';
 import type { Snippet } from '@/Domains/Snippet/types';
 
 export interface SnippetGroupHeader {
@@ -18,15 +19,18 @@ export interface SnippetGroupSection {
 // Builds hierarchical snippet sections and per-group ownership summaries.
 export function useSnippetGroups(snippets: Snippet[], currentUserId: Id) {
     const grouping = useMemo(() => {
-        const grouped = snippets.filter(snippet => snippet.group);
-        const ungrouped = snippets.filter(snippet => !snippet.group);
+        const hasGroups = snippets.some(snippet => snippet.group);
         const snippetsByGroup: Record<string, Snippet[]> = {};
 
-        for (const snippet of grouped) {
-            (snippetsByGroup[snippet.group!] ??= []).push(snippet);
+        if (hasGroups) {
+            for (const snippet of snippets) {
+                (snippetsByGroup[resolveGroupPath(snippet.group)] ??= []).push(snippet);
+            }
         }
 
-        const groupNames = Object.keys(snippetsByGroup).sort();
+        const groupNames = Object.keys(snippetsByGroup).sort((left, right) => (
+            compareGroupPaths(left, right) || (left < right ? -1 : left > right ? 1 : 0)
+        ));
         const groupCounts: Record<string, number> = {};
         for (const group of groupNames) {
             const count = snippetsByGroup[group].length;
@@ -56,7 +60,7 @@ export function useSnippetGroups(snippets: Snippet[], currentUserId: Id) {
             return { headers, items: snippetsByGroup[group], groupKey: group };
         });
 
-        return { hasGroups: grouped.length > 0, sections, ungrouped };
+        return { hasGroups, sections };
     }, [snippets]);
     const collapse = useCollapsedGroups(`snippet-collapsed-groups:${currentUserId}`);
 

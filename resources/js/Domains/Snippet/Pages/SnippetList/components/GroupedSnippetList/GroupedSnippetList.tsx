@@ -39,7 +39,6 @@ export default function GroupedSnippetList({
         isGroupHidden,
         sections,
         toggleGroup,
-        ungrouped,
     } = useSnippetGroups(snippets, currentUserId);
 
     useClickOutside({
@@ -106,25 +105,6 @@ export default function GroupedSnippetList({
                             </React.Fragment>
                         );
                     })}
-                    {ungrouped.map(snippet => (
-                        <SnippetListItem
-                            key={snippet.id}
-                            snippet={snippet}
-                            active={active?.id === snippet.id}
-                            canDelete={isAdmin || snippet.user_id === currentUserId}
-                            selected={selectedIds.has(snippet.id)}
-                            onToggleSelected={onToggleSelected}
-                            menuOpen={menuOpenId === snippet.id}
-                            menuRef={menuRef}
-                            onCloseMenu={() => setMenuOpenId(null)}
-                            onDelete={onDelete}
-                            onDuplicate={onDuplicate}
-                            onHideTooltip={hideTooltip}
-                            onLoad={onLoad}
-                            onShowTooltip={showTooltip}
-                            onToggleMenu={snippetId => setMenuOpenId(previous => previous === snippetId ? null : snippetId)}
-                        />
-                    ))}
                 </>
             ) : snippets.map(snippet => (
                 <SnippetListItem

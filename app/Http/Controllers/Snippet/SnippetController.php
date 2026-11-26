@@ -529,6 +529,29 @@ class SnippetController extends Controller
             ->values());
     }
 
+    public function groups(Request $request): JsonResponse
+    {
+        if (! $this->features()->enabled('snippets_enabled')) {
+            return response()->json([]);
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+        $context = $this->authorizationContexts->for($user, $this->currentWorkspaceId());
+
+        $query = Snippet::query()
+            ->where('stale', false)
+            ->whereNotNull('group')
+            ->where('group', '!=', '');
+        $this->sharedVisibility->applyView($query, $context);
+
+        return response()->json($query
+            ->distinct()
+            ->orderBy('group')
+            ->pluck('group')
+            ->values());
+    }
+
     public function export(Request $request): JsonResponse
     {
         if (! $this->features()->enabled('snippets_enabled')) {

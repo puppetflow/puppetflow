@@ -216,6 +216,7 @@ export default function LibraryUseItemModal({
                                 />
                             ) : (
                                 <SnippetFields
+                                    isOpen={isOpen}
                                     label={form.label}
                                     group={form.group}
                                     onLabelChange={value => update('label', value)}

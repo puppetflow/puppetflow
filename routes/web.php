@@ -377,6 +377,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureWorkspaceAccess::class])->
     // Snippets
     Route::get('snippets', [SnippetController::class, 'index'])->name('snippets.index');
     Route::get('snippets/suggestions', [SnippetController::class, 'suggestions'])->name('snippets.suggestions');
+    Route::get('snippets/groups', [SnippetController::class, 'groups'])->name('snippets.groups');
     Route::post('snippets/export', [SnippetController::class, 'export'])->name('snippets.export');
     Route::post('snippets', [SnippetController::class, 'store'])->name('snippets.store');
     Route::delete('snippets/bulk-delete', [SnippetController::class, 'destroyBatch'])->name('snippets.bulk-delete');

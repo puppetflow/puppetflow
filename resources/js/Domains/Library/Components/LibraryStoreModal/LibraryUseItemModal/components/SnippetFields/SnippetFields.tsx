@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Input from '@/Shared/UI/Input/Input';
+import GroupField from '@/Shared/UI/GroupField/GroupField';
 import type { LibraryUseFormData } from '@/Domains/Library/Components/LibraryStoreModal/types';
+import { requestLibraryJson } from '@/Domains/Library/Components/LibraryStoreModal/utils';
 import * as S from './styled';
 
 interface Props {
+    isOpen: boolean;
     label: LibraryUseFormData['label'];
     group: LibraryUseFormData['group'];
     onLabelChange: (value: LibraryUseFormData['label']) => void;
@@ -11,11 +14,25 @@ interface Props {
 }
 
 export default function SnippetFields({
+    isOpen,
     label,
     group,
     onLabelChange,
     onGroupChange,
 }: Props) {
+    const [groups, setGroups] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const controller = new AbortController();
+        requestLibraryJson<string[]>('/snippets/groups', { signal: controller.signal })
+            .then(setGroups)
+            .catch(() => setGroups([]));
+
+        return () => controller.abort();
+    }, [isOpen]);
+
     return (
         <>
             <S.Fields>
@@ -27,11 +44,11 @@ export default function SnippetFields({
                     autoFocus
                 />
             </S.Fields>
-            <Input
-                label="Group (Optional)"
+            <GroupField
                 value={group}
-                onChange={event => onGroupChange(event.target.value)}
-                placeholder="Group name"
+                groups={groups}
+                isModalOpen={isOpen}
+                onChange={onGroupChange}
             />
         </>
     );
