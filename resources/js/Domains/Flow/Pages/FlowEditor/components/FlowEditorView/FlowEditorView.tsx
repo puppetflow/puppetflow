@@ -12,6 +12,7 @@ import FlowEditorMobileNav from '../FlowEditorMobileNav/FlowEditorMobileNav';
 import FlowEditorRunModals from '../FlowEditorRunModals/FlowEditorRunModals';
 import FlowEditorSidePanel from '../FlowEditorSidePanel/FlowEditorSidePanel';
 import VersionTimelineModal from '../../Modals/VersionTimelineModal/VersionTimelineModal';
+import FlowExportModal from '@/Domains/Flow/Pages/FlowEditor/Modals/FlowExportModal/FlowExportModal';
 import * as S from './styled';
 
 interface FlowEditorViewProps extends FlowEditorProps {
@@ -262,6 +263,8 @@ export default function FlowEditorView({
                 onRestored={() => window.location.reload()}
                 onVersionPublished={c.handleHistoricalVersionPublished}
             />
+
+            <FlowExportModal pkg={c.flowExportPackage} onClose={c.closeFlowExport} />
 
             <c.ConfirmModal />
 

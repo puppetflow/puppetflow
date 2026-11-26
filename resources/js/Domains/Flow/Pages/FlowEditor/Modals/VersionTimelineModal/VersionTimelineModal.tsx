@@ -10,7 +10,13 @@ import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { Id } from '@/Shared/types';
 import NodalEditorPane from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodalEditorPane';
 import { normalizeNodalGraph } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
-import { downloadFlow } from '@/Domains/Flow/Pages/FlowEditor/utils/flowExport';
+import {
+    downloadFlowPackage,
+    hasOptionalFlowExportResources,
+    prepareFlowExport,
+    type FlowExportPackage,
+} from '@/Domains/Flow/Pages/FlowEditor/utils/flowExport';
+import FlowExportModal from '@/Domains/Flow/Pages/FlowEditor/Modals/FlowExportModal/FlowExportModal';
 import CodeSnapshotEditor from '../RunDetailModal/CodePane/components/CodeSnapshotEditor/CodeSnapshotEditor';
 import NodalSnapshotFrame from '../RunDetailModal/CodePane/components/NodalSnapshotFrame/NodalSnapshotFrame';
 import * as S from './styled';
@@ -68,6 +74,7 @@ export default function VersionTimelineModal({
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const [versionAction, setVersionAction] = useState<string | null>(null);
+    const [exportPackage, setExportPackage] = useState<FlowExportPackage | null>(null);
 
     useEffect(() => {
         if (!isOpen) setOpenMenuId(null);
@@ -238,7 +245,7 @@ export default function VersionTimelineModal({
         setError(null);
         try {
             const snapshot = detail?.id === version.id ? detail : await loadVersion(version.id);
-            await downloadFlow({
+            const pkg = await prepareFlowExport({
                 flowId: flow.id,
                 name: `${flow.name} v${version.version}`,
                 description: flow.description,
@@ -247,6 +254,11 @@ export default function VersionTimelineModal({
                 nodalGraph: normalizeNodalGraph(snapshot.nodal_graph),
                 inputDefinitions: flow.blueprint_input_definitions,
             });
+            if (hasOptionalFlowExportResources(pkg)) {
+                setExportPackage(pkg);
+            } else {
+                downloadFlowPackage(pkg);
+            }
         } catch {
             setError('Unable to download this version.');
         } finally {
@@ -411,6 +423,7 @@ export default function VersionTimelineModal({
                 </S.VersionMenu>,
                 document.body,
             )}
+            <FlowExportModal pkg={exportPackage} onClose={() => setExportPackage(null)} zIndex={1100} />
             <ConfirmModal />
         </>
     );

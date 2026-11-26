@@ -131,7 +131,7 @@ export function useFlowEditorController({
         onSaved: handleSavedVersionUpdate,
         onVersionConflict: handleVersionConflict,
     });
-    const handleDownloadFlow = useFlowExport({
+    const { handleDownloadFlow, flowExportPackage, closeFlowExport } = useFlowExport({
         flow,
         isNodalFlow,
         codeRef: persistence.codeRef,
@@ -324,6 +324,8 @@ export function useFlowEditorController({
         handleSettingsDirtyChange,
         handleSwitchTab,
         handleDownloadFlow,
+        flowExportPackage,
+        closeFlowExport,
         handlePublish,
         handleUnpublish,
         handleHistoricalVersionPublished,

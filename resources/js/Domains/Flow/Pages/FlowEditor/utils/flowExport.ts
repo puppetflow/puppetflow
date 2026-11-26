@@ -13,7 +13,7 @@ import type {
     FlowInputDefinition,
 } from '@/Domains/Flow/Utils/flowInputsMetadata';
 
-interface ExportedSnippet {
+export interface ExportedSnippet {
     id: Id;
     label: string;
     args: string;
@@ -142,7 +142,28 @@ const fetchFlowInputs = async (flowId: Id) => {
     return { inputs, dataTables, mailboxWatchers };
 };
 
-export const downloadFlow = async ({
+export interface FlowExportPackage {
+    baseName: string;
+    name: string;
+    description: string | null;
+    isNodalFlow: boolean;
+    code: string;
+    nodalGraph: NodalGraph;
+    inputs: Record<string, unknown>;
+    inputDefinitions?: FlowInputDefinition[] | null;
+    dataTables: ExportedDataTableSchema[];
+    mailboxWatchers: ExportedMailboxWatcherSchema[];
+    snippets: ExportedSnippet[];
+}
+
+export interface FlowExportSelection {
+    snippets: boolean;
+    dataTables: boolean;
+    mailboxWatchers: boolean;
+}
+
+// Collects everything a flow download can carry; the user then picks what to keep.
+export const prepareFlowExport = async ({
     flowId,
     name,
     description,
@@ -150,32 +171,10 @@ export const downloadFlow = async ({
     code,
     nodalGraph,
     inputDefinitions,
-}: DownloadFlowOptions) => {
-    const baseName = getFlowDownloadBaseName(name, flowId);
-    const baseExtension = isNodalFlow ? 'json' : 'js';
+}: DownloadFlowOptions): Promise<FlowExportPackage> => {
     const currentNodalGraph = normalizeNodalGraph(nodalGraph);
     const { inputs, dataTables, mailboxWatchers } = await fetchFlowInputs(flowId);
-    const baseContent = isNodalFlow
-        ? buildLibraryCompliantNodalGraph({
-            title: name,
-            description,
-            inputs,
-            inputDefinitions,
-            dataTables,
-            mailboxWatchers,
-            graph: currentNodalGraph,
-        })
-        : buildLibraryCompliantCode({
-            title: name,
-            description,
-            inputs,
-            inputDefinitions,
-            dataTables,
-            mailboxWatchers,
-            code,
-        });
     const codeContent = isNodalFlow ? compileNodalGraphToCode(currentNodalGraph) : code;
-    const baseFilename = `${baseName}.${baseExtension}`;
     let snippetsByReference: Map<string, ExportedSnippet>;
     try {
         snippetsByReference = await fetchReferencedSnippets(codeContent);
@@ -183,18 +182,65 @@ export const downloadFlow = async ({
         throw new SnippetExportError('Unable to export snippets.');
     }
 
-    if (snippetsByReference.size === 0) {
+    return {
+        baseName: getFlowDownloadBaseName(name, flowId),
+        name,
+        description,
+        isNodalFlow,
+        code,
+        nodalGraph: currentNodalGraph,
+        inputs,
+        inputDefinitions,
+        dataTables,
+        mailboxWatchers,
+        snippets: [...snippetsByReference.values()],
+    };
+};
+
+export const hasOptionalFlowExportResources = (pkg: FlowExportPackage) => (
+    pkg.snippets.length > 0 || pkg.dataTables.length > 0 || pkg.mailboxWatchers.length > 0
+);
+
+export const downloadFlowPackage = (
+    pkg: FlowExportPackage,
+    selection: FlowExportSelection = { snippets: true, dataTables: true, mailboxWatchers: true },
+) => {
+    const dataTables = selection.dataTables ? pkg.dataTables : [];
+    const mailboxWatchers = selection.mailboxWatchers ? pkg.mailboxWatchers : [];
+    const baseContent = pkg.isNodalFlow
+        ? buildLibraryCompliantNodalGraph({
+            title: pkg.name,
+            description: pkg.description,
+            inputs: pkg.inputs,
+            inputDefinitions: pkg.inputDefinitions,
+            dataTables,
+            mailboxWatchers,
+            graph: pkg.nodalGraph,
+        })
+        : buildLibraryCompliantCode({
+            title: pkg.name,
+            description: pkg.description,
+            inputs: pkg.inputs,
+            inputDefinitions: pkg.inputDefinitions,
+            dataTables,
+            mailboxWatchers,
+            code: pkg.code,
+        });
+    const baseFilename = `${pkg.baseName}.${pkg.isNodalFlow ? 'json' : 'js'}`;
+    const snippets = selection.snippets ? pkg.snippets : [];
+
+    if (snippets.length === 0) {
         downloadTextFile(
             baseFilename,
             baseContent,
-            isNodalFlow ? 'application/json;charset=utf-8' : 'text/javascript;charset=utf-8',
+            pkg.isNodalFlow ? 'application/json;charset=utf-8' : 'text/javascript;charset=utf-8',
         );
         return;
     }
 
-    downloadBlob(`${baseName}.zip`, createZipBlob([
+    downloadBlob(`${pkg.baseName}.zip`, createZipBlob([
         { path: baseFilename, content: baseContent },
-        ...[...snippetsByReference.values()].map(snippet => {
+        ...snippets.map(snippet => {
             const isNodalSnippet = snippet.snippet_type === 'nodal' && snippet.nodal_graph;
             if (isNodalSnippet) {
                 const graph = normalizeNodalFunctionGraph(snippet.nodal_graph!);
