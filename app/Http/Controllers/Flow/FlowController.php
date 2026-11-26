@@ -316,6 +316,7 @@ final class FlowController extends Controller
                     is_array($data['default_inputs'] ?? null) ? $data['default_inputs'] : null,
                     is_string($code) ? $code : '',
                     $nodalGraph,
+                    $user,
                     $workspaceId,
                     $data['owner_id'],
                     $data['visibility'],

@@ -2,8 +2,10 @@
 
 namespace App\Services\Flow;
 
+use App\Enums\Authorization\Ability;
 use App\Enums\DataTableColumnType;
 use App\Models\DataTable;
+use App\Models\User;
 use App\Services\DataTable\DataTableSchemaService;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -54,6 +56,7 @@ final class FlowDataTableImportService
 
     /**
      * Also recreates Data Tables whose ids are written directly in the code or the nodal graph.
+     * Tables the flow only looks up by name are created when no visible table already has that name.
      *
      * @param  array<int, DataTableSchema>  $schemas
      * @param  array<string, mixed>|null  $defaultInputs
@@ -65,6 +68,7 @@ final class FlowDataTableImportService
         ?array $defaultInputs,
         string $code,
         ?array $graph,
+        User $actor,
         string $workspaceId,
         string $ownerId,
         string $visibility,
@@ -74,9 +78,15 @@ final class FlowDataTableImportService
         $contentSourceIds = collect($this->literalIds($code))
             ->merge($graph === null ? [] : $this->literalIds((string) json_encode($graph)))
             ->filter(fn (string $sourceId): bool => $schemasBySourceId->has($sourceId));
+        $referencedSourceIds = $this->inputSourceIds($defaultInputs)->merge($contentSourceIds)->unique()->values();
+        $namedSourceIds = $schemasBySourceId
+            ->reject(fn (array $schema, int|string $sourceId): bool => $referencedSourceIds->contains((string) $sourceId))
+            ->reject(fn (array $schema): bool => $this->hasVisibleTableNamed($workspaceId, $actor, $schema['name']))
+            ->keys()
+            ->map(fn (int|string $sourceId): string => (string) $sourceId);
         $newIdBySourceId = $this->createTables(
             $schemasBySourceId,
-            $this->inputSourceIds($defaultInputs)->merge($contentSourceIds)->unique()->values(),
+            $referencedSourceIds->merge($namedSourceIds)->values(),
             $workspaceId,
             $ownerId,
             $visibility,
@@ -185,6 +195,15 @@ final class FlowDataTableImportService
             is_array($value) => $this->rewriteGraph($value, $newIdBySourceId),
             default => $value,
         }, $graph);
+    }
+
+    private function hasVisibleTableNamed(string $workspaceId, User $actor, string $name): bool
+    {
+        return DataTable::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('name', $name)
+            ->get()
+            ->contains(fn (DataTable $table): bool => $actor->can(Ability::VIEW->value, $table));
     }
 
     /** @return list<string> */

@@ -1,6 +1,7 @@
 import { csrfHeaders } from '@/Shared/Utils/csrf';
 import { buildLibraryCompliantCode, buildLibraryCompliantNodalGraph, buildLibraryCompliantNodalSnippet } from '@/Domains/Library/Utils/libraryCodeExport';
 import { createZipBlob } from '@/Shared/Utils/zip';
+import { fetchDataTableSuggestions } from '@/Domains/Flow/Pages/FlowEditor/utils/dataTableSuggestions';
 import {
     compileNodalGraphToCode,
     normalizeNodalFunctionGraph,
@@ -120,7 +121,20 @@ const fetchReferencedSnippets = async (code: string) => {
 
 const DATA_TABLE_ID_PATTERN = /\bdtbl_[A-Za-z0-9]{12}\b/g;
 
-const collectDataTableIds = (content: string) => [...new Set(content.match(DATA_TABLE_ID_PATTERN) ?? [])];
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Flows can also look Data Tables up by name (e.g. through $dataTableList), so quoted names count as references.
+const collectDataTableIds = async (flowId: Id, content: string) => {
+    const ids = new Set(content.match(DATA_TABLE_ID_PATTERN) ?? []);
+    const tables = await fetchDataTableSuggestions(flowId).catch(() => []);
+    for (const table of tables) {
+        if (!table.name) continue;
+        const quotedName = new RegExp(`\\\\?["'\`]${escapeRegExp(table.name)}\\\\?["'\`]`);
+        if (quotedName.test(content)) ids.add(String(table.id));
+    }
+
+    return [...ids];
+};
 
 const fetchFlowInputs = async (flowId: Id, dataTableIds: string[]) => {
     const query = new URLSearchParams();
@@ -181,7 +195,7 @@ export const prepareFlowExport = async ({
     const currentNodalGraph = normalizeNodalGraph(nodalGraph);
     const { inputs, dataTables, mailboxWatchers } = await fetchFlowInputs(
         flowId,
-        collectDataTableIds(isNodalFlow ? JSON.stringify(currentNodalGraph) : code),
+        await collectDataTableIds(flowId, isNodalFlow ? JSON.stringify(currentNodalGraph) : code),
     );
     const codeContent = isNodalFlow ? compileNodalGraphToCode(currentNodalGraph) : code;
     let snippetsByReference: Map<string, ExportedSnippet>;
