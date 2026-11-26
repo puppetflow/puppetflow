@@ -118,8 +118,14 @@ const fetchReferencedSnippets = async (code: string) => {
     return snippetsByReference;
 };
 
-const fetchFlowInputs = async (flowId: Id) => {
-    const response = await fetch(`/flows/${flowId}/export-inputs`);
+const DATA_TABLE_ID_PATTERN = /\bdtbl_[A-Za-z0-9]{12}\b/g;
+
+const collectDataTableIds = (content: string) => [...new Set(content.match(DATA_TABLE_ID_PATTERN) ?? [])];
+
+const fetchFlowInputs = async (flowId: Id, dataTableIds: string[]) => {
+    const query = new URLSearchParams();
+    dataTableIds.forEach(id => query.append('data_table_ids[]', id));
+    const response = await fetch(`/flows/${flowId}/export-inputs${dataTableIds.length > 0 ? `?${query}` : ''}`);
     if (!response.ok) {
         throw new FlowInputExportError('Unable to download flow inputs.');
     }
@@ -173,7 +179,10 @@ export const prepareFlowExport = async ({
     inputDefinitions,
 }: DownloadFlowOptions): Promise<FlowExportPackage> => {
     const currentNodalGraph = normalizeNodalGraph(nodalGraph);
-    const { inputs, dataTables, mailboxWatchers } = await fetchFlowInputs(flowId);
+    const { inputs, dataTables, mailboxWatchers } = await fetchFlowInputs(
+        flowId,
+        collectDataTableIds(isNodalFlow ? JSON.stringify(currentNodalGraph) : code),
+    );
     const codeContent = isNodalFlow ? compileNodalGraphToCode(currentNodalGraph) : code;
     let snippetsByReference: Map<string, ExportedSnippet>;
     try {

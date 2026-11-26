@@ -10,12 +10,7 @@ import { formatDateTime } from '@/Shared/Utils/formatDate';
 import type { Id } from '@/Shared/types';
 import NodalEditorPane from '@/Domains/Flow/Pages/FlowEditor/Panes/NodalEditorPane/NodalEditorPane';
 import { normalizeNodalGraph } from '@/Domains/Flow/Pages/FlowEditor/nodalCompiler';
-import {
-    downloadFlowPackage,
-    hasOptionalFlowExportResources,
-    prepareFlowExport,
-    type FlowExportPackage,
-} from '@/Domains/Flow/Pages/FlowEditor/utils/flowExport';
+import { prepareFlowExport, type FlowExportPackage } from '@/Domains/Flow/Pages/FlowEditor/utils/flowExport';
 import FlowExportModal from '@/Domains/Flow/Pages/FlowEditor/Modals/FlowExportModal/FlowExportModal';
 import CodeSnapshotEditor from '../RunDetailModal/CodePane/components/CodeSnapshotEditor/CodeSnapshotEditor';
 import NodalSnapshotFrame from '../RunDetailModal/CodePane/components/NodalSnapshotFrame/NodalSnapshotFrame';
@@ -254,11 +249,7 @@ export default function VersionTimelineModal({
                 nodalGraph: normalizeNodalGraph(snapshot.nodal_graph),
                 inputDefinitions: flow.blueprint_input_definitions,
             });
-            if (hasOptionalFlowExportResources(pkg)) {
-                setExportPackage(pkg);
-            } else {
-                downloadFlowPackage(pkg);
-            }
+            setExportPackage(pkg);
         } catch {
             setError('Unable to download this version.');
         } finally {

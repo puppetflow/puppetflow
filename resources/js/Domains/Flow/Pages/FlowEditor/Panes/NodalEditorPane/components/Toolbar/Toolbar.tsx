@@ -134,8 +134,8 @@ export default function Toolbar({
                 {onDownloadFlow && (
                     <S.ToolbarBadge
                         onClick={onDownloadFlow}
-                        data-tooltip="Download JSON file"
-                        aria-label="Download JSON file"
+                        data-tooltip="Download flow"
+                        aria-label="Download flow"
                     >
                         <Icon icon="lucide:download" />
                     </S.ToolbarBadge>

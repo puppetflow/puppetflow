@@ -44,6 +44,7 @@ use App\Services\Library\LibrarySnippetReferenceRewriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -307,14 +308,26 @@ final class FlowController extends Controller
                 }
             }
             if ($createDataTables) {
-                $data['default_inputs'] = $this->dataTableImports->import(
+                $code = Arr::get($data, 'code');
+                /** @var array<string, mixed>|null $nodalGraph */
+                $nodalGraph = is_array(Arr::get($data, 'nodal_graph')) ? Arr::get($data, 'nodal_graph') : null;
+                $importedContent = $this->dataTableImports->importWithContent(
                     $dataTableSchemas,
                     is_array($data['default_inputs'] ?? null) ? $data['default_inputs'] : null,
+                    is_string($code) ? $code : '',
+                    $nodalGraph,
                     $workspaceId,
                     $data['owner_id'],
                     $data['visibility'],
                     is_string($data['team_id'] ?? null) ? $data['team_id'] : null,
                 );
+                $data['default_inputs'] = $importedContent['default_inputs'];
+                if (is_string($code)) {
+                    $data['code'] = $importedContent['code'];
+                }
+                if ($nodalGraph !== null) {
+                    $data['nodal_graph'] = $importedContent['nodal_graph'];
+                }
             }
             $preparedWatchers = ['default_inputs' => $data['default_inputs'] ?? null, 'watchers' => []];
             if ($createMailboxWatchers) {

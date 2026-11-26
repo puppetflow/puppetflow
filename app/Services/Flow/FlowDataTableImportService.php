@@ -3,9 +3,20 @@
 namespace App\Services\Flow;
 
 use App\Enums\DataTableColumnType;
+use App\Models\DataTable;
 use App\Services\DataTable\DataTableSchemaService;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @phpstan-type DataTableSchema array{
+ *     source_id: string,
+ *     name: string,
+ *     description?: string|null,
+ *     group?: string|null,
+ *     columns: array<int, array{name: string, type: string}>
+ * }
+ */
 final class FlowDataTableImportService
 {
     public function __construct(
@@ -13,14 +24,8 @@ final class FlowDataTableImportService
     ) {}
 
     /**
-     * @param array<int, array{
-     *     source_id: string,
-     *     name: string,
-     *     description?: string|null,
-     *     group?: string|null,
-     *     columns: array<int, array{name: string, type: string}>
-     * }> $schemas
-     * @param array<string, mixed>|null $defaultInputs
+     * @param  array<int, DataTableSchema>  $schemas
+     * @param  array<string, mixed>|null  $defaultInputs
      * @return array<string, mixed>|null
      */
     public function import(
@@ -35,12 +40,69 @@ final class FlowDataTableImportService
             return null;
         }
 
+        $newIdBySourceId = $this->createTables(
+            collect($schemas)->keyBy('source_id'),
+            $this->inputSourceIds($defaultInputs),
+            $workspaceId,
+            $ownerId,
+            $visibility,
+            $teamId,
+        );
+
+        return $this->rewriteInputs($defaultInputs, $newIdBySourceId);
+    }
+
+    /**
+     * Also recreates Data Tables whose ids are written directly in the code or the nodal graph.
+     *
+     * @param  array<int, DataTableSchema>  $schemas
+     * @param  array<string, mixed>|null  $defaultInputs
+     * @param  array<string, mixed>|null  $graph
+     * @return array{default_inputs: array<string, mixed>|null, code: string, nodal_graph: array<string, mixed>|null}
+     */
+    public function importWithContent(
+        array $schemas,
+        ?array $defaultInputs,
+        string $code,
+        ?array $graph,
+        string $workspaceId,
+        string $ownerId,
+        string $visibility,
+        ?string $teamId,
+    ): array {
         $schemasBySourceId = collect($schemas)->keyBy('source_id');
-        $sourceIds = collect($defaultInputs)
-            ->map(fn (mixed $value): ?string => $this->dataTableReferenceId($value))
-            ->filter()
-            ->unique()
-            ->values();
+        $contentSourceIds = collect($this->literalIds($code))
+            ->merge($graph === null ? [] : $this->literalIds((string) json_encode($graph)))
+            ->filter(fn (string $sourceId): bool => $schemasBySourceId->has($sourceId));
+        $newIdBySourceId = $this->createTables(
+            $schemasBySourceId,
+            $this->inputSourceIds($defaultInputs)->merge($contentSourceIds)->unique()->values(),
+            $workspaceId,
+            $ownerId,
+            $visibility,
+            $teamId,
+        );
+
+        return [
+            'default_inputs' => $defaultInputs === null ? null : $this->rewriteInputs($defaultInputs, $newIdBySourceId),
+            'code' => strtr($code, $newIdBySourceId),
+            'nodal_graph' => $graph === null ? null : $this->rewriteGraph($graph, $newIdBySourceId),
+        ];
+    }
+
+    /**
+     * @param  Collection<array-key, DataTableSchema>  $schemasBySourceId
+     * @param  Collection<int, string>  $sourceIds
+     * @return array<string, string>
+     */
+    private function createTables(
+        Collection $schemasBySourceId,
+        Collection $sourceIds,
+        string $workspaceId,
+        string $ownerId,
+        string $visibility,
+        ?string $teamId,
+    ): array {
         $newIdBySourceId = [];
 
         foreach ($sourceIds as $sourceId) {
@@ -71,6 +133,32 @@ final class FlowDataTableImportService
             $newIdBySourceId[$sourceId] = $dataTable->id;
         }
 
+        return $newIdBySourceId;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $defaultInputs
+     * @return Collection<int, string>
+     */
+    private function inputSourceIds(?array $defaultInputs): Collection
+    {
+        /** @var Collection<int, string> $sourceIds */
+        $sourceIds = collect($defaultInputs ?? [])
+            ->map(fn (mixed $value): ?string => $this->dataTableReferenceId($value))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $sourceIds;
+    }
+
+    /**
+     * @param  array<string, mixed>  $defaultInputs
+     * @param  array<string, string>  $newIdBySourceId
+     * @return array<string, mixed>
+     */
+    private function rewriteInputs(array $defaultInputs, array $newIdBySourceId): array
+    {
         return collect($defaultInputs)->map(function (mixed $value) use ($newIdBySourceId): mixed {
             $sourceId = $this->dataTableReferenceId($value);
             if ($sourceId === null || ! isset($newIdBySourceId[$sourceId])) {
@@ -79,6 +167,32 @@ final class FlowDataTableImportService
 
             return '${dataTables.'.$newIdBySourceId[$sourceId].'}';
         })->all();
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $graph
+     * @param  array<string, string>  $newIdBySourceId
+     * @return array<array-key, mixed>
+     */
+    private function rewriteGraph(array $graph, array $newIdBySourceId): array
+    {
+        if ($newIdBySourceId === []) {
+            return $graph;
+        }
+
+        return array_map(fn (mixed $value): mixed => match (true) {
+            is_string($value) => strtr($value, $newIdBySourceId),
+            is_array($value) => $this->rewriteGraph($value, $newIdBySourceId),
+            default => $value,
+        }, $graph);
+    }
+
+    /** @return list<string> */
+    private function literalIds(string $content): array
+    {
+        preg_match_all('/\b'.DataTable::ID_PREFIX.'_[A-Za-z0-9]{12}\b/', $content, $matches);
+
+        return array_values(array_unique($matches[0]));
     }
 
     private function dataTableReferenceId(mixed $value): ?string

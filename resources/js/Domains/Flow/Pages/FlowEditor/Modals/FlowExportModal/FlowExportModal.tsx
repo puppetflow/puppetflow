@@ -5,6 +5,7 @@ import Modal from '@/Shared/UI/Modal/Modal';
 import Switch from '@/Shared/UI/Switch/Switch';
 import {
     downloadFlowPackage,
+    hasOptionalFlowExportResources,
     type FlowExportPackage,
     type FlowExportSelection,
 } from '@/Domains/Flow/Pages/FlowEditor/utils/flowExport';
@@ -32,6 +33,7 @@ export default function FlowExportModal({ pkg, onClose, zIndex }: Props) {
     const toggle = (key: keyof FlowExportSelection) => (checked: boolean) => {
         setSelection(current => ({ ...current, [key]: checked }));
     };
+    const hasResources = hasOptionalFlowExportResources(pkg);
     const snippetCount = selection.snippets ? pkg.snippets.length : 0;
     const flowFile = `${pkg.baseName}.${pkg.isNodalFlow ? 'json' : 'js'}`;
 
@@ -45,7 +47,9 @@ export default function FlowExportModal({ pkg, onClose, zIndex }: Props) {
             isOpen
             onClose={onClose}
             title="Download flow"
-            caption="Choose what to bundle with the flow. Everything you keep is recreated when the file is imported."
+            caption={hasResources
+                ? 'Choose what to bundle with the flow. Everything you keep is recreated when the file is imported.'
+                : 'This flow does not use any snippet, Data Table or Mailbox Watcher, so only the flow file is exported.'}
             width="560px"
             zIndex={zIndex}
             footer={
@@ -103,7 +107,7 @@ export default function FlowExportModal({ pkg, onClose, zIndex }: Props) {
                             <S.ResourceText>
                                 <S.ResourceTitle>Data Table schemas</S.ResourceTitle>
                                 <S.ResourceDescription>
-                                    Describe the {plural(pkg.dataTables.length, 'Data Table')} used by the flow inputs. Rows are never exported.
+                                    Describe the {plural(pkg.dataTables.length, 'Data Table')} used by the flow. They are recreated empty on import, rows are never exported.
                                 </S.ResourceDescription>
                             </S.ResourceText>
                         </S.ResourceHeader>

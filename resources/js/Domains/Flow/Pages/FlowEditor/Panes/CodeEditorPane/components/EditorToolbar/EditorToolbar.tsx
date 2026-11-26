@@ -103,8 +103,8 @@ export function EditorToolbar({
                 {onDownloadFlow && (
                     <ToolbarBadge
                         onClick={onDownloadFlow}
-                        data-tooltip="Download JS file"
-                        aria-label="Download JS file"
+                        data-tooltip="Download flow"
+                        aria-label="Download flow"
                     >
                         <Icon icon="lucide:download" />
                     </ToolbarBadge>

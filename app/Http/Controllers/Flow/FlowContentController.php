@@ -25,6 +25,7 @@ use App\Services\Storage\FlowCookieStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -69,6 +70,9 @@ final class FlowContentController extends Controller
                     : null;
             })
             ->filter()
+            ->merge(collect(Arr::wrap($request->query('data_table_ids')))->filter(
+                fn (mixed $id): bool => is_string($id) && preg_match('/^'.DataTable::ID_PREFIX.'_[A-Za-z0-9]{12}$/', $id) === 1,
+            ))
             ->unique()
             ->values();
         $dataTables = DataTable::query()
