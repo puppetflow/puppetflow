@@ -17,7 +17,7 @@
         "dragonmantank/cron-expression": "^3.6",
         "firebase/php-jwt": "^7.0",
         "inertiajs/inertia-laravel": "^2.0",
-        "laravel/framework": "^12.0",
+        "laravel/framework": "^12.74",
         "laravel/passport": "^13.7",
         "laravel/socialite": "^5.28",
         "laravel/telescope": "^5.21",

@@ -35,7 +35,17 @@ export default function FlowExportModal({ pkg, onClose, zIndex }: Props) {
     };
     const hasResources = hasOptionalFlowExportResources(pkg);
     const snippetCount = selection.snippets ? pkg.snippets.length : 0;
-    const flowFile = `${pkg.baseName}.${pkg.isNodalFlow ? 'json' : 'js'}`;
+    const fileName = snippetCount > 0
+        ? `${pkg.baseName}.zip`
+        : `${pkg.baseName}.${pkg.isNodalFlow ? 'json' : 'js'}`;
+    const bundled = [
+        snippetCount > 0 ? plural(snippetCount, 'snippet') : null,
+        selection.dataTables && pkg.dataTables.length > 0 ? plural(pkg.dataTables.length, 'Data Table schema') : null,
+        selection.mailboxWatchers && pkg.mailboxWatchers.length > 0 ? plural(pkg.mailboxWatchers.length, 'Mailbox Watcher') : null,
+    ].filter((part): part is string => part !== null);
+    const contents = bundled.length > 0
+        ? `the flow and ${bundled.length > 1 ? `${bundled.slice(0, -1).join(', ')} and ${bundled.at(-1)}` : bundled[0]}`
+        : 'the flow only';
 
     const handleDownload = () => {
         downloadFlowPackage(pkg, selection);
@@ -48,8 +58,8 @@ export default function FlowExportModal({ pkg, onClose, zIndex }: Props) {
             onClose={onClose}
             title="Download flow"
             caption={hasResources
-                ? 'Choose what to bundle with the flow. Everything you keep is recreated when the file is imported.'
-                : 'This flow does not use any snippet, Data Table or Mailbox Watcher, so only the flow file is exported.'}
+                ? 'Choose what to bundle. Bundled resources are recreated on import.'
+                : 'This flow uses no snippet, Data Table or Mailbox Watcher.'}
             width="560px"
             zIndex={zIndex}
             footer={
@@ -161,9 +171,7 @@ export default function FlowExportModal({ pkg, onClose, zIndex }: Props) {
 
                 <S.Summary>
                     <Icon icon={snippetCount > 0 ? 'lucide:file-archive' : 'lucide:file-code'} width={14} />
-                    {snippetCount > 0
-                        ? <span>Downloads <strong>{pkg.baseName}.zip</strong> with the flow and {plural(snippetCount, 'snippet')}.</span>
-                        : <span>Downloads <strong>{flowFile}</strong> only.</span>}
+                    <span>Downloads <strong>{fileName}</strong> with {contents}.</span>
                 </S.Summary>
             </S.Body>
         </Modal>
